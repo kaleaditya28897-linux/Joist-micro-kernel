@@ -72,6 +72,25 @@ three groups known to be missed (`do_mach_notify_*`, `catch_exception_raise`,
 `seqnos_memory_object_*`) were found by a targeted grep and are corrected in
 `docs/mach-inventory.md` *Static results*, not in the CSV.
 
+## Stage 2b: traps and OOL parameters
+
+| File | Produced by | Contents |
+|---|---|---|
+| `traps.csv` | `tools/phase0/traps.py /usr/include/i386-gnu/mach/syscall_sw.h gnumach-1.8+git20260805 hurd-0.9.git20260919 glibc-2.43` | All 47 traps declared in the user header (sha256 `b03bf2c24ec69b0da6cd11295f423fa850495cc7242f42ff04bef0a4848d6acc`): number, argument count, whether GNU Mach's `kern/syscall_sw.c` implements it, and which components reference it by name |
+| `ool-params.csv` | `tools/phase0/ool.py hurd-0.9.git20260919 gnumach-1.8+git20260805` | Every parameter of every routine in the Hurd's `hurd/*.defs` whose type MIG may send out-of-line (an unbounded array, directly or via a `type` alias), after `cpp` preprocessing, with its MIG flags (`dealloc`, …) |
+
+Notes:
+
+- The gnumach *source* is 1.8+git20260805, fetched with `apt-get source`.
+  The *running* kernel is 1.8+git20260224. The trap table is stable across
+  that range, but it is a different build.
+- `traps.csv` finds no direct callers for the `syscall_*` traps. They are
+  reached through glibc's generated shortcut wrappers (`mach/shortcut.awk`),
+  which grep cannot see. `docs/mach-inventory.md` *Traps* explains this.
+- `ool.py` needs `cpp`: without preprocessing, the `RPT`/`SCP` macros hide
+  parameters. The first, unpreprocessed run found 129 parameters and missed
+  `io_read`, `io_write` and `dir_readdir` entirely.
+
 ## Stage 3: client-recovery questions
 
 Not a separate file; the evidence is small enough to state in
@@ -97,6 +116,7 @@ Result on 2026-09-23: inode 227629 all three times, with `st_gen` 1790172149,
 |---|---|---|
 | `clang-hurd-errors.txt` | `grep error: hurd-make.log \| sort -u` | Every distinct clang error from the Hurd build (each file is compiled twice, PIC and non-PIC; duplicates removed) |
 | `nested-functions.csv` | `nested.py hurd-0.9.git20260919` and `nested.py glibc-2.43/hurd glibc-2.43/sysdeps/mach glibc-2.43/mach` | Every GCC nested function definition found, by tree, file, line and name |
+| `nested-capture.csv` | `tools/phase0/capture-build.sh`, then `tools/phase0/capture.py hurd-0.9.git20260919 hurd-0.9.git20260919/build-gcc` | Each Hurd nested function classified from GCC's `-fdump-tree-nested`: captured enclosing variables, whether its address is taken, and the effort class (`hoist` / `add-params` / `callback`). **Pending**; see decision 0002 |
 | `clang-glibc-errors.txt` | `grep error: glibc-make.log \| sort -u` | Every distinct clang error from the glibc build, once the build has finished; see decision 0002's amendment for its state |
 
 | Raw log (on VM, `~demo/spike/`) | SHA-256 |

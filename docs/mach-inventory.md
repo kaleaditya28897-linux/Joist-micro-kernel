@@ -78,10 +78,10 @@ are excluded.
   non-use.** Those rows must come from the static side, or from tracing a
   translator directly.
 - **Traps are invisible.** `mach_msg`, `mach_reply_port`, `mach_task_self`,
-  `mach_thread_self`, `mach_host_self`, `swtch`, `swtch_pri`, `thread_switch`
-  and `syscall_thread_switch` are syscalls, not RPCs. rpctrace never sees them,
-  yet `mach_msg` is under every line of this table. Add them to the inventory by
-  hand from `mach/syscall_sw.h`.
+  `swtch` and the rest are syscalls, not RPCs. Worse, the hottest calls in this
+  table are normally traps too (glibc's `syscall_*` shortcuts), and appear as
+  RPCs only because rpctrace's proxy ports force the fallback. See *Traps*
+  below.
 - OOL descriptors are not annotated by rpctrace, so this data says nothing
   about the OOL → grant risk.
 
@@ -167,12 +167,82 @@ candidates for *unused*. They still need the static check.
 ### Next steps for this file
 
 - Read the call sites behind the known-hard rows below (grep finds them; it
-  does not tell you what they depend on), and add the invisible traps by hand.
+  does not tell you what they depend on).
 - Trace a translator directly (`rpctrace` as the translator command in
   `settrans`) to get `memory_object_*` and notification traffic.
 - Work around the `gsync_wait` deadlock (patch rpctrace to forward `gsync_*`
   on a separate thread, or trace a subhurd), then re-run the build through
   compile and link.
+
+## Traps (syscalls, invisible to rpctrace)
+
+From `/usr/include/i386-gnu/mach/syscall_sw.h` (sha256 `b03bf2c2…d6acc`) and
+GNU Mach's trap table (`kern/syscall_sw.c`, gnumach 1.8+git20260805 source).
+Per-trap data is in `phase0-data/traps.csv`, produced by
+`tools/phase0/traps.py`.
+
+**The header declares 47 traps; GNU Mach implements 24 of them.** The other
+23 are CMU-era leftovers with no entry in the kernel's trap table (`nw_*`,
+`task_by_pid`, `pid_by_task`, `init_process`, `map_fd`, `rfs_make_symlink`,
+`htg_syscall`, `set_ras_address`). Joist can ignore them. The table also has
+two traps the header does not declare, `syscall_device_write_request` and
+`syscall_device_writev_request`; glibc excludes both from its shortcuts.
+
+**The `syscall_*` traps are the hot path, and rpctrace hides that.** glibc's
+`mach/Makefile` generates a *shortcut* wrapper (`mach/shortcut.awk`) for every
+`syscall_X` trap. `X()` calls the trap first and falls back to the MIG RPC
+`X_rpc()` only if the trap returns `MACH_SEND_INTERRUPTED`. The kernel returns
+that only when the target port is not a kernel object (`kern/ipc_mig.c`,
+comment above `syscall_vm_map`). Under rpctrace, the task port *is* a proxy,
+so every call falls back and gets counted. **The counts above are right; the
+mechanism is not.** Outside rpctrace, the table's hottest calls are single
+traps, not message round trips.
+
+| Trap | # | Used by | Count (boot / shell / build) |
+|---|---:|---|---|
+| `evc_wait` | -17 | 2 components | invisible to rpctrace |
+| `evc_wait_clear` | -18 | no caller found | invisible to rpctrace |
+| `mach_msg_trap` | -25 | 2 components | invisible to rpctrace |
+| `mach_reply_port` | -26 | 17 components | invisible to rpctrace |
+| `mach_thread_self` | -27 | 14 components | invisible to rpctrace |
+| `mach_task_self` | -28 | 75 components | invisible to rpctrace |
+| `mach_host_self` | -29 | 15 components | invisible to rpctrace |
+| `mach_print` | -30 | 8 components | invisible to rpctrace |
+| `swtch_pri` | -59 | 6 components | invisible to rpctrace |
+| `swtch` | -60 | 4 components | invisible to rpctrace |
+| `thread_switch` | -61 | 5 components | invisible to rpctrace |
+| `syscall_vm_map` | -64 | every caller of `vm_map()` via glibc `mach-shortcuts` | 137 / 381 / 54240 (as the RPC fallback) |
+| `syscall_vm_allocate` | -65 | every caller of `vm_allocate()` via glibc `mach-shortcuts` | 30 / 171 / 11957 (as the RPC fallback) |
+| `syscall_vm_deallocate` | -66 | every caller of `vm_deallocate()` via glibc `mach-shortcuts` | 49 / 241 / 55580 (as the RPC fallback) |
+| `syscall_task_create` | -68 | every caller of `task_create()` via glibc `mach-shortcuts` | 2 / 15 / 3064 (as the RPC fallback) |
+| `syscall_task_terminate` | -69 | every caller of `task_terminate()` via glibc `mach-shortcuts` | 0 / 17 / 3059 (as the RPC fallback) |
+| `syscall_task_suspend` | -70 | every caller of `task_suspend()` via glibc `mach-shortcuts` | 0 / 0 / 0 (as the RPC fallback) |
+| `syscall_task_set_special_port` | -71 | every caller of `task_set_special_port()` via glibc `mach-shortcuts` | 7 / 61 / 7085 (as the RPC fallback) |
+| `syscall_mach_port_allocate` | -72 | every caller of `mach_port_allocate()` via glibc `mach-shortcuts` | 36 / 145 / 16473 (as the RPC fallback) |
+| `syscall_mach_port_deallocate` | -73 | every caller of `mach_port_deallocate()` via glibc `mach-shortcuts` | 141 / 1464 / 343547 (as the RPC fallback) |
+| `syscall_mach_port_insert_right` | -74 | every caller of `mach_port_insert_right()` via glibc `mach-shortcuts` | 41 / 341 / 57434 (as the RPC fallback) |
+| `syscall_mach_port_allocate_name` | -75 | every caller of `mach_port_allocate_name()` via glibc `mach-shortcuts` | 8 / 121 / 20686 (as the RPC fallback) |
+| `syscall_thread_depress_abort` | -76 | every caller of `thread_depress_abort()` via glibc `mach-shortcuts` | 0 / 0 / 0 (as the RPC fallback) |
+| `thread_set_self_state` | -77 | no direct caller found | not observed |
+
+Consequences for §6:
+
+1. The §6 row "`vm_allocate`, `vm_map`, `vm_protect` → memory manager RPCs"
+   turns what are traps today (`vm_map`, `vm_allocate`, `vm_deallocate`) into
+   IPC round trips to a userspace memory manager. At ~55k calls each in the
+   build, mostly on the process-creation path, this is the first thing Phase 11
+   should measure. (`vm_protect` has no shortcut; it is already an RPC today.)
+2. `mach_port_deallocate`, `mach_port_insert_right`, `mach_port_allocate` and
+   `mach_port_allocate_name` are traps today, and are the four most frequent
+   port operations. On Joist they are capability operations, which should be
+   kernel calls too (seL4-style), so this matches. But they must stay
+   syscalls, not become RPCs to a userspace server.
+3. `mach_msg_trap`, `mach_reply_port`, `mach_task_self`, `mach_thread_self`
+   and `mach_host_self` are universal. `swtch`, `swtch_pri` and
+   `thread_switch` are glibc's spin-lock and `sched_yield` back-off. They need
+   a Joist equivalent (a yield / directed-yield call) that §6 doesn't list.
+4. `evc_wait` is referenced in glibc's `mach/` headers only. `mach_print` is
+   kernel-debug printing. Neither needs a mapping.
 
 ## Static results (source cross-reference, 2026-09-23)
 
@@ -236,9 +306,73 @@ first because they size Phase 5:
   mechanism swap: Mach OOL is copy-on-write with sender-side deallocation. Every
   use site must be examined for whether it depended on copy semantics or merely
   on moving a large buffer cheaply. Expect multi-week work.
+
+  **Evidence so far (2026-09-23)** is in `phase0-data/ool-params.csv`, from
+  `tools/phase0/ool.py`: the `.defs` preprocessed the way MIG does, and every
+  parameter whose type is an unbounded array. **140 OOL-capable parameters
+  in 77 routines across 19 `.defs` files; 54 carry `dealloc`**
+  (the sender's copy is deallocated on send). Ordered by build-trace frequency,
+  these are the ones that actually fired:
+
+  | RPC | Calls (build) | OOL-capable parameters |
+  |---|---:|---|
+  | `io_read` | 66202 | `data` out **dealloc** |
+  | `io_write` | 27211 | `data` in |
+  | `dir_readdir` | 4218 | `data` out **dealloc** |
+  | `exec_startup_get_info` | 2302 | `argv` out **dealloc**, `envp` out **dealloc**, `dtable` out **dealloc**, `portarray` out **dealloc**, `intarray` out **dealloc** |
+  | `file_exec_paths` | 2301 | `argv` in, `envp` in, `fdarray` in, `portarray` in, `intarray` in, `deallocnames` in, `destroynames` in |
+  | `auth_getids` | 648 | `euids` out, `auids` out, `egids` out, `agids` out |
+  | `auth_makeauth` | 555 | `other_handles` in, `euids` in, `auids` in, `egids` in, `agids` in |
+  | `file_set_translator` | 11 | `passive` in |
+  | `file_get_storage_info` | 0 | `ports` out **dealloc**, `ints` out **dealloc**, `offsets` out **dealloc**, `data` out **dealloc** |
+
+  The review order follows from this. `io_read` is the one that matters: the
+  server hands over its buffer with `dealloc`, so on Mach the client gets
+  pages the server no longer has. A grant would have to model that as a
+  transfer, not as sharing. `io_write` sends *without* `dealloc`, so the client
+  keeps its buffer and relies only on "moved cheaply", which is the easy case
+  for a grant. MIG only goes out-of-line above the inline threshold, so how
+  many of the 66k `io_read`s actually used OOL is not in this data; rpctrace
+  does not show it.
 - **Port sets → badges on one endpoint.** libports' per-port handlers and its
   ability to move a port between sets at runtime are not obviously the same
   shape as badge demultiplexing. Confirm against real libports usage.
+
+  **Evidence so far (2026-09-23):** every `mach_port_move_member` call site in
+  the Hurd and glibc (26 sites) falls into one of four patterns:
+
+  1. **Put a new port into its bucket's set:** libports
+     `create-internal.c:110`, `import-port.c:102`,
+     `reallocate-from-external.c:78`, `reallocate-port.c:66`,
+     `transfer-right.c:99`. This is a one-time placement at creation; each
+     bucket is one set. It maps onto "one endpoint per bucket, one badge per
+     port".
+  2. **Re-home a port on reauthentication:** libdiskfs `protid-make.c:53`,
+     libnetfs and libtrivfs `io-reauthenticate.c`, pfinet and lwip
+     `io-ops.c`. A fresh port for the new credentials goes into the bucket's
+     set. Same shape as 1: a new badge on the same endpoint.
+  3. **Take a port out of every set:** libports `claim-right.c:41` (move to
+     `MACH_PORT_NULL`) when a receive right is handed out of libports. That's
+     the inverse of 1: revoke the badge, then transfer the endpoint.
+  4. **A temporary set of *reply* ports:** glibc `hurd/hurdselect.c:335` and
+     `:357`. `select`/`poll` moves one reply port per descriptor, plus the
+     signal port, into a set, then receives on the set. **This does not fit
+     badges on one endpoint.** It's a wait on several outstanding replies at
+     once, and under synchronous call/reply it has no direct equivalent. It
+     needs either an asynchronous notification-based `io_select`, or a
+     notification-bound endpoint group, which is §6's second option. This is
+     the case to design around. *(Not yet confirmed by reading the code:
+     this is inferred from the call arguments (`sigport`, `portset`) and from
+     the known design of Hurd `select`. The testbed went offline before
+     `hurdselect.c` could be read. Confirm first.)*
+
+  Also in the list: `boot/boot.c` (8 sites, subhurd bootstrap),
+  `startup/startup.c` (2), `mach-defpager` (3, being rewritten).
+
+  Also: libports already sets protected payloads
+  (`mach_port_set_protected_payload`, observed in the boot trace), so pattern
+  1's demultiplexing is already by payload. The badge mapping for patterns 1–3
+  looks cheap. Pattern 4 is the real cost.
 - **`memory_object_*` (external pagers) → page-fault IPC.** Drives the Phase 6
   paging protocol and the libpager rewrite.
 - **Exception ports → fault IPC.** Drives glibc signal delivery.
