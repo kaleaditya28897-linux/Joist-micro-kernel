@@ -141,3 +141,53 @@ false-positive on K&R-style code.
   per-command trace, because that command's own text contained `workloads.sh`.)
   Fixed: the current shell column comes from the per-command trace
   `shell.txt` above. The boot and build columns were unaffected.
+
+## Stage 5: nested-function capture analysis (2026-09-23, after the outage)
+
+Answers the question decision 0002 named as deciding: of the 252 GCC nested
+functions, how many capture enclosing locals? A nested function that captures
+nothing becomes a `static` function by moving it; one that captures needs
+closure conversion — a context struct threaded through the callback API.
+
+**Command:** `tools/phase0/captures.py hurd-0.9.git20260919 glibc-2.43`, run as
+`demo` in `~/spike` on the VM, joined to `nested-functions.csv` so the
+population is exactly the 252 rows `nested.py` found.
+
+| File | Contents |
+|---|---|
+| `nested-captures.csv` | One row per nested function: `verdict` (capture / sibling / none), `source` (tool or hand), and the captured names |
+
+| Verdict | Count | Meaning |
+|---|---:|---|
+| `capture` | **185** | References at least one enclosing parameter or local. Needs closure conversion. |
+| `sibling` | 5 | References only sibling nested functions, no enclosing data. Hoist together. |
+| `none` | 62 | Self-contained. Move and mark `static`. |
+
+Split by tree: Hurd 130 / 3 / 46 (of 179), glibc 55 / 2 / 16 (of 73).
+
+**How far to trust this.** It is a heuristic over stripped source, like
+`nested.py`, and it was wrong twice before it was right:
+
+- The first version missed the second and later declarators of a comma list
+  (`struct idvec *only_uids = …, *not_uids = …;`), so `add_not_uid` in
+  `utils/ps.c` read as `none` when it captures `not_uids`.
+- It had no notion of sibling nested functions, so `lookup` in
+  `exec/hashexec.c` read as `none` when it calls the sibling `user_port`.
+
+Both are fixed, and both were found by hand-checking a random sample of six
+`none` verdicts — two of six were wrong. **The sample was not re-run after the
+fix**, so the current `none` bucket has not been audited to the same standard;
+treat 62 as an upper bound on self-contained functions and 185 as a lower
+bound on captures.
+
+`source=hand` marks 9 rows whose definition header the tool's regex did not
+match (a type on the preceding line). Each was read directly and classified;
+they are all captures, and their captured names are recorded.
+
+**Pending cross-check.** GCC emits `-Wtrampolines` exactly when it generates a
+trampoline, which happens when a nested function captures *and* has its
+address taken — the expensive callback subset. An in-tree
+`make CC="gcc -Wtrampolines"` of the Hurd is the compiler-authoritative check
+on the Hurd half of this number. Note the Hurd does **not** build out-of-tree:
+`make -C libports …` fails with "No such file or directory" in a separate build
+directory, which is worth knowing before trusting any out-of-tree build log.

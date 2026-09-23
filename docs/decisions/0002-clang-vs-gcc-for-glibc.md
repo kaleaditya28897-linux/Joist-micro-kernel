@@ -1,7 +1,8 @@
 # 0002 — Clang everywhere, with a pre-committed GCC fallback for glibc
 
 Date: 2026-09-23
-Status: proposed — policy accepted, outcome pending the Phase 0 measurement
+Status: proposed — policy accepted. Nested-function count measured 2026-09-23
+(see amendment); the rest of the glibc error surface is still unmeasured.
 
 ## Context
 
@@ -75,6 +76,41 @@ out-of-tree with `make -k`.
    The scan agrees exactly with clang on the 8 files clang reached. In the
    Hurd, `utils/` alone has 61; after that come
    `libstore/` 13, `libshouldbeinlibc/` 12, `exec/` 11, `storeio/` 6, `libfshelp/` 5.
+
+### Amendment, 2026-09-23: the deciding number
+
+**185 of the 252 nested functions (73%) capture enclosing locals.** 5 more
+reference only sibling nested functions; 62 are self-contained. Split by tree:
+Hurd **130 capture** of 179, glibc **55 capture** of 73. Method, and an honest
+account of how far to trust it, in `docs/phase0-data/README.md` stage 5;
+per-function data in `docs/phase0-data/nested-captures.csv`.
+
+Applying the sizing below to that split, at 15 minutes for a self-contained
+function and an hour for one needing closure conversion:
+
+| | capture | sibling | none | Estimate |
+|---|---:|---:|---:|---:|
+| glibc | 55 | 2 | 16 | ~60 h (~1.5 weeks) |
+| Hurd | 130 | 3 | 46 | ~143 h (~3.6 weeks) |
+| Both | 185 | 5 | 62 | ~203 h (~5 weeks) |
+
+**This does not by itself trigger the fallback, and it is important to say why.**
+The budget is one month of Phase 7 for *the Clang-for-glibc work*, and glibc's
+own nested functions come to roughly 1.5 weeks — inside the budget. It is the
+combined figure that exceeds a month, and most of that is the **Hurd**, which
+is a separate tree and is needed whichever compiler glibc uses (the Decision
+section already allows glibc to fall back while the Hurd stays Clang, and the
+Hurd's `utils/` — 61 of its 179 — is command-line tools, not servers).
+
+So the nested-function count argues for splitting the question, not for taking
+the fallback:
+
+- *glibc nested functions alone:* affordable.
+- *Hurd nested functions:* a real cost, but not chargeable to this decision.
+- *Still unmeasured:* every other clang error class in glibc. The glibc clang
+  build was interrupted by a power outage on 2026-09-23 partway through, and
+  `docs/phase0-data/clang-hurd-errors.txt` covers only the 8 Hurd files clang
+  reached. **Until that build completes, the decision stays `proposed`.**
 
 **Sizing, not yet decisive.** Each nested function has to become a static
 function. Where it captures locals of its enclosing function, that means
