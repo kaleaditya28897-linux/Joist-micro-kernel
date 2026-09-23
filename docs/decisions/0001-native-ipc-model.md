@@ -2,6 +2,8 @@
 
 Date: 2026-09-23
 Status: proposed
+Covers: §6 rows *Port receive right*, *Port send right*, *Send-once right*,
+*`mach_msg` RPC*, and *No-senders / dead-name notification*.
 Blocks: Phase 3 (IPC and capabilities). Must be accepted before Phase 3 starts.
 
 ## Context
