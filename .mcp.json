@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "joist": {
+      "type": "stdio",
+      "command": "bash",
+      "args": [
+        "-c",
+        "root=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; exec \"$root/mcp-server/joist-mcp\" \"$root/joist-microkernel-plan.md\""
+      ]
+    }
+  }
+}
