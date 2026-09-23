@@ -53,7 +53,7 @@ be built from `debian-sid-hurd-amd64-NETINST-1.iso`.
 
 ```
 cores 2, memory 2048, cpu host, bios seabios, ostype other
-ide0  local-lvm:vm-110-disk-0,cache=writeback,size=4000M
+ide0  local-lvm:vm-110-disk-0,cache=writeback,size=24480M
 net0  e1000=02:00:00:00:00:01,bridge=vmbr0
 serial0 socket, vga std, onboot 0
 ```
@@ -72,16 +72,37 @@ Present in the image: `rpctrace` (the tool Phase 0 depends on), `gcc`, `make`,
 
 Installed afterwards: `git`, `mig`.
 
-Not present: **`clang`**. Decision 0002's sizing spike needs it, and installing
-LLVM will not fit in the current disk (see below).
+Not present: **`clang`**. Decision 0002's sizing spike needs it. The disk is
+now large enough (see below); installing it is the next step.
+
+apt also has `deb-src http://deb.debian.org/debian sid main`
+(`/etc/apt/sources.list.d/debian-src.list`). debian-ports publishes no
+sources, so `apt-get source` / `build-dep` need the main archive.
 
 ## Known limitations
 
-1. **Disk is small.** 4 GB total, ~1.5 GB free. Not enough to build glibc or
-   the Hurd from source, and not enough for LLVM. Expanding means
-   `qm resize 110 ide0 +20G` on the host *and* growing the ext2 partition from
-   inside the Hurd, which is the fiddly half. Do this before Phase 0's build
-   work starts.
+1. **Disk expanded 2026-09-23** from 4 GB to 24 GB; `/` (`hd0s2`) is 23 GB
+   with ~20 GB free. Done offline from the host, not from inside the Hurd,
+   whose ext2fs cannot resize online:
+   ```sh
+   # in the guest: sudo poweroff ; then on pvehome:
+   qm snapshot 110 pre_disk_resize
+   qm resize 110 ide0 +20G
+   echo ", +" | sfdisk --no-reread -N 2 /dev/pve/vm-110-disk-0
+   L=$(losetup -f --show -P /dev/pve/vm-110-disk-0)
+   e2fsck -f -y ${L}p2 ; resize2fs ${L}p2 ; e2fsck -f -n ${L}p2
+   losetup -d $L ; qm start 110
+   ```
+   The first `e2fsck` fixed 13 deleted inodes with zero dtime, plus the stale
+   free counts that went with them. These are leftovers of a Hurd shutdown, not
+   corruption; the second check came back clean. The old partition table is in
+   `/root/vm110-ptable-before-resize.sfdisk` on pvehome. The Proxmox snapshot
+   `pre_disk_resize` still exists; delete it (`qm delsnapshot 110
+   pre_disk_resize`) once the VM has proven healthy, because it pins the old
+   blocks in the thin pool.
+   *Host caveat:* pvehome's thin pool is overcommitted (~520 GiB of thin
+   volumes on a 338 GiB pool, 66% actually used). That's fine today, but watch
+   `lvs` before growing anything else.
 2. **DHCP, not static.** <lan-address> is a lease and may change. Either
    reserve it on the router or give the VM a static address before relying on
    the SSH config entry above.
@@ -100,9 +121,11 @@ LLVM will not fit in the current disk (see below).
 
 Phase 0 (§11), in rough order:
 
-1. `rpctrace` on boot, a shell session, and a package build → `docs/mach-inventory.md`.
+1. ~~`rpctrace` on boot, a shell session, and a package build → `docs/mach-inventory.md`.~~
+   Done 2026-09-23, partially: rpctrace deadlocks on `gsync_wait`. See the
+   inventory's *Coverage* section. Scripts are in `tools/phase0/`.
 2. Read `/usr/include/mach/*.defs` and mark every call used / unused / used-by-one-thing.
 3. Answer the open questions in `docs/client-recovery.md` §8 — especially
    whether ext2fs exposes an inode generation counter, and what a Hurd file
    descriptor actually holds.
-4. Expand the disk, install clang, and run decision 0002's sizing spike.
+4. ~~Expand the disk~~ (done); install clang and run decision 0002's sizing spike.
