@@ -111,9 +111,46 @@ records into a finished glibc port is far more expensive than building them in.
 
 ## 8. Open questions for the testbed
 
-1. Does ext2fs expose a usable inode generation counter? (§3.1)
-2. How much Hurd code depends on unlinked-but-open files surviving? (§3)
-3. What does `rpctrace` show for the actual frequency of each RPC, so the
-   idempotency table can be ordered by what matters?
-4. What is in a Hurd file descriptor today — what hangs off the descriptor vs.
-   the description, and how is that shared across `fork`?
+Answered 2026-09-23 on the testbed (Debian GNU/Hurd i386, glibc 2.43,
+hurd 0.9.git20260919 sources). Evidence is in `docs/mach-inventory.md` and
+`docs/rpc-idempotency.md`.
+
+1. **Does ext2fs expose a usable inode generation counter?** **Yes, already,
+   through plain `io_stat` (`st_gen`).** Test: create, delete and recreate a
+   file three times. ext2fs reused inode 227629 each time and returned a
+   different `st_gen` each time (1790172149, 1790172413, 1790172515). §3.1
+   needs no new RPC for ext2fs; `io_stat` or `io_identity` can carry it. Other
+   filesystem servers (tmpfs, isofs, nfs) are unchecked.
+2. **How much Hurd code depends on unlinked-but-open files?** Partly answered.
+   By construction, glibc's `tmpfile()` (`sysdeps/mach/hurd/tmpfile.c`) and
+   `O_TMPFILE` (`hurd/lookup-at.c`) create files with `dir_mkfile`, which are
+   *born* unlinked and stay that way. So every `tmpfile()` user depends on it.
+   `symlinkat`/`mknodat` also use `dir_mkfile`, but link the node before
+   returning, so they are unaffected. That accounts for all 11 `dir_mkfile`
+   calls in the build trace (11 `file_set_translator`, 11 `dir_link`). The
+   classic `open`-then-`unlink` pattern (for example bash here-documents) is
+   **not yet measured**: 2 417 `dir_unlink` calls fired, but nothing yet
+   correlates them with ports still open at the time. That needs a pass over
+   the trace that tracks port lifetimes.
+3. **RPC frequency.** Done. See `docs/rpc-idempotency.md`. The traffic is
+   dominated by `dir_lookup` (293k in the build), `io_stat` (211k), `io_read`
+   (66k) and `io_seek` (57k).
+4. **What is in a Hurd file descriptor?** Almost nothing. The descriptor
+   (`struct hurd_fd`, glibc `hurd/hurd/fd.h`) is `{io port, fcntl flags,
+   ctty port}`. The flags are per descriptor, i.e. `FD_CLOEXEC`. The
+   **description is entirely server-side**: libdiskfs `struct peropen` holds
+   `filepointer`, `openstat` (open modes including `O_APPEND`), `lock_status`
+   (record locks) and `path`. `dup` takes another user reference on the same
+   send right (`dup3.c`, `mach_port_mod_refs`). `fork` recreates the same port
+   names in the child (`_Fork.c`; see the `mach_port_names` /
+   `mach_port_allocate_name` traffic in the inventory). So dup'd and forked
+   descriptors share one `peropen` because they share one port.
+
+   **Consequence for §4, which needs revising:** the client never holds the
+   description state that the recovery record is supposed to restore. The
+   offset, open modes and locks all die with the server. Within one process,
+   the port name identifies the description, so reconnecting once per
+   description (§4.1) is keyable. But restoring the offset needs either
+   client-side offsets or a protocol change; `docs/rpc-idempotency.md` lays out
+   both options. Record locks held at the time of a restart are a new
+   **unrecoverable** case missing from §3's table.

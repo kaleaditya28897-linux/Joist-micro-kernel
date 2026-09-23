@@ -1,0 +1,38 @@
+libbpf/bpf_impl.c:689:2: error: function definition is not allowed here
+libbpf/bpf_impl.c:759:3: error: call to undeclared function 'check_filter_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libirqhelp/irqhelp.c:213:3: error: function definition is not allowed here
+libirqhelp/irqhelp.c:256:20: error: use of undeclared identifier 'interrupt_demuxer'
+libshouldbeinlibc/exec-reauth.c:48:5: error: function definition is not allowed here
+libshouldbeinlibc/exec-reauth.c:88:11: error: call to undeclared function 'reauth'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/idvec-rep.c:110:10: error: call to undeclared function 'add_id'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/idvec-rep.c:45:5: error: function definition is not allowed here
+libshouldbeinlibc/idvec-rep.c:62:5: error: function definition is not allowed here
+libshouldbeinlibc/idvec-rep.c:99:12: error: call to undeclared function 'ensure_room'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/idvec-verify.c:107:2: error: function definition is not allowed here
+libshouldbeinlibc/idvec-verify.c:123:21: error: incompatible integer to pointer conversion assigning to 'const char *' from 'int' [-Wint-conversion]
+libshouldbeinlibc/idvec-verify.c:123:23: error: call to undeclared function 'check_shadow'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:147:3: error: function definition is not allowed here
+libshouldbeinlibc/portinfo.c:159:8: error: call to undeclared function 'check_init_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:194:4: error: call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:201:4: error: call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:208:4: error: call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:215:4: error: call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:236:9: error: function definition is not allowed here
+libshouldbeinlibc/portinfo.c:246:4: error: call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:251:4: error: call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:256:4: error: call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:47:5: error: function definition is not allowed here
+libshouldbeinlibc/portinfo.c:500:2: error: call to undeclared function 'prefs'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:54:5: error: function definition is not allowed here
+libshouldbeinlibc/portinfo.c:61:5: error: function definition is not allowed here
+libshouldbeinlibc/portinfo.c:79:7: error: call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:84:7: error: call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:89:7: error: call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:94:7: error: call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/portinfo.c:99:7: error: call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/ugids-posix.c:37:5: error: function definition is not allowed here
+libshouldbeinlibc/ugids-posix.c:51:11: error: call to undeclared function 'update_real'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/ugids-rep.c:101:4: error: call to undeclared function 'add_type_rep'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+libshouldbeinlibc/ugids-rep.c:50:5: error: function definition is not allowed here
+libshouldbeinlibc/ugids-rep.c:70:5: error: function definition is not allowed here
+libshouldbeinlibc/ugids-rep.c:91:7: error: call to undeclared function 'type_rep'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]

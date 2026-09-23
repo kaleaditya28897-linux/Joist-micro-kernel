@@ -72,8 +72,16 @@ Present in the image: `rpctrace` (the tool Phase 0 depends on), `gcc`, `make`,
 
 Installed afterwards: `git`, `mig`.
 
-Not present: **`clang`**. Decision 0002's sizing spike needs it. The disk is
-now large enough (see below); installing it is the next step.
+Installed 2026-09-23 for decision 0002's spike: **clang 21.1.8** (`clang`,
+from debian-ports), plus the build dependencies of `glibc` and `hurd`.
+**`lld` is not available** for hurd-i386.
+
+**Package drift:** `apt-get build-dep glibc hurd` upgraded the system `hurd`
+package from `0.9.git20251029-7` to `0.9.git20260919-1`. dpkg stopped at a
+conffile prompt for `hurd-console`; it was finished with
+`dpkg --force-confold --configure -a`, which keeps the local file. The new Hurd
+runs from the next reboot. The Phase 0 rpctrace data was collected under the
+old version. Note this before comparing traces taken after a reboot.
 
 apt also has `deb-src http://deb.debian.org/debian sid main`
 (`/etc/apt/sources.list.d/debian-src.list`). debian-ports publishes no
@@ -123,9 +131,18 @@ Phase 0 (§11), in rough order:
 
 1. ~~`rpctrace` on boot, a shell session, and a package build → `docs/mach-inventory.md`.~~
    Done 2026-09-23, partially: rpctrace deadlocks on `gsync_wait`. See the
-   inventory's *Coverage* section. Scripts are in `tools/phase0/`.
-2. Read `/usr/include/mach/*.defs` and mark every call used / unused / used-by-one-thing.
-3. Answer the open questions in `docs/client-recovery.md` §8 — especially
+   inventory's *Coverage* section. Scripts are in `tools/phase0/`, data and
+   provenance in `docs/phase0-data/`.
+   Raw traces are in `~demo/trace/`; don't delete them, since the checksums in
+   `docs/phase0-data/README.md` refer to them.
+2. ~~Read `/usr/include/mach/*.defs` and mark every call used / unused / used-by-one-thing.~~
+   Done by grep cross-reference (inventory *Static results*); reading the call
+   sites behind the known-hard rows is still open.
+3. ~~Answer the open questions in `docs/client-recovery.md` §8~~ (done; Q2 is
+   partial) — especially
    whether ext2fs exposes an inode generation counter, and what a Hurd file
    descriptor actually holds.
-4. ~~Expand the disk~~ (done); install clang and run decision 0002's sizing spike.
+4. ~~Expand the disk~~, ~~install clang~~ (done); decision 0002's sizing spike is
+   **running**: `~demo/spike/spike.sh`, progress in `~demo/spike/spike.log`,
+   glibc build log in `~demo/spike/glibc-make.log` (capped at 5 h). Sources
+   and clang build trees are in `~demo/spike/`.

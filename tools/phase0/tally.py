@@ -5,8 +5,9 @@ usage: tally.py gnumach.msgids boot.txt shell.txt build.txt
 Prints a markdown table: subsystem | call | boot | shell | build.
 Only calls defined in gnumach.msgids (the kernel's interfaces) are counted;
 Hurd server RPCs (io_*, dir_*, proc_*, ...) are excluded.
+Also writes mach-call-counts.csv (every defined call, zeros included).
 """
-import re, sys
+import csv, re, sys
 from collections import Counter
 
 msgids, *logs = sys.argv[1:]
@@ -28,6 +29,11 @@ for path in logs:
     counts.append(c)
 
 names = sorted(set().union(*counts), key=lambda n: (sub[n], -sum(c[n] for c in counts)))
+with open('mach-call-counts.csv', 'w', newline='') as fh:
+    w = csv.writer(fh)
+    w.writerow(['subsystem', 'call'] + [l.rsplit('/', 1)[-1].split('.')[0] for l in logs])
+    for n in sorted(sub, key=lambda n: (sub[n], n)):
+        w.writerow([sub[n], n] + [c[n] for c in counts])
 print('| Subsystem | Call | ' + ' | '.join(l.rsplit('/', 1)[-1].split('.')[0] for l in logs) + ' |')
 print('|---|---|' + '---:|' * len(logs))
 for n in names:

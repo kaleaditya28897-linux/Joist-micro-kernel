@@ -3,8 +3,10 @@
 Phase 0 deliverable (§11). Every Mach call the Hurd actually uses, which
 component uses it, and the planned mapping onto Joist's native API (§6).
 
-**Status:** dynamic side collected 2026-09-23 (partial — see *Coverage*).
-Static side (`.defs` read-through) not started. Decisions not yet written.
+**Status (2026-09-23):** dynamic side collected (partial; see *Coverage*).
+Static cross-reference done by `grep`, not yet by reading every call site.
+Decisions not yet written. All numbers come from `docs/phase0-data/`; see its
+README for provenance and how to reproduce each one.
 
 ## Why this exists
 
@@ -44,6 +46,10 @@ no elaboration.
 Collected on the testbed (Debian GNU/Hurd i386, GNU Mach 1.8+git20260224) with
 `tools/phase0/workloads.sh`, tallied with `tools/phase0/tally.py`. Raw logs are
 on the VM in `~demo/trace/` (`build.txt` is 132 MB and is not committed).
+
+Every number below is in `phase0-data/mach-call-counts.csv` (all 199 calls,
+zeros included). The count and static columns of the table are generated from
+the CSVs, not typed in.
 
 Only calls defined in `/usr/share/msgids/gnumach.msgids`, i.e. the kernel's
 own interfaces, are counted. Hurd server RPCs (`io_*`, `dir_*`, `proc_*`, …)
@@ -86,48 +92,50 @@ inferred from call patterns and must be confirmed statically.
 
 | Mach call | Used by | Static / dynamic | Count (boot / shell / build) | Joist mapping | Decision |
 |---|---|---|---|---|---|
-| `mach_port_deallocate` | everything (glibc, libports, MIG stubs) | dynamic | 141 / 40 / 343547 | capability drop (§6 send right) | — |
-| `mach_port_insert_right` | glibc `fork`, libports | dynamic | 41 / 4 / 57434 | capability copy/mint | — |
-| `mach_port_get_refs` | glibc `fork` | dynamic | 14 / 0 / 45745 | none — user refcounts are a Mach artifact; libports-local | — |
-| `mach_port_mod_refs` | glibc, libports | dynamic | 30 / 5 / 26600 | none — libports-local refcount | — |
-| `mach_port_allocate_name` | glibc `fork` (child keeps parent's names) | dynamic | 8 / 0 / 20686 | **caller-chosen capability slot** — not in §6 | — |
-| `mach_port_allocate` | libports, glibc | dynamic | 36 / 5 / 16473 | endpoint create (§6 receive right) | — |
-| `mach_port_set_qlimit` | libports / glibc | dynamic | 22 / 3 / 9387 | **no equivalent** in synchronous IPC — not in §6 | — |
-| `mach_port_extract_right` | glibc `fork` | dynamic | 3 / 0 / 7443 | capability copy into another task's space | — |
-| `mach_port_destroy` | glibc | dynamic | 0 / 0 / 5803 | endpoint destroy | — |
-| `mach_port_names` | glibc `fork` (walks the whole namespace) | dynamic | 2 / 0 / 4199 | **capability-space enumeration** — not in §6 | — |
-| `mach_port_move_member` | libports (port sets) | dynamic | 3 / 0 / 7 | §6 port set row — rare but present, confirms libports moves ports at runtime | — |
-| `mach_port_set_protected_payload` | libports | dynamic | 3 / 0 / 0 | **badges** — the Hurd already demultiplexes by payload; strengthens the §6 port-set mapping | — |
-| `mach_port_request_notification` | libports | dynamic | 2 / 0 / 0 | native lifetime notifications (§5.4) | — |
-| `vm_deallocate` | glibc, MIG (OOL) | dynamic | 49 / 8 / 55580 | memory manager RPC | — |
-| `vm_map` | glibc `ld.so`/`mmap`, exec | dynamic | 137 / 19 / 54240 | memory manager RPC | — |
-| `vm_protect` | `ld.so` (RELRO), glibc | dynamic | 57 / 10 / 30138 | memory manager RPC | — |
-| `vm_allocate` | glibc `malloc`, stacks | dynamic | 30 / 9 / 11957 | memory manager RPC | — |
-| `vm_region` | glibc `fork` | dynamic | 3 / 1 / 2302 | memory manager RPC (address-space walk) | — |
-| `vm_get_size_limit` | glibc (`getrlimit`) | dynamic | 3 / 1 / 2302 | memory manager RPC — GNU Mach extension | — |
-| `vm_statistics` | `ps`/`free`-style tools | dynamic | 0 / 0 / 4 | memory manager query | — |
-| `thread_resume` | glibc `fork`, pthreads | dynamic | 18 / 1 / 11421 | thread control capability | — |
-| `thread_create` | glibc `fork`, pthreads, signal thread | dynamic | 17 / 1 / 7264 | Thread | — |
-| `thread_set_state` | glibc `fork`, pthreads, signals | dynamic | 17 / 1 / 7265 | thread control capability | — |
-| `thread_get_state` | glibc `fork`, signals | dynamic | 16 / 1 / 4785 | thread control capability | — |
-| `thread_set_special_port` | glibc (per-thread exception port, presumably) | dynamic | 4 / 1 / 4783 | fault IPC handler registration | — |
-| `thread_abort` | glibc signal delivery | dynamic | 1 / 0 / 2482 | thread control capability — **not in §6** | — |
-| `thread_suspend` | glibc | dynamic | 0 / 0 / 1 | thread control capability | — |
-| `task_info` | glibc / proc queries | dynamic | 0 / 0 / 9243 | task query | — |
-| `task_set_special_port` | glibc `fork`, exec | dynamic | 7 / 2 / 7085 | bootstrap/exception capability handoff | — |
-| `task_create` | glibc `fork` | dynamic | 2 / 0 / 3064 | task create + COW clone (§6) | — |
-| `task_terminate` | glibc `_exit`/exec | dynamic | 0 / 0 / 3059 | task destroy | — |
-| `task_threads` | glibc `fork` | dynamic | 1 / 0 / 2481 | thread enumeration — not in §6 | — |
-| `task_get_special_port` | glibc startup | dynamic | 4 / 1 / 2302 | bootstrap capability | — |
-| `task_priority` | ext2fs startup | dynamic | 1 / 0 / 0 | scheduling | — |
-| `i386_set_gdt` | glibc TLS setup | dynamic | 19 / 2 / 7848 | **not in §6** — i386 TLS via GDT; x86_64 uses FS base, so the mapping differs by arch | — |
-| `i386_get_gdt` | glibc `fork` | dynamic | 2 / 0 / 3288 | as above | — |
-| `gsync_wait` | glibc pthreads/locks | dynamic | 1 / 1 / 1 | **futex — not in §6** | — |
-| `thread_set_name` | ext2fs (libpager threads) | dynamic | 2 / 0 / 0 | debug only | — |
-| `device_pager_init_pager` | ext2fs startup (unexplained) | dynamic | 1 / 0 / 0 | device interface — investigate | — |
+| `mach_port_deallocate` | everything (glibc, libports, MIG stubs) | both (53 calling components) | 141 / 1464 / 343547 | capability drop (§6 send right) | — |
+| `mach_port_insert_right` | glibc `fork`, libports | both (21 calling components) | 41 / 341 / 57434 | capability copy/mint | — |
+| `mach_port_get_refs` | glibc `fork` | both (4 calling components) | 14 / 234 / 45745 | none — user refcounts are a Mach artifact; libports-local | — |
+| `mach_port_mod_refs` | glibc, libports | both (21 calling components) | 30 / 139 / 26600 | none — libports-local refcount | — |
+| `mach_port_allocate_name` | glibc `fork` (child keeps parent's names) | both (1 calling component) | 8 / 121 / 20686 | **caller-chosen capability slot** — not in §6 | — |
+| `mach_port_allocate` | libports, glibc | both (19 calling components) | 36 / 145 / 16473 | endpoint create (§6 receive right) | — |
+| `mach_port_set_qlimit` | libports / glibc | both (6 calling components) | 22 / 84 / 9387 | **no equivalent** in synchronous IPC — not in §6 | — |
+| `mach_port_extract_right` | glibc `fork` | both (4 calling components) | 3 / 45 / 7443 | capability copy into another task's space | — |
+| `mach_port_destroy` | glibc | both (18 calling components) | 0 / 1 / 5803 | endpoint destroy | — |
+| `mach_port_names` | glibc `fork` (walks the whole namespace) | both (5 calling components) | 2 / 29 / 4199 | **capability-space enumeration** — not in §6 | — |
+| `mach_port_move_member` | libports (port sets) | both (10 calling components) | 3 / 0 / 7 | §6 port set row — rare but present, confirms libports moves ports at runtime | — |
+| `mach_port_set_protected_payload` | libports | both (2 calling components) | 3 / 0 / 0 | **badges** — the Hurd already demultiplexes by payload; strengthens the §6 port-set mapping | — |
+| `mach_port_request_notification` | libports | both (10 calling components) | 2 / 0 / 0 | native lifetime notifications (§5.4) | — |
+| `vm_deallocate` | glibc, MIG (OOL) | both (25 calling components) | 49 / 241 / 55580 | memory manager RPC | — |
+| `vm_map` | glibc `ld.so`/`mmap`, exec | both (13 calling components) | 137 / 381 / 54240 | memory manager RPC | — |
+| `vm_protect` | `ld.so` (RELRO), glibc | both (6 calling components) | 57 / 213 / 30138 | memory manager RPC | — |
+| `vm_allocate` | glibc `malloc`, stacks | both (20 calling components) | 30 / 171 / 11957 | memory manager RPC | — |
+| `vm_region` | glibc `fork` | both (6 calling components) | 3 / 23 / 2302 | memory manager RPC (address-space walk) | — |
+| `vm_get_size_limit` | glibc (`getrlimit`) | both (1 calling component) | 3 / 23 / 2302 | memory manager RPC — GNU Mach extension | — |
+| `vm_statistics` | `ps`/`free`-style tools | both (6 calling components) | 0 / 1 / 4 | memory manager query | — |
+| `thread_resume` | glibc `fork`, pthreads | both (7 calling components) | 18 / 74 / 11421 | thread control capability | — |
+| `thread_create` | glibc `fork`, pthreads, signal thread | both (7 calling components) | 17 / 53 / 7264 | Thread | — |
+| `thread_set_state` | glibc `fork`, pthreads, signals | both (5 calling components) | 17 / 59 / 7265 | thread control capability | — |
+| `thread_get_state` | glibc `fork`, signals | both (6 calling components) | 16 / 50 / 4785 | thread control capability | — |
+| `thread_set_special_port` | glibc (per-thread exception port, presumably) | both (1 calling component) | 4 / 38 / 4783 | fault IPC handler registration | — |
+| `thread_abort` | glibc signal delivery | both (4 calling components) | 1 / 21 / 2482 | thread control capability — **not in §6** | — |
+| `thread_suspend` | glibc | both (5 calling components) | 0 / 13 / 1 | thread control capability | — |
+| `task_info` | glibc / proc queries | both (3 calling components) | 0 / 0 / 9243 | task query | — |
+| `task_set_special_port` | glibc `fork`, exec | both (6 calling components) | 7 / 61 / 7085 | bootstrap/exception capability handoff | — |
+| `task_create` | glibc `fork` | both (7 calling components) | 2 / 15 / 3064 | task create + COW clone (§6) | — |
+| `task_terminate` | glibc `_exit`/exec | both (8 calling components) | 0 / 17 / 3059 | task destroy | — |
+| `task_threads` | glibc `fork` | both (6 calling components) | 1 / 15 / 2481 | thread enumeration — not in §6 | — |
+| `task_get_special_port` | glibc startup | both (1 calling component) | 4 / 23 / 2302 | bootstrap capability | — |
+| `task_priority` | ext2fs startup | both (3 calling components) | 1 / 0 / 0 | scheduling | — |
+| `i386_set_gdt` | glibc TLS setup | both (1 calling component) | 19 / 63 / 7848 | **not in §6** — i386 TLS via GDT; x86_64 uses FS base, so the mapping differs by arch | — |
+| `i386_get_gdt` | glibc `fork` | both (1 calling component) | 2 / 40 / 3288 | as above | — |
+| `gsync_wait` | glibc pthreads/locks | both (3 calling components) | 1 / 13 / 1 | **futex — not in §6** | — |
+| `gsync_wake` | glibc pthreads/locks | both (4 calling components) | 0 / 12 / 0 | futex wake — pairs with `gsync_wait` | — |
+| `thread_set_name` | ext2fs (libpager threads) | both (1 calling component) | 2 / 0 / 0 | debug only | — |
+| `memory_object_init` | kernel → pager (ext2fs's libpager). rpctrace printed it as `device_pager_init_pager`, which shares msgid 2200 | both (implemented in hurd:libpager) | 1 / 0 / 0 | page-fault IPC setup (§6 external memory objects) | — |
 
-Totals: 697 / 116 / 770 219 Mach kernel RPCs. 39 of the 197 calls in
-`gnumach.msgids` were observed; the 158 that were not are listed by `tally.py`.
+Totals: 697 / 4223 / 770 219 Mach kernel RPCs. 40 of the 199 calls in
+`gnumach.msgids` were observed; every call  zeros included  is in
+`phase0-data/mach-call-counts.csv`.
 Of those, `mach_host` (processor sets, host time), `mach_debug`, `mach4`
 (PC sampling, proxies) and the emulation-vector calls look like the best
 candidates for *unused*. They still need the static check.
@@ -158,13 +166,66 @@ candidates for *unused*. They still need the static check.
 
 ### Next steps for this file
 
-- Static pass over `/usr/include/mach/*.defs` and the Hurd tree, for the
-  known-hard rows below, the invisible traps and every zero above.
+- Read the call sites behind the known-hard rows below (grep finds them; it
+  does not tell you what they depend on), and add the invisible traps by hand.
 - Trace a translator directly (`rpctrace` as the translator command in
   `settrans`) to get `memory_object_*` and notification traffic.
 - Work around the `gsync_wait` deadlock (patch rpctrace to forward `gsync_*`
   on a separate thread, or trace a subhurd), then re-run the build through
   compile and link.
+
+## Static results (source cross-reference, 2026-09-23)
+
+`tools/phase0/static.py` searched hurd 0.9.git20260919 and glibc 2.43 (Debian
+sources, quilt `.pc/` backups excluded) for each of the 196 non-reply calls in
+`gnumach.msgids`. A *call site* is `name (` or `__name (`; an
+*implementation* is `…_S_name (`. The per-call result, with the components
+named, is `phase0-data/static-call-sites.csv`.
+
+The raw output lists 71 calls with no call site and no implementation. That
+overstates it: three groups are implemented under other naming conventions,
+which a targeted grep confirmed, and one group belongs to the kernel.
+
+| Group | Calls | Actually |
+|---|---:|---|
+| `notify` (`mach_notify_*`) | 6 | **used.** Implemented as `do_mach_notify_*` in libports, console, devnode, eth-filter, boot |
+| `exc` (`exception_raise`) | 1 | **used.** Implemented as `catch_exception_raise` in glibc `hurd/` (signal thread) |
+| `memory_object_default` | 2 | **used by mach-defpager only** (`seqnos_memory_object_create`, `…_data_initialize`) |
+| `device_pager_*` | 9 | **kernel-internal.** Same msgids as `memory_object_*`; nothing in userspace |
+| everything else | 53 | **no user found** |
+
+The 53 unused, by subsystem:
+
+- **mach_host (24):** processor sets and processor control (`processor_*`,
+  `processor_set_*` except `processor_set_tasks`), `task_assign_default`,
+  `thread_assign*`, `thread_policy`, `thread_depress_abort`,
+  `task_max_priority`, `host_processors`, `host_set_time64`,
+  `host_adjust_time64`.
+- **mach_debug (11):** all of it.
+- **mach (9):** `mach_ports_register`/`lookup`, the emulation-vector calls,
+  `task_ras_control`, `thread_get_special_port`, `vm_machine_attribute`,
+  `memory_object_destroy`.
+- **mach4 (4):** thread and task PC sampling readers.
+- **mach_port (3):** `mach_port_rename`, `set_mscount`, `set_seqno`.
+- `device_open_new`, `vm_pages_phys`.
+
+Calls with **exactly one user** (47) are listed per component in the CSV. The
+ones that matter for the open questions:
+
+- **mach-defpager only**, which is being rewritten anyway, so they can be
+  ignored (open question 1): `memory_object_create`,
+  `memory_object_data_initialize`, `memory_object_data_unavailable`.
+- **libpager only:** the whole `memory_object_*` pager side (10 calls). The
+  Phase 6 libpager rewrite owns all of it; nothing else touches the protocol.
+- **glibc `sysdeps/mach/hurd` only:** `mach_port_allocate_name` (the fork
+  namespace copy) and all the `i386_*` segment calls.
+- **Debugging/admin tools only** (open question 2): `vm_inherit` (utils),
+  `task_assign` (sutils), plus the PC-sampling enable/disable in glibc
+  (profiling). All of `mach_debug` is unused even by tools.
+
+Reconciliation with the dynamic side: every call observed at runtime has a
+static user. The one apparent exception, `device_pager_init_pager`, turned out
+to be `memory_object_init` printed under a colliding msgid.
 
 ## Known-hard rows, flagged in advance
 

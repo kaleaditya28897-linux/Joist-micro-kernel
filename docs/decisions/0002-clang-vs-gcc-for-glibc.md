@@ -40,10 +40,60 @@ month four of Phase 7. That is the whole point of writing it down now.
 
 ## Status of the measurement
 
-Not yet performed. It requires Debian GNU/Hurd sources and a working build
-environment; the testbed VM for this is being provisioned (see
-`docs/testbed.md`). Record the result here as an amendment, and update this
-file's Status to `accepted` with whichever branch was taken.
+**Preliminary, 2026-09-23: in progress, no branch taken yet.** Data and
+provenance are in `docs/phase0-data/` (README, *Stage 4*); the scripts are in
+`tools/phase0/spike.sh` and `tools/phase0/nested.py`.
+
+Setup: Debian GNU/Hurd i386 testbed, clang 21.1.8, hurd 0.9.git20260919 and
+glibc 2.43 Debian sources, each configured with `CC=clang` and built
+out-of-tree with `make -k`.
+
+**Findings so far:**
+
+1. **Toolchain availability.** clang 21 installs from debian-ports.
+   **`lld` does not exist for hurd-i386**, so "Clang everywhere" means Clang
+   plus GNU ld on this target for now. Re-check on hurd-amd64.
+2. **glibc 2.43 configures with clang without complaint.** Upstream's
+   configure accepts clang 18 and newer (`configure.ac:588`). The build is
+   running. After ~18 minutes (still in `mach/`) it had 6 distinct errors: 5
+   from the nested functions in `mach/devstream.c`, and 1 clang-specific
+   (`include/stdlib.h`: "cannot apply asm label to function after its first
+   use"), glibc's symbol-aliasing machinery that has no nested-function cause.
+   Update this entry when the build finishes (`clang-glibc-errors.txt`).
+3. **The Hurd fails on one root cause: GCC nested functions.** The build
+   stopped after 8 minutes in `libshouldbeinlibc`, `libbpf` and `libirqhelp`,
+   which nearly everything else links against. All 38 distinct errors are
+   nested functions, or calls to them that become implicit declarations.
+   Because the build stops early, the *count* comes from a source scan, not
+   from the compiler:
+
+   | Tree | Nested functions |
+   |---|---:|
+   | Hurd (all of it) | 179 |
+   | glibc Hurd port (`hurd/`, `sysdeps/mach/`, `mach/`) | 73 |
+
+   The scan agrees exactly with clang on the 8 files clang reached. In the
+   Hurd, `utils/` alone has 61; after that come
+   `libstore/` 13, `libshouldbeinlibc/` 12, `exec/` 11, `storeio/` 6, `libfshelp/` 5.
+
+**Sizing, not yet decisive.** Each nested function has to become a static
+function. Where it captures locals of its enclosing function, that means
+closure conversion: pass a context struct, and for ones used as callbacks
+(most are), thread it through the callback API. With 252 functions, at 15
+minutes each (no captures) that is ~60 hours; at an hour each (captures
+plus callback plumbing) ~250 hours, roughly 6 person-weeks. The budget line
+(**one month of Phase 7**) falls inside that range, so the measurement is not
+yet decisive. **The deciding number is how many capture enclosing locals.**
+That's the next step, along with the finished glibc error list, and with the
+knock-on errors that the nested functions currently hide in the rest of the
+Hurd tree (a second `make -k` after hoisting the 8 blocking files would expose
+them).
+
+One scope note for when this is decided. Of the Hurd's 179,
+61 are in `utils/` (command-line tools), not in servers or libraries.
+If only the glibc half of this decision falls back to GCC, as the Decision
+section already allows, the Hurd's own conversion is still needed for
+"everything Joist owns stays Clang" wherever Joist reuses Hurd servers.
 
 ## Consequences
 
