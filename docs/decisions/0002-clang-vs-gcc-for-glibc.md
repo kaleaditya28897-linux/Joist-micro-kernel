@@ -79,24 +79,33 @@ out-of-tree with `make -k`.
 
 ### Amendment, 2026-09-23: the deciding number
 
-**185 of the 252 nested functions (73%) capture enclosing locals.** 5 more
-reference only sibling nested functions; 62 are self-contained. Split by tree:
-Hurd **130 capture** of 179, glibc **55 capture** of 73. Method, and an honest
-account of how far to trust it, in `docs/phase0-data/README.md` stage 5;
-per-function data in `docs/phase0-data/nested-captures.csv`.
+**At least 209 of the 252 nested functions (83%) capture enclosing locals.**
+7 more reference only sibling nested functions; 36 appear self-contained.
+Split by tree: Hurd **149 capture** of 179, glibc **60 capture** of 73.
+
+**209 is a floor, not a measurement.** The analysis is a regex heuristic that
+has been revised four times, and each revision moved the count up (201 → 176 →
+185 → 209) as hand-audits of the `none` bucket found more captures — 2 of 6
+wrong in one sample, 3 of 7 in another, a different bug each time. A known
+false `none` still survives. Method and the full audit trail are in
+`docs/phase0-data/README.md` stage 5; per-function data in
+`docs/phase0-data/nested-captures.csv`. A GCC `-Wtrampolines` build is running
+as the authoritative cross-check on the expensive subset.
 
 Applying the sizing below to that split, at 15 minutes for a self-contained
 function and an hour for one needing closure conversion:
 
 | | capture | sibling | none | Estimate |
 |---|---:|---:|---:|---:|
-| glibc | 55 | 2 | 16 | ~60 h (~1.5 weeks) |
-| Hurd | 130 | 3 | 46 | ~143 h (~3.6 weeks) |
-| Both | 185 | 5 | 62 | ~203 h (~5 weeks) |
+| glibc | 60 | 3 | 10 | ~64 h (~1.6 weeks) |
+| Hurd | 149 | 4 | 26 | ~157 h (~4 weeks) |
+| Both | 209 | 7 | 36 | ~221 h (~5.5 weeks) |
+
+Since 209 is a floor, so are these hours.
 
 **This does not by itself trigger the fallback, and it is important to say why.**
 The budget is one month of Phase 7 for *the Clang-for-glibc work*, and glibc's
-own nested functions come to roughly 1.5 weeks — inside the budget. It is the
+own nested functions come to roughly 1.6 weeks — inside the budget. It is the
 combined figure that exceeds a month, and most of that is the **Hurd**, which
 is a separate tree and is needed whichever compiler glibc uses (the Decision
 section already allows glibc to fall back while the Hurd stays Clang, and the

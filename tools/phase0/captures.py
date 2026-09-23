@@ -21,9 +21,15 @@ usage: captures.py TREE_DIR...
 """
 import os, re, sys
 
+# The type-prefix repetition must be LAZY and must be followed by something
+# that looks like a declarator. Greedy matching plus the generic `\w+`
+# alternative made the prefix swallow the declarator itself, so
+# `int summary_status = 0;` yielded no name at all -- the single biggest
+# source of false `none` verdicts in the first three versions of this tool.
 DECLSTART = re.compile(
     r'(?:^|[;{}])\s*((?:(?:register|auto|const|volatile|static|struct|union|enum|unsigned|signed'
-    r'|char|short|int|long|float|double|void|\w+_t|\w+)\b[\s\*]+)+)')
+    r'|char|short|int|long|float|double|void|\w+_t|\w+)\b[\s\*]+)+?)'
+    r'(?=[A-Za-z_]\w*\s*[;,=\[)])')
 IDENT = re.compile(r'\b[A-Za-z_]\w*\b')
 HDR = re.compile(r'(\w+)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*(?:__attribute__\s*\(\(.*?\)\)\s*)?\{', re.S)
 KW = {'if','for','while','switch','return','sizeof','else','do','case','default','goto','break',
