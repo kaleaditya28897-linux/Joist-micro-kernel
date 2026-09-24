@@ -216,3 +216,112 @@ on `tramp.log` gives the count, and `grep -oE "nested function .[^\x27]*."` the
 distinct names. Mechanism verified against a synthetic capturing callback,
 which warns as expected, and the flag is confirmed present on the real compile
 lines.
+
+## Stage 6: the GCC trampoline cross-check (2026-09-23/24)
+
+The compiler-authoritative check promised in stage 5. GCC emits `-Wtrampolines`
+exactly when it generates a trampoline, which happens when a nested function
+captures *and* has its address taken — the callback subset carrying the
+one-hour-per-function cost in 0002's sizing.
+
+**Commands**, in `~/spike/hurd-gcc-tramp` (an in-tree copy; the Hurd does not
+build out-of-tree):
+
+```sh
+make -k CC="gcc -Wtrampolines"                     # libraries -> tramp-libs.log
+sh tramp_progs.sh                                  # 16 program dirs -> tramp-progs.log
+```
+
+A full build is ~11 hours on the single-core i386 VM, and `utils` — the biggest
+concentration of nested functions — is 23rd of 34 program directories. So the
+second pass builds only the directories that contain nested functions. All 16
+compiled with **zero make errors** and all produced object files, so a zero in
+the table below is a real result, not a skipped directory.
+
+| Phase | Warnings | Distinct functions |
+|---|---:|---:|
+| libraries (8 dirs) | 44 | 17 |
+| programs (16 dirs) | 63 | — |
+| **combined distinct** | | **80** |
+
+Per directory: utils 39, exec 8, ext2fs 6, storeio 4, eth-multiplexer 3,
+fatfs 2, sutils 1; and **zero** in trans, proc, console-client, term, isofs,
+tmpfs, pflocal, procfs, startup.
+
+`trampolines.csv` has all 80, joined to `nested-captures.csv`.
+
+### Result 1: the regex under-counts captures, as suspected — and now proven
+
+Of the 80 trampolines, **70 are in the 252-row inventory**. A trampoline proves
+the function captures, so every one of those 70 should have been classified
+`capture`. Sixty-six were. **Four were not**:
+
+| Function | regex said |
+|---|---|
+| `utils/ftpcp.c:312 parse_opt` | none |
+| `fatfs/pager.c:1055 add_pager_max_prot` | none |
+| `ext2fs/pager.c:1764 add_pager_max_prot` | none |
+| `eth-multiplexer/netfs_impl.c:261 add_each_dev` | sibling |
+
+This is the failure mode stage 5 predicted — false `none`, never false
+`capture` — now demonstrated by the compiler rather than by hand-audit. The
+corrected count is at least 209 + 4 = **213**, and still a floor.
+
+### Result 2: the inventory itself is incomplete — the denominator is wrong
+
+**Ten trampoline functions are not in the 252-row inventory at all**, including
+three in files the inventory lists *zero* rows for (`utils/rpctrace.c`,
+`ext2fs/truncate.c`). Examples: `rpctrace.c:1770 parse_opt`,
+`truncate.c:160/172/185 free_block`, `pager.c:955/1654 sync_one`,
+`portinfo.c:245 parse_opt`, `dev.c:357 buf_write`,
+`parse.c:104/122 default_str_add`/`default_num_add`.
+
+These are ordinary nested functions — nothing exotic:
+
+```c
+int
+main (int argc, char **argv, char **envp)
+{
+  ...
+  error_t parse_opt (int key, char *arg, struct argp_state *state)
+    {
+```
+
+**Root cause, isolated.** `nested.py` tracks brace depth over the stripped
+source and skips any candidate at depth <= 0. Running its own `strip()` over
+`utils/rpctrace.c` and counting braces gives **depth 0 at `parse_opt`**, when
+the true depth inside `main` is 1. The counter desynchronises somewhere earlier
+in the file — an unbalanced brace that `strip()` fails to remove, most likely
+inside a preprocessor conditional or a character literal — and every nested
+function after that point in the file is silently dropped.
+
+That makes this a *whole-file* defect, not a marginal miss: two files
+contribute zero rows each. **252 is an undercount and the true population is
+unknown.** Since trampolines are only the address-taken subset of captures, the
+10 found here are a lower bound on what is missing.
+
+### What this means for 0002
+
+The direction is unambiguous and unfavourable: both the numerator (213+) and
+the denominator (252+) move up. The nested-function conversion is larger than
+the stage 5 estimate, not smaller. It does not change stage 5's conclusion that
+*glibc's own* share is affordable — the four proven misses and all ten missing
+functions are in the **Hurd**, not glibc — but it does mean the Hurd-side
+figure should be treated as a floor with no upper bound established.
+
+**Before this number is used for anything load-bearing, `nested.py` needs
+replacing with something that does not hand-roll brace counting** — a real C
+parser, or at minimum a scan validated against the GCC trampoline set as a
+regression test. The 80 rows in `trampolines.csv` are exactly that test set: a
+correct scanner must find all 80.
+
+### Coverage limits
+
+- Trampolines are captures **with the address taken**. A capturing nested
+  function that is only called directly produces no warning, so 80 is a floor
+  on captures, not a count of them.
+- `nfs` has 5 nested functions but is not in `prog-subdirs`, so it never builds
+  and can never appear here.
+- glibc was not built with `-Wtrampolines`; this covers the Hurd only.
+- i386. The x86_64 testbed (VM 111) exists now and should be used for any
+  re-run.

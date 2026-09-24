@@ -121,6 +121,45 @@ the fallback:
   `docs/phase0-data/clang-hurd-errors.txt` covers only the 8 Hurd files clang
   reached. **Until that build completes, the decision stays `proposed`.**
 
+### Amendment, 2026-09-24: the compiler cross-check, and a defect in the count
+
+The GCC `-Wtrampolines` build finished. **80 distinct trampolines in the Hurd**
+(44 warnings across 8 library directories, 63 across 16 program directories;
+utils 39, exec 8, ext2fs 6, storeio 4, eth-multiplexer 3, fatfs 2, sutils 1,
+and genuine zeros in trans, proc, term, pflocal and five others). Full detail
+in `docs/phase0-data/README.md` stage 6; per-function data in
+`docs/phase0-data/trampolines.csv`.
+
+Two results, and the second is the important one.
+
+**The regex under-counts, as predicted.** 70 of the 80 are in the 252-row
+inventory, and a trampoline proves capture, so all 70 should have read
+`capture`. Sixty-six did; four did not (three `none`, one `sibling`). The
+corrected floor is **213 of 252**, and the failure mode is confirmed to be
+one-directional — false `none`, never false `capture`.
+
+**The inventory is incomplete.** Ten trampoline functions are absent from the
+252 rows entirely, including three in files the inventory lists zero rows for.
+`nested.py`'s brace-depth counter desynchronises — measured directly: it
+computes depth 0 for a function plainly nested inside `main` — and silently
+drops every nested function after the desync point in that file. Two files
+contribute zero rows each. **252 is an undercount of unknown size.**
+
+**Effect on this decision.** Both numerator and denominator move up, so the
+nested-function conversion is *larger* than the earlier estimate, never
+smaller. It does not overturn the conclusion that glibc's own share is
+affordable — every one of the four proven misclassifications and all ten
+missing functions are in the Hurd, not glibc — but the Hurd-side figure now has
+a floor and no established ceiling.
+
+**This blocks nothing in 0002 and everything in the Hurd-side estimate.** The
+glibc/GCC fallback question turns on the glibc error surface, which is still
+unmeasured because the power outage killed that build. That remains the reason
+this decision is `proposed`. But the Hurd conversion estimate in the table
+above should not be quoted until `nested.py` is replaced by something that does
+not hand-roll brace counting. `trampolines.csv` is the regression test for its
+replacement: a correct scanner must find all 80.
+
 **Sizing, not yet decisive.** Each nested function has to become a static
 function. Where it captures locals of its enclosing function, that means
 closure conversion: pass a context struct, and for ones used as callbacks
