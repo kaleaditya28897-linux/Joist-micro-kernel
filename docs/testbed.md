@@ -1,148 +1,136 @@
-# GNU/Hurd testbed
+# GNU/Hurd testbeds
 
-A persistent Debian GNU/Hurd VM on **pvehome**, for the Phase 0 inventory work
-(§11) and as a reference system for the rest of the project.
+The project runs one live testbed on **pvehome**, with a second now retired.
+
+| | VM 111 — `joist-hurd-amd64` | VM 110 — `joist-hurd` |
+|---|---|---|
+| Status | **live** | **destroyed 2026-09-24** |
+| Architecture | **x86_64** — the target (§5.8) | i386 |
+| Source | netinst install, ISO md5-verified | prebuilt image, build 20260314 |
 
 ## Access
 
 ```sh
-ssh -J root@<pvehome-address> demo@<lan-address>
+ssh joist-amd64
 ```
 
-The VM sits on pvehome's LAN (<lan-subnet>/24), which is **not reachable from
-the office workstation** (<lan-subnet>/24), so the jump through pvehome is
-required. Add this to `~/.ssh/config` to shorten it:
+The alias is in `~/.ssh/config` on the workstation. The VM sits on pvehome's
+LAN (<lan-subnet>/24), which the office workstation (<lan-subnet>/24) cannot
+reach directly, so it jumps through pvehome:
 
 ```
-Host joist-hurd
+Host joist-amd64
     HostName <lan-address>
-    User demo
+    User aditya
     ProxyJump root@<pvehome-address>
 ```
 
-Then `ssh joist-hurd`.
-
 | | |
 |---|---|
-| Proxmox VMID | **110**, name `joist-hurd` |
-| Host | pvehome (<pvehome-address>) |
-| Guest IP | <lan-address> (DHCP — see caveat below) |
-| Users | `demo` (password `joisthurd2026`, in `sudo`), `root` (no password, console only) |
-| Auth | The workstation's `id_ed25519.pub` is in `demo`'s `authorized_keys`. |
-| Console | Proxmox web UI → VM 110 → Console, or `qm terminal 110` on the host. |
+| Proxmox VMID | **111**, name `joist-hurd-amd64` |
+| Guest IP | <lan-address> (DHCP lease — not reserved) |
+| User | `aditya`, in `sudo` |
+| Auth | the workstation's `id_ed25519.pub` is in `authorized_keys`; `sudo` needs the password |
+| Console | Proxmox web UI (https://<pvehome-address>:8006) → 111 → Console |
 
 ## What it is
 
-Debian GNU/Hurd **i386**, build 20260314, from the prebuilt image at
-`cdimage.debian.org/cdimage/ports/latest/hurd-i386/`.
-
 ```
-GNU debian 0.9 GNU-Mach 1.8+git20260224-up-486/Hurd-0.9 i686-AT386 GNU
-Debian forky/sid, apt sources: deb.debian.org/debian-ports sid + unreleased
+GNU debian-hurd 0.9 GNU-Mach 1.8+git20260805-up-amd64/Hurd-0.9 x86_64 GNU
+Debian forky/sid · deb.debian.org/debian-ports sid + unreleased
+4 GB RAM · 40 GB disk (37 GB root, ~34 GB free) · root device /dev/wd0s5
 ```
 
-**It is i386, not x86_64**, although the plan targets x86_64 first (§5.8).
-Debian publishes a prebuilt, immediately bootable image only for `hurd-i386`;
-`hurd-amd64` ships a netinst ISO that needs an interactive install. For Phase 0
-— `rpctrace` on real workloads, reading the Mach `.defs`, inventorying what the
-Hurd actually uses — the architecture does not matter. It will matter when we
-start drawing userland for the x86_64 target, at which point a second VM should
-be built from `debian-sid-hurd-amd64-NETINST-1.iso`.
+`/dev/wd0s5` is rumpdisk naming — storage goes through the userspace rump
+driver, not an in-kernel one.
 
-## VM configuration
+## VM configuration, and why
 
 ```
-cores 2, memory 2048, cpu host, bios seabios, ostype other
-ide0  local-lvm:vm-110-disk-0,cache=writeback,size=24480M
-net0  e1000=02:00:00:00:00:01,bridge=vmbr0
-serial0 socket, vga std, onboot 0
+cores 2, memory 4096, cpu host, bios seabios, ostype other
+sata0  local-lvm:vm-111-disk-0,cache=writeback,size=40G
+sata1  none,media=cdrom          (installer ISO ejected after install)
+net0   e1000=02:00:00:00:00:02,bridge=vmbr0
+boot   order=sata0
 ```
 
-`ide0` and `e1000` are deliberate: the Hurd's driver support is narrow, and
-these are what the upstream image is tested against. Do not switch to virtio.
+**Both disk and CD-ROM must be SATA/AHCI, not IDE.** hurd-amd64 has no
+in-kernel IDE driver. The trap is that SeaBIOS will happily *boot* an IDE
+CD-ROM — BIOS INT13 needs no OS driver — and then the installer fails at
+"Detect and mount installation media" with an error that points nowhere near
+the real cause. Do not switch either device to virtio or IDE.
 
-`onboot 0` — the VM does not start with the host, to avoid holding 2 GB on a
-16 GB machine permanently. Start it with `qm start 110`, or set `onboot 1` if
-you would rather have it always available.
+`onboot 0`: the VM does not start with the host. `qm start 111`.
 
-## Tooling state
+## Tooling
 
-Present in the image: `rpctrace` (the tool Phase 0 depends on), `gcc`, `make`,
-`fakeroot`, `dpkg-buildpackage`.
+Present: `rpctrace` (ships with the `hurd` package — the tool Phase 0 depends
+on), `gcc`, `make`, `git`, `mig`, `dpkg-buildpackage`, `fakeroot`, `sudo`.
 
-Installed afterwards: `git`, `mig`.
+Not yet installed: **`clang`**, needed for decision 0002's sizing spike.
 
-Installed 2026-09-23 for decision 0002's spike: **clang 21.1.8** (`clang`,
-from debian-ports), plus the build dependencies of `glibc` and `hurd`.
-**`lld` is not available** for hurd-i386.
-
-**Package drift:** `apt-get build-dep glibc hurd` upgraded the system `hurd`
-package from `0.9.git20251029-7` to `0.9.git20260919-1`. dpkg stopped at a
-conffile prompt for `hurd-console`; it was finished with
-`dpkg --force-confold --configure -a`, which keeps the local file. The new Hurd
-runs from the next reboot. The Phase 0 rpctrace data was collected under the
-old version. Note this before comparing traces taken after a reboot.
-
-apt also has `deb-src http://deb.debian.org/debian sid main`
-(`/etc/apt/sources.list.d/debian-src.list`). debian-ports publishes no
-sources, so `apt-get source` / `build-dep` need the main archive.
+Note this was a netinst base system, far barer than VM 110's prebuilt image.
+The installer set a root password rather than enabling sudo, so `sudo` had to
+be installed from the console first — see *Gotchas*.
 
 ## Known limitations
 
-1. **Disk expanded 2026-09-23** from 4 GB to 24 GB; `/` (`hd0s2`) is 23 GB
-   with ~20 GB free. Done offline from the host, not from inside the Hurd,
-   whose ext2fs cannot resize online:
-   ```sh
-   # in the guest: sudo poweroff ; then on pvehome:
-   qm snapshot 110 pre_disk_resize
-   qm resize 110 ide0 +20G
-   echo ", +" | sfdisk --no-reread -N 2 /dev/pve/vm-110-disk-0
-   L=$(losetup -f --show -P /dev/pve/vm-110-disk-0)
-   e2fsck -f -y ${L}p2 ; resize2fs ${L}p2 ; e2fsck -f -n ${L}p2
-   losetup -d $L ; qm start 110
-   ```
-   The first `e2fsck` fixed 13 deleted inodes with zero dtime, plus the stale
-   free counts that went with them. These are leftovers of a Hurd shutdown, not
-   corruption; the second check came back clean. The old partition table is in
-   `/root/vm110-ptable-before-resize.sfdisk` on pvehome. The Proxmox snapshot
-   `pre_disk_resize` still exists; delete it (`qm delsnapshot 110
-   pre_disk_resize`) once the VM has proven healthy, because it pins the old
-   blocks in the thin pool.
-   *Host caveat:* pvehome's thin pool is overcommitted (~520 GiB of thin
-   volumes on a 338 GiB pool, 66% actually used). That's fine today, but watch
-   `lvs` before growing anything else.
-2. **DHCP, not static.** <lan-address> is a lease and may change. Either
-   reserve it on the router or give the VM a static address before relying on
-   the SSH config entry above.
-3. **Console input is fragile.** Driving the VGA console by injecting
-   keystrokes (`qm monitor` → `sendkey`) works for short commands but wedges on
-   long ones — a ~270-character line mangled its input and stopped responding
-   until a reset. Use SSH for anything non-trivial. This is also a small
-   data point about the Hurd console that may be worth remembering.
-4. **Image checksum unverified.** The `MD5SUMS` published alongside the
-   `debian-hurd.img.tar.xz` symlink covers older builds (20230608, 20250807),
-   not the 20260314 image the symlink actually serves. The download was HTTPS
-   from cdimage.debian.org with a byte-exact content length and a valid
-   partition table, but no checksum match was possible.
+1. **`nproc` reports 1** despite two assigned cores. GNU Mach is effectively
+   uniprocessor, so nothing here parallelises and builds are slow: a full Hurd
+   build took ~11 hours on the comparable i386 VM. Also worth noting against
+   decision 0003, which assumes SMP from the design stage.
+2. **DHCP, not static.** <lan-address> is a lease. Reserve it on the router
+   before relying on the SSH alias.
+3. **The Hurd console wedges on long injected keystroke lines.** Roughly 270
+   characters mangled input on VM 110 and killed console input until a reset.
+   Keep `qm monitor` + `sendkey` commands short; use SSH for real work.
+4. **No backups.** `pbs-home` (CT 405) is stopped and unreachable, so nothing
+   on this host is being backed up.
 
-## Next steps on this VM
+## Gotchas worth keeping
 
-Phase 0 (§11), in rough order:
+- **The Hurd does not build out-of-tree.** A separate build directory fails at
+  once with `make[1]: *** libports: No such file or directory`. Copy the source
+  tree and build in place.
+- **Never pass `CFLAGS=` on the make command line.** `Makeconf` uses
+  `CFLAGS +=`, and a command-line assignment overrides it wholesale, dropping
+  `-std=gnu99` and breaking every compile. Append to `CC` instead:
+  `make CC="gcc -Wtrampolines"`.
+- **The Makefile's subdir lists use `\` continuations** — 19 libraries and 34
+  programs, not the ~10 a first-line read suggests. `nfs` is in the source tree
+  but not in `prog-subdirs`, so it never builds.
+- **`su` cannot be driven by piping a password over SSH.** It calls `tcflush()`
+  before prompting and discards anything sent early. Use the Proxmox console,
+  where it gets a real tty.
+- **`pkill -f "<pattern>"` over SSH can kill your own session** when the
+  pattern appears in the remote command line you are running. Use `pgrep -x`.
 
-1. ~~`rpctrace` on boot, a shell session, and a package build → `docs/mach-inventory.md`.~~
-   Done 2026-09-23, partially: rpctrace deadlocks on `gsync_wait`. See the
-   inventory's *Coverage* section. Scripts are in `tools/phase0/`, data and
-   provenance in `docs/phase0-data/`.
-   Raw traces are in `~demo/trace/`; don't delete them, since the checksums in
-   `docs/phase0-data/README.md` refer to them.
-2. ~~Read `/usr/include/mach/*.defs` and mark every call used / unused / used-by-one-thing.~~
-   Done by grep cross-reference (inventory *Static results*); reading the call
-   sites behind the known-hard rows is still open.
-3. ~~Answer the open questions in `docs/client-recovery.md` §8~~ (done; Q2 is
-   partial) — especially
-   whether ext2fs exposes an inode generation counter, and what a Hurd file
-   descriptor actually holds.
-4. ~~Expand the disk~~, ~~install clang~~ (done); decision 0002's sizing spike is
-   **running**: `~demo/spike/spike.sh`, progress in `~demo/spike/spike.log`,
-   glibc build log in `~demo/spike/glibc-make.log` (capped at 5 h). Sources
-   and clang build trees are in `~demo/spike/`.
+## VM 110, retired
+
+The i386 stopgap, used for all Phase 0 data collection because Debian publishes
+a prebuilt bootable image only for `hurd-i386`. Destroyed on 2026-09-24 once the
+trampoline cross-check finished. Its irreplaceable data is archived on pvehome:
+
+| Archive | Contents |
+|---|---|
+| `/root/hurd-setup/archive/vm110-phase0.tgz` (11 MB) | the three `rpctrace` traces whose SHA-256 sums are the provenance for everything in `phase0-data/`, plus the spike logs, scripts and derived CSVs |
+| `/root/hurd-setup/archive/vm110-trampolines.tgz` (123 KB) | `tramp-libs.log`, `tramp-progs.log`, `tramp.log` |
+
+All three trace checksums were verified straight out of the tarball against
+what `docs/phase0-data/README.md` records, before the VM was destroyed.
+
+**The archives are on pvehome only, and pvehome has no working backup.** If
+they matter, copy them somewhere else.
+
+## Next steps
+
+1. **Re-run the `rpctrace` workloads here, on x86_64.** Decision 0010 rests on
+   an i386-only observation — 11 136 `i386_set_gdt`/`get_gdt` calls per build
+   turned out to be thread-local storage, which has no x86_64 counterpart. The
+   whole inventory should be re-derived on the target architecture and compared.
+2. **Install clang and finish decision 0002's glibc build**, which a power
+   outage killed partway through. 0002 stays `proposed` until it completes.
+3. **Replace `nested.py`.** Its brace-depth counter desynchronises and silently
+   drops every nested function after the fault in a file; `phase0-data/README.md`
+   stage 6 has the evidence. `trampolines.csv` is the regression test — a
+   correct scanner must find all 80.
