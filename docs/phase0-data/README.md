@@ -325,3 +325,47 @@ correct scanner must find all 80.
 - glibc was not built with `-Wtrampolines`; this covers the Hurd only.
 - i386. The x86_64 testbed (VM 111) exists now and should be used for any
   re-run.
+
+## Stage 7: nested.py replaced, and the true population (2026-09-30)
+
+**Command:** `tools/phase0/nested.py hurd-0.9.git20260919` and
+`tools/phase0/nested.py glibc-2.43/hurd glibc-2.43/sysdeps/mach glibc-2.43/mach`,
+run on VM 111 over `apt-get source` trees of the same versions as before
+(hurd 0.9.git20260919-1, glibc 2.43-6). Script sha256
+`85bbc56e6a91cfdeacdf437de7968b5419a12160a83f503159f7dfccf8aff3d6`.
+
+Version 2 tokenizes instead of regex-stripping. Comments, strings,
+character literals and line continuations are whole tokens. Preprocessor
+conditionals are followed the way one compiler configuration sees them:
+every `#if`/`#elif`/`#else` branch starts at the chain's entry depth, depth
+continues from the first branch after `#endif`, and `#if 0` is skipped. The
+docstring has the full rules.
+
+**Regression results:**
+
+| Check | v1 | v2 |
+|---|---:|---:|
+| `trampolines.csv` functions found (GCC-proven nested) | 70 / 80 | **80 / 80** |
+| v1's 252 rows still found | — | **252 / 252** |
+| New rows | — | 46 |
+| **Total** | 252 | **298** (Hurd 222, glibc 76) |
+
+The 46 new rows were checked by printing each one's declaration line from
+the source: all 46 are function definitions. The three in
+`libfshelp/rlock-tweak.c` have their return type on the previous line, which
+is the shape an upward depth error would produce. They were confirmed nested
+by locating the enclosing `fshelp_rlock_tweak`, which spans lines 46–549.
+**No false positives found.** A unit test with the known failure shapes
+(unbalanced braces across `#if`/`#else`, `'{'` literals, `#if 0`,
+`__attribute__`, return type on its own line, and seven statement blocks that
+must not match) gave exactly the three expected functions.
+
+`nested-functions.csv` now has 298 rows. Its `found_by_v1` column marks the
+46 that v1 dropped (43 Hurd, 3 glibc). 10 of those 46 are in
+`trampolines.csv`, so they are proven captures.
+
+**Not re-done:** capture classification of the 36 new rows that are not
+trampolines. `captures.py` finds enclosing functions with its own hand-rolled
+brace matching, the same defect class v1 had, so running it would not be
+trustworthy. Decision 0002 is argued with bounds instead: see its 2026-09-30
+amendment.

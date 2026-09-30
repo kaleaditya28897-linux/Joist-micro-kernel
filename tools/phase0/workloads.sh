@@ -1,5 +1,6 @@
 #!/bin/bash
-# Phase 0 rpctrace workloads. Run on joist-hurd as demo from ~/trace.
+# Phase 0 rpctrace workloads. Run from ~/trace on the testbed
+# (joist-hurd as demo on i386, 2026-09-23; joist-amd64 as aditya on x86_64, 2026-09-30).
 cd ~/trace
 S=16   # truncate string args; we only need call names
 
@@ -19,6 +20,7 @@ echo "boot rc=$?"
 #    as its own process and the logs are concatenated.
 rm -f shell.txt
 while read -r c; do
+  rm -f one.txt   # else a trace that fails to start re-appends the previous one
   timeout 60 rpctrace -s $S -o one.txt sh -c "$c" >/dev/null 2>&1 || echo "timeout: $c"
   cat one.txt >> shell.txt
 done <<'EOF2'
@@ -40,4 +42,6 @@ cd hello-2.12.3 && git clean -fdxq 2>/dev/null
 timeout 3000 rpctrace -s $S -o ../build.txt dpkg-buildpackage -us -uc -b > ../build.out 2>&1
 echo "build rc=$?"
 
-python3 ~/trace/tally.py /usr/share/msgids/gnumach.msgids boot.txt shell.txt build.txt
+cd ~/trace
+python3 ~/trace/tally.py /usr/share/msgids/gnumach.msgids boot.txt shell.txt build.txt > mach-call-counts.md
+python3 ~/trace/hurdrpc.py boot.txt shell.txt build.txt

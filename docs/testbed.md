@@ -67,7 +67,16 @@ the real cause. Do not switch either device to virtio or IDE.
 Present: `rpctrace` (ships with the `hurd` package — the tool Phase 0 depends
 on), `gcc`, `make`, `git`, `mig`, `dpkg-buildpackage`, `fakeroot`, `sudo`.
 
-Not yet installed: **`clang`**, needed for decision 0002's sizing spike.
+Installed 2026-09-30: **clang 21.1.8** (Debian `1:21.1.8-10`; VM 110 had `-13`),
+`python3` 3.14.7, and the build-deps of `hello`, `glibc` and `hurd`. apt also
+has `deb-src http://deb.debian.org/debian sid main` in
+`/etc/apt/sources.list.d/debian-src.list`: debian-ports has no sources. The
+build-deps did **not** move the system `hurd` package, which was already
+0.9.git20260919-1, the version of the source trees.
+
+Work directories: `~/trace` (rpctrace workloads) and `~/spike` (hurd, glibc
+and gnumach sources, clang builds). Progress of the current run is in
+`~/run-amd64.log`.
 
 Note this was a netinst base system, far barer than VM 110's prebuilt image.
 The installer set a root password rather than enabling sudo, so `sudo` had to
@@ -130,7 +139,5 @@ they matter, copy them somewhere else.
    whole inventory should be re-derived on the target architecture and compared.
 2. **Install clang and finish decision 0002's glibc build**, which a power
    outage killed partway through. 0002 stays `proposed` until it completes.
-3. **Replace `nested.py`.** Its brace-depth counter desynchronises and silently
-   drops every nested function after the fault in a file; `phase0-data/README.md`
-   stage 6 has the evidence. `trampolines.csv` is the regression test — a
-   correct scanner must find all 80.
+3. ~~Replace `nested.py`~~. Done 2026-09-30: v2 finds all 80 trampolines and
+   298 nested functions (was 252). See `phase0-data/README.md` stage 7.

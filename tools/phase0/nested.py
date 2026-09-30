@@ -1,32 +1,192 @@
 #!/usr/bin/env python3
 """Find GCC nested function definitions (unsupported by clang).
-Heuristic: strip comments/strings, track brace depth, and report a function
-definition header `type name (args) {` that starts while depth > 0.
-usage: nested.py DIR...   -> TSV: file, line, function name"""
+
+usage: nested.py DIR...   -> TSV on stdout: file, line, function name
+
+Version 2 (2026-09-30). Version 1 tracked brace depth with regexes over
+comment- and string-stripped text. It desynchronised whenever the text still
+held an unbalanced brace, most often in the branches of an #if/#else, and then
+silently dropped every nested function after that point in the file (see
+docs/phase0-data/README.md, stage 6).
+
+This version tokenizes instead:
+
+- comments, string and character literals (including '{' and '\\''), and
+  backslash-newline continuations are consumed as whole tokens, so a brace
+  inside any of them is never counted;
+- preprocessor directives are read as whole logical lines. Conditionals are
+  tracked the way a compiler sees one configuration: every branch of an
+  #if/#elif/#else chain starts at the depth the chain started at, and after
+  #endif the depth continues from the first branch that was scanned. Branches
+  are still scanned, so a nested function inside any branch is reported;
+- `#if 0` (and `#if (0)`) branches are skipped entirely: they are dead code.
+
+A nested function is reported when a `{` at depth > 0 closes a declarator
+`TYPE NAME ( ... ) [__attribute__((...))] {`, where the token before NAME is a
+type word, a `*`, or an identifier (a typedef name), and NAME is not a
+control keyword. That shape cannot be a statement, so false positives need a
+macro that expands to one; none are known.
+
+Regression test: docs/phase0-data/trampolines.csv. GCC generated a trampoline
+for each of its 80 rows, so each is a nested function; a correct scanner finds
+all 80.
+"""
 import os, re, sys
-hdr = re.compile(r'(?:^|[;{}])\s*(?:(?:static|inline|auto|const|unsigned|signed|struct|enum|__always_inline|error_t|int|void|char|long|short|size_t|ssize_t|kern_return_t|mach_port_t|file_t|io_t|\w+_t)\b[\s\*]*)+(\w+)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*(?:__attribute__\s*\(\(.*?\)\)\s*)?\{', re.S)
-kw = {'if', 'for', 'while', 'switch', 'return', 'sizeof', 'else', 'do'}
-def strip(t):
-    t = re.sub(r'/\*.*?\*/', lambda m: '\n' * m.group().count('\n'), t, flags=re.S)
-    t = re.sub(r'//[^\n]*', '', t)
-    t = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', t)
-    t = re.sub(r"'(?:\\.|[^'\\\n])*'", "''", t)
-    return re.sub(r'^\s*#[^\n]*(?:\\\n[^\n]*)*', lambda m: '\n' * m.group().count('\n'), t, flags=re.M)
-for root in sys.argv[1:]:
-    for d, dirs, files in os.walk(root):
-        dirs[:] = [x for x in dirs if x not in ('.git', '.pc', 'build-clang', 'debian')]
-        for fn in files:
-            if not fn.endswith('.c'):
+
+KEYWORDS = {'if', 'for', 'while', 'switch', 'return', 'sizeof', 'else', 'do',
+            'case', 'goto', '__attribute__', '__typeof__', 'typeof', '__asm__',
+            'asm', '_Alignof', '__alignof__', '_Generic', '__extension__'}
+# Tokens that can end a type in a declaration: `int f (`, `char *f (`, `foo_t f (`.
+NOT_TYPE_END = {'=', ',', '(', '[', '?', ':', '!', '&&', '||', '+', '-', '/',
+                '%', '<', '>', '==', '!=', '<=', '>=', '&', '|', '^', '~',
+                '.', '->', 'return', 'else', 'case', 'goto', 'sizeof', ';',
+                '{', '}'}
+
+TOKEN = re.compile(r'''
+    (?P<ws>[ \t\f\v\r]+|\\\n)
+  | (?P<nl>\n)
+  | (?P<comment>/\*.*?\*/|//(?:\\\n|[^\n])*)
+  | (?P<str>"(?:\\.|\\\n|[^"\\\n])*")
+  | (?P<chr>'(?:\\.|[^'\\\n])*')
+  | (?P<id>[A-Za-z_]\w*)
+  | (?P<num>\.?\d(?:[\w.]|[eEpP][+-])*)
+  | (?P<op>->|\+\+|--|<<=?|>>=?|[<>=!]=|&&|\|\||\#\#|[-+*/%&|^~!<>=?:;,.(){}\[\]\#])
+  | (?P<other>.)
+''', re.S | re.X)
+DIRECTIVE = re.compile(r'[ \t]*#[ \t]*(\w*)(.*)')
+IF_ZERO = re.compile(r'\s*\(?\s*0\s*\)?\s*(?:/\*.*\*/|//.*)?$')
+
+
+def logical_lines_directive(text, pos):
+    """Return (directive, argument, end) for a directive starting at pos."""
+    end = pos
+    while True:
+        nl = text.find('\n', end)
+        if nl < 0:
+            end = len(text)
+            break
+        if nl > 0 and text[nl - 1] == '\\':
+            end = nl + 1
+            continue
+        end = nl
+        break
+    body = text[pos:end].replace('\\\n', ' ')
+    m = DIRECTIVE.match(body)
+    return (m.group(1), m.group(2), end) if m else ('', '', end)
+
+
+def scan(path):
+    text = open(path, errors='replace').read()
+    found = []
+    depth = 0
+    line = 1
+    toks = []               # significant tokens in the current live region: (kind, value, line)
+    cond = []               # stack of [start_depth, first_end_depth or None, skipping, any_live]
+    at_line_start = True
+    pos = 0
+    n = len(text)
+    while pos < n:
+        if at_line_start:
+            m = re.compile(r'[ \t]*#').match(text, pos)
+            if m:
+                d, arg, end = logical_lines_directive(text, pos)
+                line += text.count('\n', pos, end)
+                pos = end
+                skipping_outer = any(f[2] for f in cond)
+                if d in ('if', 'ifdef', 'ifndef'):
+                    dead = d == 'if' and IF_ZERO.match(arg) is not None
+                    cond.append([depth, None, dead, not dead])
+                elif d in ('elif', 'else') and cond:
+                    f = cond[-1]
+                    if f[3] and f[1] is None:
+                        f[1] = depth          # remember where the first live branch ended
+                    depth = f[0]
+                    dead = d == 'elif' and IF_ZERO.match(arg) is not None
+                    f[2] = dead
+                    f[3] = f[3] or not dead
+                elif d == 'endif' and cond:
+                    f = cond.pop()
+                    if f[1] is not None:
+                        depth = f[1]
                 continue
-            p = os.path.join(d, fn)
-            t = strip(open(p, errors='replace').read())
-            depth = [0] * (len(t) + 1)
-            dd = 0
-            for i, ch in enumerate(t):
-                depth[i] = dd
-                dd += (ch == '{') - (ch == '}')
-            for m in hdr.finditer(t):
-                name = m.group(1)
-                if name in kw or depth[m.start(1)] <= 0:
-                    continue
-                print(f'{p}\t{t.count(chr(10), 0, m.start(1)) + 1}\t{name}')
+            at_line_start = False
+        m = TOKEN.match(text, pos)
+        kind = m.lastgroup
+        val = m.group(kind)
+        pos = m.end()
+        line_here = line
+        line += val.count('\n')
+        if kind == 'nl':
+            at_line_start = True
+            continue
+        if kind in ('ws', 'comment'):
+            if kind == 'comment' and '\n' in val:
+                pass
+            continue
+        if any(f[2] for f in cond):
+            continue                          # inside #if 0: dead code
+        if val == '{':
+            if depth > 0:
+                name = declarator_name(toks)
+                if name:
+                    found.append((name[1], name[0]))
+            depth += 1
+        elif val == '}':
+            depth = max(depth - 1, 0)
+        toks.append((kind, val, line_here))
+        if len(toks) > 4000:
+            del toks[:2000]
+    return found
+
+
+def declarator_name(toks):
+    """If toks ends with `TYPE NAME ( ... ) [attrs]`, return (name, line)."""
+    i = len(toks) - 1
+    # Skip trailing __attribute__ ((...)) groups.
+    while i >= 0 and toks[i][1] == ')':
+        j = match_paren(toks, i)
+        if j is None:
+            return None
+        if j >= 2 and toks[j - 1][1] == '(' and toks[j - 2][1] == '__attribute__':
+            i = j - 3
+            continue
+        if j >= 1 and toks[j - 1][1] == '__attribute__':
+            i = j - 2
+            continue
+        # This is the parameter list.
+        if j < 2:
+            return None
+        name_tok, before = toks[j - 1], toks[j - 2]
+        if name_tok[0] != 'id' or name_tok[1] in KEYWORDS:
+            return None
+        if before[1] in NOT_TYPE_END or before[1] in KEYWORDS:
+            return None
+        if before[0] not in ('id',) and before[1] != '*':
+            return None
+        return name_tok[1], name_tok[2]
+    return None
+
+
+def match_paren(toks, i):
+    level = 0
+    while i >= 0:
+        v = toks[i][1]
+        if v == ')':
+            level += 1
+        elif v == '(':
+            level -= 1
+            if level == 0:
+                return i
+        i -= 1
+    return None
+
+
+if __name__ == '__main__':
+    for root in sys.argv[1:]:
+        for d, dirs, files in os.walk(root):
+            dirs[:] = sorted(x for x in dirs if x not in ('.git', '.pc', 'build-clang', 'build-gcc', 'debian'))
+            for fn in sorted(files):
+                if fn.endswith('.c'):
+                    p = os.path.join(d, fn)
+                    for ln, name in scan(p):
+                        print(f'{p}\t{ln}\t{name}')

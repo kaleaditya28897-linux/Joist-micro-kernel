@@ -179,6 +179,45 @@ If only the glibc half of this decision falls back to GCC, as the Decision
 section already allows, the Hurd's own conversion is still needed for
 "everything Joist owns stays Clang" wherever Joist reuses Hurd servers.
 
+### Amendment, 2026-09-30: the full population, and a bound that settles the glibc half
+
+`nested.py` was replaced (`docs/phase0-data/README.md` stage 7). The new scanner
+finds **all 80** GCC trampolines and all 252 old rows, plus 46 functions the old
+one dropped. **298 nested functions in total: Hurd 222, glibc 76.** No false
+positives among the new rows.
+
+What is known about each, at the sizing used above (1 h for closure
+conversion, 0.5 h for sibling-only, 0.25 h for self-contained):
+
+| | Capture (proven or regex floor) | Sibling | None | Unclassified | Hours: floor – worst case |
+|---|---:|---:|---:|---:|---:|
+| glibc | 60 | 3 | 10 | 3 | **65 – 76 h (1.6 – 1.9 weeks)** |
+| Hurd | 153 + 10 new trampolines | 3 | 23 | 33 | **179 – 222 h (4.5 – 5.6 weeks)** |
+
+The Hurd's 153 is the 149 regex captures plus the 4 that `trampolines.csv`
+proved the regex had wrong. The floor counts each unclassified function as
+self-contained, and the regex's `none`/`sibling` verdicts as given. The worst
+case charges every nested function in the tree a full hour, which can't be
+exceeded under this sizing.
+
+**The glibc half no longer depends on the capture analysis.** Even the worst
+case, where every one of glibc's 76 nested functions needs full closure
+conversion, is 76 hours, under half of the one-month budget. The
+classification heuristic's known under-counting cannot change that. **Nested
+functions do not trigger the fallback.**
+
+The Hurd share is 4.5 to 5.6 weeks and, as argued above, is not chargeable to
+this decision. It's needed whichever compiler glibc uses.
+
+**What still keeps this `proposed`:** glibc's *other* clang error classes. The
+2026-09-23 build got as far as `hurd/` with 214 distinct errors before the power
+outage, including non-nested-function classes ("cannot apply asm label to
+function after its first use", "incomplete definition of type", incompatible
+function-pointer types). A full build is running on VM 111 (x86_64, the target
+architecture) via `tools/phase0/spike-glibc.sh`. When it finishes, the errors
+that are *not* nested functions or their knock-on effects are the remaining
+unknown, and the last input this decision needs.
+
 ## Consequences
 
 - Easier: Phase 7 has a known worst case; nobody has to re-litigate the
