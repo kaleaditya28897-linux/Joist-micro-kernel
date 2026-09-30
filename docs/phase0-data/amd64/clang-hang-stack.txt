@@ -1,0 +1,59 @@
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace, preprocessed source, and associated run script.
+Stack dump:
+0.	Program arguments: clang ../sysdeps/ieee754/dbl-64/s_lround.c -fsyntax-only -w -std=gnu11 -fgnu89-inline -g -O2 -Wall -Wwrite-strings -Wundef -Wimplicit-fallthrough -fmerge-all-constants -frounding-math -ftrapping-math -fno-stack-protector -fno-common -U_FORTIFY_SOURCE -Wno-parentheses -Wstrict-prototypes -Wold-style-definition -fno-math-errno -fPIE -fno-builtin-lroundf32x -fno-builtin-lroundf64 -I../include -I/home/user/spike/glibc-2.43/build-clang/math -I/home/user/spike/glibc-2.43/build-clang -I../sysdeps/mach/hurd/x86_64 -I../sysdeps/mach/hurd/x86 -I../sysdeps/mach/hurd/x86_64/htl -I../sysdeps/mach/hurd/htl -I../sysdeps/hurd/htl -I../sysdeps/mach/htl -I../sysdeps/htl/include -I../sysdeps/htl -I../sysdeps/pthread -I../sysdeps/x86_64/htl -I../sysdeps/x86/htl -I../sysdeps/mach/hurd -I../sysdeps/gnu -I../sysdeps/unix/bsd -I../sysdeps/unix/inet -I../sysdeps/mach/x86_64 -I../sysdeps/mach/x86 -I../sysdeps/mach/include -I../sysdeps/mach -I../sysdeps/x86_64/64 -I../sysdeps/x86_64/fpu/multiarch -I../sysdeps/x86_64/fpu -I../sysdeps/x86/fpu -I../sysdeps/x86_64/multiarch -I../sysdeps/x86_64 -I../sysdeps/x86/include -I../sysdeps/x86 -I../sysdeps/ieee754/float128 -I../sysdeps/ieee754/ldbl-96/include -I../sysdeps/ieee754/ldbl-96 -I../sysdeps/ieee754/dbl-64 -I../sysdeps/ieee754/flt-32 -I../sysdeps/hurd/include -I../sysdeps/hurd -I../sysdeps/unix -I../sysdeps/posix -I../sysdeps/wordsize-64 -I../sysdeps/ieee754 -I../sysdeps/generic -I../hurd -I/home/user/spike/glibc-2.43/build-clang/hurd/ -I../mach -I/home/user/spike/glibc-2.43/build-clang/mach/ -I.. -I../libio -I. -D_LIBC_REENTRANT -include /home/user/spike/glibc-2.43/build-clang/libc-modules.h -DMODULE_NAME=libm -include ../include/libc-symbols.h -DPIC -DTOP_NAMESPACE=glibc -I../soft-fp -MT /home/user/spike/glibc-2.43/build-clang/math/s_lround.o
+1.	../math/bits/mathcalls-helper-functions.h:25:33: current parser token ';'
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  libLLVM.so.21.1      0x00000000059e355a llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 58
+1  libLLVM.so.21.1      0x00000000059e1f67 llvm::sys::RunSignalHandlers() + 135
+2  libLLVM.so.21.1      0x0000000005918519
+3  libc.so.0.3          0x000000000d5901de
+4  libc.so.0.3          0x000000000d56c32c
+5  libc.so.0.3          0x000000000d56ca0d mach_msg + 45
+6  libhurduser.so.0.3   0x00000000003cd437 msg_sig_post + 167
+7  libc.so.0.3          0x000000000d58f68b
+8  libc.so.0.3          0x000000000d5d2154 __sigprocmask + 52
+9  libLLVM.so.21.1      0x00000000059184e9
+10 libc.so.0.3          0x000000000d5901de
+11 libclang-cpp.so.21.1 0x0000000001e28b52 clang::SourceManager::getPresumedLoc(clang::SourceLocation, bool) const + 18
+12 libclang-cpp.so.21.1 0x0000000001de2fc8
+13 libclang-cpp.so.21.1 0x0000000002b11f92 clang::Sema::warnOnReservedIdentifier(clang::NamedDecl const*) + 146
+14 libclang-cpp.so.21.1 0x0000000002b11e7c clang::Sema::PushOnScopeChains(clang::NamedDecl*, clang::Scope*, bool) + 940
+15 libclang-cpp.so.21.1 0x0000000002b266b5 clang::Sema::HandleDeclarator(clang::Scope*, clang::Declarator&, llvm::MutableArrayRef<clang::TemplateParameterList*>) + 2853
+16 libclang-cpp.so.21.1 0x0000000002b25af8 clang::Sema::ActOnDeclarator(clang::Scope*, clang::Declarator&) + 312
+17 libclang-cpp.so.21.1 0x0000000001fa2b24 clang::Parser::ParseDeclarationAfterDeclaratorAndAttributes(clang::Declarator&, clang::Parser::ParsedTemplateInfo const&, clang::Parser::ForRangeInit*) + 148
+18 libclang-cpp.so.21.1 0x0000000001fa0b8b clang::Parser::ParseDeclGroup(clang::ParsingDeclSpec&, clang::DeclaratorContext, clang::ParsedAttributes&, clang::Parser::ParsedTemplateInfo&, clang::SourceLocation*, clang::Parser::ForRangeInit*) + 1531
+19 libclang-cpp.so.21.1 0x0000000002050cd3 clang::Parser::ParseDeclOrFunctionDefInternal(clang::ParsedAttributes&, clang::ParsedAttributes&, clang::ParsingDeclSpec&, clang::AccessSpecifier) + 1059
+20 libclang-cpp.so.21.1 0x00000000020506c9 clang::Parser::ParseDeclarationOrFunctionDefinition(clang::ParsedAttributes&, clang::ParsedAttributes&, clang::ParsingDeclSpec*, clang::AccessSpecifier) + 585
+21 libclang-cpp.so.21.1 0x000000000204f9c6 clang::Parser::ParseExternalDeclaration(clang::ParsedAttributes&, clang::ParsedAttributes&, clang::ParsingDeclSpec*) + 2086
+22 libclang-cpp.so.21.1 0x000000000204e207 clang::Parser::ParseTopLevelDecl(clang::OpaquePtr<clang::DeclGroupRef>&, clang::Sema::ModuleImportState&) + 1271
+23 libclang-cpp.so.21.1 0x0000000001f8c91e clang::ParseAST(clang::Sema&, bool, bool) + 798
+24 libclang-cpp.so.21.1 0x0000000003ba0e5f clang::FrontendAction::Execute() + 47
+25 libclang-cpp.so.21.1 0x0000000003b12f84 clang::CompilerInstance::ExecuteAction(clang::FrontendAction&) + 948
+26 libclang-cpp.so.21.1 0x0000000003c2951e clang::ExecuteCompilerInvocation(clang::CompilerInstance*) + 702
+27 clang                0x0000000000411bfc cc1_main(llvm::ArrayRef<char const*>, char const*, void*) + 6572
+28 clang                0x000000000040e645
+29 libclang-cpp.so.21.1 0x00000000037c9b1d
+30 libLLVM.so.21.1      0x00000000059181e7 llvm::CrashRecoveryContext::RunSafely(llvm::function_ref<void ()>) + 135
+31 libclang-cpp.so.21.1 0x00000000037c95d1 clang::driver::CC1Command::Execute(llvm::ArrayRef<std::optional<llvm::StringRef>>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>*, bool*) const + 369
+32 libclang-cpp.so.21.1 0x000000000378a8f2 clang::driver::Compilation::ExecuteCommand(clang::driver::Command const&, clang::driver::Command const*&, bool) const + 498
+33 libclang-cpp.so.21.1 0x000000000378aabe clang::driver::Compilation::ExecuteJobs(clang::driver::JobList const&, llvm::SmallVectorImpl<std::pair<int, clang::driver::Command const*>>&, bool) const + 142
+34 libclang-cpp.so.21.1 0x00000000037a92ad clang::driver::Driver::ExecuteCompilation(clang::driver::Compilation&, llvm::SmallVectorImpl<std::pair<int, clang::driver::Command const*>>&) + 365
+35 clang                0x000000000040e128 clang_main(int, char**, llvm::ToolContext const&) + 6328
+36 clang                0x000000000041cc3a main + 106
+37 libc.so.0.3          0x000000000d5b9a48 __libc_start_main + 136
+38 clang                0x000000000040c3b1 _start + 33
+clang: error: clang frontend command failed with exit code 139 (use -v to see invocation)
+Debian clang version 21.1.8 (10)
+Target: x86_64-unknown-hurd-gnu0.9
+Thread model: posix
+InstalledDir: /usr/lib/llvm-21/bin
+clang: note: diagnostic msg: 
+********************
+
+PLEASE ATTACH THE FOLLOWING FILES TO THE BUG REPORT:
+Preprocessed source(s) and associated run script(s) are located at:
+clang: note: diagnostic msg: /tmp/s_lround-6c55f4.c
+clang: note: diagnostic msg: /tmp/s_lround-6c55f4.sh
+clang: note: diagnostic msg: 
+
+********************

@@ -113,6 +113,13 @@ be installed from the console first — see *Gotchas*.
   where it gets a real tty.
 - **`pkill -f "<pattern>"` over SSH can kill your own session** when the
   pattern appears in the remote command line you are running. Use `pgrep -x`.
+- **`pkill`/`pgrep` can hang outright** when a traced task is wedged: they
+  query `proc` about every process. `ps -e -o pid,args` with a `timeout`, then
+  `kill <pid>`, worked where `pkill -x rpctrace` hung.
+- **A `ps` that times out prints nothing.** A watcher that reads "no output"
+  as "process gone" will report a still-running process as finished (this
+  happened once). Check `ps`'s exit status.
+- **`bc` is not installed.** Use shell arithmetic on `date +%s`.
 
 ## VM 110, retired
 
@@ -137,8 +144,10 @@ they matter, copy them somewhere else.
    `phase0-data/README.md` stage 8 and decision 0010's amendment. Raw traces
    are in `~aditya/trace/`; don't delete them, since stage 8's checksums refer
    to them.
-2. ~~Install clang~~ (done) and **finish decision 0002's glibc build**, running
-   since 2026-09-30 12:51 (`~/run-amd64.log`; log in `~/spike/glibc-make.log`).
-   0002 stays `proposed` until it completes.
+2. ~~Install clang~~ and ~~finish decision 0002's glibc build~~. Done
+   2026-09-30: libc pass complete, libm pass stopped because of a clang
+   frontend hang (`phase0-data/README.md` stage 9). **Next:** check whether that
+   hang reproduces with clang 21.1.8 on x86_64 Linux. It's the deciding
+   question for 0002 now.
 3. ~~Replace `nested.py`~~. Done 2026-09-30: v2 finds all 80 trampolines and
    298 nested functions (was 252). See `phase0-data/README.md` stage 7.

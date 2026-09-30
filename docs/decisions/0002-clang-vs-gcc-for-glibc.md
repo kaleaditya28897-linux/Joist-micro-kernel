@@ -218,6 +218,64 @@ architecture) via `tools/phase0/spike-glibc.sh`. When it finishes, the errors
 that are *not* nested functions or their knock-on effects are the remaining
 unknown, and the last input this decision needs.
 
+### Amendment, 2026-09-30 (later): the glibc error surface is measured
+
+The glibc clang build ran on VM 111 (x86_64). libc's pass completed; the libm
+pass was stopped (see below). Evidence: `docs/phase0-data/README.md` stage 9,
+and `docs/phase0-data/amd64/clang-glibc-root-causes.csv` (625 error sites,
+each with a root cause).
+
+**Nested functions: 77 in the Hurd build, not 76.** A whole-tree rescan found
+one more, `do_init` in `sysdeps/htl/pt-key.h`, a header in a directory the
+earlier scan never covered. Worst case 77 h: the conclusion of the previous
+amendment stands.
+
+**The rest of libc's error surface is dominated by one small root cause.**
+281 of the 625 error sites come from a single interaction: glibc's own
+`features.h` turns `__USE_EXTERN_INLINES` off for clang builds of glibc, and the
+Hurd port hides ordinary declarations, inline definitions and one `#include`
+behind that guard, in five headers (`hurd/fd.h`, `hurd/signal.h`,
+`hurd/userlink.h`, `htl/bits/spin-lock-inline.h`, `mach/lock-intern.h`). The fix
+is to declare those things independently of the guard. It's local to those
+headers, and its size is closer to days than weeks. **Caveat:** code that is
+currently invisible to clang will be compiled once the fix is in, and may have
+errors of its own that this build could not show.
+
+What's left: 5 sites of a variable-length array in a struct
+(`hurdstartup.c`, a GCC extension clang will never support: a code change),
+1 asm-label error in `include/stdlib.h`, 16 in generated offset programs, and
+about 15 distinct unattributed sites, mostly the x86_64 signal trampoline. That
+is small and bounded.
+
+**The open risk is clang itself, not glibc's source.** clang 21.1.8 on the Hurd
+**loops forever in its frontend** (`Sema::warnOnReservedIdentifier` →
+`SourceManager::getPresumedLoc`, the same parser token for 120 s) on glibc's
+math headers. It stopped 13 compiles, 12 of them math, so **libm cannot be
+built with this clang at all**. It **crashed** in the same function on two libc
+files. The diagnosis, the reproduction command and the stack are in stage 9.
+This is not porting work we can size: if the defect is specific to clang on
+the Hurd, the fix is in LLVM or in how Debian builds it; if it's a general
+clang 21 bug with glibc's headers, upstream may already have it.
+
+**Where this leaves the decision:**
+
+- glibc *source* work for clang: bounded and affordable. Nested functions at
+  most 77 h, the guard fix days, the tail small. Taken alone, this would not
+  trigger the fallback.
+- But the fallback criterion is "Clang-for-glibc work", and a compiler that
+  cannot finish compiling libm is part of that work. Its cost is currently
+  unknown.
+- **So 0002 stays `proposed`, and the deciding question has changed.** It is
+  no longer "how big is the error surface" (answered). It is: *is the
+  getPresumedLoc hang specific to the Hurd?* Two cheap tests settle it:
+  1. compile the same `s_lround.c` context with clang 21.1.8 on x86_64 Linux;
+  2. try a newer clang on the Hurd if debian-ports has one.
+
+  If it reproduces on Linux, it's an upstream clang bug with a report to file
+  and probably a workaround. If it's Hurd-only, it goes to the Hurd/LLVM
+  porters, with our data as the bug report, and the fallback clock should
+  start then, not after another spike.
+
 ## Consequences
 
 - Easier: Phase 7 has a known worst case; nobody has to re-litigate the

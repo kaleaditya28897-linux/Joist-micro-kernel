@@ -428,3 +428,113 @@ the target architecture. Files are in `amd64/`.
   still a small minority.
 - `io_seek` `SEEK_SET` is up 42% (50 331 → 71 521), probably configure taking
   different paths per architecture. It changes no conclusion.
+
+## Stage 9: the glibc clang build, and its root causes (2026-09-30, VM 111)
+
+**Command:** `tools/phase0/spike-glibc.sh` (glibc 2.43-6, `CC=clang` 21.1.8-10,
+out-of-tree, `make -k`, no `-j`), started 12:51 by `~/run-amd64.sh`, with
+`tools/phase0/clang-watchdog.sh` capping each clang process in CPU time.
+
+| Raw file (VM 111, `~aditya/spike/`) | SHA-256 |
+|---|---|
+| `glibc-configure.log` (rc 0) | `7437ff49698a14ba8baecc1afacf044277909940f54a0d6a87aeb5d8c0411d18` |
+| `glibc-make.log` | `7e12c2920a88eaac50a40ea0ede905460eee3e353bba40c5f0c893857cad1105` |
+| `clang-watchdog.log` (copied to `amd64/`) | `d0e005f565322afcef7a38997f760f66b8967e15977f7f6ff33d260699213c14` |
+
+**How far it got.** glibc builds in two passes over its subdirectories. The
+first pass (`subdir_lib`, which builds libc itself) **completed through all
+52 subdirectories**. The second pass (libm and programs) was **stopped by
+decision at 15:09** in `math/`, because every libm file there was hitting the
+clang hang below. So libc's error surface is complete, and libm's is not.
+
+**Watchdog.** 13 compiles were stopped (`amd64/clang-watchdog.log`):
+`wcsmbs/wcstold_l.c` (PIC variant) manually at 30 CPU-min, `s_llroundl.c` at
+26:32, then 11 more at the 5-min cap after it was lowered at 14:01 (the log
+records the change). 12 of the 13 are math code.
+
+### The clang hang, diagnosed on one file
+
+`s_lround.c`, using its exact build command (`amd64/clang-hang-s_lround.cmd`):
+
+| Variant (2-min cap unless noted) | Result |
+|---|---|
+| as built | still running at cap |
+| without `-frounding-math -ftrapping-math` | still running at cap |
+| `-O1` | still running at cap |
+| `-O0` | refused by glibc's own `#error` (not informative) |
+| `-fsyntax-only` (frontend only) | still running at cap |
+| `-E` (preprocess only) | 0 s |
+| `-fsyntax-only` on the preprocessed `.i`, all build flags | 0 s |
+| `-fsyntax-only -w` (all warnings off) | still running at cap |
+
+`SIGSEGV` sent at 10, 20, 60 and 120 s makes LLVM print its stack
+(`amd64/clang-hang-stack.txt`). **Every sample shows the same parser position,
+`math/bits/mathcalls-helper-functions.h:25:33`, inside
+`Sema::warnOnReservedIdentifier` → `SourceManager::getPresumedLoc`.** That's an
+infinite loop, not a slow compile, and it depends on clang's source-location
+state (the same code parses instantly from preprocessed input).
+`getPresumedLoc` is also where the two clang **crashes** died (`locale/loadlocale.c`,
+`intl/localealias.c`, in `glibc-make.log`), so one defect probably explains
+both. *Only `s_lround.c` was diagnosed; the other 12 stopped compiles are
+assumed to be the same hang, not shown.* Whether it is specific to the Hurd
+or a clang 21 bug on every target is **not yet known**.
+
+### Error classification
+
+`clang_errors.py` → `extern_inline_guard.py` → `root_cause.py` produce
+`amd64/clang-glibc-root-causes.csv` (sha256
+`486b05982094804999ea688fd04a84b6966a6a78e2c756544a3bc7ced85d931a`): 625
+distinct error sites (file, line, message, per subdirectory), each with a
+root cause. The rules and their evidence are in `root_cause.py`'s docstring.
+
+| Root cause | Sites |
+|---|---:|
+| extern-inline guard | 281 |
+| nested function | 249 |
+| nested-function knock-on | 43 |
+| unattributed | 30 |
+| generated `<stdin>` (gen-as-const) | 16 |
+| VLA in struct | 5 |
+| asm label | 1 |
+
+**The extern-inline guard, established step by step:**
+
+1. `include/features.h:554` leaves `__USE_EXTERN_INLINES` undefined when glibc
+   itself is built with clang (`!(defined __clang__ && defined _LIBC)`).
+   Confirmed with `clang -dM -E` on `alloc-fd.c`'s build command: `__OPTIMIZE__`
+   is 1, `__extern_inline` is defined, `__USE_EXTERN_INLINES` is not.
+2. Hurd-port headers put ordinary declarations behind that guard.
+   `extern_inline_guard.py` finds **53 identifiers** in guarded blocks, and the
+   errors trace to four headers: `hurd/hurd/fd.h` (126 sites),
+   `sysdeps/hurd/include/hurd/signal.h` (22),
+   `sysdeps/mach/htl/bits/spin-lock-inline.h` (14), `mach/lock-intern.h` (10).
+3. `hurd/hurd/userlink.h:27` includes `<hurd/signal.h>` **only** under the
+   guard, and it's the only path by which `hurd.h` reaches it. Hence the 50
+   `HURD_CRITICAL_BEGIN`/`END` errors: `clang -dM -E` on `hurdauth.c` shows
+   neither that macro nor `_HURD_SIGNAL_H` defined.
+4. The alias errors point at inline functions defined inside guarded blocks
+   (e.g. `_hurd_port_locked_get`, `hurd/hurd/port.h:91`). The "subscript of
+   pointer to function type `int (int, error_t)`" errors are clang's
+   did-you-mean replacing the hidden `_hurd_dtable` with `_hurd_fd_error`.
+
+**The scanner, once more.** Reading an unattributed error (`do_init`
+undeclared, `sysdeps/htl/pt-key.h:82`) exposed a nested function **in a
+header**, in a directory the glibc scan never covered (`htl/`,
+`sysdeps/htl/`). `nested.py` now scans headers and tracks what each brace
+opened (code, aggregate, or `extern "C"` linkage), so C++ inline and member
+functions in headers are not counted; the old depth rule reported 25 of those (109 rows over the whole tree, against 84 now)
+in `math.h`, `iscanonical.h`, `nptl/pthread.h`, `arm/unwind.h` and
+`i386/sys/ucontext.h` and `powerpc/sys/ucontext.h`. It was then run over **the whole glibc tree**, not a
+directory list. Regression: 80/80 trampolines, all 298 earlier rows kept, 8
+new glibc rows. `nested-functions.csv` now has 306 rows and an
+`in_hurd_build` column: glibc **77** in the Hurd build (the new one is
+`pt-key.h`'s `do_init`), 5 in other architectures (m68k, powerpc), 2 in test
+programs. Script sha256 `0ceb17d590309d9cf8088838e27b52a247a811e87b5df8dfe11c68a8d0bac8a1`.
+
+**Unattributed (30 sites, ~15 distinct):** the x86_64 signal code
+(`sysdeps/mach/hurd/x86/trampoline.c`: `offsetof`, `sc_r8`, `sc_fpkind`,
+`__mach_host_self`; `x86_64/sigreturn.c`: dereference of incomplete
+`unsigned char[]`), `catch-exc.c` (`__mach_task_self`, declared unconditionally
+in `mach_init.h`, so a different include problem), and int-to-pointer
+conversions in `geteuids.c`, `getgroups.c`, `group_member.c`, `wait4.c` and
+`waitid.c`. Not yet read. Some may be further guard knock-ons.

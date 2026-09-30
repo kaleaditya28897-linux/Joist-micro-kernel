@@ -1,0 +1,626 @@
+class,subdir,file,line,message,count,guard_hidden,declared_in,root_cause
+nested,csu,sysdeps/mach/hurd/init-first.c,230,function definition is not allowed here,1,no,,nested-function
+nested-file,csu,sysdeps/mach/hurd/init-first.c,249,incompatible function pointer types passing 'void (*)(void **)' to parameter of type 'void (*)(intptr_t *)' (aka 'void (*)(long *)') [-Wincompatible-function-pointer-types],1,no,,nested-knock-on
+nested,csu,sysdeps/mach/hurd/init-first.c,249,use of undeclared identifier 'doinit'; did you mean 'init'?,1,no,,nested-function
+other,debug,<stdin>,6,call to undeclared function 'offsetof'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,generated-stdin
+other,debug,<stdin>,6,expected expression,1,no,,generated-stdin
+other,debug,<stdin>,7,unexpected type name 'stack_t': expected expression,1,no,,generated-stdin
+other,debug,<stdin>,7,use of undeclared identifier 'ss_sp',1,no,,generated-stdin
+other,debug,<stdin>,8,unexpected type name 'stack_t': expected expression,1,no,,generated-stdin
+other,debug,<stdin>,8,use of undeclared identifier 'ss_size',1,no,,generated-stdin
+other,debug,<stdin>,9,unexpected type name 'stack_t': expected expression,1,no,,generated-stdin
+other,debug,<stdin>,9,use of undeclared identifier 'ss_flags',1,no,,generated-stdin
+other,dirent,sysdeps/mach/hurd/dirfd.c,31,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,dirent,sysdeps/mach/hurd/dirfd.c,32,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,dirent,sysdeps/mach/hurd/dirfd.c,33,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,dirent,sysdeps/mach/hurd/dirfd.c,33,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,dirent,sysdeps/mach/hurd/dirfd.c,35,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,dirent,sysdeps/mach/hurd/dirfd.c,37,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested,elf,sysdeps/htl/pt-key.h,65,function definition is not allowed here,2,no,,nested-function
+nested-file,elf,sysdeps/htl/pt-key.h,82,"incompatible function pointer types passing 'void (struct link_map *, int, char **, char **)' to parameter of type 'void (*)(void)' [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,elf,sysdeps/htl/pt-key.h,82,use of undeclared identifier 'do_init'; did you mean '_dl_init'?,2,no,,nested-function
+nested,elf,sysdeps/mach/hurd/dl-sysdep.c,78,function definition is not allowed here,1,no,,nested-function
+nested,elf,sysdeps/mach/hurd/dl-sysdep.c,229,use of undeclared identifier 'go',1,no,,nested-function
+nested,elf,sysdeps/mach/hurd/dl-sysdep.c,276,function definition is not allowed here,1,no,,nested-function
+nested,elf,sysdeps/mach/hurd/dl-sysdep.c,282,function definition is not allowed here,1,no,,nested-function
+nested,elf,sysdeps/mach/hurd/dl-sysdep.c,306,use of undeclared identifier 'get_dtable_port',1,no,,nested-function
+nested,elf,sysdeps/mach/hurd/dl-sysdep.c,306,use of undeclared identifier 'use_init_port',1,no,,nested-function
+other,htl,pt-spin-inlines.c,29,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,30,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,36,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,37,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,43,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,44,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,50,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,51,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,57,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,pt-spin-inlines.c,58,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,htl,sysdeps/htl/pt-barrier-wait.c,27,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-cond-brdcast.c,29,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-cond-destroy.c,29,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-cond-signal.c,30,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-cond-timedwait.c,70,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-cond-timedwait.c,144,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-cond-timedwait.c,171,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+nested,htl,sysdeps/htl/pt-key.h,65,function definition is not allowed here,286,no,,nested-function
+nested-file,htl,sysdeps/htl/pt-key.h,82,"incompatible function pointer types passing 'void (struct link_map *, int, char **, char **)' to parameter of type 'void (*)(void)' [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,htl,sysdeps/htl/pt-key.h,82,use of undeclared identifier 'do_init',284,no,,nested-function
+nested,htl,sysdeps/htl/pt-key.h,82,use of undeclared identifier 'do_init'; did you mean '_dl_init'?,2,no,,nested-function
+other,htl,sysdeps/htl/pt-once.c,40,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-rwlock-timedrdlock.c,36,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-rwlock-timedwrlock.c,36,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-rwlock-tryrdlock.c,28,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-rwlock-trywrlock.c,28,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+other,htl,sysdeps/htl/pt-rwlock-unlock.c,32,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+nested,htl,sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c,61,function definition is not allowed here,2,no,,nested-function
+nested-file,htl,sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c,93,call to undeclared function '__pthread_spin_wait'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/mach/htl/bits/spin-lock-inline.h:77,extern-inline-guard
+nested,htl,sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c,106,use of undeclared identifier 'cancel_me'; did you mean 'cancel'?,2,no,,nested-function
+other,hurd,alloc-fd.c,41,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,alloc-fd.c,44,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,alloc-fd.c,46,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,alloc-fd.c,46,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,alloc-fd.c,55,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,alloc-fd.c,59,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,alloc-fd.c,59,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,alloc-fd.c,65,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,alloc-fd.c,83,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,alloc-fd.c,90,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,alloc-fd.c,96,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,alloc-fd.c,106,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,4,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,alloc-fd.c,113,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,alloc-fd.c,114,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,alloc-fd.c,116,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,alloc-fd.c,118,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,alloc-fd.c,119,use of undeclared identifier '_hurd_dtable',2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,alloc-fd.c,133,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,catch-exc.c,43,call to undeclared function '__mach_task_self'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,unattributed
+other,hurd,catch-exc.c,87,call to undeclared function '__mach_port_deallocate'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,unattributed
+nested,hurd,catch-signal.c,35,function definition is not allowed here,2,no,,nested-function
+nested,hurd,catch-signal.c,40,use of undeclared identifier 'throw',2,no,,nested-function
+nested,hurd,catch-signal.c,83,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,catch-signal.c,89,"incompatible function pointer types passing 'int (*)(int, const char *, int, ...)' to parameter of type 'error_t (*)(struct hurd_signal_preemptor *)' (aka 'enum __error_t_codes (*)(struct hurd_signal_preemptor *)') [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,hurd,catch-signal.c,89,use of undeclared identifier 'operate'; did you mean 'openat'?,2,no,,nested-function
+nested,hurd,catch-signal.c,97,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,catch-signal.c,103,"incompatible function pointer types passing 'int (*)(int, const char *, int, ...)' to parameter of type 'error_t (*)(struct hurd_signal_preemptor *)' (aka 'enum __error_t_codes (*)(struct hurd_signal_preemptor *)') [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,hurd,catch-signal.c,103,use of undeclared identifier 'operate'; did you mean 'openat'?,2,no,,nested-function
+nested,hurd,catch-signal.c,110,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,catch-signal.c,116,"incompatible function pointer types passing 'int (*)(int, const char *, int, ...)' to parameter of type 'error_t (*)(struct hurd_signal_preemptor *)' (aka 'enum __error_t_codes (*)(struct hurd_signal_preemptor *)') [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,hurd,catch-signal.c,116,use of undeclared identifier 'operate'; did you mean 'openat'?,2,no,,nested-function
+nested,hurd,catch-signal.c,124,function definition is not allowed here,2,no,,nested-function
+nested,hurd,catch-signal.c,130,use of undeclared identifier 'throw',2,no,,nested-function
+nested,hurd,catch-signal.c,136,use of undeclared identifier 'throw',2,no,,nested-function
+nested,hurd,fd-read.c,32,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,fd-read.c,38,"incompatible function pointer types passing 'ssize_t (int, void *, size_t)' (aka 'long (int, void *, unsigned long)') to parameter of type 'error_t (*)(io_t)' (aka 'enum __error_t_codes (*)(unsigned int)') [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,hurd,fd-read.c,38,use of undeclared identifier 'readfd'; did you mean 'read'?,2,no,,nested-function
+nested,hurd,fd-write.c,32,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,fd-write.c,36,"incompatible function pointer types passing 'ssize_t (int, const void *, size_t)' (aka 'long (int, const void *, unsigned long)') to parameter of type 'error_t (*)(io_t)' (aka 'enum __error_t_codes (*)(unsigned int)') [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,hurd,fd-write.c,36,use of undeclared identifier 'writefd'; did you mean 'write'?,2,no,,nested-function
+other,hurd,geteuids.c,30,call to undeclared function '_hurd_critical_section_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:51,extern-inline-guard
+other,hurd,geteuids.c,30,incompatible integer to pointer conversion assigning to 'void *' from 'int' [-Wint-conversion],2,no,,unattributed
+other,hurd,geteuids.c,36,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,hurd,geteuids.c,51,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,hurd,geteuids.c,62,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+nested,hurd,hurdauth.c,50,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,hurdauth.c,100,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+nested,hurd,hurdauth.c,115,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdauth.c,117,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdauth.c,119,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdauth.c,121,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,hurdauth.c,125,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested-file,hurd,hurdauth.c,180,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+nested-file,hurd,hurdauth.c,228,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested,hurd,hurdexec.c,64,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdexec.c,98,call to undeclared function 'free_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,hurdexec.c,153,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested-file,hurd,hurdexec.c,155,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+nested-file,hurd,hurdexec.c,155,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+nested-file,hurd,hurdexec.c,170,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+nested-file,hurd,hurdexec.c,177,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+nested-file,hurd,hurdexec.c,177,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+nested,hurd,hurdexec.c,272,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdexec.c,285,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdexec.c,296,call to undeclared function 'free_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdexec.c,299,call to undeclared function 'reauth_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdexec.c,314,call to undeclared function 'reauth_io'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdexec.c,338,call to undeclared function 'reauth_io'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdexec.c,463,call to undeclared function 'free_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,hurdexec.c,477,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested,hurd,hurdid.c,34,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdid.c,55,call to undeclared function 'dealloc'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,hurd,hurdioctl.c,168,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdioctl.c,170,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,hurdioctl.c,170,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,hurdioctl.c,200,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdioctl.c,211,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested,hurd,hurdkill.c,39,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdkill.c,68,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdkill.c,78,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdkill.c,82,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdlookup.c,58,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdlookup.c,94,use of undeclared identifier 'lookup_op'; did you mean 'lookup'?,2,no,,nested-function
+nested,hurd,hurdlookup.c,116,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdlookup.c,130,use of undeclared identifier 'addref',2,no,,nested-function
+nested,hurd,hurdlookup.c,150,use of undeclared identifier 'addref',2,no,,nested-function
+nested,hurd,hurdlookup.c,169,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdlookup.c,195,use of undeclared identifier 'addref',2,no,,nested-function
+nested,hurd,hurdlookup.c,215,use of undeclared identifier 'addref',2,no,,nested-function
+nested,hurd,hurdlookup.c,264,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdlookup.c,269,use of undeclared identifier 'use_init_port',2,no,,nested-function
+other,hurd,hurdmsg.c,455,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdmsg.c,458,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdmsg.c,461,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdmsg.c,463,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,hurdmsg.c,463,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,hurdmsg.c,484,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdmsg.c,487,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdselect.c,158,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdselect.c,165,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdselect.c,167,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,hurdselect.c,167,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,hurdselect.c,183,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdselect.c,195,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdselect.c,200,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdselect.c,232,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdselect.c,248,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdselect.c,250,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,hurdselect.c,250,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,hurdselect.c,255,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdselect.c,271,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,hurd,hurdselect.c,281,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,hurdselect.c,282,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+nested,hurd,hurdsig.c,650,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdsig.c,659,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdsig.c,676,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdsig.c,721,call to undeclared function 'resume'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdsig.c,767,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdsig.c,787,call to undeclared function 'try_preemptor'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,hurdsig.c,793,incompatible integer to pointer conversion assigning to 'sighandler_t' (aka 'void (*)(int)') from 'int' [-Wint-conversion],2,no,,nested-knock-on
+nested,hurd,hurdsig.c,821,call to undeclared function 'mark_pending'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdsig.c,823,call to undeclared function 'suspend'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdsig.c,905,call to undeclared function 'resume'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdsig.c,924,call to undeclared function 'mark_pending'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdsig.c,943,call to undeclared function 'suspend'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdsig.c,1079,call to undeclared function 'mark_pending'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,hurdsig.c,1265,function definition is not allowed here,2,no,,nested-function
+nested,hurd,hurdsig.c,1275,use of undeclared identifier 'reply',2,no,,nested-function
+nested,hurd,hurdsig.c,1284,call to undeclared function 'reply'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,hurdsig.c,1287,incompatible function pointer types passing 'int ()' to parameter of type 'void (*)(void)' [-Wincompatible-function-pointer-types],2,no,,nested-knock-on
+nested,hurd,hurdsig.c,1295,use of undeclared identifier 'reply',2,no,,nested-function
+nested,hurd,hurdsig.c,1300,call to undeclared function 'reply'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,hurd,hurdsock.c,54,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,hurd,hurdsock.c,102,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,hurd,hurdstartup.c,162,fields must have a constant size: 'variable length array in structure' extension will never be supported,2,no,,vla-in-struct
+other,hurd,hurdstartup.c,163,fields must have a constant size: 'variable length array in structure' extension will never be supported,2,no,,vla-in-struct
+nested,hurd,intr-msg.c,188,function definition is not allowed here,2,no,,nested-function
+nested,hurd,intr-msg.c,216,function definition is not allowed here,2,no,,nested-function
+nested,hurd,intr-msg.c,257,call to undeclared function 'clean_inlined_ports'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,intr-msg.c,259,call to undeclared function 'PTR_ALIGN_UP'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-knock-on
+nested,hurd,intr-msg.c,263,call to undeclared function 'clean_ports_and_memory'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,lookup-at.c,36,call to undeclared function '__hurd_at_flags'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,hurd/hurd/fd.h:291,extern-inline-guard
+nested,hurd,lookup-at.c,79,function definition is not allowed here,2,no,,nested-function
+nested,hurd,lookup-at.c,85,use of undeclared identifier 'use_init_port',2,no,,nested-function
+nested,hurd,lookup-at.c,131,function definition is not allowed here,2,no,,nested-function
+nested,hurd,lookup-at.c,137,use of undeclared identifier 'use_init_port',2,no,,nested-function
+nested,hurd,lookup-at.c,156,function definition is not allowed here,2,no,,nested-function
+nested,hurd,lookup-at.c,162,use of undeclared identifier 'use_init_port',2,no,,nested-function
+nested,hurd,lookup-retry.c,66,function definition is not allowed here,2,no,,nested-function
+nested,hurd,lookup-retry.c,81,function definition is not allowed here,2,no,,nested-function
+nested,hurd,lookup-retry.c,111,call to undeclared function 'reauthenticate'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,lookup-retry.c,306,function definition is not allowed here,2,no,,nested-function
+nested,hurd,lookup-retry.c,323,call to undeclared function 'opentty'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,lookup-retry.c,385,call to undeclared function 'lookup_op'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,lookup-retry.c,390,use of undeclared identifier 'lookup_op'; did you mean 'lookup'?,2,no,,nested-function
+nested,hurd,path-lookup.c,101,function definition is not allowed here,2,no,,nested-function
+nested,hurd,path-lookup.c,106,use of undeclared identifier 'scan_lookup',2,no,,nested-function
+other,hurd,report-wait.c,93,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,report-wait.c,95,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,hurd,report-wait.c,96,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,report-wait.c,96,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,report-wait.c,98,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,report-wait.c,98,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,report-wait.c,100,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,hurd,report-wait.c,100,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,hurd,setauth.c,44,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,hurd,setauth.c,109,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,hurd,seteuids.c,35,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,hurd,seteuids.c,50,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested-file,hurd,sigunwind.c,35,call to undeclared function '_hurd_self_sigstate'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:32,extern-inline-guard
+nested-file,hurd,sigunwind.c,35,incompatible integer to pointer conversion initializing 'struct hurd_sigstate *' with an expression of type 'int' [-Wint-conversion],2,no,,nested-knock-on
+nested,hurd,sigunwind.c,38,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,sigunwind.c,55,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested-file,hurd,sigunwind.c,58,incomplete definition of type 'struct hurd_sigstate',4,no,,nested-knock-on
+nested-file,hurd,sigunwind.c,60,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested-file,hurd,sigunwind.c,61,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested,hurd,sigunwind.c,73,function definition is not allowed here,2,no,,nested-function
+nested-file,hurd,sigunwind.c,81,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested,hurd,sigunwind.c,82,call to undeclared function 'demangle_ptr'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,hurd,sigunwind.c,91,call to undeclared function 'cleanup'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested-file,hurd,sigunwind.c,104,call to undeclared function '_hurd_longjmp_thread_state'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-knock-on
+nested-file,hurd,sigunwind.c,111,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested-file,hurd,sigunwind.c,118,incomplete definition of type 'struct hurd_sigstate',4,no,,nested-knock-on
+nested-file,hurd,sigunwind.c,119,incomplete definition of type 'struct hurd_sigstate',4,no,,nested-knock-on
+nested-file,hurd,sigunwind.c,122,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+other,hurd,sysdeps/hurd/include/hurd/fd.h,50,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/hurd/include/hurd/fd.h,51,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/hurd/include/hurd/port.h,34,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/hurd/include/hurd/port.h,35,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/hurd/include/hurd/signal.h,136,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/hurd/include/hurd/signal.h,137,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/hurd/include/hurd/signal.h,138,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/hurd/include/hurd/signal.h,139,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,164,call to undeclared function 'offsetof'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,unattributed
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,164,expected expression,2,no,,unattributed
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,164,use of undeclared identifier 'sigreturn_addr',2,no,,unattributed
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,190,call to undeclared function '__mach_host_self'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,unattributed
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,277,expected expression,2,no,,unattributed
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,277,use of undeclared identifier 'sc_r8',2,no,,unattributed
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,328,expected expression,2,no,,unattributed
+other,hurd,sysdeps/mach/hurd/x86/trampoline.c,328,use of undeclared identifier 'sc_fpkind',2,no,,unattributed
+other,hurd,sysvshm.c,61,call to undeclared function '__mutex_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,mach/lock-intern.h:117,extern-inline-guard
+other,hurd,sysvshm.c,66,call to undeclared function '__mutex_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,mach/lock-intern.h:129,extern-inline-guard
+other,hurd,sysvshm.c,79,call to undeclared function '__mutex_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,mach/lock-intern.h:117,extern-inline-guard
+other,hurd,sysvshm.c,88,call to undeclared function '__mutex_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,mach/lock-intern.h:129,extern-inline-guard
+other,hurd,sysvshm.c,95,call to undeclared function '__mutex_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,mach/lock-intern.h:129,extern-inline-guard
+nested,hurd,xattr.c,204,function definition is not allowed here,2,no,,nested-function
+nested,hurd,xattr.c,217,call to undeclared function 'add'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,io,sysdeps/mach/hurd/close_range.c,37,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,io,sysdeps/mach/hurd/close_range.c,39,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,io,sysdeps/mach/hurd/close_range.c,41,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,io,sysdeps/mach/hurd/close_range.c,41,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,io,sysdeps/mach/hurd/close_range.c,59,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,74,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,76,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,81,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,85,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,89,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,89,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,97,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,97,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,io,sysdeps/mach/hurd/dup3.c,101,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested-file,io,sysdeps/mach/hurd/faccessat.c,63,call to undeclared function '__hurd_at_flags'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,hurd/hurd/fd.h:291,extern-inline-guard
+nested,io,sysdeps/mach/hurd/faccessat.c,68,function definition is not allowed here,2,no,,nested-function
+nested,io,sysdeps/mach/hurd/faccessat.c,88,function definition is not allowed here,2,no,,nested-function
+nested,io,sysdeps/mach/hurd/faccessat.c,108,function definition is not allowed here,2,no,,nested-function
+nested,io,sysdeps/mach/hurd/faccessat.c,168,use of undeclared identifier 'init_port',2,no,,nested-function
+nested,io,sysdeps/mach/hurd/getcwd.c,55,function definition is not allowed here,2,no,,nested-function
+nested,io,sysdeps/mach/hurd/getcwd.c,265,call to undeclared function 'cleanup'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,mach,alloc-fd.c,41,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,alloc-fd.c,44,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,alloc-fd.c,46,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,alloc-fd.c,46,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,alloc-fd.c,55,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,alloc-fd.c,59,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,alloc-fd.c,59,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,alloc-fd.c,65,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,alloc-fd.c,83,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,alloc-fd.c,90,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,alloc-fd.c,96,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,alloc-fd.c,106,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,alloc-fd.c,113,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,alloc-fd.c,114,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,alloc-fd.c,116,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,alloc-fd.c,118,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,alloc-fd.c,119,use of undeclared identifier '_hurd_dtable',1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,alloc-fd.c,133,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,catch-exc.c,43,call to undeclared function '__mach_task_self'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,unattributed
+other,mach,catch-exc.c,87,call to undeclared function '__mach_port_deallocate'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,unattributed
+nested,mach,catch-signal.c,35,function definition is not allowed here,1,no,,nested-function
+nested,mach,catch-signal.c,40,use of undeclared identifier 'throw',1,no,,nested-function
+nested,mach,catch-signal.c,83,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,catch-signal.c,89,"incompatible function pointer types passing 'int (*)(int, const char *, int, ...)' to parameter of type 'error_t (*)(struct hurd_signal_preemptor *)' (aka 'enum __error_t_codes (*)(struct hurd_signal_preemptor *)') [-Wincompatible-function-pointer-types]",1,no,,nested-knock-on
+nested,mach,catch-signal.c,89,use of undeclared identifier 'operate'; did you mean 'openat'?,1,no,,nested-function
+nested,mach,catch-signal.c,97,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,catch-signal.c,103,"incompatible function pointer types passing 'int (*)(int, const char *, int, ...)' to parameter of type 'error_t (*)(struct hurd_signal_preemptor *)' (aka 'enum __error_t_codes (*)(struct hurd_signal_preemptor *)') [-Wincompatible-function-pointer-types]",1,no,,nested-knock-on
+nested,mach,catch-signal.c,103,use of undeclared identifier 'operate'; did you mean 'openat'?,1,no,,nested-function
+nested,mach,catch-signal.c,110,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,catch-signal.c,116,"incompatible function pointer types passing 'int (*)(int, const char *, int, ...)' to parameter of type 'error_t (*)(struct hurd_signal_preemptor *)' (aka 'enum __error_t_codes (*)(struct hurd_signal_preemptor *)') [-Wincompatible-function-pointer-types]",1,no,,nested-knock-on
+nested,mach,catch-signal.c,116,use of undeclared identifier 'operate'; did you mean 'openat'?,1,no,,nested-function
+nested,mach,catch-signal.c,124,function definition is not allowed here,1,no,,nested-function
+nested,mach,catch-signal.c,130,use of undeclared identifier 'throw',1,no,,nested-function
+nested,mach,catch-signal.c,136,use of undeclared identifier 'throw',1,no,,nested-function
+nested,mach,devstream.c,34,function definition is not allowed here,3,no,,nested-function
+nested,mach,devstream.c,56,function definition is not allowed here,3,no,,nested-function
+nested,mach,devstream.c,69,call to undeclared function 'write_some'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],3,no,,nested-function
+nested,mach,devstream.c,70,call to undeclared function 'write_crlf'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],3,no,,nested-function
+nested,mach,devstream.c,78,call to undeclared function 'write_some'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],3,no,,nested-function
+nested,mach,fd-read.c,32,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,fd-read.c,38,"incompatible function pointer types passing 'ssize_t (int, void *, size_t)' (aka 'long (int, void *, unsigned long)') to parameter of type 'error_t (*)(io_t)' (aka 'enum __error_t_codes (*)(unsigned int)') [-Wincompatible-function-pointer-types]",1,no,,nested-knock-on
+nested,mach,fd-read.c,38,use of undeclared identifier 'readfd'; did you mean 'read'?,1,no,,nested-function
+nested,mach,fd-write.c,32,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,fd-write.c,36,"incompatible function pointer types passing 'ssize_t (int, const void *, size_t)' (aka 'long (int, const void *, unsigned long)') to parameter of type 'error_t (*)(io_t)' (aka 'enum __error_t_codes (*)(unsigned int)') [-Wincompatible-function-pointer-types]",1,no,,nested-knock-on
+nested,mach,fd-write.c,36,use of undeclared identifier 'writefd'; did you mean 'write'?,1,no,,nested-function
+other,mach,geteuids.c,30,call to undeclared function '_hurd_critical_section_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,sysdeps/hurd/include/hurd/signal.h:51,extern-inline-guard
+other,mach,geteuids.c,30,incompatible integer to pointer conversion assigning to 'void *' from 'int' [-Wint-conversion],1,no,,unattributed
+other,mach,geteuids.c,36,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,mach,geteuids.c,51,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,mach,geteuids.c,62,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+nested,mach,hurdauth.c,50,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,hurdauth.c,100,use of undeclared identifier 'HURD_CRITICAL_BEGIN',1,no,,extern-inline-guard
+nested,mach,hurdauth.c,115,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdauth.c,117,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdauth.c,119,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdauth.c,121,call to undeclared function 'make_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,hurdauth.c,125,use of undeclared identifier 'HURD_CRITICAL_END',1,no,,extern-inline-guard
+nested-file,mach,hurdauth.c,180,use of undeclared identifier 'HURD_CRITICAL_BEGIN',1,no,,extern-inline-guard
+nested-file,mach,hurdauth.c,228,use of undeclared identifier 'HURD_CRITICAL_END',1,no,,extern-inline-guard
+nested,mach,hurdexec.c,64,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdexec.c,98,call to undeclared function 'free_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,hurdexec.c,153,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested-file,mach,hurdexec.c,155,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+nested-file,mach,hurdexec.c,155,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+nested-file,mach,hurdexec.c,170,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+nested-file,mach,hurdexec.c,177,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+nested-file,mach,hurdexec.c,177,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+nested,mach,hurdexec.c,272,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdexec.c,285,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdexec.c,296,call to undeclared function 'free_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdexec.c,299,call to undeclared function 'reauth_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdexec.c,314,call to undeclared function 'reauth_io'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdexec.c,338,call to undeclared function 'reauth_io'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdexec.c,463,call to undeclared function 'free_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,hurdexec.c,477,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested,mach,hurdid.c,34,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdid.c,55,call to undeclared function 'dealloc'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+other,mach,hurdioctl.c,168,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdioctl.c,170,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,hurdioctl.c,170,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,hurdioctl.c,200,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdioctl.c,211,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested,mach,hurdkill.c,39,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdkill.c,68,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdkill.c,78,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdkill.c,82,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdlookup.c,58,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdlookup.c,94,use of undeclared identifier 'lookup_op'; did you mean 'lookup'?,1,no,,nested-function
+nested,mach,hurdlookup.c,116,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdlookup.c,130,use of undeclared identifier 'addref',1,no,,nested-function
+nested,mach,hurdlookup.c,150,use of undeclared identifier 'addref',1,no,,nested-function
+nested,mach,hurdlookup.c,169,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdlookup.c,195,use of undeclared identifier 'addref',1,no,,nested-function
+nested,mach,hurdlookup.c,215,use of undeclared identifier 'addref',1,no,,nested-function
+nested,mach,hurdlookup.c,264,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdlookup.c,269,use of undeclared identifier 'use_init_port',1,no,,nested-function
+other,mach,hurdmsg.c,455,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdmsg.c,458,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdmsg.c,461,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdmsg.c,463,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,hurdmsg.c,463,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,hurdmsg.c,484,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdmsg.c,487,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdselect.c,158,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdselect.c,165,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdselect.c,167,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,hurdselect.c,167,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,hurdselect.c,183,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdselect.c,195,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdselect.c,200,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdselect.c,232,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdselect.c,248,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdselect.c,250,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,hurdselect.c,250,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,hurdselect.c,255,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdselect.c,271,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,1,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,mach,hurdselect.c,281,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,hurdselect.c,282,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+nested,mach,hurdsig.c,650,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdsig.c,659,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdsig.c,676,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdsig.c,721,call to undeclared function 'resume'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdsig.c,767,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdsig.c,787,call to undeclared function 'try_preemptor'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,hurdsig.c,793,incompatible integer to pointer conversion assigning to 'sighandler_t' (aka 'void (*)(int)') from 'int' [-Wint-conversion],1,no,,nested-knock-on
+nested,mach,hurdsig.c,821,call to undeclared function 'mark_pending'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdsig.c,823,call to undeclared function 'suspend'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdsig.c,905,call to undeclared function 'resume'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdsig.c,924,call to undeclared function 'mark_pending'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdsig.c,943,call to undeclared function 'suspend'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdsig.c,1079,call to undeclared function 'mark_pending'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,hurdsig.c,1265,function definition is not allowed here,1,no,,nested-function
+nested,mach,hurdsig.c,1275,use of undeclared identifier 'reply',1,no,,nested-function
+nested,mach,hurdsig.c,1284,call to undeclared function 'reply'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,hurdsig.c,1287,incompatible function pointer types passing 'int ()' to parameter of type 'void (*)(void)' [-Wincompatible-function-pointer-types],1,no,,nested-knock-on
+nested,mach,hurdsig.c,1295,use of undeclared identifier 'reply',1,no,,nested-function
+nested,mach,hurdsig.c,1300,call to undeclared function 'reply'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+other,mach,hurdsock.c,54,use of undeclared identifier 'HURD_CRITICAL_BEGIN',1,no,,extern-inline-guard
+other,mach,hurdsock.c,102,use of undeclared identifier 'HURD_CRITICAL_END',1,no,,extern-inline-guard
+other,mach,hurdstartup.c,162,fields must have a constant size: 'variable length array in structure' extension will never be supported,1,no,,vla-in-struct
+other,mach,hurdstartup.c,163,fields must have a constant size: 'variable length array in structure' extension will never be supported,1,no,,vla-in-struct
+other,mach,include/stdlib.h,279,cannot apply asm label to function after its first use,2,no,,asm-label
+nested,mach,intr-msg.c,188,function definition is not allowed here,1,no,,nested-function
+nested,mach,intr-msg.c,216,function definition is not allowed here,1,no,,nested-function
+nested,mach,intr-msg.c,257,call to undeclared function 'clean_inlined_ports'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,intr-msg.c,259,call to undeclared function 'PTR_ALIGN_UP'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-knock-on
+nested,mach,intr-msg.c,263,call to undeclared function 'clean_ports_and_memory'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,lookup-at.c,36,call to undeclared function '__hurd_at_flags'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,hurd/hurd/fd.h:291,extern-inline-guard
+nested,mach,lookup-at.c,79,function definition is not allowed here,1,no,,nested-function
+nested,mach,lookup-at.c,85,use of undeclared identifier 'use_init_port',1,no,,nested-function
+nested,mach,lookup-at.c,131,function definition is not allowed here,1,no,,nested-function
+nested,mach,lookup-at.c,137,use of undeclared identifier 'use_init_port',1,no,,nested-function
+nested,mach,lookup-at.c,156,function definition is not allowed here,1,no,,nested-function
+nested,mach,lookup-at.c,162,use of undeclared identifier 'use_init_port',1,no,,nested-function
+nested,mach,lookup-retry.c,66,function definition is not allowed here,1,no,,nested-function
+nested,mach,lookup-retry.c,81,function definition is not allowed here,1,no,,nested-function
+nested,mach,lookup-retry.c,111,call to undeclared function 'reauthenticate'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,lookup-retry.c,306,function definition is not allowed here,1,no,,nested-function
+nested,mach,lookup-retry.c,323,call to undeclared function 'opentty'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,lookup-retry.c,385,call to undeclared function 'lookup_op'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,lookup-retry.c,390,use of undeclared identifier 'lookup_op'; did you mean 'lookup'?,1,no,,nested-function
+nested,mach,path-lookup.c,101,function definition is not allowed here,1,no,,nested-function
+nested,mach,path-lookup.c,106,use of undeclared identifier 'scan_lookup',1,no,,nested-function
+other,mach,report-wait.c,93,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,report-wait.c,95,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,1,yes,hurd/hurd/fd.h:50,extern-inline-guard
+other,mach,report-wait.c,96,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,report-wait.c,96,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,report-wait.c,98,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,report-wait.c,98,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,report-wait.c,100,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",1,no,,extern-inline-guard
+other,mach,report-wait.c,100,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,1,yes,hurd/hurd/fd.h:51,extern-inline-guard
+other,mach,setauth.c,44,use of undeclared identifier 'HURD_CRITICAL_BEGIN',1,no,,extern-inline-guard
+other,mach,setauth.c,109,use of undeclared identifier 'HURD_CRITICAL_END',1,no,,extern-inline-guard
+other,mach,seteuids.c,35,use of undeclared identifier 'HURD_CRITICAL_BEGIN',1,no,,extern-inline-guard
+other,mach,seteuids.c,50,use of undeclared identifier 'HURD_CRITICAL_END',1,no,,extern-inline-guard
+nested-file,mach,sigunwind.c,35,call to undeclared function '_hurd_self_sigstate'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,sysdeps/hurd/include/hurd/signal.h:32,extern-inline-guard
+nested-file,mach,sigunwind.c,35,incompatible integer to pointer conversion initializing 'struct hurd_sigstate *' with an expression of type 'int' [-Wint-conversion],1,no,,nested-knock-on
+nested,mach,sigunwind.c,38,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,sigunwind.c,55,incomplete definition of type 'struct hurd_sigstate',1,no,,nested-knock-on
+nested-file,mach,sigunwind.c,58,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested-file,mach,sigunwind.c,60,incomplete definition of type 'struct hurd_sigstate',1,no,,nested-knock-on
+nested-file,mach,sigunwind.c,61,incomplete definition of type 'struct hurd_sigstate',1,no,,nested-knock-on
+nested,mach,sigunwind.c,73,function definition is not allowed here,1,no,,nested-function
+nested-file,mach,sigunwind.c,81,incomplete definition of type 'struct hurd_sigstate',1,no,,nested-knock-on
+nested,mach,sigunwind.c,82,call to undeclared function 'demangle_ptr'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested,mach,sigunwind.c,91,call to undeclared function 'cleanup'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+nested-file,mach,sigunwind.c,104,call to undeclared function '_hurd_longjmp_thread_state'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-knock-on
+nested-file,mach,sigunwind.c,111,incomplete definition of type 'struct hurd_sigstate',1,no,,nested-knock-on
+nested-file,mach,sigunwind.c,118,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested-file,mach,sigunwind.c,119,incomplete definition of type 'struct hurd_sigstate',2,no,,nested-knock-on
+nested-file,mach,sigunwind.c,122,incomplete definition of type 'struct hurd_sigstate',1,no,,nested-knock-on
+other,mach,sysdeps/hurd/include/hurd/fd.h,50,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/hurd/include/hurd/fd.h,51,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/hurd/include/hurd/port.h,34,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/hurd/include/hurd/port.h,35,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/hurd/include/hurd/signal.h,136,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/hurd/include/hurd/signal.h,137,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/hurd/include/hurd/signal.h,138,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/hurd/include/hurd/signal.h,139,alias must point to a defined variable or function,1,no,,extern-inline-guard
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,164,call to undeclared function 'offsetof'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,unattributed
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,164,expected expression,1,no,,unattributed
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,164,use of undeclared identifier 'sigreturn_addr',1,no,,unattributed
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,190,call to undeclared function '__mach_host_self'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,unattributed
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,277,expected expression,1,no,,unattributed
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,277,use of undeclared identifier 'sc_r8',1,no,,unattributed
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,328,expected expression,1,no,,unattributed
+other,mach,sysdeps/mach/hurd/x86/trampoline.c,328,use of undeclared identifier 'sc_fpkind',1,no,,unattributed
+other,mach,sysvshm.c,61,call to undeclared function '__mutex_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,mach/lock-intern.h:117,extern-inline-guard
+other,mach,sysvshm.c,66,call to undeclared function '__mutex_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,mach/lock-intern.h:129,extern-inline-guard
+other,mach,sysvshm.c,79,call to undeclared function '__mutex_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,mach/lock-intern.h:117,extern-inline-guard
+other,mach,sysvshm.c,88,call to undeclared function '__mutex_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,mach/lock-intern.h:129,extern-inline-guard
+other,mach,sysvshm.c,95,call to undeclared function '__mutex_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,yes,mach/lock-intern.h:129,extern-inline-guard
+nested,mach,xattr.c,204,function definition is not allowed here,1,no,,nested-function
+nested,mach,xattr.c,217,call to undeclared function 'add'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,nested-function
+other,misc,sysdeps/mach/hurd/brk.c,54,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/brk.c,58,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested-file,misc,sysdeps/mach/hurd/ioctl.c,78,fields must have a constant size: 'variable length array in structure' extension will never be supported,2,no,,vla-in-struct
+nested,misc,sysdeps/mach/hurd/ioctl.c,106,function definition is not allowed here,2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ioctl.c,261,function definition is not allowed here,2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ioctl.c,274,call to undeclared function 'figure_reply'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ioctl.c,286,use of undeclared identifier 'send_rpc',2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ioctl.c,290,use of undeclared identifier 'send_rpc',2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ioctl.c,302,function definition is not allowed here,2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ioctl.c,328,call to undeclared function 'out'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,47,function definition is not allowed here,2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,60,function definition is not allowed here,2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,79,function definition is not allowed here,2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,123,call to undeclared function 'fetch_user_thread'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,220,call to undeclared function 'read_data'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,241,call to undeclared function 'get_regs'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,289,call to undeclared function 'read_data'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,330,call to undeclared function 'read_data'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,misc,sysdeps/mach/hurd/ptrace.c,368,call to undeclared function 'read_data'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,misc,sysdeps/mach/hurd/sbrk.c,30,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/sbrk.c,36,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/setegid.c,33,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/setegid.c,58,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/seteuid.c,33,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/seteuid.c,58,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/setregid.c,32,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/setregid.c,121,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/setreuid.c,32,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,misc,sysdeps/mach/hurd/setreuid.c,121,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested,posix,sysdeps/mach/hurd/_Fork.c,93,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/_Fork.c,427,call to undeclared function 'resume_threads'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,posix,sysdeps/mach/hurd/getegid.c,31,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getegid.c,46,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/geteuid.c,31,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/geteuid.c,46,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getgid.c,31,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getgid.c,43,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getgroups.c,35,call to undeclared function '_hurd_critical_section_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:51,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getgroups.c,35,incompatible integer to pointer conversion assigning to 'void *' from 'int' [-Wint-conversion],2,no,,unattributed
+other,posix,sysdeps/mach/hurd/getgroups.c,41,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getgroups.c,56,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getgroups.c,67,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getresgid.c,32,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getresgid.c,52,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getresuid.c,32,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getresuid.c,52,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getuid.c,31,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/getuid.c,43,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/group_member.c,32,call to undeclared function '_hurd_critical_section_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:51,extern-inline-guard
+other,posix,sysdeps/mach/hurd/group_member.c,32,incompatible integer to pointer conversion assigning to 'void *' from 'int' [-Wint-conversion],2,no,,unattributed
+other,posix,sysdeps/mach/hurd/group_member.c,48,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setgid.c,36,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setgid.c,84,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setgroups.c,38,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setgroups.c,53,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setresgid.c,33,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setresgid.c,113,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setresuid.c,33,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setresuid.c,114,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setsid.c,37,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setsid.c,44,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setuid.c,36,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,posix,sysdeps/mach/hurd/setuid.c,89,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested,posix,sysdeps/mach/hurd/spawni.c,123,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,156,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,179,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,204,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,223,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,228,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,263,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,274,function definition is not allowed here,2,no,,nested-function
+nested-file,posix,sysdeps/mach/hurd/spawni.c,456,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested-file,posix,sysdeps/mach/hurd/spawni.c,457,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+nested-file,posix,sysdeps/mach/hurd/spawni.c,458,use of undeclared identifier '_hurd_dtablesize'; did you mean '_hurd_stack_size'?,2,yes,hurd/hurd/fd.h:50,extern-inline-guard
+nested-file,posix,sysdeps/mach/hurd/spawni.c,465,"subscript of pointer to function type 'int (int, error_t)' (aka 'int (int, enum __error_t_codes)')",2,no,,extern-inline-guard
+nested-file,posix,sysdeps/mach/hurd/spawni.c,465,use of undeclared identifier '_hurd_dtable'; did you mean '__hurd_dfail'?,2,yes,hurd/hurd/fd.h:51,extern-inline-guard
+nested-file,posix,sysdeps/mach/hurd/spawni.c,477,use of undeclared identifier '_hurd_dtable_lock'; did you mean '_hurd_brk_lock'?,2,yes,hurd/hurd/fd.h:52,extern-inline-guard
+nested,posix,sysdeps/mach/hurd/spawni.c,488,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,508,function definition is not allowed here,2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,554,call to undeclared function 'do_close'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,612,call to undeclared function 'child_lookup'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,posix,sysdeps/mach/hurd/spawni.c,621,call to undeclared function 'child_chdir'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,posix,sysdeps/mach/hurd/wait4.c,36,call to undeclared function '_hurd_critical_section_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:51,extern-inline-guard
+other,posix,sysdeps/mach/hurd/wait4.c,36,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,posix,sysdeps/mach/hurd/wait4.c,36,incompatible integer to pointer conversion assigning to 'void *' from 'int' [-Wint-conversion],2,no,,unattributed
+other,posix,sysdeps/mach/hurd/waitid.c,68,call to undeclared function '_hurd_critical_section_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:51,extern-inline-guard
+other,posix,sysdeps/mach/hurd/waitid.c,68,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,posix,sysdeps/mach/hurd/waitid.c,68,incompatible integer to pointer conversion assigning to 'void *' from 'int' [-Wint-conversion],2,no,,unattributed
+other,posix,sysdeps/mach/hurd/waitid.c,73,call to undeclared function '_hurd_critical_section_lock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:51,extern-inline-guard
+other,posix,sysdeps/mach/hurd/waitid.c,73,call to undeclared function '_hurd_critical_section_unlock'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,yes,sysdeps/hurd/include/hurd/signal.h:82,extern-inline-guard
+other,posix,sysdeps/mach/hurd/waitid.c,73,incompatible integer to pointer conversion assigning to 'void *' from 'int' [-Wint-conversion],2,no,,unattributed
+nested,resource,sysdeps/mach/hurd/getpriority.c,36,function definition is not allowed here,2,no,,nested-function
+nested-file,resource,sysdeps/mach/hurd/getpriority.c,69,"incompatible function pointer types passing 'int (__priority_which_t, id_t)' (aka 'int (enum __priority_which, unsigned int)') to parameter of type 'error_t (*)(pid_t, struct procinfo *)' (aka 'enum __error_t_codes (*)(int, struct procinfo *)') [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,resource,sysdeps/mach/hurd/getpriority.c,69,use of undeclared identifier 'getonepriority'; did you mean 'getpriority'?,2,no,,nested-function
+other,resource,sysdeps/mach/hurd/getrlimit.c,33,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,resource,sysdeps/mach/hurd/getrlimit.c,37,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested,resource,sysdeps/mach/hurd/setpriority.c,34,function definition is not allowed here,2,no,,nested-function
+nested-file,resource,sysdeps/mach/hurd/setpriority.c,84,"incompatible function pointer types passing 'int (__priority_which_t, id_t, int)' (aka 'int (enum __priority_which, unsigned int, int)') to parameter of type 'error_t (*)(pid_t, struct procinfo *)' (aka 'enum __error_t_codes (*)(int, struct procinfo *)') [-Wincompatible-function-pointer-types]",2,no,,nested-knock-on
+nested,resource,sysdeps/mach/hurd/setpriority.c,84,use of undeclared identifier 'setonepriority'; did you mean 'setpriority'?,2,no,,nested-function
+other,setjmp,<stdin>,6,call to undeclared function 'offsetof'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1,no,,generated-stdin
+other,setjmp,<stdin>,6,expected expression,1,no,,generated-stdin
+other,setjmp,<stdin>,7,unexpected type name 'stack_t': expected expression,1,no,,generated-stdin
+other,setjmp,<stdin>,7,use of undeclared identifier 'ss_sp',1,no,,generated-stdin
+other,setjmp,<stdin>,8,unexpected type name 'stack_t': expected expression,1,no,,generated-stdin
+other,setjmp,<stdin>,8,use of undeclared identifier 'ss_size',1,no,,generated-stdin
+other,setjmp,<stdin>,9,unexpected type name 'stack_t': expected expression,1,no,,generated-stdin
+other,setjmp,<stdin>,9,use of undeclared identifier 'ss_flags',1,no,,generated-stdin
+nested,signal,sysdeps/mach/hurd/kill.c,48,function definition is not allowed here,2,no,,nested-function
+nested,signal,sysdeps/mach/hurd/kill.c,137,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,signal,sysdeps/mach/hurd/kill.c,148,call to undeclared function 'kill_pid'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,signal,sysdeps/mach/hurd/sigtimedwait.c,47,function definition is not allowed here,2,no,,nested-function
+nested,signal,sysdeps/mach/hurd/sigtimedwait.c,80,function definition is not allowed here,2,no,,nested-function
+nested,signal,sysdeps/mach/hurd/sigtimedwait.c,120,use of undeclared identifier 'preempt_fun',2,no,,nested-function
+nested,signal,sysdeps/mach/hurd/sigtimedwait.c,121,use of undeclared identifier 'handler',2,no,,nested-function
+other,signal,sysdeps/mach/hurd/x86_64/sigreturn.c,142,dereference of pointer to incomplete type 'unsigned char[]',2,no,,unattributed
+other,signal,sysdeps/mach/hurd/x86_64/sigreturn.c,145,dereference of pointer to incomplete type 'unsigned char[]',2,no,,unattributed
+other,signal,sysdeps/mach/hurd/x86_64/sigreturn.c,149,dereference of pointer to incomplete type 'unsigned char[]',2,no,,unattributed
+nested,socket,sysdeps/mach/hurd/recvmsg.c,166,function definition is not allowed here,2,no,,nested-function
+nested,socket,sysdeps/mach/hurd/recvmsg.c,318,call to undeclared function 'reauthenticate'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,socket,sysdeps/mach/hurd/sendto.c,47,function definition is not allowed here,2,no,,nested-function
+nested,socket,sysdeps/mach/hurd/sendto.c,79,call to undeclared function 'create_address_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+other,time,sysdeps/mach/hurd/getitimer.c,74,use of undeclared identifier 'HURD_CRITICAL_BEGIN',2,no,,extern-inline-guard
+other,time,sysdeps/mach/hurd/getitimer.c,79,use of undeclared identifier 'HURD_CRITICAL_END',2,no,,extern-inline-guard
+nested,time,sysdeps/mach/hurd/setitimer.c,172,function definition is not allowed here,2,no,,nested-function
+nested,time,sysdeps/mach/hurd/setitimer.c,288,call to undeclared function 'kill_itimer_thread'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
+nested,time,sysdeps/mach/hurd/setitimer.c,310,call to undeclared function 'kill_itimer_thread'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2,no,,nested-function
