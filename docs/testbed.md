@@ -133,11 +133,12 @@ they matter, copy them somewhere else.
 
 ## Next steps
 
-1. **Re-run the `rpctrace` workloads here, on x86_64.** Decision 0010 rests on
-   an i386-only observation — 11 136 `i386_set_gdt`/`get_gdt` calls per build
-   turned out to be thread-local storage, which has no x86_64 counterpart. The
-   whole inventory should be re-derived on the target architecture and compared.
-2. **Install clang and finish decision 0002's glibc build**, which a power
-   outage killed partway through. 0002 stays `proposed` until it completes.
+1. ~~Re-run the `rpctrace` workloads here, on x86_64.~~ Done 2026-09-30; see
+   `phase0-data/README.md` stage 8 and decision 0010's amendment. Raw traces
+   are in `~aditya/trace/`; don't delete them, since stage 8's checksums refer
+   to them.
+2. ~~Install clang~~ (done) and **finish decision 0002's glibc build**, running
+   since 2026-09-30 12:51 (`~/run-amd64.log`; log in `~/spike/glibc-make.log`).
+   0002 stays `proposed` until it completes.
 3. ~~Replace `nested.py`~~. Done 2026-09-30: v2 finds all 80 trampolines and
    298 nested functions (was 252). See `phase0-data/README.md` stage 7.

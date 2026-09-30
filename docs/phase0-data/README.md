@@ -369,3 +369,62 @@ trampolines. `captures.py` finds enclosing functions with its own hand-rolled
 brace matching, the same defect class v1 had, so running it would not be
 trustworthy. Decision 0002 is argued with bounds instead: see its 2026-09-30
 amendment.
+
+## Stage 8: the x86_64 re-run (2026-09-30, VM 111)
+
+Same workloads (`tools/phase0/workloads.sh`, with the stale-`one.txt` fix), on
+the target architecture. Files are in `amd64/`.
+
+| | |
+|---|---|
+| Kernel | GNU Mach 1.8+git20260805-up-amd64 |
+| Hurd, running = sources | 1:0.9.git20260919-1 (no drift this time) |
+| libc | libc0.3 2.43-6 |
+| msgids | `gnumach.msgids` sha256 `7fce119b10ddc7b61c21be5c15072566ecaec745a3dfe64909718d38e5c887a1` (198 calls; it lacks `host_kernel_version`) |
+| Scripts | `workloads.sh` `c1d8b454…d0e1`, `tally.py` `0f358fdd…7284`, `hurdrpc.py` `e85ac436…c9d`: byte-identical to the repo at this commit |
+
+| Raw trace (VM 111, `~aditya/trace/`) | Bytes | Lines | SHA-256 |
+|---|---:|---:|---|
+| `boot.txt` | 108 170 | 1 098 | `8279f58dec0cea98b612cc06d0943c5dd2293bea539b607461a2d62d026d4427` |
+| `shell.txt` | 561 281 | 8 314 | `d486e68a89ade5f500cf407ff2875d02cd74e1ce196aac9a350ac5b9940d1811` |
+| `build.txt` | 133 419 167 | 1 613 601 | `a294185e25e6cd5b3d2cf69eda5591ae7dfd3b5918a19961548e8b683a848332` |
+
+| File | Produced by |
+|---|---|
+| `amd64/mach-call-counts.csv`, `.md` | `tally.py` (as stage 1) |
+| `amd64/hurd-rpc-counts.csv`, `amd64/io-offsets.csv` | `hurdrpc.py` (as stage 1) |
+| `amd64/i386-vs-amd64.csv` | a join of `mach-call-counts.csv` and `amd64/mach-call-counts.csv` on `call`, keeping calls non-zero on either side |
+| `amd64/thread-state-flavours.csv` | `grep -oE "thread_(set\|get)_state \([0-9]+" build.txt \| sort \| uniq -c`; names from `/usr/include/mach/x86_64/thread_status.h` |
+
+**How each workload ended, compared with i386:**
+
+- **boot:** rpctrace **segfaulted** (rc 139) during ext2fs start-up; on i386 it
+  hung. Before crashing it recorded the external-pager protocol, which i386
+  never reached: kernel → ext2fs page requests and returns (printed as
+  `device_pager_*`, the msgid collision from stage 1), and ext2fs → kernel
+  `memory_object_data_supply`, `memory_object_lock_request` and
+  `memory_object_ready`. Two "error lifting address space limits: (os/kern)
+  invalid task" messages come from libpager's `setrlimit(RLIMIT_AS)`
+  (`libpager/demuxer.c:327`): the task port is rpctrace's proxy, so the kernel
+  rejects it. A tracing artefact.
+- **shell:** 9 of 10 commands hit the 60 s timeout (i386: 7). Traces are
+  still captured up to the hang.
+- **build:** stopped at the first `make`, on `gsync_wait`, exactly as on i386.
+  The run was ended at 12:51 by `kill -TERM` of the rpctrace PID, after four
+  minutes without output, rather than waiting out the 50-minute `timeout`.
+  (`pkill -x rpctrace` hung: `proc` lookups can stall on a wedged traced task.
+  `ps -e -o pid,args` then `kill <pid>` worked.)
+
+**Results:**
+
+- The port, VM and fork profile is architecture-independent: most build
+  counts agree within a few percent (`task_create` 3 064 vs 3 057,
+  `mach_port_deallocate` 343 547 vs 349 274).
+- `i386_set_gdt`/`get_gdt` (11 136) are replaced by `thread_set_state`/
+  `get_state` flavour 7 (`i386_FSGS_BASE_STATE`): 7 821 sets and 2 472 gets.
+  Decision 0010 is amended.
+- The client-recovery offset finding holds on x86_64: `io_read` 99.3% at
+  offset `-1`, `io_write` 94%. The explicit-offset writes rose from 24 to 1 638,
+  still a small minority.
+- `io_seek` `SEEK_SET` is up 42% (50 331 → 71 521), probably configure taking
+  different paths per architecture. It changes no conclusion.

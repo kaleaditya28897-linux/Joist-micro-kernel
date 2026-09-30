@@ -53,7 +53,9 @@ Three things this says:
 - Easier: one capability covers the whole debug/signal surface, and the fixed
   state record keeps the kernel's arch interface small.
 - Harder: glibc's TLS setup must be rewritten rather than adapted — it is
-  currently written against the i386 GDT calls. On x86_64 this is simpler than
+  currently written against the i386 GDT calls. *(Corrected 2026-09-30: true on
+  i386 only; the x86_64 port already sets TLS through `set_state`. See the
+  amendment.)* On x86_64 this is simpler than
   what it replaces, but it is new code in the riskiest phase (Phase 7).
 - **An i386-specific finding on an x86_64-targeted project.** 0002 and the
   testbed document already note the testbed is i386 for availability reasons;
@@ -62,6 +64,58 @@ Three things this says:
   exists, re-run the trace and check what replaces the 11 136 GDT calls.
 - `thread_suspend` firing once means it can be implemented simply and need not
   be fast. Do not optimise it.
+
+## Amendment, 2026-09-30: the x86_64 re-run
+
+The trace was re-run on the x86_64 testbed (VM 111) with the same workloads;
+`docs/phase0-data/amd64/i386-vs-amd64.csv` has every call side by side, and
+`docs/phase0-data/README.md` stage 8 has the provenance. Build workload:
+
+| | i386 | x86_64 |
+|---|---:|---:|
+| `i386_set_gdt` + `i386_get_gdt` | 11 136 | **0** |
+| `thread_set_state` | 7 265 | **15 056** |
+| `thread_get_state` | 4 785 | 4 945 |
+| `task_threads` (≈ one per fork) | 2 481 | 2 471 |
+
+By flavour on x86_64 (`<mach/x86_64/thread_status.h>`), counted from the
+trace arguments:
+
+| Flavour | set | get | What it is |
+|---|---:|---:|---|
+| 1 `i386_THREAD_STATE` | 2 292 | 0 | full registers, once per process start (= `task_get_special_port`, 2 292) |
+| 5 `i386_REGS_SEGS_STATE` | 4 943 | 2 472 | registers + segments: signal delivery and fork |
+| 7 `i386_FSGS_BASE_STATE` | **7 821** | **2 472** | TLS base |
+| 8 `i386_XFLOAT_STATE` | 0 | 1 | extended FP |
+
+**What replaced the GDT calls:** flavour 7. Its 7 821 sets match the 7 848
+`i386_set_gdt` calls to within 0.4%, and its 2 472 gets are one per thread
+copied by `fork` (2 471 `task_threads`). glibc's x86_64 port already does
+exactly this, in `sysdeps/mach/hurd/x86_64/htl/pt-setup.c:87` and
+`htl/pt-machdep.c:66,72`.
+
+This changes two things in this entry:
+
+1. **The Consequences bullet saying glibc's TLS setup "must be rewritten" is
+   wrong for x86_64.** The x86_64 port already treats TLS as thread state set
+   through `set_state`, which is what the Decision section asks for. The
+   rewrite is needed only if Joist ever targets i386, which the plan does not.
+2. **"Exactly one state flavour per architecture" has a cost the Decision did
+   not state.** glibc writes three flavours and reads two. The TLS base alone
+   is 7 821 writes per build, each of which today touches only two registers.
+   With a single fixed record, each becomes a whole-record write, or a
+   read-modify-write if the caller doesn't hold the rest of the state. Two
+   ways to keep the single-record rule without that cost, to be settled
+   before Phase 7:
+   - make the TLS base a separately settable thread attribute (`set_tls_base`),
+     which is honest about it being the hot path; or
+   - enable `FSGSBASE` (`CR4.FSGSBASE`) so threads set their own base with
+     `wrfsbase` and **no kernel call at all**. That removes ~7.8k calls per build,
+     but it makes the base register user-controlled state that the kernel has
+     to save and restore on context switch (it already has to, for
+     `set_state`).
+
+Status stays `proposed`.
 
 ## Priority check
 

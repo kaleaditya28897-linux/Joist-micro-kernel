@@ -174,6 +174,18 @@ candidates for *unused*. They still need the static check.
   on a separate thread, or trace a subhurd), then re-run the build through
   compile and link.
 
+## x86_64 re-run (2026-09-30)
+
+Everything above was measured on i386. The same workloads were re-run on the
+x86_64 testbed; `phase0-data/amd64/i386-vs-amd64.csv` has every call side by
+side (provenance in `phase0-data/README.md` stage 8). The profile is
+architecture-independent except for thread-local storage: the 11 136
+`i386_set_gdt`/`i386_get_gdt` calls become `thread_set_state`/`get_state`
+with flavour `i386_FSGS_BASE_STATE` (7 821 sets, 2 472 gets). See decision
+0010's amendment. On x86_64 the boot proxy also captured live pager traffic
+(`memory_object_data_supply`, `memory_object_lock_request`,
+`memory_object_ready`) before rpctrace crashed.
+
 ## Traps (syscalls, invisible to rpctrace)
 
 From `/usr/include/i386-gnu/mach/syscall_sw.h` (sha256 `b03bf2c2…d6acc`) and
