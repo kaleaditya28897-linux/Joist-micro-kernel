@@ -1,7 +1,7 @@
 # 0014 — Mach features the Hurd uses that §6 does not list: futexes, yield, queue limits
 
 Date: 2026-10-01
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: no §6 row. These are Mach features the Phase 0 inventory found in use
 that §6's mapping table never listed. Thread-local storage, the fourth such
 feature, is covered by 0010; fork's capability-namespace copy by 0011.
@@ -122,6 +122,12 @@ The 14 534 calls disappear rather than being mapped.
   test them hardest.
 - The network stack's packet path is a design item for 0012, not a mechanical
   port: today it leans on Mach's ability to queue asynchronous messages deeply.
+
+## Accepted, 2026-10-01
+
+Accepted as written. Futexes in glibc on top of notification objects (no
+kernel futex table); one plain `Yield` (measured: one start-up `swtch_pri` per
+process, nothing else); no kernel counterpart for queue limits.
 
 ## Priority check
 

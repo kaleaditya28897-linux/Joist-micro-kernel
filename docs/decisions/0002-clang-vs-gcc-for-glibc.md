@@ -1,8 +1,8 @@
 # 0002 — Clang everywhere, with a pre-committed GCC fallback for glibc
 
 Date: 2026-09-23
-Status: proposed — policy accepted. Nested-function count measured 2026-09-23
-(see amendment); the rest of the glibc error surface is still unmeasured.
+Status: accepted (2026-10-01): the **Clang branch**. The GCC fallback is not
+taken. See *Accepted* below for the two conditions.
 
 ## Context
 
@@ -332,6 +332,25 @@ This replaces "a floor and no established ceiling" for the Hurd side (see the
 2026-09-24 amendment): its clang work is the 222 nested functions
 (179–222 h at the sizing used here) and one macro. As before, that is not
 charged to this decision. But the Hurd's share is now bounded too.
+
+### Accepted, 2026-10-01: the Clang branch
+
+The project owner accepted the 2026-10-01 recommendation. **glibc is built with
+Clang**, on a Linux host cross-compiling for the Hurd. The GCC fallback is not
+triggered: every measured item fits well inside the one-month budget
+(nested functions at most 77 h, the extern-inline guard fix days, a small
+tail), and the one unbounded item, clang hanging on glibc's math headers, is
+a defect of clang *running on* the Hurd, which the cross-build avoids.
+
+Two conditions, recorded so that the acceptance is not read as unconditional:
+
+1. **The first Linux→Hurd cross-build of glibc with Clang is the check on
+   this estimate.** If it shows an error class not in
+   `docs/phase0-data/amd64/clang-glibc-root-causes.csv`, re-open this decision
+   with a superseding entry rather than editing this one.
+2. **The clang-on-Hurd hang is reported upstream** with
+   `clang-hang-s_lround.cmd`, `clang-hang-stack.txt` and the 139-file bundle
+   (`clang-hang-bundle.list`). Joist does not depend on it being fixed.
 
 ## Consequences
 

@@ -1,7 +1,7 @@
 # 0007 — External memory objects → page-fault IPC
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: §6 row *External memory objects (`memory_object_*`)*.
 Blocks: Phase 6 (paging protocol and libpager).
 

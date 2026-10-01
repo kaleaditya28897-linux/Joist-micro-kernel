@@ -1,7 +1,7 @@
 # 0011 — `task_create` with VM inheritance → task create + memory manager COW clone
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: §6 row *`task_create` with VM inheritance (used by `fork`)*.
 
 ## Context

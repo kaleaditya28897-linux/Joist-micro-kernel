@@ -9,24 +9,28 @@ permanent; a superseded decision keeps its number and gains a
 | # | Title | Status | Blocks |
 |---|---|---|---|
 | 0000 | Project name: Joist | accepted | — |
-| 0001 | Native IPC model | proposed | Phase 3 |
-| 0002 | Clang everywhere, pre-committed GCC fallback for glibc | proposed | Phase 7 |
-| 0003 | SMP + no runtime allocation + bounded WCET | proposed | Phase 3 |
-| 0004 | Task and thread objects | proposed | — |
-| 0005 | Port sets → badge demultiplexing | proposed | Phase 5 |
-| 0006 | Out-of-line memory → typed bulk transfer | proposed | Phase 5 |
-| 0007 | External memory objects → page-fault IPC | proposed | Phase 6 |
-| 0008 | `vm_*` → memory manager RPCs | proposed | Phase 4 |
-| 0009 | Exception ports → fault IPC | proposed | Phase 3 |
-| 0010 | Thread state and control capabilities | proposed | — |
-| 0011 | `fork` / VM inheritance → task create + COW clone | proposed | Phase 4 |
-| 0012 | Device interface → IRQ/IO/MMIO/DMA capabilities | proposed | Phase 10 |
-| 0013 | Privileged ports → boot-time delegation | proposed | Phase 2 |
-| 0014 | Mach features outside §6: futexes, yield, queue limits | proposed | Phase 3 (yield), Phase 7 (futexes) |
+| 0001 | Native IPC model | accepted | Phase 3 |
+| 0002 | Clang everywhere, pre-committed GCC fallback for glibc | accepted (Clang branch) | Phase 7 |
+| 0003 | SMP + no runtime allocation + bounded WCET | accepted | Phase 3 |
+| 0004 | Task and thread objects | accepted | — |
+| 0005 | Port sets → badge demultiplexing | accepted | Phase 5 |
+| 0006 | Out-of-line memory → typed bulk transfer | accepted | Phase 5 |
+| 0007 | External memory objects → page-fault IPC | accepted | Phase 6 |
+| 0008 | `vm_*` → memory manager RPCs | accepted | Phase 4 |
+| 0009 | Exception ports → fault IPC | accepted | Phase 3 |
+| 0010 | Thread state and control capabilities | accepted | — |
+| 0011 | `fork` / VM inheritance → task create + COW clone | accepted | Phase 4 |
+| 0012 | Device interface → IRQ/IO/MMIO/DMA capabilities | accepted | Phase 10 |
+| 0013 | Privileged ports → boot-time delegation | accepted | Phase 2 |
+| 0014 | Mach features outside §6: futexes, yield, queue limits | accepted | Phase 3 (yield), Phase 7 (futexes) |
 
-Nothing is `accepted` except 0000. Phase 0's exit criterion is that the entries
-*exist* and cover §6; accepting them is a separate act that should follow the
-Phase 1 host model, which is where several of these get their first real test.
+**All entries were accepted on 2026-10-01** by the project owner, at the close
+of Phase 0 (`docs/phase0-exit.md`). The recommendations taken were: 0002 on
+the Clang branch (with two recorded conditions), 0005 with readiness
+notifications for `select`, and 0014 as written. Each still has its own open
+items (below). Under the journal's rules, a later change of mind is a new,
+superseding entry, not an edit. The Phase 1 host model is where several of
+these get their first real test.
 
 ## §6 coverage
 

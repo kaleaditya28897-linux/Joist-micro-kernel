@@ -1,7 +1,7 @@
 # 0003 — SMP, no runtime allocation, and bounded WCET taken together
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Blocks: Phase 3. These three commitments constrain each other; settling them
 late means rediscovering the conflict mid-implementation.
 

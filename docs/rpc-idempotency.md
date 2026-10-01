@@ -39,7 +39,7 @@ the server's per-open state (libdiskfs `struct peropen`). client-recovery §4
 assumes the recovery record can restore "the offset" after reconnect. With
 today's protocol, the client does not know it.
 
-**Decided in `client-recovery.md` §4.1 (2026-10-01, proposed):** the server
+**Decided in `client-recovery.md` §4.1 (accepted 2026-10-01):** the server
 stays the authority. `io_read`/`io_write`/`io_seek` replies report the
 resulting offset, the client caches it in the per-description recovery
 record, and the reconnect restores it with one `io_seek (SEEK_SET, …)` before

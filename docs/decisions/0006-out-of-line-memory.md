@@ -1,7 +1,7 @@
 # 0006 — Out-of-line memory → typed bulk transfer, not one mechanism
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: §6 row *Out-of-line memory*. This row keeps its **known-hard** status.
 
 ## Context

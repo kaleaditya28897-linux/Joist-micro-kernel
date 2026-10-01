@@ -1,7 +1,7 @@
 # 0005 — Port sets → badge demultiplexing on one endpoint
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: §6 row *Port set*.
 
 ## Context
@@ -126,6 +126,15 @@ fired 7 times in the measured build (`phase0-data/hurd-rpc-counts.csv`). But
 server, so this must be decided before Phase 5's libports and MIG work, not
 discovered during it. **This row stays "ordinary" for server buckets, and
 gains one known-hard sub-case: client-side `select`.**
+
+## Accepted, 2026-10-01
+
+Accepted with the 2026-10-01 `select` amendment's recommendation adopted:
+**`select`/`poll` use a readiness-notification protocol.** `select` registers a
+badged signal capability with each server, then `Wait`s on one notification
+object, and servers signal when ready. The `io_select` change in every server
+that implements it is Phase 5 work. The bit-set width it depends on is
+0001's open item 3.
 
 ## Priority check
 

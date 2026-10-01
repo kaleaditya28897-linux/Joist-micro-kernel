@@ -1,7 +1,7 @@
 # 0008 — `vm_allocate` / `vm_map` / `vm_protect` → memory manager RPCs
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: §6 row *`vm_allocate`, `vm_map`, `vm_protect`*.
 
 ## Context

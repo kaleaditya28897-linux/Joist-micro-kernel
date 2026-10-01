@@ -5,11 +5,10 @@ case, so that the kernel's lifetime notifications (§5.4) and the memory manager
 (§5.5) — both built long before the resilience phase — are designed against
 real requirements rather than a sketch.
 
-**Status:** every case below has a decision, and every **(confirm)** marker
-has been checked against Hurd/glibc source and testbed traces (2026-10-01; see
-§8 for the evidence). Each is now marked **(confirmed)**. The decisions remain
-`proposed` in the same sense as the design journal's entries: settled for
-Phase 0, open to revision when Phase 9 meets them.
+**Status: accepted (2026-10-01).** Every case below has a decision, and every
+**(confirm)** marker has been checked against Hurd/glibc source and testbed
+traces (see §8). Each is marked **(confirmed)**. Revisions after Phase 9 meets
+these cases go through a superseding design-journal entry.
 
 ## 1. Why this is the hard part
 
@@ -87,7 +86,7 @@ modes and the record locks. A descriptor holds only a port. glibc's
 `io_read` and 94% of `io_write` in the x86_64 build trace. So the client
 cannot "restore the offset" as written above: it doesn't know it.
 
-**Decision (proposed): the server stays the authority, and its replies
+**Decision (accepted 2026-10-01): the server stays the authority, and its replies
 report the state the client needs to cache.**
 
 - `io_read`, `io_write` and `io_seek` replies carry the resulting file

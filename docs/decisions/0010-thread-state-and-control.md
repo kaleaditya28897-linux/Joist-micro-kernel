@@ -1,7 +1,7 @@
 # 0010 — `thread_get_state` / `thread_set_state` / `thread_suspend` → thread control capabilities
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: §6 row *`thread_get_state` / `thread_set_state` / `thread_suspend`*.
 
 ## Context
@@ -136,6 +136,12 @@ It's still modest (about 0.16 per `task_create`), and simple is still right,
 but it sits on the signal-delivery path. The thing worth designing is that
 path as a whole: suspend → abort → get/set state → resume is one operation
 from glibc's point of view, and four kernel calls today.
+
+## Accepted, 2026-10-01
+
+Accepted, including the 2026-10-01 amendments. One choice inside it stays
+open and must be settled before Phase 7: how the TLS base is set (a separate
+`set_tls_base` call, or `FSGSBASE` with no kernel call).
 
 ## Priority check
 

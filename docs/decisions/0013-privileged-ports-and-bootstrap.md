@@ -1,7 +1,7 @@
 # 0013 — `host_priv` / `device_master` → capabilities delegated at boot by the root task
 
 Date: 2026-09-23
-Status: proposed
+Status: accepted (2026-10-01)
 Covers: §6 row *`host_priv`, `device_master` privileged ports*.
 
 ## Context
