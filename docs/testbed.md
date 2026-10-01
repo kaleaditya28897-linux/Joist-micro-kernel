@@ -150,5 +150,9 @@ they matter, copy them somewhere else.
    is clang *on the Hurd* (stage 10). It does not reproduce on Linux, so build
    glibc on a Linux host, cross to the Hurd. clang 19 and 22 are now installed
    alongside 21 on VM 111.
+4. ~~Clang builds of GNU Mach, the Hurd and MIG output~~. Done 2026-10-01; see
+   `docs/clang-inventory.md`. Work trees on the VM: `~/spike/hurd-clang-21`,
+   `~/spike/hurd-gcc` (in-tree copies), and GNU Mach's `build-clang-21` and
+   `build-gcc`.
 3. ~~Replace `nested.py`~~. Done 2026-09-30: v2 finds all 80 trampolines and
    298 nested functions (was 252). See `phase0-data/README.md` stage 7.

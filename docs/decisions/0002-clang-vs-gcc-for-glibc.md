@@ -315,6 +315,24 @@ glibc)**, with two conditions recorded rather than assumed:
 
 The status is left as `proposed` for the project owner to accept.
 
+### Amendment, 2026-10-01 (later): GNU Mach, MIG and the Hurd measured too
+
+`docs/clang-inventory.md` now covers all four components Phase 0 names.
+
+- **MIG output:** clean. 84 stubs, 0 errors, 0 warnings.
+- **GNU Mach:** every object compiles. One nested function
+  (`device/net_io.c`), plus two build-system GCC assumptions with known fixes
+  (`GCC_INSTALL` from `-print-search-dirs`; `gensym`'s inline-asm markers).
+- **The Hurd:** every object compiles (1 492, the same as GCC), and the
+  error surface is **nested functions plus one macro**: 291 of 293 error sites
+  are nested functions or their knock-ons, 1 is a further knock-on, and 1 is
+  a computed `goto` into a statement expression (`exec/hostarch.c`).
+
+This replaces "a floor and no established ceiling" for the Hurd side (see the
+2026-09-24 amendment): its clang work is the 222 nested functions
+(179–222 h at the sizing used here) and one macro. As before, that is not
+charged to this decision. But the Hurd's share is now bounded too.
+
 ## Consequences
 
 - Easier: Phase 7 has a known worst case; nobody has to re-litigate the

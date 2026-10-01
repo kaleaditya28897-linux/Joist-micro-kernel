@@ -622,3 +622,21 @@ consistent configuration. All branches are still scanned.
 - Unit tests: `tools/phase0/tests/nested/run.sh` (`shapes.c`, `config.c`,
   both pass). Script sha256
   `d5207cff66ec223e68f94f28235f105dfc57c22db74411880186c8a12d5deb10`.
+
+## Stage 12: the Hurd's full clang error surface (2026-10-01, VM 111)
+
+**Command:** `tools/phase0/spike-hurd-clang.sh clang-21`, and
+`spike-hurd-clang.sh gcc` as the baseline: an in-tree copy, configured once,
+then `make -k` per directory over all 57 library and program directories.
+Results in `docs/clang-inventory.md` §4.
+
+| File | SHA-256 |
+|---|---|
+| clang logs (VM, `~/spike/hurd-clang-21/logs/*.log`, concatenated in name order) | `7d1e6249f4269a1fd361c6b7c4893d5e8108eec79c8a72938627a90e2a42e058` |
+| gcc logs (VM, `~/spike/hurd-gcc/logs/*.log`, concatenated) | `2175051f90bf53e5133b4e30b33f471afb3763209d941d8727e332ad28a48750` |
+| `amd64/hurd-clang-errors.csv` (`hurd_clang_errors.py`; includes the 2 `version.h` artifact rows, which the inventory excludes) | `1a6b7e760646160dbcfaa54a3e1cdf2ec57b0e922bb9f09463da157ce0c41b5b` |
+
+**Coverage check:** object files named on each compiler's command lines,
+per directory. Clang has all 1 492 of GCC's, plus `sutils/clookup.o`. The
+remaining differences in raw command counts (1 734 vs 1 758) are GCC's link
+steps, which clang never reached.

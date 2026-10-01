@@ -1,0 +1,294 @@
+class,dir,file,line,message,count
+nested,console,console/display.c,2018,function definition is not allowed here,1
+nested,console,console/display.c,2055,call to undeclared function 'ensure_output_buffer_size'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,console,console/display.c,2088,call to undeclared function 'ensure_output_buffer_size'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,console,console/input.c,104,function definition is not allowed here,1
+nested,console,console/input.c,147,call to undeclared function 'ensure_cd_buffer_size'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,console,console/input.c,201,call to undeclared function 'ensure_cd_buffer_size'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,console-client,console-client/vga-dynafont.c,322,function definition is not allowed here,1
+nested,console-client,console-client/vga-dynafont.c,365,call to undeclared function 'vga_add_glyph'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,console-client,console-client/vga-dynafont.c,763,function definition is not allowed here,1
+nested,console-client,console-client/vga-dynafont.c,777,use of undeclared identifier 'cmp_wchar',2
+nested,daemons,daemons/console-run.c,129,function definition is not allowed here,1
+nested,daemons,daemons/console-run.c,157,use of undeclared identifier 'open_node',1
+nested,daemons,daemons/runttys.c,89,function definition is not allowed here,1
+nested,daemons,daemons/runttys.c,114,call to undeclared function 'make_args'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested-file,daemons,daemons/runttys.c,114,incompatible integer to pointer conversion assigning to 'char **' from 'int' [-Wint-conversion],1
+nested,daemons,daemons/runttys.c,117,call to undeclared function 'make_args'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested-file,daemons,daemons/runttys.c,117,incompatible integer to pointer conversion assigning to 'char **' from 'int' [-Wint-conversion],1
+nested,eth-multiplexer,eth-multiplexer/netfs_impl.c,218,function definition is not allowed here,1
+nested,eth-multiplexer,eth-multiplexer/netfs_impl.c,262,function definition is not allowed here,1
+nested,eth-multiplexer,eth-multiplexer/netfs_impl.c,277,call to undeclared function 'add_dirent'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,eth-multiplexer,eth-multiplexer/netfs_impl.c,279,use of undeclared identifier 'add_each_dev',1
+nested,eth-multiplexer,eth-multiplexer/vdev.c,230,function definition is not allowed here,1
+nested,eth-multiplexer,eth-multiplexer/vdev.c,240,use of undeclared identifier 'internal_deliver_pack',1
+nested,eth-multiplexer,eth-multiplexer/vdev.c,251,function definition is not allowed here,1
+nested,eth-multiplexer,eth-multiplexer/vdev.c,260,use of undeclared identifier 'internal_deliver_msg',1
+nested,exec,exec/exec.c,94,function definition is not allowed here,1
+nested,exec,exec/exec.c,138,call to undeclared function 'write_to_task'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/exec.c,805,function definition is not allowed here,1
+nested,exec,exec/exec.c,833,call to undeclared function 'prepare_and_check'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/exec.c,895,function definition is not allowed here,1
+nested,exec,exec/exec.c,1114,call to undeclared function 'use1'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/exec.c,1124,call to undeclared function 'use1'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/exec.c,1136,call to undeclared function 'use1'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/exec.c,1140,call to undeclared function 'use1'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/exec.c,1143,call to undeclared function 'use1'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/exec.c,1171,function definition is not allowed here,1
+nested,exec,exec/exec.c,1177,function definition is not allowed here,1
+nested,exec,exec/exec.c,1189,use of undeclared identifier 'user_fd',1
+nested,exec,exec/exec.c,1189,use of undeclared identifier 'user_port',1
+nested,exec,exec/hashexec.c,63,function definition is not allowed here,1
+nested,exec,exec/hashexec.c,79,function definition is not allowed here,1
+nested,exec,exec/hashexec.c,134,function definition is not allowed here,1
+nested,exec,exec/hashexec.c,220,call to undeclared function 'lookup'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,exec,exec/hashexec.c,227,function definition is not allowed here,1
+nested,exec,exec/hashexec.c,229,function definition is not allowed here,1
+nested,exec,exec/hashexec.c,421,use of undeclared identifier 'fault_handler',1
+nested,exec,exec/hashexec.c,421,use of undeclared identifier 'setup_args',1
+other,exec,exec/hostarch.c,35,cannot jump from this indirect goto statement to one of its possible targets,11
+nested,ext2fs,ext2fs/balloc.c,478,function definition is not allowed here,1
+nested,ext2fs,ext2fs/balloc.c,491,function definition is not allowed here,1
+nested,ext2fs,ext2fs/balloc.c,502,call to undeclared function 'ext2_group_sparse'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,ext2fs,ext2fs/inode.c,546,function definition is not allowed here,1
+nested-file,ext2fs,ext2fs/inode.c,563,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(struct node *)' (aka 'enum __error_t_codes (*)(struct node *)') [-Wincompatible-function-pointer-types],1
+nested,ext2fs,ext2fs/inode.c,563,use of undeclared identifier 'write_one_disknode'; did you mean 'write_all_disknodes'?,1
+nested,ext2fs,ext2fs/pager.c,196,function definition is not allowed here,1
+nested,ext2fs,ext2fs/pager.c,262,call to undeclared function 'do_pending_reads'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,ext2fs,ext2fs/pager.c,291,call to undeclared function 'do_pending_reads'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,ext2fs,ext2fs/pager.c,1574,function definition is not allowed here,1
+nested,ext2fs,ext2fs/pager.c,1630,use of undeclared identifier 'shutdown_and_clear',1
+nested,ext2fs,ext2fs/pager.c,1655,function definition is not allowed here,1
+nested,ext2fs,ext2fs/pager.c,1664,use of undeclared identifier 'sync_one',1
+nested,ext2fs,ext2fs/pager.c,1680,function definition is not allowed here,1
+nested,ext2fs,ext2fs/pager.c,1689,use of undeclared identifier 'block_cache',1
+nested,ext2fs,ext2fs/pager.c,1690,use of undeclared identifier 'block_cache',1
+nested,ext2fs,ext2fs/pager.c,1697,function definition is not allowed here,1
+nested-file,ext2fs,ext2fs/pager.c,1718,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(void *)' (aka 'enum __error_t_codes (*)(void *)') [-Wincompatible-function-pointer-types],1
+nested,ext2fs,ext2fs/pager.c,1718,use of undeclared identifier 'enable_cache'; did you mean 'enable_caching'?,1
+nested-file,ext2fs,ext2fs/pager.c,1719,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(void *)' (aka 'enum __error_t_codes (*)(void *)') [-Wincompatible-function-pointer-types],1
+nested,ext2fs,ext2fs/pager.c,1719,use of undeclared identifier 'enable_cache'; did you mean 'enable_caching'?,1
+nested,ext2fs,ext2fs/pager.c,1765,function definition is not allowed here,1
+nested,ext2fs,ext2fs/pager.c,1779,use of undeclared identifier 'add_pager_max_prot',1
+nested,ext2fs,ext2fs/truncate.c,161,function definition is not allowed here,1
+nested-file,ext2fs,ext2fs/truncate.c,164,"incompatible function pointer types passing 'kern_return_t (file_t, int)' (aka 'int (unsigned int, int)') to parameter of type 'void (*)(block_t *, unsigned int)' (aka 'void (*)(unsigned int *, unsigned int)') [-Wincompatible-function-pointer-types]",1
+nested,ext2fs,ext2fs/truncate.c,164,use of undeclared identifier 'free_block'; did you mean 'file_lock'?,1
+nested,ext2fs,ext2fs/truncate.c,173,function definition is not allowed here,1
+nested-file,ext2fs,ext2fs/truncate.c,177,"incompatible function pointer types passing 'kern_return_t (file_t, int)' (aka 'int (unsigned int, int)') to parameter of type 'void (*)(block_t *, unsigned int)' (aka 'void (*)(unsigned int *, unsigned int)') [-Wincompatible-function-pointer-types]",1
+nested,ext2fs,ext2fs/truncate.c,177,use of undeclared identifier 'free_block'; did you mean 'file_lock'?,1
+nested,ext2fs,ext2fs/truncate.c,186,function definition is not allowed here,1
+nested-file,ext2fs,ext2fs/truncate.c,190,"incompatible function pointer types passing 'kern_return_t (file_t, int)' (aka 'int (unsigned int, int)') to parameter of type 'void (*)(block_t *, unsigned int)' (aka 'void (*)(unsigned int *, unsigned int)') [-Wincompatible-function-pointer-types]",1
+nested,ext2fs,ext2fs/truncate.c,190,use of undeclared identifier 'free_block'; did you mean 'file_lock'?,1
+nested,fatfs,fatfs/fat.c,380,function definition is not allowed here,1
+nested,fatfs,fatfs/fat.c,453,call to undeclared function 'allocate_new_table'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,fatfs,fatfs/inode.c,418,function definition is not allowed here,1
+nested-file,fatfs,fatfs/inode.c,427,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(struct node *)' (aka 'enum __error_t_codes (*)(struct node *)') [-Wincompatible-function-pointer-types],1
+nested,fatfs,fatfs/inode.c,427,use of undeclared identifier 'write_one_disknode'; did you mean 'write_all_disknodes'?,1
+nested,fatfs,fatfs/inode.c,435,function definition is not allowed here,1
+nested-file,fatfs,fatfs/inode.c,441,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(struct node *)' (aka 'enum __error_t_codes (*)(struct node *)') [-Wincompatible-function-pointer-types],1
+nested,fatfs,fatfs/inode.c,441,use of undeclared identifier 'refresh_one_node_stat'; did you mean 'refresh_node_stats'?,1
+nested,fatfs,fatfs/pager.c,225,function definition is not allowed here,1
+nested,fatfs,fatfs/pager.c,290,call to undeclared function 'do_pending_reads'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,fatfs,fatfs/pager.c,303,call to undeclared function 'do_pending_reads'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,fatfs,fatfs/pager.c,935,function definition is not allowed here,1
+nested,fatfs,fatfs/pager.c,943,use of undeclared identifier 'shutdown_one',1
+nested,fatfs,fatfs/pager.c,956,function definition is not allowed here,1
+nested,fatfs,fatfs/pager.c,963,use of undeclared identifier 'sync_one',1
+nested,fatfs,fatfs/pager.c,971,function definition is not allowed here,1
+nested,fatfs,fatfs/pager.c,980,use of undeclared identifier 'block_cache',1
+nested,fatfs,fatfs/pager.c,981,use of undeclared identifier 'block_cache',1
+nested,fatfs,fatfs/pager.c,988,function definition is not allowed here,1
+nested-file,fatfs,fatfs/pager.c,1009,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(void *)' (aka 'enum __error_t_codes (*)(void *)') [-Wincompatible-function-pointer-types],1
+nested,fatfs,fatfs/pager.c,1009,use of undeclared identifier 'enable_cache'; did you mean 'enable_caching'?,1
+nested-file,fatfs,fatfs/pager.c,1010,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(void *)' (aka 'enum __error_t_codes (*)(void *)') [-Wincompatible-function-pointer-types],1
+nested,fatfs,fatfs/pager.c,1010,use of undeclared identifier 'enable_cache'; did you mean 'enable_caching'?,1
+nested,fatfs,fatfs/pager.c,1056,function definition is not allowed here,1
+nested,fatfs,fatfs/pager.c,1071,use of undeclared identifier 'add_pager_max_prot',1
+nested,hostmux,hostmux/mux.c,109,function definition is not allowed here,1
+nested,hostmux,hostmux/mux.c,139,call to undeclared function 'bump_size'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,hostmux,hostmux/mux.c,158,function definition is not allowed here,1
+nested,hostmux,hostmux/mux.c,194,call to undeclared function 'add_dir_entry'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,isofs,isofs/pager.c,268,function definition is not allowed here,1
+nested-file,isofs,isofs/pager.c,277,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(void *)' (aka 'enum __error_t_codes (*)(void *)') [-Wincompatible-function-pointer-types],1
+nested,isofs,isofs/pager.c,277,use of undeclared identifier 'block_cache'; did you mean 'block_caching'?,1
+nested,isofs,isofs/pager.c,284,function definition is not allowed here,1
+nested-file,isofs,isofs/pager.c,305,incompatible function pointer types passing 'void (void)' to parameter of type 'error_t (*)(void *)' (aka 'enum __error_t_codes (*)(void *)') [-Wincompatible-function-pointer-types],1
+nested,isofs,isofs/pager.c,305,use of undeclared identifier 'enable_cache'; did you mean 'enable_caching'?,1
+nested,isofs,isofs/rr.c,368,function definition is not allowed here,1
+nested,isofs,isofs/rr.c,411,call to undeclared function 'add_comp'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,isofs,isofs/rr.c,442,call to undeclared function 'add_comp'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,libbpf,libbpf/bpf_impl.c,689,function definition is not allowed here,2
+nested,libbpf,libbpf/bpf_impl.c,759,call to undeclared function 'check_filter_list'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libcons,libcons/opts-std-startup.c,115,function definition is not allowed here,2
+nested,libcons,libcons/opts-std-startup.c,185,call to undeclared function 'parse_events'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libdiskfs,libdiskfs/dir-rmdir.c,37,function definition is not allowed here,2
+nested,libdiskfs,libdiskfs/dir-rmdir.c,64,call to undeclared function 'done'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libdiskfs,libdiskfs/file-exec.c,152,function definition is not allowed here,2
+nested,libdiskfs,libdiskfs/file-exec.c,160,use of undeclared identifier 'get_file_ids',2
+nested,libdiskfs,libdiskfs/io-revoke.c,31,function definition is not allowed here,2
+nested,libdiskfs,libdiskfs/io-revoke.c,55,use of undeclared identifier 'iterator_function',2
+nested,libdiskfs,libdiskfs/readonly.c,78,function definition is not allowed here,2
+nested,libdiskfs,libdiskfs/readonly.c,85,use of undeclared identifier 'peropen_writable',2
+nested,libfshelp,libfshelp/fetch-root.c,64,function definition is not allowed here,2
+nested,libfshelp,libfshelp/fetch-root.c,95,function definition is not allowed here,2
+nested,libfshelp,libfshelp/fetch-root.c,135,call to undeclared function 'reauth'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libfshelp,libfshelp/fetch-root.c,140,use of undeclared identifier 'fetch_underlying',2
+nested,libfshelp,libfshelp/rlock-tweak.c,49,function definition is not allowed here,2
+nested,libfshelp,libfshelp/rlock-tweak.c,66,function definition is not allowed here,2
+nested,libfshelp,libfshelp/rlock-tweak.c,81,function definition is not allowed here,2
+nested,libfshelp,libfshelp/rlock-tweak.c,181,function definition is not allowed here,2
+nested,libfshelp,libfshelp/rlock-tweak.c,199,function definition is not allowed here,2
+nested,libfshelp,libfshelp/rlock-tweak.c,506,call to undeclared function 'unlock_region'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libfshelp,libfshelp/rlock-tweak.c,509,call to undeclared function 'find_conflict'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested-file,libfshelp,libfshelp/rlock-tweak.c,509,incompatible integer to pointer conversion assigning to 'struct rlock_list *' from 'int' [-Wint-conversion],2
+nested,libfshelp,libfshelp/rlock-tweak.c,535,call to undeclared function 'merge_in'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libfshelp,libfshelp/start-translator-long.c,110,function definition is not allowed here,2
+nested,libfshelp,libfshelp/start-translator-long.c,153,call to undeclared function 'type_check'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libirqhelp,libirqhelp/irqhelp.c,213,function definition is not allowed here,2
+nested,libirqhelp,libirqhelp/irqhelp.c,256,use of undeclared identifier 'interrupt_demuxer',2
+nested,libnetfs,libnetfs/file-exec.c,132,function definition is not allowed here,2
+nested,libnetfs,libnetfs/file-exec.c,143,use of undeclared identifier 'get_file_ids',2
+nested,libnetfs,libnetfs/io-revoke.c,30,function definition is not allowed here,2
+nested,libnetfs,libnetfs/io-revoke.c,56,use of undeclared identifier 'iterator_function',2
+nested,libpager,libpager/demuxer.c,302,function definition is not allowed here,2
+nested,libpager,libpager/demuxer.c,307,use of undeclared identifier 'demuxer',2
+nested,libpager,libpager/pager-memcpy.c,52,function definition is not allowed here,2
+nested,libpager,libpager/pager-memcpy.c,95,function definition is not allowed here,2
+nested,libpager,libpager/pager-memcpy.c,177,function definition is not allowed here,2
+nested,libpager,libpager/pager-memcpy.c,196,call to undeclared function 'do_vm_copy'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libpager,libpager/pager-memcpy.c,219,use of undeclared identifier 'do_copy'; did you mean 'vm_copy'?,2
+nested,libpager,libpager/pager-memcpy.c,219,use of undeclared identifier 'fault',2
+nested-file,libports,libports/manage-multithread.c,117,illegal storage class on function,2
+nested,libports,libports/manage-multithread.c,125,function definition is not allowed here,2
+nested,libports,libports/manage-multithread.c,230,function definition is not allowed here,2
+nested,libports,libports/manage-one-thread.c,34,function definition is not allowed here,2
+nested,libports,libports/manage-one-thread.c,120,use of undeclared identifier 'internal_demuxer',2
+nested,libps,libps/context.c,97,function definition is not allowed here,2
+nested-file,libps,libps/context.c,100,"incompatible function pointer types passing 'int (const char *, mode_t)' (aka 'int (const char *, unsigned int)') to parameter of type 'error_t (*)(int, void **)' (aka 'enum __error_t_codes (*)(int, void **)') [-Wincompatible-function-pointer-types]",2
+nested,libps,libps/context.c,100,use of undeclared identifier 'create'; did you mean 'creat'?,2
+nested,libps,libps/context.c,123,function definition is not allowed here,2
+nested-file,libps,libps/context.c,140,"incompatible function pointer types passing 'int (const char *, mode_t)' (aka 'int (const char *, unsigned int)') to parameter of type 'error_t (*)(int, void **)' (aka 'enum __error_t_codes (*)(int, void **)') [-Wincompatible-function-pointer-types]",2
+nested,libps,libps/context.c,140,use of undeclared identifier 'create'; did you mean 'creat'?,2
+nested,libps,libps/fmt.c,567,function definition is not allowed here,2
+nested,libps,libps/fmt.c,571,use of undeclared identifier 'squashable_field',2
+nested,libps,libps/proclist.c,311,function definition is not allowed here,2
+nested-file,libps,libps/proclist.c,314,"incompatible function pointer types passing 'fetch_id_fn_pids_t *' (aka 'int (*)(unsigned int, int, int **, unsigned int *)') to parameter of type 'fetch_fn_pids_t *' (aka 'int (*)(unsigned int, int **, unsigned int *)') [-Wincompatible-function-pointer-types]",2
+nested,libps,libps/proclist.c,314,use of undeclared identifier 'id_fetch_fn'; did you mean 'fetch_fn'?,2
+nested,libps,libps/proclist.c,479,function definition is not allowed here,2
+nested,libps,libps/proclist.c,516,use of undeclared identifier 'lessp',2
+nested,libps,libps/proclist.c,646,function definition is not allowed here,2
+nested-file,libps,libps/proclist.c,649,"incompatible function pointer types passing 'kern_return_t (io_t, data_t *, mach_msg_type_number_t *, __loff_t, vm_size_t)' (aka 'int (unsigned int, char **, unsigned int *, long, unsigned long)') to parameter of type 'int (*)(struct proc_stat *)' [-Wincompatible-function-pointer-types]",2
+nested,libps,libps/proclist.c,649,use of undeclared identifier 'is_thread'; did you mean 'io_read'?,2
+nested,libps,libps/proclist.c,690,function definition is not allowed here,2
+nested,libps,libps/proclist.c,696,use of undeclared identifier 'interesting',2
+nested,libps,libps/procstat.c,770,function definition is not allowed here,2
+nested,libps,libps/procstat.c,867,call to undeclared function 'suppress_msgport'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/exec-reauth.c,48,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/exec-reauth.c,88,call to undeclared function 'reauth'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/idvec-rep.c,45,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/idvec-rep.c,62,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/idvec-rep.c,99,call to undeclared function 'ensure_room'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/idvec-rep.c,110,call to undeclared function 'add_id'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/idvec-verify.c,107,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/idvec-verify.c,123,call to undeclared function 'check_shadow'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested-file,libshouldbeinlibc,libshouldbeinlibc/idvec-verify.c,123,incompatible integer to pointer conversion assigning to 'const char *' from 'int' [-Wint-conversion],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,47,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,54,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,61,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,79,call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,84,call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,89,call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,94,call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,99,call to undeclared function 'comma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,147,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,159,call to undeclared function 'check_init_port'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,194,call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,201,call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,208,call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,215,call to undeclared function 'subcomma'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,236,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,246,call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,251,call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,256,call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/portinfo.c,500,call to undeclared function 'prefs'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/ugids-posix.c,37,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/ugids-posix.c,51,call to undeclared function 'update_real'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/ugids-rep.c,50,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/ugids-rep.c,70,function definition is not allowed here,2
+nested,libshouldbeinlibc,libshouldbeinlibc/ugids-rep.c,91,call to undeclared function 'type_rep'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libshouldbeinlibc,libshouldbeinlibc/ugids-rep.c,101,call to undeclared function 'add_type_rep'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libstore,libstore/argp.c,176,function definition is not allowed here,2
+nested-file,libstore,libstore/argp.c,198,incompatible pointer to integer conversion passing 'struct store **' to parameter of type 'int' [-Wint-conversion],2
+nested-file,libstore,libstore/argp.c,200,incompatible pointer to integer conversion passing 'struct store **' to parameter of type 'int' [-Wint-conversion],2
+nested-file,libstore,libstore/argp.c,214,incompatible pointer to integer conversion passing 'struct store **' to parameter of type 'int' [-Wint-conversion],2
+nested,libstore,libstore/decode.c,43,function definition is not allowed here,2
+nested-file,libstore,libstore/decode.c,95,"incompatible function pointer types passing 'kern_return_t (mach_port_t, boolean_t, mach_port_t *)' (aka 'int (unsigned int, int, unsigned int *)') to parameter of type 'error_t (*)(const struct store_run *, size_t)' (aka 'enum __error_t_codes (*)(const struct store_run *, unsigned long)') [-Wincompatible-function-pointer-types]",2
+nested,libstore,libstore/decode.c,95,use of undeclared identifier 'call_create'; did you mean 'task_create'?,2
+nested,libstore,libstore/memobj.c,61,function definition is not allowed here,2
+nested,libstore,libstore/memobj.c,103,function definition is not allowed here,2
+nested,libstore,libstore/memobj.c,122,use of undeclared identifier 'copy'; did you mean 'bcopy'?,2
+nested,libstore,libstore/memobj.c,122,use of undeclared identifier 'fault',2
+nested,libstore,libstore/nbd.c,182,function definition is not allowed here,2
+nested,libstore,libstore/nbd.c,205,call to undeclared function 'request_chunk'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libstore,libstore/rdwr.c,212,function definition is not allowed here,2
+nested,libstore,libstore/rdwr.c,248,call to undeclared function 'seg_read'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libstore,libstore/remap.c,91,function definition is not allowed here,2
+nested,libstore,libstore/remap.c,98,use of undeclared identifier 'create_remap',2
+nested,libstore,libstore/remap.c,266,function definition is not allowed here,2
+nested,libstore,libstore/remap.c,307,call to undeclared function 'add_run'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libstore,libstore/remap.c,315,call to undeclared function 'add_run'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],2
+nested,libstore,libstore/url.c,55,function definition is not allowed here,2
+nested-file,libstore,libstore/url.c,60,"incompatible function pointer types passing 'int (*)(clockid_t, struct sigevent *restrict, timer_t *restrict)' (aka 'int (*)(int, struct sigevent *restrict, unsigned long *restrict)') to parameter of type 'store_std_leaf_create_t' (aka 'enum __error_t_codes (*)(unsigned int, int, unsigned long, const struct store_run *, unsigned long, struct store **)') [-Wincompatible-function-pointer-types]",2
+nested,libstore,libstore/url.c,60,use of undeclared identifier 'dummy_create'; did you mean 'timer_create'?,2
+nested,libtrivfs,libtrivfs/startup.c,138,function definition is not allowed here,2
+nested,libtrivfs,libtrivfs/startup.c,155,use of undeclared identifier 'handler_sigterm',2
+nested,pfinet,pfinet/options.c,598,function definition is not allowed here,1
+nested,pfinet,pfinet/options.c,664,use of undeclared identifier 'add_dev_opts',1
+nested,pflocal,pflocal/sock.c,403,function definition is not allowed here,1
+nested,pflocal,pflocal/sock.c,434,call to undeclared function 'connect'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,proc,proc/wait.c,191,function definition is not allowed here,1
+nested,proc,proc/wait.c,228,call to undeclared function 'reap'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,proc,proc/wait.c,240,call to undeclared function 'reap'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,procfs,procfs/rootdir.c,474,function definition is not allowed here,1
+nested,procfs,procfs/rootdir.c,511,call to undeclared function 'inet_to_str'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,storeio,storeio/dev.c,358,function definition is not allowed here,1
+nested,storeio,storeio/dev.c,364,function definition is not allowed here,1
+nested,storeio,storeio/dev.c,392,use of undeclared identifier 'buf_write',1
+nested,storeio,storeio/dev.c,392,use of undeclared identifier 'raw_write',1
+nested,storeio,storeio/dev.c,405,function definition is not allowed here,1
+nested,storeio,storeio/dev.c,418,function definition is not allowed here,1
+nested,storeio,storeio/dev.c,425,function definition is not allowed here,1
+nested,storeio,storeio/dev.c,488,use of undeclared identifier 'buf_read',1
+nested,storeio,storeio/dev.c,488,use of undeclared identifier 'raw_read',1
+nested,storeio,storeio/pager.c,191,function definition is not allowed here,1
+nested,storeio,storeio/pager.c,197,function definition is not allowed here,1
+nested,storeio,storeio/pager.c,205,use of undeclared identifier 'block_cache',1
+nested,storeio,storeio/pager.c,215,use of undeclared identifier 'enable_cache',1
+nested,sutils,sutils/clookup.c,57,function definition is not allowed here,1
+nested,sutils,sutils/clookup.c,152,use of undeclared identifier 'lookup',1
+nested,term,term/users.c,868,function definition is not allowed here,1
+nested,term,term/users.c,900,use of undeclared identifier 'iterator_function',1
+nested,utils,utils/clookup.c,57,function definition is not allowed here,1
+other,utils,utils/clookup.c,152,use of undeclared identifier 'lookup',1
+nested,utils,utils/fakeauth.c,345,function definition is not allowed here,1
+nested,utils,utils/fakeauth.c,356,use of undeclared identifier 'parse_opt',1
+nested,utils,utils/parse.c,54,function definition is not allowed here,1
+nested,utils,utils/parse.c,60,function definition is not allowed here,1
+nested,utils,utils/parse.c,75,call to undeclared function 'mark_end'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,utils,utils/parse.c,78,call to undeclared function 'parse_element'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,utils,utils/parse.c,89,call to undeclared function 'parse_element'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,utils,utils/parse.c,105,function definition is not allowed here,1
+nested,utils,utils/parse.c,106,use of undeclared identifier 'default_str_add',1
+nested,utils,utils/parse.c,123,function definition is not allowed here,1
+nested,utils,utils/parse.c,127,function definition is not allowed here,1
+nested,utils,utils/parse.c,143,use of undeclared identifier 'add_num_str',1
+nested,utils,utils/parse.c,143,use of undeclared identifier 'default_num_add',1
+nested,utils,utils/psout.c,66,function definition is not allowed here,1
+nested,utils,utils/psout.c,70,use of undeclared identifier 'nominal',1
+nested,utils,utils/psout.c,128,function definition is not allowed here,1
+nested,utils,utils/psout.c,134,use of undeclared identifier 'filter',1
+nested,utils,utils/psout.c,137,use of undeclared identifier 'filter',1
+nested,utils,utils/shd.c,113,function definition is not allowed here,1
+nested,utils,utils/shd.c,131,function definition is not allowed here,1
+nested,utils,utils/shd.c,159,call to undeclared function 'movefd'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
+nested,utils,utils/shd.c,168,call to undeclared function 'restorefd'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration],1
