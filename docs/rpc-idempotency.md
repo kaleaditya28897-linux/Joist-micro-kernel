@@ -37,21 +37,29 @@ and advance the server's file pointer"**. In the build trace:
 So glibc's `read`/`write` do **not** track the offset client-side. It lives in
 the server's per-open state (libdiskfs `struct peropen`). client-recovery §4
 assumes the recovery record can restore "the offset" after reconnect. With
-today's protocol, the client does not know it. There are two ways out, to be
-decided in the design journal:
+today's protocol, the client does not know it.
 
-1. **Client-side offsets.** The Hurd sysdeps track the offset per description,
-   and every `read`/`write` becomes an explicit-offset call (as `pread` already
-   is). Explicit-offset `io_read` is idempotent. Explicit-offset `io_write` is
-   idempotent except in append mode. Cost: the offset must be shared across
-   `fork` in the child's address space too, i.e. in shared memory. That's the
-   same problem §4 already has for the recovery record.
-2. **Ask before you need it.** Keep server-side offsets, but have the client
-   learn the offset from each reply. That needs a protocol change, since the
-   current `io_read` reply does not return the new offset.
+**Decided in `client-recovery.md` §4.1 (2026-10-01, proposed):** the server
+stays the authority. `io_read`/`io_write`/`io_seek` replies report the
+resulting offset, the client caches it in the per-description recovery
+record, and the reconnect restores it with one `io_seek (SEEK_SET, …)` before
+replaying anything. Client-side offsets were rejected: they would move
+offset atomicity into memory shared between processes.
 
-Until one is chosen, every offset `-1` read or write is **non-idempotent**:
-replaying it after a restart reads or writes at the wrong place.
+**What that does to replay of offset `-1` calls:**
+
+- `io_read`, offset `-1`: **idempotent after restore.** If the old server
+  performed the read but died before replying, the offset advance died with
+  it. The restored offset is the one before the read, and replaying reads the
+  same bytes.
+- `io_write`, offset `-1`: **idempotent after restore, except with
+  `O_APPEND`.** If the write reached the disk, replaying writes the same bytes
+  at the same restored position, which has the same result. With `O_APPEND`
+  the position is end-of-file, which the lost write may have moved, so replay
+  could append twice. That stays **non-idempotent**: fail with `EIO`
+  (client-recovery §5).
+- For descriptions shared by concurrent processes, the restored offset is
+  best-effort (§4.1 *Known weak spot*), and so is this replay.
 
 ## Table
 
@@ -63,9 +71,9 @@ RPC (same msgid) and are merged there.
 |---|---|---|---|---|
 | `dir_lookup` | fs | 41 / 883 / 292 908 | conditional | idempotent unless flags include `O_CREAT` (with `O_EXCL`, a replay returns `EEXIST`) or `O_TRUNC` |
 | `io_stat` | io | 36 / 853 / 210 966 | idempotent | |
-| `io_read` | io | 30 / 155 / 66 202 | conditional | idempotent only with an explicit offset; see above |
+| `io_read` | io | 30 / 155 / 66 202 | conditional | explicit offset: idempotent. Offset `-1`: idempotent once the offset is restored (client-recovery §4.1); see above |
 | `io_seek` | io | 0 / 35 / 57 221 | conditional | `SEEK_SET` idempotent; `SEEK_CUR`/`SEEK_END` not |
-| `io_write` | io | 4 / 32 / 27 211 | conditional | idempotent only with an explicit offset and without `O_APPEND` |
+| `io_write` | io | 4 / 32 / 27 211 | conditional | idempotent with an explicit offset, or with offset `-1` once the offset is restored (§4.1); **never with `O_APPEND`** |
 | `io_map` | io | 62 / 169 / 24 214 | idempotent | returns memory objects; mmap recovery itself is deferred to Phase 4 (client-recovery §3) |
 | `io_identity` | io | 0 / 0 / 9 690 | idempotent | also the natural carrier for identity validation (client-recovery §3.1) |
 | `file_check_access` | fs | 0 / 2 / 6 448 | idempotent | |

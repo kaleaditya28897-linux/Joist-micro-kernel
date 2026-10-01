@@ -5,9 +5,11 @@ case, so that the kernel's lifetime notifications (§5.4) and the memory manager
 (§5.5) — both built long before the resilience phase — are designed against
 real requirements rather than a sketch.
 
-**Status:** first cut. Every case below has a *provisional* decision. Cases
-marked **(confirm)** need checking against real Hurd/glibc source on the
-testbed before this document is considered closed.
+**Status:** every case below has a decision, and every **(confirm)** marker
+has been checked against Hurd/glibc source and testbed traces (2026-10-01; see
+§8 for the evidence). Each is now marked **(confirmed)**. The decisions remain
+`proposed` in the same sense as the design journal's entries: settled for
+Phase 0, open to revision when Phase 9 meets them.
 
 ## 1. Why this is the hard part
 
@@ -41,13 +43,14 @@ Client-side state only. It must not depend on the server having survived.
 | Case | Decision |
 |---|---|
 | Ordinary file, still linked | **recoverable.** Re-lookup by path, then validate identity (§3.1). |
-| Unlinked-but-open (`unlink` after `open`, `O_TMPFILE`) | **unrecoverable** for the first implementation. The alternative — the server republishing an identity token to DS and holding the unlinked object across restart — is a real option but costs filesystem-server work that Phase 9 cannot absorb. Revisit once class B restart works for the simple case. **(confirm)** how much Hurd code depends on this surviving. |
+| Unlinked-but-open (`unlink` after `open`, `O_TMPFILE`) | **unrecoverable** for the first implementation. The alternative — the server republishing an identity token to DS and holding the unlinked object across restart — is a real option but costs filesystem-server work that Phase 9 cannot absorb. Revisit once class B restart works for the simple case. **(confirmed)**: dependence is narrow. Every `tmpfile()`/`O_TMPFILE` user depends on it by construction, but in a measured build no process used a file after unlinking it (0 of 2 416 unlinks; §8 Q2). |
 | Path re-bound during the outage (renamed, replaced, translator re-settled) | **fail, do not silently substitute.** Identity validation (§3.1) catches it; return `ESTALE`. |
 | Pipes, `pflocal` sockets | **best-effort at most.** Buffer contents live only in the server; if `pflocal` restarts they are gone. Report `EIO` rather than a short read that looks like EOF. |
 | Network sockets (lwip/pfinet) | **unrecoverable.** A TCP connection does not survive its stack restarting. Deliver `ECONNRESET`. |
 | `mmap` regions | **deferred to Phase 4, not Phase 9.** A file-backed mapping is a standing relationship between the memory manager and the filesystem server, not a request/reply, so the page-fault protocol has to state what happens when the pager dies. Provisional: the memory manager either holds the region's pages or faults the region to `SIGBUS`. This must be settled while designing the paging protocol, because retrofitting it is not possible. |
 | cwd and root directory ports | **recoverable**, same as ordinary files. Easy to forget: these are ports too and they go stale identically. |
-| Directory streams (`opendir`/`readdir`) | **best-effort.** POSIX already allows unspecified behaviour for entries added or removed during a scan; a restart mid-scan returns `EIO` rather than silently restarting the stream. **(confirm)** against `dir_readdir` usage. |
+| Record locks (`fcntl` `F_SETLK`, `flock`) held at the restart | **unrecoverable.** The locks live in the server's per-open state and die with it; re-acquiring them on the client's behalf could grant a lock another process took in the gap. The next lock operation on the description returns `EIO` (§4.1). |
+| Directory streams (`opendir`/`readdir`) | **best-effort.** POSIX already allows unspecified behaviour for entries added or removed during a scan; a restart mid-scan returns `EIO` rather than silently restarting the stream. **(confirmed)**: `dir_readdir` takes an explicit entry index (`hurd/fs.defs:238`) that glibc keeps client-side (`dirstream.h` `__entry_ptr`), so resuming at the same index after reconnect is mechanically cheap. It's left out because entry numbering is not guaranteed to survive a server restart. A possible upgrade, not a gap. |
 
 ### 3.1 Identity validation
 
@@ -55,7 +58,10 @@ Re-lookup by path is never sufficient on its own. The reconnect compares an
 **inode number plus generation counter** against what was recorded at open
 time. Path alone would happily hand the application a different file that
 merely has the same name. Requires filesystem servers to expose a stable
-generation counter — **(confirm)** whether ext2fs already does.
+generation counter. **(confirmed)**: ext2fs already does, through plain
+`io_stat` (`st_gen`), with no new RPC (§8 Q1). Other filesystem servers (tmpfs,
+isofs, nfs) are unchecked and must be checked before they are put in a
+restartable class.
 
 ## 4. Descriptors, descriptions, and fork
 
@@ -71,6 +77,47 @@ Consequences:
 3. A description shared across `fork` cannot be re-opened by a child that has
    since `exec`'d away the path it was opened from — another source of
    **unrecoverable**.
+
+### 4.1 Where the description's state lives: decided 2026-10-01
+
+**Finding (§8 Q4, `rpc-idempotency.md`):** on the Hurd the description is
+*server-side*. libdiskfs `struct peropen` holds the file pointer, the open
+modes and the record locks. A descriptor holds only a port. glibc's
+`read`/`write` use the server's file pointer (offset `-1`): 99.3% of
+`io_read` and 94% of `io_write` in the x86_64 build trace. So the client
+cannot "restore the offset" as written above: it doesn't know it.
+
+**Decision (proposed): the server stays the authority, and its replies
+report the state the client needs to cache.**
+
+- `io_read`, `io_write` and `io_seek` replies carry the resulting file
+  offset. The change is to the `.defs`, and the MIG backend is being
+  retargeted in Phase 5 anyway.
+- The client stores the last reported offset, and the open modes it set
+  (`io_set_all_openmodes` and the open flags), in the per-description
+  recovery record. §4.2 already requires that record to be shared across
+  `fork`, so this adds no new sharing mechanism.
+- On reconnect, the winner of the per-description race (§4.2) re-opens, then
+  issues one `io_seek (SEEK_SET, cached_offset)` and one
+  `io_set_all_openmodes (cached_modes)`, and only then replays.
+
+**Rejected: client-side offsets** (every `read`/`write` becomes an
+explicit-offset call). This moves the offset into memory shared between the
+processes that share the description, where concurrent `read`s from parent
+and child must still advance it atomically. That rebuilds in userspace, across
+processes, what the server already does correctly, and it adds a shared-memory
+dependency to every read.
+
+**Known weak spot:** when two processes use one description concurrently,
+"last reported offset" means the last reply *recorded*, not necessarily the
+last operation the server *performed*. After a restart, the restored offset
+can be off by the other process's in-flight operation. POSIX gives concurrent
+users of a shared offset no ordering guarantee beyond per-call atomicity, so
+this is accepted as **best-effort** for shared descriptions. A description
+used by one process at a time restores exactly.
+
+**Record locks** (`fcntl`/`flock` state in `peropen.lock_status`) are not
+restored. See §3: a restart drops them, and that's reported, not hidden.
 
 ## 5. Idempotency classification
 
@@ -121,17 +168,28 @@ hurd 0.9.git20260919 sources). Evidence is in `docs/mach-inventory.md` and
    different `st_gen` each time (1790172149, 1790172413, 1790172515). §3.1
    needs no new RPC for ext2fs; `io_stat` or `io_identity` can carry it. Other
    filesystem servers (tmpfs, isofs, nfs) are unchecked.
-2. **How much Hurd code depends on unlinked-but-open files?** Partly answered.
-   By construction, glibc's `tmpfile()` (`sysdeps/mach/hurd/tmpfile.c`) and
-   `O_TMPFILE` (`hurd/lookup-at.c`) create files with `dir_mkfile`, which are
-   *born* unlinked and stay that way. So every `tmpfile()` user depends on it.
-   `symlinkat`/`mknodat` also use `dir_mkfile`, but link the node before
-   returning, so they are unaffected. That accounts for all 11 `dir_mkfile`
-   calls in the build trace (11 `file_set_translator`, 11 `dir_link`). The
-   classic `open`-then-`unlink` pattern (for example bash here-documents) is
-   **not yet measured**: 2 417 `dir_unlink` calls fired, but nothing yet
-   correlates them with ports still open at the time. That needs a pass over
-   the trace that tracks port lifetimes.
+2. **How much Hurd code depends on unlinked-but-open files?** Answered,
+   within stated limits.
+   - *By construction:* glibc's `tmpfile()` (`sysdeps/mach/hurd/tmpfile.c`) and
+     `O_TMPFILE` (`hurd/lookup-at.c`) create files with `dir_mkfile`, which are
+     *born* unlinked and stay that way. So every `tmpfile()` user depends on it.
+     `symlinkat`/`mknodat` also use `dir_mkfile`, but link the node before
+     returning, so they are unaffected. That accounts for all 11 `dir_mkfile`
+     calls in the build trace (11 `file_set_translator`, 11 `dir_link`).
+   - *Open, then unlink, then keep using it:* measured 2026-10-01 on the
+     x86_64 build trace with `tools/phase0/unlinked_open.py`, which pairs each
+     `dir_unlink` with ports the same process got from `dir_lookup` of that
+     name, and counts any later `io_*`/`file_*` RPC on them. **0 of 2 416
+     unlinks** were followed by use. The detector was validated on a
+     known positive: a Python process that opens, unlinks, then writes and
+     seeks is found, with 2 RPCs after the unlink.
+   - *Limits:* a file opened by one process and unlinked by another is not
+     seen. Names are compared after rpctrace's 16-character truncation. The
+     trace covers configure, not compile and link. Bash here-documents don't
+     contribute: on this system bash uses a pipe for them, not a temporary
+     file (checked with rpctrace: no `dir_unlink`, no `dir_mkfile`).
+   - *For §3:* dependence is narrow (the `tmpfile()` family), which supports
+     **unrecoverable** for the first implementation.
 3. **RPC frequency.** Done. See `docs/rpc-idempotency.md`. The traffic is
    dominated by `dir_lookup` (293k in the build), `io_stat` (211k), `io_read`
    (66k) and `io_seek` (57k).
@@ -146,7 +204,7 @@ hurd 0.9.git20260919 sources). Evidence is in `docs/mach-inventory.md` and
    `mach_port_allocate_name` traffic in the inventory). So dup'd and forked
    descriptors share one `peropen` because they share one port.
 
-   **Consequence for §4, which needs revising:** the client never holds the
+   **Consequence for §4, now revised (§4.1):** the client never holds the
    description state that the recovery record is supposed to restore. The
    offset, open modes and locks all die with the server. Within one process,
    the port name identifies the description, so reconnecting once per
