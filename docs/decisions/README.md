@@ -91,5 +91,6 @@ Each entry has its own open items; the ones that block the earliest work:
 - 0012's device-interface conclusion rests on a boot trace with known coverage
   gaps. Re-check after a real boot trace. 0014 adds the network packet path
   (today a deep Mach message queue) to its design items.
-- 0014's yield decision needs a count of the yield traps, which rpctrace
-  can't see. Measure before Phase 3 fixes the scheduler interface.
+- ~~0014's yield count~~: measured 2026-10-01. One start-up `swtch_pri` per
+  process, nothing else. Only long-running servers' `thread_switch` is
+  unmeasured.

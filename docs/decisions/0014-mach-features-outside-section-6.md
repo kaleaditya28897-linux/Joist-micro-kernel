@@ -79,10 +79,22 @@ hand-off hint, and priority depression interacts with 0003's scheduler and
 0001's priority donation. Add it only with a measured need. Most spin-wait
 back-off should go away once locks park on futexes (above).
 
-**Open item:** these traps have never been counted. rpctrace can't see
-traps; a count needs either a counter in glibc's wrappers (`LD_PRELOAD` or a
-patched libc on the testbed) or kernel-side tracing. Measure before Phase 3
-fixes the scheduler interface.
+**Counted (2026-10-01, `docs/phase0-data/README.md` stage 15),** with an
+instrumented libc installed on the testbed and then removed. Across the three
+workloads, **3 438 processes, every one of which made exactly one
+`swtch_pri`, and no `swtch` or `thread_switch` at all**, including 322 `gcc` and
+313 `cc1` runs and a 4-thread lock-contention test. The single call is a
+start-up handshake in `_hurdsig_init` (`hurd/hurdsig.c:1578`): the new
+process spins with `swtch_pri (0)` until its signal thread publishes its
+thread port. glibc's own comment calls it unnecessary.
+
+This settles the yield decision. The plain `Yield` call above is enough;
+directed yield stays deferred, with nothing in these workloads calling for
+it; and the one real use disappears if Joist's signal thread hands its
+identity back synchronously at creation (0004/0010), which is the fix the
+glibc comment asks for. Not measured: libports' `thread_switch` inside
+long-running servers that were started before the instrumented libc was
+installed. Check it when servers are ported, not before Phase 3.
 
 ### Queue limits
 

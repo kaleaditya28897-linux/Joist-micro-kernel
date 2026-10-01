@@ -1,0 +1,150 @@
+--- a/mach/Makefile
++++ b/mach/Makefile
+@@ -29,7 +29,7 @@
+ 	   mig-alloc mig-dealloc mig-reply \
+ 	   msg-destroy msgserver \
+ 	   mach_error errstring error_compat errsystems \
+-	   devstream setup-thread $(lock)
++	   devstream setup-thread joist-trapcount $(lock)
+ 
+ # The RPC interfaces go in a separate library.
+ interface-library := libmachuser
+@@ -100,9 +100,14 @@
+ else
+ $(mach-syscalls:%=$(objpfx)%.S): $(objpfx)%.S: $(objpfx)mach-syscalls.mk
+ 	(echo '#include <sysdep.h>'; \
+-	 echo 'kernel_trap (__$*,$(sysno-$*),$(nargs-$*))'; \
+-	 echo 'weak_alias (__$*, $*)'; \
+-	 echo 'libc_hidden_def (__$*)') > $@-new
++	 case '$*' in \
++	   swtch|swtch_pri|thread_switch) \
++	     echo 'kernel_trap (__joist_raw_$*,$(sysno-$*),$(nargs-$*))' ;; \
++	   *) \
++	     echo 'kernel_trap (__$*,$(sysno-$*),$(nargs-$*))'; \
++	     echo 'weak_alias (__$*, $*)'; \
++	     echo 'libc_hidden_def (__$*)' ;; \
++	 esac) > $@-new
+ 	 mv -f $@-new $@
+ generated += $(mach-syscalls:=.S)
+ endif	# mach-syscalls
+--- a/stdlib/exit.c
++++ b/stdlib/exit.c
+@@ -138,6 +138,12 @@
+   if (run_list_atexit)
+     call_function_static_weak (_IO_cleanup);
+ 
++#ifdef __GNU__
++  /* Joist Phase 0 instrumentation: report Mach yield-trap counts.  */
++  extern void __joist_trapcount_dump (void) attribute_hidden;
++  __joist_trapcount_dump ();
++#endif
++
+   _exit (status);
+ }
+ 
+--- a/mach/joist-trapcount.c
++++ b/mach/joist-trapcount.c
+@@ -0,0 +1,103 @@
++/* Joist Phase 0 instrumentation, not for upstream: count the Mach yield
++   traps (swtch, swtch_pri, thread_switch) per process.
++
++   rpctrace cannot see traps, so decision 0014 had no counts for these.  The
++   generated stubs for the three traps are renamed __joist_raw_* by
++   mach/Makefile; the functions below replace them, count, and call through.
++   When the environment variable JOIST_TRAPCOUNT names a file, exit() appends
++   one line per process to it:  pid program swtch swtch_pri thread_switch.
++   With the variable unset, nothing is ever written.
++
++   Safety: the traps are called from spin locks, including during process
++   start-up, so the counting path takes no locks and allocates nothing; it
++   only increments a counter.  Counters are keyed by pid, so a forked child
++   starts from zero rather than re-reporting its parent's counts.  Processes
++   that end with _exit() or exec without exit() are not reported.
++
++   In the dynamic linker (rtld), which has its own copies of the trap stubs
++   and no getenv/stdio, the wrappers are plain pass-throughs.  */
++
++#include <mach.h>
++#include <mach/mach_traps.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++extern boolean_t __joist_raw_swtch (void);
++extern boolean_t __joist_raw_swtch_pri (int priority);
++extern kern_return_t __joist_raw_thread_switch (mach_port_t new_thread,
++						int option,
++						mach_msg_timeout_t time);
++
++#if IS_IN (rtld)
++# define count(c) ((void) 0)
++#else
++static unsigned long n_swtch, n_swtch_pri, n_thread_switch;
++static pid_t owner;
++
++static inline void
++count (unsigned long *c)
++{
++  pid_t p = __getpid ();
++  if (__glibc_unlikely (p != owner))
++    {
++      owner = p;
++      n_swtch = n_swtch_pri = n_thread_switch = 0;
++    }
++  __atomic_fetch_add (c, 1, __ATOMIC_RELAXED);
++}
++#endif
++
++boolean_t
++__swtch (void)
++{
++  count (&n_swtch);
++  return __joist_raw_swtch ();
++}
++weak_alias (__swtch, swtch)
++libc_hidden_def (__swtch)
++
++boolean_t
++__swtch_pri (int priority)
++{
++  count (&n_swtch_pri);
++  return __joist_raw_swtch_pri (priority);
++}
++weak_alias (__swtch_pri, swtch_pri)
++libc_hidden_def (__swtch_pri)
++
++kern_return_t
++__thread_switch (mach_port_t new_thread, int option,
++		 mach_msg_timeout_t option_time)
++{
++  count (&n_thread_switch);
++  return __joist_raw_thread_switch (new_thread, option, option_time);
++}
++weak_alias (__thread_switch, thread_switch)
++libc_hidden_def (__thread_switch)
++
++#if !IS_IN (rtld)
++void attribute_hidden
++__joist_trapcount_dump (void)
++{
++  const char *path = getenv ("JOIST_TRAPCOUNT");
++  char line[512];
++  int fd, len;
++
++  if (path == NULL || *path == '\0' || __getpid () != owner)
++    return;
++  len = __snprintf (line, sizeof line, "%d %s %lu %lu %lu\n", (int) owner,
++		    program_invocation_short_name, n_swtch, n_swtch_pri,
++		    n_thread_switch);
++  if (len <= 0 || len >= (int) sizeof line)
++    return;
++  fd = __open (path, O_WRONLY | O_APPEND | O_CREAT, 0666);
++  if (fd < 0)
++    return;
++  __write (fd, line, len);
++  __close (fd);
++}
++#endif

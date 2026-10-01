@@ -776,3 +776,68 @@ driven by `SIGCHLD`.
 
 The client-recovery offset finding holds over the full build: `io_read`
 98.5% and `io_write` 99.5% at offset `-1` (`amd64-full/io-offsets.csv`).
+
+## Stage 15: the yield traps, counted (2026-10-01, VM 111; patched libc installed, then rolled back)
+
+Decision 0014's open item. rpctrace can't see traps, so this used an
+instrumented glibc, installed system-wide under a Proxmox snapshot, then
+removed.
+
+**Patch:** `tools/phase0/glibc-trapcount.patch` (3 files). `mach/Makefile`
+emits the generated stubs for `swtch`, `swtch_pri` and `thread_switch` under
+private names (`__joist_raw_*`). A new `mach/joist-trapcount.c` defines the
+real entry points: count (lock-free, no allocation, per pid so forked
+children start at zero), then call through. `stdlib/exit.c` calls a dump just
+before `_exit`, which appends `pid program swtch swtch_pri thread_switch` to
+`$JOIST_TRAPCOUNT`, only if that variable is set. The dynamic loader gets
+plain pass-throughs (`IS_IN (rtld)`).
+
+**Build and checks before installing:**
+- Incremental build in `build-gcc`, then a run through its `testrun.sh`
+  (no install): the 4-thread lock test logged one line, and nothing was
+  written with the variable unset.
+- Debian package: `dpkg-buildpackage -b` with `nocheck nodoc` in a fresh
+  `apt-get source` copy, rc 0. `libc0.3_2.43-6_hurd-amd64.deb` sha256
+  `47c6b17c7eea49115aecfc993690be6e1dfa49d03e9c3241eda7e68a1569e638`. Its
+  libc is the same *size* as stock (page alignment), so the patch was
+  confirmed by content: `JOIST_TRAPCOUNT` present in the patched libc, absent
+  in stock.
+- Rollback package downloaded first: stock `libc0.3_2.43-6_hurd-amd64.deb`,
+  sha256 `feb271b99f4f6bb3a094bd611f4de0dafcb8f4b0fac4e23e09b960628e461d34`
+  (equal to the archive's). It contains both libc and the loader, so install
+  and rollback always move them together.
+
+**Install:** clean shutdown, snapshot `pre_trapcount_libc` (VM 111), boot,
+`dpkg -i` the patched package. New sessions, `ls` and Python worked.
+
+**Measurement:** `tools/phase0/trapcount-workloads.sh`, the same three
+workloads as `workloads.sh`, untraced. Logs in `amd64-full/trapcount/`:
+
+| Workload | Processes reporting | `swtch` | `swtch_pri` | `thread_switch` | Log SHA-256 |
+|---|---:|---:|---:|---:|---|
+| boot (translator) | 5 | 0 | 5 | 0 | `a8125570c50fcb9840db19ec5584c2723d15d39bea7c1a4a706de41c2db118dc` |
+| shell | 17 | 0 | 17 | 0 | `744b5b5f9cb6d7aab33c80ddc0db615595325df1fa6b8c6c75e32b8b8b1661cd` |
+| build (hello, complete) | 3 416 | 0 | 3 416 | 0 | `4914028e8b728d77a05076c69a3936bafb9c07ff6795ba9ceca4da4173fa2a93` |
+
+**Every process made exactly one `swtch_pri` and nothing else.** That includes
+322 `gcc` and 313 `cc1` runs, and the 4-thread lock test.
+
+**Where the one call comes from:** a gdb breakpoint on `__joist_raw_swtch_pri`
+(against the unstripped `build-gcc` libc through its own loader) stops in
+`_hurdsig_init` (`hurd/hurdsig.c:1578`), called from
+`_hurd_libc_proc_init` at start-up. It's a spin-wait for the new signal thread
+to publish its thread port: `while (_hurd_msgport_thread == 0) __swtch_pri (0);`.
+glibc's own comment says "This really shouldn't be necessary". One iteration
+per process in every case measured.
+
+**Limits:** processes that end through `_exit()` or exec without `exit()`
+don't report, and daemons started before the install (the root ext2fs,
+`proc`, `auth`) ran the old libc and weren't counted, so libports'
+`thread_switch` inside long-running servers is unmeasured. The counts cover
+every process the three workloads created that exited normally.
+
+**Rollback:** `dpkg -i` of the stock package. The installed libc and loader
+are byte-identical to the stock package (`cmp`), libc sha256 matches the
+pre-install value (`7e70e6fa…`), `dpkg --verify libc0.3` is clean, and counting
+no longer happens. The snapshot `pre_trapcount_libc` is kept on pvehome until
+the owner deletes it (`qm delsnapshot 111 pre_trapcount_libc`).

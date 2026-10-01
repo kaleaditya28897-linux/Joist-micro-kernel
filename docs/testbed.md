@@ -93,7 +93,11 @@ be installed from the console first — see *Gotchas*.
 3. **The Hurd console wedges on long injected keystroke lines.** Roughly 270
    characters mangled input on VM 110 and killed console input until a reset.
    Keep `qm monitor` + `sendkey` commands short; use SSH for real work.
-4. **No backups.** `pbs-home` (CT 405) is stopped and unreachable, so nothing
+4. **No backups.** One Proxmox snapshot exists by design: `pre_trapcount_libc`
+   (2026-10-01, taken before a temporary instrumented libc, which has since
+   been removed; `phase0-data/README.md` stage 15). Delete it with
+   `qm delsnapshot 111 pre_trapcount_libc` once it's no longer wanted.
+   Otherwise, `pbs-home` (CT 405) is stopped and unreachable, so nothing
    on this host is being backed up.
 
 ## Gotchas worth keeping
