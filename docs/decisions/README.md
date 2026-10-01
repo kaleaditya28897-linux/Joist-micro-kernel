@@ -22,6 +22,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0011 | `fork` / VM inheritance → task create + COW clone | proposed | Phase 4 |
 | 0012 | Device interface → IRQ/IO/MMIO/DMA capabilities | proposed | Phase 10 |
 | 0013 | Privileged ports → boot-time delegation | proposed | Phase 2 |
+| 0014 | Mach features outside §6: futexes, yield, queue limits | proposed | Phase 3 (yield), Phase 7 (futexes) |
 
 Nothing is `accepted` except 0000. Phase 0's exit criterion is that the entries
 *exist* and cover §6; accepting them is a separate act that should follow the
@@ -57,17 +58,26 @@ Three entries reached a conclusion the plan did not anticipate, which is the
 main argument for having done Phase 0 before Phase 1:
 
 - **0005** downgrades port sets from a "known-hard" row to an ordinary one.
-  `mach_port_move_member` fires 7 times in an entire build, so runtime
-  reconfiguration — the thing that made the row look risky — is not a real
-  pattern. No kernel port-set object is needed.
+  `mach_port_move_member` fires 41 times in an entire build (7 in the
+  configure-only trace first quoted), so runtime reconfiguration, the thing
+  that made the row look risky, is not a real pattern. No kernel port-set
+  object is needed. **But** client-side `select` waits on several replies
+  through a port set, which badges don't cover; the 2026-10-01 amendment
+  recommends a readiness-notification protocol.
 - **0006** keeps out-of-line memory hard, and bounds it: 54 of 140 OOL
   parameters carry `dealloc`, so exactly those need ownership transfer, and
   `io_read` is one of them while `io_write` is not. Three transfer mechanisms
   selected per parameter, not one.
-- **0010** found an i386-specific dependency the x86_64 target will not have:
-  11 136 GDT calls per build are thread-local storage. On x86_64 that is
-  `FS`/`GS` base and the calls have no counterpart. The first place the
-  testbed's architecture changed an answer rather than just a number.
+- **0010** found that 11 136 GDT calls per build on i386 are thread-local
+  storage. The x86_64 re-run shows what replaces them: `thread_set_state`
+  flavour `i386_FSGS_BASE_STATE` (7 821 sets, 2 472 gets). glibc's x86_64
+  port already treats TLS as thread state. Its "`thread_suspend` fires once"
+  was withdrawn: 734 per full build, all on shells' signal-delivery path.
+
+- **0014** covers what §6 never listed. Futexes (698 waits per build) go
+  into glibc on top of notification objects, not into the kernel; yield is
+  one `Yield` call; queue limits disappear (coalescing → notifications,
+  packet buffering → 0012's driver rings).
 
 ## Still open inside these entries
 
@@ -79,4 +89,7 @@ Each entry has its own open items; the ones that block the earliest work:
   hatch are both Phase 4 performance decisions that glibc will be written
   against. Neither can wait for Phase 11.
 - 0012's device-interface conclusion rests on a boot trace with known coverage
-  gaps. Re-check after a real boot trace.
+  gaps. Re-check after a real boot trace. 0014 adds the network packet path
+  (today a deep Mach message queue) to its design items.
+- 0014's yield decision needs a count of the yield traps, which rpctrace
+  can't see. Measure before Phase 3 fixes the scheduler interface.
