@@ -739,6 +739,24 @@ source). Results in `amd64-full/`.
     bootstrap port that `settrans` hands the new translator. This is the
     third rpctrace problem behind the boot proxy, and the next thing to look
     at if the boot column matters.
+  - *Narrowed further (2026-10-01):*
+    - **Control:** the same workload *untraced* works at once (`lost+found`,
+      `fsysopts` shows the image, clean `settrans -g`). The failure is caused
+      by tracing, not by running as an unprivileged user.
+    - **Traced:** ext2fs gets its bootstrap port (exec port array →
+      `task_set_special_port (4)`, where rpctrace can't attribute its receiver:
+      `pid-1`). It completes pager initialisation: `init_pager`,
+      `memory_object_ready`, three `data_request`/`data_supply` rounds, and
+      `lock_request` → `lock_completed`. ext2fs keeps running ~85 lines
+      after that reply, so the reply is not what it waits on. Its last
+      traced call is `proc_getprivports` (EPERM, as untraced), then nothing:
+      no `fsys_startup`. The stall is in something rpctrace doesn't show.
+    - `gdb -p` on the stalled, traced ext2fs is no help: 25 threads, all
+      "stopped" at tiny sequential addresses (`0x1e`, `0x21`, …), because gdb
+      reads thread state through rpctrace's wrapped thread ports.
+    - Time-boxed here. rpctrace's own source marks a related gap: `XXX
+      MAKE_SEND, MAKE_SEND_ONCE rights in msg not handled` (next to the
+      forwarding code).
 
 **What compile and link add** (full build vs configure-only, build column):
 about 1.5× across the board, with the same profile. New calls: `gsync_wake`

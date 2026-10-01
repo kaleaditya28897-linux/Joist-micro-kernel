@@ -113,6 +113,10 @@ be installed from the console first — see *Gotchas*.
   where it gets a real tty.
 - **`pkill -f "<pattern>"` over SSH can kill your own session** when the
   pattern appears in the remote command line you are running. Use `pgrep -x`.
+  The same holds for `ps … | grep <pattern> | kill`: the remote `bash -c`
+  carries the pattern too. It happened again on 2026-10-01 with
+  `grep "…utils/rpctrace"`. Match on fields (`awk '$2 == "/hurd/ext2fs"'`) so
+  the pattern can't match its own command line.
 - **`pkill`/`pgrep` can hang outright** when a traced task is wedged: they
   query `proc` about every process. `ps -e -o pid,args` with a `timeout`, then
   `kill <pid>`, worked where `pkill -x rpctrace` hung.
