@@ -276,6 +276,45 @@ clang 21 bug with glibc's headers, upstream may already have it.
   porters, with our data as the bug report, and the fallback clock should
   start then, not after another spike.
 
+### Amendment, 2026-10-01: the hang is the Hurd host's, and that defines the workaround
+
+The question the previous amendment ended on is answered
+(`docs/phase0-data/README.md` stage 10). On the Hurd, clang 19, 21 and 22 all
+hang identically, whether targeting the Hurd or Linux. The compile's complete
+input (139 files, packed and checksummed) **hangs on the Hurd and finishes in
+0 s on Linux** with the same clang 21.1.8 and the same target. So the defect is
+in clang *running on* the Hurd, as Debian builds it for hurd-amd64. It's not
+in glibc's source, nor in the Hurd target.
+
+**What this means for the decision:** compiling glibc *on* the Hurd is the
+wrong place for clang. Building it **with clang on a Linux host,
+cross-compiling for the Hurd**, sidesteps the hang entirely, and it's how Joist
+would build its userland anyway. The one known gap on that route is that
+upstream clang lacks `__float128` for the Hurd target (Debian's Hurd clang
+patches it in; upstream would need the same).
+
+The Clang-for-glibc work is therefore:
+
+| Item | Size | Status |
+|---|---|---|
+| 77 nested functions | ≤ 77 h | measured |
+| extern-inline guard in 5 Hurd headers (281 error sites) | days | root cause established |
+| VLA in struct, asm label, ~15 unattributed sites | small | identified |
+| `__float128` for the Hurd target in upstream clang | unknown; Debian's Hurd clang already carries a fix as a patch, not yet looked at | identified 2026-10-01 |
+| building on Linux, cross to the Hurd | build-system work | assumed, not yet tried |
+
+Of the items sized, nothing approaches the one-month budget. The two
+unsized ones (`__float128`, the cross-build) are bounded by existing work:
+Debian's patch and the cross-toolchain Joist needs anyway. **Recommendation: accept 0002 on the Clang branch (no GCC fallback for
+glibc)**, with two conditions recorded rather than assumed:
+
+1. The first cross-build of glibc with clang (Linux host, Hurd target) is the
+   check on the estimate. If it shows an error class not on this list, re-open.
+2. The clang-on-Hurd hang is reported upstream with `clang-hang-s_lround.cmd`,
+   the stack and the bundle, but Joist does not depend on it being fixed.
+
+The status is left as `proposed` for the project owner to accept.
+
 ## Consequences
 
 - Easier: Phase 7 has a known worst case; nobody has to re-litigate the

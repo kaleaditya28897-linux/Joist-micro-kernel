@@ -538,3 +538,56 @@ programs. Script sha256 `0ceb17d590309d9cf8088838e27b52a247a811e87b5df8dfe11c68a
 in `mach_init.h`, so a different include problem), and int-to-pointer
 conversions in `geteuids.c`, `getgroups.c`, `group_member.c`, `wait4.c` and
 `waitid.c`. Not yet read. Some may be further guard knock-ons.
+
+## Stage 10: is the clang hang specific to the Hurd? (2026-10-01)
+
+**1. Version × target matrix on the Hurd** (`tools/phase0/hang-matrix.sh`,
+VM 111, `s_lround.c`'s exact build command at `-fsyntax-only -w`, 60 s cap).
+clang 19.1.7 (`7+hurd.1`) and 22.1.8 (`1+b1`) were installed alongside 21.1.8
+from debian-ports.
+
+| clang | `--target` | Result |
+|---|---|---|
+| 19.1.7 | default (Hurd) | stopped at cap, `mathcalls-helper-functions.h:25:33`, `Sema::warnOnReservedIdentifier` |
+| 19.1.7 | `x86_64-linux-gnu` | same |
+| 21.1.8 | default | same |
+| 21.1.8 | `x86_64-linux-gnu` | same |
+| 22.1.8 | default | same |
+| 22.1.8 | `x86_64-linux-gnu` | same |
+
+Not a version regression, not fixed in 22, and not caused by the Hurd *target*.
+
+**2. Duplicate file identities ruled out.** clang's FileManager identifies
+files by `(st_dev, st_ino)`. All 131 headers the compile opens (`-E -H`) were
+`stat`ed: no two distinct paths share an identity.
+
+**3. Same input on a Linux host.** The compile's complete input, every file in
+its `-M` dependency list (139 files, `amd64/clang-hang-bundle.list`), was
+packed at absolute paths into `hang-bundle.tgz` (84 KB, sha256
+`d094ceb1c51ad6dbf60c1bd027989006e61e634a7e5f3e55ecc7714bae5e555f`).
+`tools/phase0/hang-bundle-run.sh` runs the command from the bundle with the
+VM's default include search list pinned (`-nostdinc` + `-isystem` into the
+bundle), so the host's own headers are never consulted.
+
+| Host | clang | `--target` | Result |
+|---|---|---|---|
+| VM 111, GNU 0.9 (control) | Debian 21.1.8 (10) | Hurd | **stopped at cap**, same position and frame |
+| VM 111, GNU 0.9 (control) | Debian 21.1.8 (10) | `x86_64-linux-gnu` | **stopped at cap**, same position and frame |
+| Workstation, Linux 6.18 (Void) | 21.1.8 | `x86_64-linux-gnu` | **0 s, 0 errors** |
+| Workstation, Linux 6.18 (Void) | 21.1.8 | Hurd | 0 s, 2 errors: `__float128`/`__TC__` unsupported on this target (`bits/floatn.h:83,97`); no hang |
+
+The first bundle, built from `-H` output, was incomplete: `-H` doesn't list
+headers reached from forced `-include` files, and the control stopped at once
+on `libc-misc.h`. The `-M` dependency list is complete; the control then
+reproduced the hang exactly. That's why the control row exists.
+
+**Result: the hang belongs to clang *running on* the Hurd.** Same clang
+version, same target, same 139 input files: it loops forever on the Hurd and
+finishes instantly on Linux. Not separated: whether the cause is Debian's
+Hurd-specific clang patches, a miscompile of clang for hurd-amd64, or the Hurd
+runtime (`libc0.3`). That would take an upstream-built clang running on the
+Hurd.
+
+**Side finding:** upstream clang (Void's build) lacks `__float128` for the
+Hurd target; Debian's Hurd clang has it. Cross-compiling glibc for the Hurd
+from Linux with upstream clang needs that support.

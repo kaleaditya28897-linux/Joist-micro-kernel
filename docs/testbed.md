@@ -146,8 +146,9 @@ they matter, copy them somewhere else.
    to them.
 2. ~~Install clang~~ and ~~finish decision 0002's glibc build~~. Done
    2026-09-30: libc pass complete, libm pass stopped because of a clang
-   frontend hang (`phase0-data/README.md` stage 9). **Next:** check whether that
-   hang reproduces with clang 21.1.8 on x86_64 Linux. It's the deciding
-   question for 0002 now.
+   frontend hang (`phase0-data/README.md` stage 9). Checked 2026-10-01: the hang
+   is clang *on the Hurd* (stage 10). It does not reproduce on Linux, so build
+   glibc on a Linux host, cross to the Hurd. clang 19 and 22 are now installed
+   alongside 21 on VM 111.
 3. ~~Replace `nested.py`~~. Done 2026-09-30: v2 finds all 80 trampolines and
    298 nested functions (was 252). See `phase0-data/README.md` stage 7.
