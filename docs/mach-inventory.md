@@ -373,10 +373,7 @@ first because they size Phase 5:
      once, and under synchronous call/reply it has no direct equivalent. It
      needs either an asynchronous notification-based `io_select`, or a
      notification-bound endpoint group, which is §6's second option. This is
-     the case to design around. *(Not yet confirmed by reading the code:
-     this is inferred from the call arguments (`sigport`, `portset`) and from
-     the known design of Hurd `select`. The testbed went offline before
-     `hurdselect.c` could be read. Confirm first.)*
+     the case to design around. *(Confirmed from source 2026-10-01: `hurdselect.c:324-335`, "We've got multiple reply ports, so we need a port set to multiplex them"; receive on the set at line 423. Decision 0005's 2026-10-01 amendment takes it up.)*
 
   Also in the list: `boot/boot.c` (8 sites, subhurd bootstrap),
   `startup/startup.c` (2), `mach-defpager` (3, being rewritten).

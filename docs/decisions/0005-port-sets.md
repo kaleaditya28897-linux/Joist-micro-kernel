@@ -72,6 +72,52 @@ reconfiguration case.
   amended: the risk was real before the measurement and is not after it. The
   out-of-line memory row (0006) keeps its known-hard status; this one does not.
 
+## Amendment, 2026-10-01: the one port-set use badges do not cover, `select`
+
+The decision above is about **server** buckets. The inventory also found a
+**client** use of port sets, and it was only inferred until today. It is now
+confirmed from source. glibc's `select`/`poll` (`hurd/hurdselect.c`) sends an
+`io_select` request to the server behind each descriptor, each with its own
+reply port. Then, in the code's own words (line 324), "We've got multiple
+reply ports, so we need a port set to multiplex them": it allocates a port set
+(line 331), moves each reply port into it (line 335), and receives on the set
+(line 423).
+
+**Under 0001 that shape does not exist.** A reply capability lives only inside
+a blocking `Call`, and asynchronous events are notification bit-sets, never
+queued messages. So "N outstanding requests, then wait for whichever reply comes
+first" has no direct mapping, and option B above does not address it: it is
+not a server demultiplexing clients, it is a client waiting on servers.
+
+Two shapes fit 0001's primitives:
+
+1. **One helper thread per watched descriptor**, each doing a blocking
+   `io_select` `Call` with the timeout, and signalling a bit on a notification
+   object the caller `Wait`s on. It needs no protocol change. The cost is a
+   thread per descriptor per `select` (a per-process pool softens it), and a
+   cancellation path for the calls still in flight when the first one fires.
+2. **A readiness-notification protocol** (§6's "notification-bound endpoint
+   group"). `select` makes one short `Call` to each server to register a
+   badged signal capability on its notification object, and the reply carries
+   the descriptor's current readiness. It then `Wait`s; a server signals the
+   bit when its object becomes ready; `select` deregisters on the way out.
+   There are no queued messages and no threads, and it's the shape 0001's
+   "async events are bit-sets" rule asks for. The cost is a change to
+   `io_select` in every server that implements it: libdiskfs, libtrivfs,
+   libnetfs, pfinet, lwip, pflocal, term, console-client, boot and seven
+   translators under `trans/` (`grep S_io_select`, hurd 0.9.git20260919). Most
+   servers inherit it from the three libraries. It also depends on 0001's open
+   question 3 (bit-set width): more watched descriptors than bits means bits
+   identify groups, and `select` re-queries the group.
+
+**Recommendation: 2**, with 1 as the fallback if the bit-set width (0001 Q3)
+turns out to be very small. Frequency gives no urgency: `io_select_timeout`
+fired 7 times in the measured build (`phase0-data/hurd-rpc-counts.csv`). But
+`select` is on the critical path of every interactive program and network
+server, so this must be decided before Phase 5's libports and MIG work, not
+discovered during it. **This row stays "ordinary" for server buckets, and
+gains one known-hard sub-case: client-side `select`.**
+
 ## Priority check
 
 Respects the order. The decision trades a theoretical Reuse convenience
