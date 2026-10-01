@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Find GCC nested function definitions (unsupported by clang).
 
-usage: nested.py DIR...   -> TSV on stdout: file, line, function name
+usage: nested.py PATH...  (directories are walked, files scanned) -> TSV: file, line, function name
 
 Version 2 (2026-09-30). Version 1 tracked brace depth with regexes over
 comment- and string-stripped text. It desynchronised whenever the text still
@@ -17,8 +17,9 @@ This version tokenizes instead:
 - preprocessor directives are read as whole logical lines. Conditionals are
   tracked the way a compiler sees one configuration: every branch of an
   #if/#elif/#else chain starts at the depth the chain started at, and after
-  #endif the depth continues from the first branch that was scanned. Branches
-  are still scanned, so a nested function inside any branch is reported;
+  #endif the depth continues from the branch taken in ONE consistent
+  configuration (see branch_taken). All branches are still scanned, so a
+  nested function inside any branch is reported;
 - `#if 0` (and `#if (0)`) branches are skipped entirely: they are dead code.
 
 Braces are tracked as a stack of what each one opened (see brace_kind), and
@@ -31,6 +32,16 @@ macro that expands to one; none are known.
 Headers are scanned too (since 2026-09-30): glibc's sysdeps/htl/pt-key.h
 defines a nested function (`do_init`) inside a static inline function, and
 clang reported it while v2 was still scanning only .c files.
+
+Known limitation: deliberately unbalanced code inside a conditional that is
+never compiled (GNU Mach's linux/src/drivers/scsi/53c78xx.c wraps half an
+if/else in `#ifdef notyet`) drifts the brace stack, because `notyet` is
+assumed true like every other macro. A rule preferring "not taken" for such
+chains fixed that file but broke GNU Mach's pmap.c and i82365.c, and was
+removed (2026-10-01). Where a compiler has built the configuration, its
+"function definition is not allowed here" errors are the authority; this
+scanner is for code no compiler has reached. tests/nested/known-limits/ holds
+the failing shape.
 
 Regression test: docs/phase0-data/trampolines.csv. GCC generated a trampoline
 for each of its 80 rows, so each is a nested function; a correct scanner finds
@@ -86,7 +97,8 @@ def scan(path):
     stack = []              # what each open '{' opened: 'code', 'aggregate' or 'linkage'
     line = 1
     toks = []               # significant tokens in the current live region: (kind, value, line)
-    cond = []               # stack of [start_stack, first_end_stack or None, skipping, any_live]
+    cond = []               # see the #if handling below
+    assumed = {}            # macro -> truth value assumed at first test, reused after
     at_line_start = True
     pos = 0
     n = len(text)
@@ -97,22 +109,27 @@ def scan(path):
                 d, arg, end = logical_lines_directive(text, pos)
                 line += text.count('\n', pos, end)
                 pos = end
-                skipping_outer = any(f[2] for f in cond)
                 if d in ('if', 'ifdef', 'ifndef'):
                     dead = d == 'if' and IF_ZERO.match(arg) is not None
-                    cond.append([list(stack), None, dead, not dead])
+                    taken = (not dead) and branch_taken(d, arg, assumed)
+                    # frame: [entry stack, end stack of the taken branch, dead, any taken,
+                    #         this branch taken, chain has an #else]
+                    cond.append([list(stack), None, dead, taken, taken, False])
                 elif d in ('elif', 'else') and cond:
                     f = cond[-1]
-                    if f[3] and f[1] is None:
-                        f[1] = list(stack)    # remember where the first live branch ended
+                    if f[4]:
+                        f[1] = list(stack)    # remember where the taken branch ended
                     stack = list(f[0])
                     dead = d == 'elif' and IF_ZERO.match(arg) is not None
-                    f[2] = dead
-                    f[3] = f[3] or not dead
+                    now = (not f[3]) and (not dead) and (d == 'else' or branch_taken('if', arg, assumed))
+                    f[2], f[3], f[4] = dead, f[3] or now, now
+                    if d == 'else':
+                        f[5] = True
                 elif d == 'endif' and cond:
                     f = cond.pop()
-                    if f[1] is not None:
-                        stack = f[1]
+                    if f[4]:
+                        f[1] = list(stack)
+                    stack = f[1] if f[1] is not None else list(f[0])
                 continue
             at_line_start = False
         m = TOKEN.match(text, pos)
@@ -142,6 +159,34 @@ def scan(path):
         if len(toks) > 4000:
             del toks[:2000]
     return found
+
+
+SIMPLE = re.compile(r'^\s*(!?)\s*(?:defined\s*\(?\s*([A-Za-z_]\w*)\s*\)?|([A-Za-z_]\w*))\s*(?:/\*.*\*/|//.*)?$')
+
+
+def branch_taken(d, arg, assumed):
+    """Is this branch taken in the one configuration being followed?
+
+    Each macro is assumed defined and true the first time it is tested, and
+    that value is reused for every later test, so `#ifdef X` and a later
+    `#ifndef X` agree. Following the first branch of each conditional
+    independently does not describe any real configuration: on GNU Mach's
+    pmap.c, `#ifdef __x86_64__` and a later `#ifndef __x86_64__` leave the
+    brace stack one level off, and every later function then reads as nested.
+    Expressions this can't evaluate fall back to "taken" (the first branch)."""
+    if d in ('ifdef', 'ifndef'):
+        name = arg.split()[0] if arg.split() else ''
+        v = assumed.setdefault(name, True)
+        return v if d == 'ifdef' else not v
+    m = SIMPLE.match(arg)
+    if not m:
+        return True
+    neg, name = m.group(1), m.group(2) or m.group(3)
+    if name.isdigit():
+        v = name != '0'
+    else:
+        v = assumed.setdefault(name, True)
+    return (not v) if neg else v
 
 
 def brace_kind(toks):
@@ -208,6 +253,10 @@ def match_paren(toks, i):
 
 if __name__ == '__main__':
     for root in sys.argv[1:]:
+        if os.path.isfile(root):
+            for ln, name in scan(root):
+                print(f'{root}\t{ln}\t{name}')
+            continue
         for d, dirs, files in os.walk(root):
             dirs[:] = sorted(x for x in dirs if x not in ('.git', '.pc', 'build-clang', 'build-gcc', 'debian'))
             for fn in sorted(files):

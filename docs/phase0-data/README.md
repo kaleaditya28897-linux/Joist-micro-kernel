@@ -591,3 +591,34 @@ Hurd.
 **Side finding:** upstream clang (Void's build) lacks `__float128` for the
 Hurd target; Debian's Hurd clang has it. Cross-compiling glibc for the Hurd
 from Linux with upstream clang needs that support.
+
+## Stage 11: GNU Mach and MIG output with clang; `nested.py` made configuration-consistent (2026-10-01)
+
+Details and results are in `docs/clang-inventory.md` §1–2. Provenance:
+
+| File | Produced by | SHA-256 / note |
+|---|---|---|
+| `amd64/mig-clang.csv` | `tools/phase0/mig-clang.sh hurd-0.9.git20260919 clang-21` | `9f263fb168e7c7f8e104d40a16e27327dc667ee78b08e22a2e6f95bfa40e5710` |
+| GNU Mach clang build log (VM, `~/spike/gnumach-clang-21-make.log`) | `spike-gnumach.sh clang-21 GCC_INSTALL=… "CC=clang-21 -fno-integrated-as"` | `79423ef8351084d559f4323785f8e6d1ba84e5de2bd9cfb49092661d65c5dc73` (configure log `1ea27e29a5dba546d3892d4bcf463e6c0bbf1c12590063d782b1997c249d5688`) |
+| GNU Mach gcc build log (VM, `~/spike/gnumach-gcc-make.log`) | `spike-gnumach.sh gcc` | `794ed761394a6c63b6cda2cf5bb10517505de4905af0fb3d28e5265b177bb3fd`; baseline, complete kernel |
+| `amd64/nested-gnumach-scan.tsv` | `nested.py gnumach-1.8+git20260805` | `9da7f00c5bb0f38c04c2dd83f242ae354584a56f5bb37b28bbda7d937d0baf0f`; 32 rows, see below |
+
+**`nested.py` change.** Scanning GNU Mach exposed a third failure shape. The
+scanner followed the *first* branch of every conditional independently, and
+in `i386/intel/pmap.c` `#ifdef __x86_64__` is followed later by
+`#ifndef __x86_64__`. Taking the first branch of each mixes two
+configurations, the brace stack ends one level deep, and every later function
+in the file (37 of them) read as nested, although clang compiled the file
+cleanly. Now every macro is assumed true at its first test and that value is
+reused (`branch_taken`), so the depth after each `#endif` follows one
+consistent configuration. All branches are still scanned.
+
+- Regression: Hurd and glibc output is **byte-identical** to before (md5 of
+  the full TSVs), so all 306 earlier rows and 80/80 trampolines stand.
+- A further rule, preferring "not taken" for unbalanced chains without
+  `#else`, fixed `53c78xx.c` but broke `pmap.c` and `i82365.c`. It was
+  **removed**, and the shape is kept as a documented known limitation
+  (`tools/phase0/tests/nested/known-limits/`).
+- Unit tests: `tools/phase0/tests/nested/run.sh` (`shapes.c`, `config.c`,
+  both pass). Script sha256
+  `d5207cff66ec223e68f94f28235f105dfc57c22db74411880186c8a12d5deb10`.
