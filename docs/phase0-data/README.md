@@ -666,3 +666,69 @@ start from a fresh copy (`hurd-full.sh` does).
 
 With these, Phase 0's "build Hurd, GNU Mach and glibc from source" is done on
 the target architecture: all three build cleanly with GCC on VM 111.
+
+## Stage 14: rpctrace's gsync deadlock fixed; workloads traced through compile and link (2026-10-01)
+
+**The deadlock, from source.** `utils/rpctrace.c` forwards every message from
+one tracing thread (`ports_manage_port_operations_one_thread`, line 1424) with
+a plain blocking `mach_msg` send (line 1399). A message to a kernel port is
+executed by the kernel *inside the sender's send*. So forwarding a traced
+thread's `gsync_wait` parks rpctrace's only thread in the kernel, and the
+`gsync_wake` that would release it is never forwarded.
+
+**The fix:** `tools/phase0/rpctrace-gsync.patch` (85 lines). The tracing
+logic stays single-threaded; only the *forwarding send* of a `gsync_wait` is
+done from a short-lived detached helper thread, with a private copy of the
+message (the server loop reuses its buffer). The reply returns through the
+reply proxy and is traced by the main thread as usual. Built in the full GCC
+Hurd tree (`~/spike/hurd-full-gcc/utils/rpctrace`, sha256
+`36da17aa3e3bfbd6e3fa7b28fef208c0cadefa6801c24335c8a009c568d481fa`).
+
+**Must be run with `-I /usr/share/msgids`.** A tree-built rpctrace looks for
+its msgid tables under its own configure prefix (`/usr/local`). Without them
+it prints numbers instead of names, the patch (which matches on the name
+`gsync_wait`) never fires, and the run deadlocks exactly like the stock tool.
+The first test run did exactly that.
+
+**Test:** `tools/phase0/tests/rpctrace/run.sh`, four threads contending for a
+lock (`gsync-lock.py`):
+
+| rpctrace | Result |
+|---|---|
+| stock `/usr/bin/rpctrace` | deadlocked: 1 `gsync_wait`, 0 `gsync_wake`, killed at 90 s |
+| patched | **10/10 runs** finish in ~1 s, `count 8000`, 4 waits and 4 wakes each |
+
+**The re-run** (`run-trace2.sh`: `workloads.sh` with
+`RPCTRACE="…/rpctrace -I /usr/share/msgids" TRACEDIR=~/trace2`, fresh `hello`
+source). Results in `amd64-full/`.
+
+| Raw trace (VM, `~aditya/trace2/`) | Lines | SHA-256 |
+|---|---:|---|
+| `boot.txt` | 1 097 | `d636aba7d834b525374b672b9ce324568c4e419cd18bc523ec8f3935c6a324d3` |
+| `shell.txt` | 9 353 | `571b907783a5ed4904435df4371d6416f0e6b711be540a4b5d45c08a685ea75c` |
+| `build.txt` | 2 380 120 | `8b5e22e0a73bc0c38f4bb8a536a7034c50b337c466eb84ab35dfba7745d5b160` |
+
+- **build: completed** (rc 0, `hello_2.12.3-1_hurd-amd64.deb` produced):
+  configure, compile and link, all traced. It used to stop at the first `make`.
+- **shell: 0 of 10** commands timed out (9 of 10 before).
+- **boot: still crashes** (rpctrace segfault, rc 139, during ext2fs start-up).
+  That's a different rpctrace bug from the deadlock, not investigated yet.
+
+**What compile and link add** (full build vs configure-only, build column):
+about 1.5× across the board, with the same profile. New calls: `gsync_wake`
+(hidden by the deadlock before) and `thread_terminate_release` (4). Three
+numbers that decisions cite move materially:
+
+| Call | configure-only | full build | Cited by |
+|---|---:|---:|---|
+| `gsync_wait` / `gsync_wake` | 1 / 0 | 698 / 1 396 | inventory (futex, not in §6) |
+| `thread_suspend` | 1 | 734 | decision 0010 |
+| `mach_port_move_member` | 7 | 41 | decision 0005 |
+
+`thread_suspend`: all 734 are from shells (`/bin/bash` 419, `/bin/sh` 315)
+in 212 processes, every one of which also calls `thread_abort`. That's glibc's
+signal delivery (suspend, abort the in-flight RPC, rewrite state, resume),
+driven by `SIGCHLD`.
+
+The client-recovery offset finding holds over the full build: `io_read`
+98.5% and `io_write` 99.5% at offset `-1` (`amd64-full/io-offsets.csv`).

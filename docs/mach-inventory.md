@@ -174,6 +174,17 @@ candidates for *unused*. They still need the static check.
   on a separate thread, or trace a subhurd), then re-run the build through
   compile and link.
 
+## Full-build trace (2026-10-01)
+
+rpctrace's `gsync_wait` deadlock is fixed (`tools/phase0/rpctrace-gsync.patch`,
+`phase0-data/README.md` stage 14). The build workload now runs to
+completion: configure, compile and link. Data in `phase0-data/amd64-full/`.
+Compile and link add ~1.5× to every count but no new kernel interface except
+`gsync_wake` and `thread_terminate_release`. `gsync_wait`/`gsync_wake`
+(futexes, still not in §6) are 698/1 396 per build. The *Coverage* caveat
+about the build stopping at the first `make` no longer applies; the boot
+proxy still ends in an rpctrace crash.
+
 ## x86_64 re-run (2026-09-30)
 
 Everything above was measured on i386. The same workloads were re-run on the

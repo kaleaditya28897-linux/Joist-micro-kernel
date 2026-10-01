@@ -1,0 +1,85 @@
+--- a/utils/rpctrace.c
++++ b/utils/rpctrace.c
+@@ -41,6 +41,7 @@
+ #include <envz.h>
+ 
+ #include "msgids.h"
++#include <pthread.h>
+ 
+ /* Should match MiG's desired_complex_alignof */
+ #define MSG_ALIGNMENT __alignof__(uintptr_t)
+@@ -1137,6 +1138,60 @@
+   return 1;
+ }
+ 
++/* A message to a kernel port is executed by the kernel inside the sender's
++   mach_msg.  rpctrace forwards every message from a single tracing thread, so
++   forwarding a traced thread's gsync_wait parks the tracer itself in the
++   kernel, and the gsync_wake that would release it is never forwarded: the
++   whole trace deadlocks.  Forward such blocking kernel RPCs from a short-lived
++   helper thread instead, using a private copy of the message (the server loop
++   reuses its buffer).  The reply still comes back through the reply proxy and
++   is traced by the tracing thread as usual.  */
++
++static int
++blocks_in_kernel (mach_msg_id_t id)
++{
++  const struct msgid_info *info = msgid_info (id);
++  return info != NULL && info->name != NULL
++	 && strcmp (info->name, "gsync_wait") == 0;
++}
++
++static void *
++forward_blocking (void *arg)
++{
++  mach_msg_header_t *msg = arg;
++  error_t err = mach_msg (msg, MACH_SEND_MSG, msg->msgh_size, 0,
++			  MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE,
++			  MACH_PORT_NULL);
++  if (err == MACH_SEND_INVALID_DEST)
++    mach_msg_destroy (msg);
++  else if (err)
++    error (0, err, "forwarding blocking kernel RPC");
++  free (msg);
++  return NULL;
++}
++
++/* Returns true if the message was handed to a helper thread.  */
++static int
++forward_in_helper (mach_msg_header_t *inp)
++{
++  pthread_t t;
++  mach_msg_header_t *copy;
++
++  if (!blocks_in_kernel (inp->msgh_id))
++    return 0;
++  copy = malloc (inp->msgh_size);
++  if (copy == NULL)
++    return 0;
++  memcpy (copy, inp, inp->msgh_size);
++  if (pthread_create (&t, NULL, forward_blocking, copy) != 0)
++    {
++      free (copy);
++      return 0;
++    }
++  pthread_detach (t);
++  return 1;
++}
++
+ int
+ trace_and_forward (mach_msg_header_t *inp, mach_msg_header_t *outp)
+ {
+@@ -1396,8 +1451,11 @@
+     }
+ 
+   /* Resend the message to the tracee.  */
+-  err = mach_msg (inp, MACH_SEND_MSG, inp->msgh_size, 0,
+-		  MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
++  if (forward_in_helper (inp))
++    err = 0;
++  else
++    err = mach_msg (inp, MACH_SEND_MSG, inp->msgh_size, 0,
++		    MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+   if (err == MACH_SEND_INVALID_DEST)
+     {
+       /* The tracee port died.  No doubt we are about to receive the dead-name

@@ -1,0 +1,8 @@
+rpc,argument,boot,shell,build
+io_read,explicit,4,9,1471
+io_read,offset=-1,27,158,94868
+io_seek,SEEK_CUR,0,3,10569
+io_seek,SEEK_END,0,0,17
+io_seek,SEEK_SET,0,30,79461
+io_write,explicit,0,8,157
+io_write,offset=-1,6,27,30562

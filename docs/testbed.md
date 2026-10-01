@@ -120,6 +120,9 @@ be installed from the console first — see *Gotchas*.
   as "process gone" will report a still-running process as finished (this
   happened once). Check `ps`'s exit status.
 - **`bc` is not installed.** Use shell arithmetic on `date +%s`.
+- **A tree-built rpctrace needs `-I /usr/share/msgids`.** Otherwise it looks
+  under its configure prefix, prints msgid numbers, and the gsync patch never
+  fires. The patched rpctrace is `~/spike/hurd-full-gcc/utils/rpctrace`.
 - **Don't reuse a per-directory Hurd tree for a full build.** Dependency files
   from failed compiles name a bare `version.h`, and the top-level build then
   fails in seconds. Use a fresh copy (`tools/phase0/hurd-full.sh`).

@@ -63,7 +63,8 @@ Three things this says:
   changes an answer rather than just the numbers. When the x86_64 testbed
   exists, re-run the trace and check what replaces the 11 136 GDT calls.
 - `thread_suspend` firing once means it can be implemented simply and need not
-  be fast. Do not optimise it.
+  be fast. Do not optimise it. *(Withdrawn 2026-10-01: 734 in the full build,
+  all on the signal-delivery path. See the amendment.)*
 
 ## Amendment, 2026-09-30: the x86_64 re-run
 
@@ -116,6 +117,25 @@ This changes two things in this entry:
      `set_state`).
 
 Status stays `proposed`.
+
+## Amendment, 2026-10-01 (later): `thread_suspend` is on the signal path
+
+The "fires once" figure above came from a trace that stopped at the first
+`make`, because of rpctrace's `gsync_wait` deadlock. With that fixed
+(`docs/phase0-data/README.md` stage 14), the full build shows
+**`thread_suspend` 734**, `thread_abort` 4 146, `thread_get_state` 8 494 and
+`thread_set_state` 22 695. All 734 suspends come from shells (`/bin/bash` 419,
+`/bin/sh` 315), across 212 processes, and every one of those processes also
+aborts. That's glibc's signal delivery: suspend the target thread, abort its
+in-flight RPC, rewrite its state, resume. `SIGCHLD` drives it on every child
+exit.
+
+So the Consequences bullet "`thread_suspend` firing once means it can be
+implemented simply and need not be fast. Do not optimise it" is **withdrawn**.
+It's still modest (about 0.16 per `task_create`), and simple is still right,
+but it sits on the signal-delivery path. The thing worth designing is that
+path as a whole: suspend → abort → get/set state → resume is one operation
+from glibc's point of view, and four kernel calls today.
 
 ## Priority check
 

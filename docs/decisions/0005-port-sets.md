@@ -72,6 +72,15 @@ reconfiguration case.
   amended: the risk was real before the measurement and is not after it. The
   out-of-line memory row (0006) keeps its known-hard status; this one does not.
 
+## Amendment, 2026-10-01: the full-build count
+
+The evidence above stopped at the first `make` (rpctrace's `gsync_wait`
+deadlock). Traced through compile and link (`docs/phase0-data/README.md`
+stage 14), `mach_port_move_member` fires **41 times**, against 522 390
+`mach_port_deallocate`. That's six times the figure quoted, and still four orders of
+magnitude below the hot calls. The conclusion stands: membership is static
+in practice, and tear-down-and-re-mint is fine at this frequency.
+
 ## Amendment, 2026-10-01: the one port-set use badges do not cover, `select`
 
 The decision above is about **server** buckets. The inventory also found a
