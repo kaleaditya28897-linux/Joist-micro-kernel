@@ -640,3 +640,29 @@ Results in `docs/clang-inventory.md` §4.
 per directory. Clang has all 1 492 of GCC's, plus `sutils/clookup.o`. The
 remaining differences in raw command counts (1 734 vs 1 758) are GCC's link
 steps, which clang never reached.
+
+## Stage 13: GCC baselines (2026-10-01, VM 111)
+
+Phase 0 asks for the Hurd, GNU Mach and glibc to be built from source; these
+are also the controls for the clang inventory.
+
+| Component | Command | Result | Log SHA-256 |
+|---|---|---|---|
+| glibc 2.43-6 | `tools/phase0/spike-glibc.sh gcc g++` | rc 0, 0 errors, `libc.so` + `libm.so`, 19 min | make `e70523c38a91260e7a2e3f1554b575d0e846889302c55e1afadc2f93a8258b53`, configure `98365a16c3e866faa7c689164c87cc0b2fab19741018745b3abf38ce5f96ce5a` |
+| GNU Mach | `tools/phase0/spike-gnumach.sh gcc` | rc 0, complete kernel (stage 11) | `794ed761394a6c63b6cda2cf5bb10517505de4905af0fb3d28e5265b177bb3fd` |
+| the Hurd, per directory | `tools/phase0/spike-hurd-clang.sh gcc` | all 1 492 objects (stage 12) | `2175051f90bf53e5133b4e30b33f471afb3763209d941d8727e332ad28a48750` |
+| the Hurd, full top-level build | `tools/phase0/hurd-full.sh gcc` | rc 0, ~5 min: all servers (`auth`, `exec`, `ext2fs`, `proc`, …) and 47 shared libraries. The script's "errors: 1" is a grep hit on a quoted source line in a warning (a `printf` format containing `error:%d`), not a compile error; `make` reported 0 failures | make `5c1c6c41b7c71e38896c7a45cd1d9474b7eb45d76c6299dfe1576a425404d8a4`, configure `3e5a0b5cb4c4eb94d63dc5ca3bc335432b02183a005a45b3624db56ac1ee6d68` |
+
+`spike-glibc.sh` now takes the compiler as an argument and names its logs
+after it (`glibc-gcc-make.log`). Stage 9's clang logs keep their original
+names (`glibc-make.log`), so their recorded checksums are unaffected.
+
+**A trap found on the way:** the first full Hurd build reused the
+per-directory tree and failed in 4 s with "No rule to make target
+`version.h`". The per-directory run's failed compiles had left dependency
+files (e.g. `libdiskfs/opts-version.d`) naming a bare `version.h`, which no
+rule matches once the top level generates the real one. A full build has to
+start from a fresh copy (`hurd-full.sh` does).
+
+With these, Phase 0's "build Hurd, GNU Mach and glibc from source" is done on
+the target architecture: all three build cleanly with GCC on VM 111.

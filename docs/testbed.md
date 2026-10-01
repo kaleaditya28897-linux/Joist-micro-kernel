@@ -120,6 +120,9 @@ be installed from the console first — see *Gotchas*.
   as "process gone" will report a still-running process as finished (this
   happened once). Check `ps`'s exit status.
 - **`bc` is not installed.** Use shell arithmetic on `date +%s`.
+- **Don't reuse a per-directory Hurd tree for a full build.** Dependency files
+  from failed compiles name a bare `version.h`, and the top-level build then
+  fails in seconds. Use a fresh copy (`tools/phase0/hurd-full.sh`).
 
 ## VM 110, retired
 
@@ -154,5 +157,8 @@ they matter, copy them somewhere else.
    `docs/clang-inventory.md`. Work trees on the VM: `~/spike/hurd-clang-21`,
    `~/spike/hurd-gcc` (in-tree copies), and GNU Mach's `build-clang-21` and
    `build-gcc`.
+5. ~~GCC builds of the Hurd, GNU Mach and glibc from source~~. Done 2026-10-01,
+   all clean (`phase0-data/README.md` stage 13). Full Hurd build:
+   `~/spike/hurd-full-gcc`; glibc: `~/spike/glibc-2.43/build-gcc`.
 3. ~~Replace `nested.py`~~. Done 2026-09-30: v2 finds all 80 trampolines and
    298 nested functions (was 252). See `phase0-data/README.md` stage 7.

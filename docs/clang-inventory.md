@@ -88,7 +88,14 @@ build-system fixes.
 
 ## 3. glibc
 
-Detail in decision 0002 and `phase0-data/README.md` stages 9–10. In short:
+Detail in decision 0002 and `phase0-data/README.md` stages 9–10 and 13.
+
+**Baseline:** the same tree with GCC 16.2 (`spike-glibc.sh gcc g++`) builds
+completely in 19 minutes: rc 0, **0 errors**, `libc.so` and `libm.so` both
+produced. So every error below is clang's, and GCC compiled all of glibc's
+math code that clang can't finish on the Hurd.
+
+In short:
 
 - libc's pass (all 52 subdirectories) completed. 625 error sites, each with
   a root cause in `phase0-data/amd64/clang-glibc-root-causes.csv`.
