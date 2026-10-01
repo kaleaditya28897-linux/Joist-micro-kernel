@@ -711,8 +711,18 @@ source). Results in `amd64-full/`.
 - **build: completed** (rc 0, `hello_2.12.3-1_hurd-amd64.deb` produced):
   configure, compile and link, all traced. It used to stop at the first `make`.
 - **shell: 0 of 10** commands timed out (9 of 10 before).
-- **boot: still crashes** (rpctrace segfault, rc 139, during ext2fs start-up).
-  That's a different rpctrace bug from the deadlock, not investigated yet.
+- **boot: still crashes** (rpctrace segfault, rc 139, during ext2fs start-up),
+  with the stock and the patched binary alike. That's a different bug from the
+  deadlock. What is known: the last traced message before every crash is the
+  kernel's `memory_object_data_return` to ext2fs (printed as
+  `device_pager_data_return`, the msgid collision), carrying out-of-line page
+  data. One attempt at a backtrace, running the workload under `gdb -batch`
+  (2026-10-01), changed the behaviour instead: rpctrace and its child sat
+  stopped (`H`/`T`) with an empty trace until killed. Next approaches, not
+  yet tried: a `SIGSEGV` handler calling `backtrace()` patched into rpctrace,
+  or a core dump (check whether the crash server suspends rather than
+  dumps). Low priority: the boot workload is a proxy, and its data up to
+  the crash is captured.
 
 **What compile and link add** (full build vs configure-only, build column):
 about 1.5× across the board, with the same profile. New calls: `gsync_wake`
