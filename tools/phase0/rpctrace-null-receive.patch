@@ -1,0 +1,17 @@
+--- a/utils/rpctrace.c
++++ b/utils/rpctrace.c
+@@ -1415,6 +1415,14 @@
+ 
+ 	  /* If it's mach_port RPC,
+ 	   * the port rights in the message will be moved to the target task. */
++	  /* receive_right is legitimately NULL for some wrappers (e.g. one made
++	     for a right whose receiver was destroyed, or not yet known), and the
++	     kernel can still send to them: it answers a send-once reply_to right
++	     passed in memory_object_lock_request with lock_completed.  `to' only
++	     records the destination task for rewriting rights in the reply, so an
++	     unknown receiver is recorded as unknown_task rather than crashing.  */
++	  else if (SEND_INFO (info)->receive_right == NULL)
++	    to = unknown_task;
+ 	  else if (inp->msgh_id >= 3200 && inp->msgh_id <= 3218)
+ 	    to = SEND_INFO (info)->receive_right->forward;
+ 	  else

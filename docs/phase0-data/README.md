@@ -711,18 +711,34 @@ source). Results in `amd64-full/`.
 - **build: completed** (rc 0, `hello_2.12.3-1_hurd-amd64.deb` produced):
   configure, compile and link, all traced. It used to stop at the first `make`.
 - **shell: 0 of 10** commands timed out (9 of 10 before).
-- **boot: still crashes** (rpctrace segfault, rc 139, during ext2fs start-up),
-  with the stock and the patched binary alike. That's a different bug from the
-  deadlock. What is known: the last traced message before every crash is the
-  kernel's `memory_object_data_return` to ext2fs (printed as
-  `device_pager_data_return`, the msgid collision), carrying out-of-line page
-  data. One attempt at a backtrace, running the workload under `gdb -batch`
-  (2026-10-01), changed the behaviour instead: rpctrace and its child sat
-  stopped (`H`/`T`) with an empty trace until killed. Next approaches, not
-  yet tried: a `SIGSEGV` handler calling `backtrace()` patched into rpctrace,
-  or a core dump (check whether the crash server suspends rather than
-  dumps). Low priority: the boot workload is a proxy, and its data up to
-  the crash is captured.
+- **boot: the crash is fixed; the workload still doesn't succeed.**
+  - *The crash.* A diagnostic build of rpctrace with a `SIGSEGV`
+    backtrace handler (`backtrace_symbols_fd`, plus a flush of the trace
+    stream so the last header survives; not committed, diagnostic only)
+    resolved it with `addr2line` to `trace_and_forward`, where the request
+    path dereferences `SEND_INFO (info)->receive_right` unconditionally. The
+    crashing message is the kernel's `memory_object_lock_completed` (printed
+    `device_pager_lock_completed`, the msgid collision), sent to the
+    *send-once* `reply_to` right ext2fs passed in `memory_object_lock_request`.
+    Its wrapper has a NULL `receive_right`, which several paths in rpctrace
+    leave legitimately.
+  - *The fix:* `tools/phase0/rpctrace-null-receive.patch`, on top of the gsync
+    patch. When `receive_right` is NULL, the request's destination task is
+    recorded as `unknown_task` (`to` only feeds `add_request`, used to
+    attribute rights in the reply), instead of crashing. Combined binary:
+    `~/spike/hurd-full-gcc/utils/rpctrace`, sha256
+    `624567f60d24bdfcc5a4cacdaba9bd5e7de265441cdd285d6626d14893536afc`. The
+    gsync regression test still passes (3/3).
+  - *Result:* rpctrace no longer dies (rc 0, 2 431 trace lines against 1 097
+    before the crash). **But the translator never finishes starting:** the
+    trace has no `fsys_startup`, and `settrans -ca` gives up after 60 s with
+    "(ipc/rcv) timed out". The later commands then ran on the plain directory
+    underneath. A first look at "rc 0" took this for success; the missing
+    `lost+found` in `ls -l` and `fsysopts` reporting the root filesystem
+    showed otherwise. Likely cause, not yet examined: how rpctrace wraps the
+    bootstrap port that `settrans` hands the new translator. This is the
+    third rpctrace problem behind the boot proxy, and the next thing to look
+    at if the boot column matters.
 
 **What compile and link add** (full build vs configure-only, build column):
 about 1.5× across the board, with the same profile. New calls: `gsync_wake`
