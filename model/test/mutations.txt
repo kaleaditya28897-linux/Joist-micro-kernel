@@ -9,9 +9,18 @@ I7 rebadge         @@ src/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ i
 I1 destroy leaks   @@ src/cspace.c @@             (void)joist_cap_delete(k, cs, i); @@             /* mutated */;
 I3 quota ignored   @@ src/cspace.c @@     if (s->quota == 0) { @@     if (0) {
 I6 reply reusable    @@ src/ipc.c @@ me->reply_to = 0; /* consumed, whatever happens next (I6) */ @@ /* mutated */
-I10 server death     @@ src/ipc.c @@ wake(k, c, JOIST_E_PEER); @@ (void)c;
-I10 endpoint death   @@ src/cspace.c @@ joist__endpoint_destroyed(k, obj_index); /* waiters wake with E_GONE */ @@ /* mutated */
+I10 server death     @@ src/ipc.c @@ joist__wake(k, c, JOIST_E_PEER); @@ (void)c;
+I10 endpoint death   @@ src/notify.c @@     joist__queue_wake_all(k, obj, JOIST_E_GONE); @@     /* mutated: first occurrence, in endpoint_die */
 I7 badge dropped     @@ src/ipc.c @@ k->th[r].badge = badge; @@ k->th[r].badge = 0;
 timeout late         @@ src/ipc.c @@ r->deadline == JOIST_FOREVER || r->deadline > k->now @@ r->deadline == JOIST_FOREVER || r->deadline >= k->now
 stale reply reuse    @@ src/ipc.c @@             r->call_seq = seq; @@             r->call_seq = seq * 0u;
 I10 recv w/ reply    @@ src/ipc.c @@     if (me->reply_to != 0) { @@     if (0) {
+I2 bits lost         @@ src/notify.c @@     n->word |= bits; @@     n->word = bits;
+I2 delivered twice   @@ src/notify.c @@         n->word = 0; /* bits clear only when returned (I2) */ @@         /* mutated */
+I4 never fires       @@ src/notify.c @@ joist__notify_signal(k, e->ns_notif - 1u, b); @@ (void)b;
+I4 fires early       @@ src/notify.c @@ if (a != NULL && --a->send_caps == 0) { @@ if (a != NULL && (--a->send_caps, 1)) {
+I4 fires when dead   @@ src/notify.c @@             if (!e->dead && e->ns_notif != 0) { @@             if (e->ns_notif != 0) {
+I5 never dies        @@ src/notify.c @@         endpoint_die(k, obj); @@         (void)endpoint_die;
+I5 deadname repeats  @@ src/notify.c @@             memset(d, 0, sizeof *d); @@             (void)d;
+dangling binding     @@ src/notify.c @@                 k->obj[i].ns_notif = 0; @@                 (void)i;
+I5 dead still usable @@ src/ipc.c @@     if (k->obj[c->obj - 1u].dead) { @@     if (0) {

@@ -56,7 +56,24 @@ static uint32_t shq[JOIST_MAX_OBJECTS][JOIST_MAX_THREADS]; /* queue: thread inde
 static uint32_t shq_len[JOIST_MAX_OBJECTS];
 static uint8_t shq_kind[JOIST_MAX_OBJECTS];
 static uint64_t sh_now;
+static uint8_t sh_dead[JOIST_MAX_OBJECTS]; /* endpoint death already processed */
 static struct joist_kernel k;
+
+/* An endpoint is dead exactly when no capability with RECV names it: the
+ * last receiver deleted it, and derive can never add RECV back (I8). */
+static int sh_recv_caps(uint32_t o)
+{
+    int n = 0;
+    for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
+        for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+            const struct joist_cap *cap = &k.cs[c].slot[i];
+            if (cap->obj == o + 1u && (cap->rights & JOIST_R_RECV) != 0) {
+                n++;
+            }
+        }
+    }
+    return n;
+}
 
 static uint64_t sh_deadline(uint64_t timeout)
 {
@@ -131,6 +148,9 @@ static joist_err sh_lookup(uint32_t t, uint32_t slot, joist_rights need, uint32_
     }
     if ((c->rights & need) == 0) {
         return JOIST_E_RIGHTS;
+    }
+    if (sh_recv_caps(c->obj - 1u) == 0) {
+        return JOIST_E_GONE; /* I5 */
     }
     *obj = c->obj - 1u;
     *badge = c->badge;
@@ -318,14 +338,24 @@ static joist_err sh_thread_create(uint32_t cs, uint32_t *out)
     return JOIST_E_NOMEM;
 }
 
-/* After a capability operation, wake the queues of endpoints that died. */
+/* After a capability operation: an endpoint whose last RECV capability just
+ * went dies, and its queue wakes with E_GONE (I5). A freed object slot may be
+ * reused, so its death mark is cleared. */
 static void sh_reap_endpoints(void)
 {
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
-        if (shq_len[o] != 0 && k.obj[o].type != JOIST_OBJ_ENDPOINT) {
+        if (k.obj[o].type == JOIST_OBJ_NONE) {
+            sh_dead[o] = 0;
+        }
+        int dies = !sh_dead[o] && sh_recv_caps(o) == 0 &&
+                   (k.obj[o].type == JOIST_OBJ_ENDPOINT || shq_len[o] != 0);
+        if (dies || (k.obj[o].type == JOIST_OBJ_NONE && shq_len[o] != 0)) {
             while (shq_len[o] != 0) {
                 uint32_t t = shq_pop(o);
                 sh_wake(t, JOIST_E_GONE);
+            }
+            if (k.obj[o].type == JOIST_OBJ_ENDPOINT) {
+                sh_dead[o] = 1;
             }
         }
     }
@@ -442,6 +472,7 @@ static int run_seed(uint64_t seed, unsigned long steps)
     memset(sh, 0, sizeof sh);
     memset(shq_len, 0, sizeof shq_len);
     memset(shq_kind, 0, sizeof shq_kind);
+    memset(sh_dead, 0, sizeof sh_dead);
     sh_now = 0;
 
     for (uint32_t c = 0; c < N_SPACES; c++) {

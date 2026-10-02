@@ -175,3 +175,47 @@ will inherit them unless Phase 1 revisits them):
 
 Not yet: capabilities passed in messages (grant), and scheduling-context
 donation (only the run/blocked state is modelled, as planned).
+
+### Work item 3: notifications, no-senders, dead names (2026-10-02)
+
+`model/src/notify.c`. Notification objects (a 64-bit word plus a waiter
+queue), `Signal` and `Wait`, endpoint death, per-badge send accounting with
+no-senders firing (I4), and dead-name registrations (I5). Every capability
+creation and deletion now goes through two hooks (`joist__cap_added`,
+`joist__cap_removed`), so the receive counts and badge accounts can't drift
+from the capability tables. `joist_check_invariants` verifies both against
+a full recount.
+
+**A correction to work item 2's model.** An endpoint used to die with its last
+capability of any kind. Then nobody could ever hold a capability to a dead
+endpoint, and Mach's dead names couldn't exist. An endpoint now **dies when
+its last capability with RECV is deleted** (the server is gone). Remaining
+send capabilities then fail with `JOIST_E_GONE`, and the memory goes with the
+last capability. Since derive can't add RECV (I8), death is permanent. The IPC
+shadow was updated to the new rule.
+
+| Check | Result |
+|---|---|
+| Unit tests (`test/test_notify.c`) | 14 tests: a signal before a wait is kept and a signal is never delivered twice (I2), waiters, rights/badge/type, timeouts, a freed notification waking its waiters, no-senders firing exactly once on the last sender, badges independent, non-senders not counted (I4), a full accounting table failing only `mint`, endpoint death with send capabilities remaining, dead names firing once (I5), registration errors, bindings dropped with their notification, no-senders silent after death |
+| Property test (`test/test_props_notify.c`) | 200 seeds × 2 000 steps against a shadow that predicts every word, waiter queue, endpoint death, no-senders firing and dead-name firing, in the model's order of effects within a delete; teardown must leave no object, account or registration. Per run: ~310 no-senders firings, ~330 dead-name firings, ~9 900 endpoint deaths, ~9 700 notifications freed |
+| Small-capacity build (`make small`, new in `make check`) | the same tests with 32 objects, 8 threads, 4 badge accounts and 4 dead-name entries, under ASan + UBSan, so exhaustion paths are hit constantly (accounting-full mints, object and thread table exhaustion). Dead-name table exhaustion is covered by a unit test only; the property runs don't fill it |
+| `make mutate` | 22 of 22 caught, including 9 new: bits lost or delivered twice (I2); no-senders never firing, firing early, or firing after death (I4); an endpoint that never dies, a dead name firing repeatedly, a dead endpoint still usable (I5); a binding left dangling. Two IPC mutations whose target text had been refactored away were re-targeted, which is what the "text not found" check is for |
+| `make check` | 45 tests under plain, ASan, UBSan, MSan, TSan and small |
+
+**Semantics the model chose** (to revisit in Phase 1, or carry into `docs/abi.md`):
+
+1. **Endpoint death is receive-side** (above).
+2. **`Signal` ORs the capability's badge** into the word, seL4 style; an
+   unbadged signal is refused. Who signalled is therefore unforgeable (I7).
+3. **No-senders signals the client's badge value.** For a server to tell its
+   clients apart this way, badges must be distinct bits or bit groups of the
+   notification word. That ties 0001's item 2 (badge width) to item 3
+   (notification width), and is the strongest argument yet for settling them
+   together.
+4. **No-senders tracks badged send capabilities only.** Unbadged senders aren't
+   distinguishable, so there is nothing to report about them.
+5. **Accounts are allocated only by `mint`**; derive and delete never allocate.
+   A full table fails the mint and changes nothing.
+6. **A dead-name request on an already dead endpoint returns `JOIST_E_GONE`**
+   rather than firing at once.
+7. **`Wait` is refused while holding a reply capability**, as `Recv` is.

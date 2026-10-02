@@ -179,6 +179,54 @@ static joist_err sh_create_rc(uint32_t cs, uint8_t type, uint32_t dst)
     return sh_live < JOIST_MAX_OBJECTS ? JOIST_OK : JOIST_E_NOMEM;
 }
 
+/* Does some shadow capability already hold SEND with this (object, badge)?
+ * And how many distinct such pairs exist? Together they predict whether mint
+ * needs a new no-senders account and whether the table is full (I4). */
+static int sh_pair_exists(uint32_t obj, joist_badge badge)
+{
+    for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
+        for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+            const struct sh_cap *x = &sh_cs[c].slot[i];
+            if (x->present && x->obj == obj && x->badge == badge && x->badge != 0 &&
+                x->type == JOIST_OBJ_ENDPOINT && (x->rights & JOIST_R_SEND) != 0) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static uint32_t sh_pair_count(void)
+{
+    uint32_t n = 0;
+    for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
+        for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+            const struct sh_cap *x = &sh_cs[c].slot[i];
+            if (!x->present || x->badge == 0 || x->type != JOIST_OBJ_ENDPOINT ||
+                (x->rights & JOIST_R_SEND) == 0) {
+                continue;
+            }
+            /* count each (obj, badge) pair once: at its first occurrence */
+            int first = 1;
+            for (uint32_t c2 = 0; c2 <= c && first; c2++) {
+                for (uint32_t i2 = 0; i2 < JOIST_CSPACE_SLOTS; i2++) {
+                    if (c2 == c && i2 >= i) {
+                        break;
+                    }
+                    const struct sh_cap *y = &sh_cs[c2].slot[i2];
+                    if (y->present && y->obj == x->obj && y->badge == x->badge &&
+                        y->type == JOIST_OBJ_ENDPOINT && (y->rights & JOIST_R_SEND) != 0) {
+                        first = 0;
+                        break;
+                    }
+                }
+            }
+            n += (uint32_t)first;
+        }
+    }
+    return n;
+}
+
 static joist_err sh_copy(uint32_t cs, uint32_t src, uint32_t dst, joist_rights mask, int mint,
                          joist_badge badge)
 {
@@ -202,6 +250,10 @@ static joist_err sh_copy(uint32_t cs, uint32_t src, uint32_t dst, joist_rights m
         }
         if (from->badge != 0 || badge == 0) {
             return JOIST_E_BADGE;
+        }
+        if (from->type == JOIST_OBJ_ENDPOINT && (from->rights & mask & JOIST_R_SEND) != 0 &&
+            !sh_pair_exists(from->obj, badge) && sh_pair_count() >= JOIST_MAX_BADGE_ACCTS) {
+            return JOIST_E_NOMEM;
         }
     }
     struct sh_cap to = *from;

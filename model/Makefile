@@ -6,6 +6,7 @@
 #   make ubsan      ... under UndefinedBehaviorSanitizer (traps, no recovery)
 #   make msan       ... under MemorySanitizer
 #   make tsan       ... under ThreadSanitizer
+#   make small      ... with tiny capacities (exhaustion paths), under ASan + UBSan
 #   make check      all of the above: the Phase 1 bar is "every test, every sanitizer"
 #   make sanity     prove each sanitizer is live: a known-bad program must be caught
 #   make mutate     prove the property tests catch each bug in test/mutations.txt
@@ -36,11 +37,15 @@ BUILD    := build
 STAMP    := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(SRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(SRC) $(TESTS)' > $(STAMP))
 
-SANITIZERS := asan ubsan msan tsan
+SANITIZERS := asan ubsan msan tsan small
 SAN_asan  := -fsanitize=address
 SAN_ubsan := -fsanitize=undefined -fsanitize-trap=undefined
 SAN_msan  := -fsanitize=memory -fsanitize-memory-track-origins
 SAN_tsan  := -fsanitize=thread
+# Tiny capacities, so every table-exhaustion path (objects, threads, no-senders
+# accounts, dead-name registrations) is hit constantly; with ASan and UBSan.
+SAN_small := -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u \
+             -DJOIST_MAX_DEADNAMES=4u -fsanitize=address,undefined -fsanitize-trap=undefined
 
 .PHONY: all test check sanity mutate format clean $(SANITIZERS)
 

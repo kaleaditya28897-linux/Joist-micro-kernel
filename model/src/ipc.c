@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static uint64_t deadline_of(const struct joist_kernel *k, uint64_t timeout)
+uint64_t joist__deadline(const struct joist_kernel *k, uint64_t timeout)
 {
     if (timeout == JOIST_FOREVER || k->now > JOIST_FOREVER - timeout) {
         return JOIST_FOREVER;
@@ -25,7 +25,7 @@ static joist_err running(const struct joist_kernel *k, joist_thread t)
     return k->th[t].state == JOIST_T_RUNNING ? JOIST_OK : JOIST_E_STATE;
 }
 
-static void wake(struct joist_kernel *k, uint32_t t, joist_err result)
+void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
 {
     struct joist_thread_rec *r = &k->th[t];
     r->state = JOIST_T_RUNNING;
@@ -36,7 +36,7 @@ static void wake(struct joist_kernel *k, uint32_t t, joist_err result)
 
 /* ---- endpoint queues: doubly linked through thread records, O(1) ---- */
 
-static void q_push(struct joist_kernel *k, uint32_t obj, joist_queue_kind kind, uint32_t t)
+void joist__q_push(struct joist_kernel *k, uint32_t obj, joist_queue_kind kind, uint32_t t)
 {
     struct joist_object *e = &k->obj[obj];
     struct joist_thread_rec *r = &k->th[t];
@@ -74,7 +74,7 @@ static void q_remove(struct joist_kernel *k, uint32_t t)
     r->qnext = 0;
 }
 
-static uint32_t q_pop(struct joist_kernel *k, uint32_t obj)
+uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj)
 {
     uint32_t t = k->obj[obj].qhead - 1u;
     q_remove(k, t);
@@ -98,6 +98,9 @@ static joist_err ep_lookup(const struct joist_kernel *k, joist_thread t, joist_s
     }
     if ((c->rights & need) == 0) {
         return JOIST_E_RIGHTS;
+    }
+    if (k->obj[c->obj - 1u].dead) {
+        return JOIST_E_GONE; /* I5: the server is gone; every use fails */
     }
     *obj = c->obj - 1u;
     *badge = c->badge;
@@ -151,14 +154,15 @@ joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t)
     if (r->state == JOIST_T_FREE) {
         return JOIST_E_STATE;
     }
-    if (r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV) {
+    if (r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
+        r->state == JOIST_T_BLOCKED_WAIT) {
         q_remove(k, t);
     }
     /* A server dying with a reply capability wakes its caller (I6, I10). */
     if (r->reply_to != 0) {
         uint32_t c = r->reply_to - 1u;
         if (k->th[c].state == JOIST_T_BLOCKED_REPLY && k->th[c].call_seq == r->reply_seq) {
-            wake(k, c, JOIST_E_PEER);
+            joist__wake(k, c, JOIST_E_PEER);
         }
     }
     uint32_t seq = r->call_seq + 1u; /* invalidates reply capabilities naming t */
@@ -176,11 +180,11 @@ void joist__threads_destroy_owned(struct joist_kernel *k, joist_cspace cs)
     }
 }
 
-void joist__endpoint_destroyed(struct joist_kernel *k, uint32_t obj_index)
+void joist__queue_wake_all(struct joist_kernel *k, uint32_t obj, joist_err r)
 {
-    while (k->obj[obj_index].qhead != 0) {
-        uint32_t t = q_pop(k, obj_index);
-        wake(k, t, JOIST_E_GONE);
+    while (k->obj[obj].qhead != 0) {
+        uint32_t t = joist__q_pop(k, obj);
+        joist__wake(k, t, r);
     }
 }
 
@@ -206,12 +210,12 @@ static joist_err do_send(struct joist_kernel *k, joist_thread t, joist_slot slot
     struct joist_object *ep = &k->obj[obj];
     struct joist_thread_rec *me = &k->th[t];
     if (ep->qkind == JOIST_Q_RECEIVERS) {
-        uint32_t r = q_pop(k, obj);
+        uint32_t r = joist__q_pop(k, obj);
         k->th[r].msg = *m;
         k->th[r].badge = badge; /* I7: the badge of the capability used */
-        wake(k, r, JOIST_OK);
+        joist__wake(k, r, JOIST_OK);
         if (is_call) {
-            me->deadline = deadline_of(k, timeout);
+            me->deadline = joist__deadline(k, timeout);
             mint_reply(k, r, t);
             return JOIST_BLOCKED;
         }
@@ -224,8 +228,8 @@ static joist_err do_send(struct joist_kernel *k, joist_thread t, joist_slot slot
     me->badge = badge;
     me->is_call = (uint8_t)(is_call != 0);
     me->state = JOIST_T_BLOCKED_SEND;
-    me->deadline = deadline_of(k, timeout);
-    q_push(k, obj, JOIST_Q_SENDERS, t);
+    me->deadline = joist__deadline(k, timeout);
+    joist__q_push(k, obj, JOIST_Q_SENDERS, t);
     return JOIST_BLOCKED;
 }
 
@@ -260,14 +264,14 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         return e;
     }
     if (k->obj[obj].qkind == JOIST_Q_SENDERS) {
-        uint32_t s = q_pop(k, obj);
+        uint32_t s = joist__q_pop(k, obj);
         me->msg = k->th[s].msg;
         me->badge = k->th[s].badge;
         me->result = JOIST_OK;
         if (k->th[s].is_call) {
             mint_reply(k, t, s);
         } else {
-            wake(k, s, JOIST_OK);
+            joist__wake(k, s, JOIST_OK);
         }
         return JOIST_OK;
     }
@@ -275,8 +279,8 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         return JOIST_E_TIMEOUT;
     }
     me->state = JOIST_T_BLOCKED_RECV;
-    me->deadline = deadline_of(k, timeout);
-    q_push(k, obj, JOIST_Q_RECEIVERS, t);
+    me->deadline = joist__deadline(k, timeout);
+    joist__q_push(k, obj, JOIST_Q_RECEIVERS, t);
     return JOIST_BLOCKED;
 }
 
@@ -299,7 +303,7 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
     }
     k->th[c].msg = *m;
     k->th[c].badge = 0;
-    wake(k, c, JOIST_OK);
+    joist__wake(k, c, JOIST_OK);
     return JOIST_OK;
 }
 
@@ -325,12 +329,13 @@ void joist_tick(struct joist_kernel *k, uint64_t dt)
             r->deadline == JOIST_FOREVER || r->deadline > k->now) {
             continue;
         }
-        if (r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV) {
+        if (r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
+            r->state == JOIST_T_BLOCKED_WAIT) {
             q_remove(k, i);
         }
         /* A caller timing out in BLOCKED_REPLY leaves the server's reply
          * capability stale; its Reply then returns JOIST_E_PEER. */
-        wake(k, i, JOIST_E_TIMEOUT);
+        joist__wake(k, i, JOIST_E_TIMEOUT);
     }
 }
 
@@ -351,11 +356,16 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
 
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
         const struct joist_object *e = &k->obj[o];
-        if (e->type != JOIST_OBJ_ENDPOINT) {
+        if (e->type != JOIST_OBJ_ENDPOINT && e->type != JOIST_OBJ_NOTIFICATION) {
             if (e->qkind != JOIST_Q_NONE || e->qhead != 0 || e->qtail != 0) {
-                VIOLATION("IPC: non-endpoint object %u has a queue", o);
+                VIOLATION("IPC: object %u has a queue but takes no waiters", o);
             }
             continue;
+        }
+        if ((e->type == JOIST_OBJ_NOTIFICATION && e->qkind != JOIST_Q_NONE &&
+             e->qkind != JOIST_Q_WAITERS) ||
+            (e->type == JOIST_OBJ_ENDPOINT && e->qkind == JOIST_Q_WAITERS)) {
+            VIOLATION("IPC: object %u type %u has queue kind %u", o, e->type, e->qkind);
         }
         if ((e->qhead == 0) != (e->qkind == JOIST_Q_NONE) || (e->qhead == 0) != (e->qtail == 0)) {
             VIOLATION("IPC: endpoint %u queue head/tail/kind inconsistent", o);
@@ -364,7 +374,9 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
         uint32_t prev = 0;
         uint32_t cur = e->qhead;
         uint32_t steps = 0;
-        uint8_t want = e->qkind == JOIST_Q_SENDERS ? JOIST_T_BLOCKED_SEND : JOIST_T_BLOCKED_RECV;
+        uint8_t want = e->qkind == JOIST_Q_SENDERS     ? JOIST_T_BLOCKED_SEND
+                       : e->qkind == JOIST_Q_RECEIVERS ? JOIST_T_BLOCKED_RECV
+                                                       : JOIST_T_BLOCKED_WAIT;
         while (cur != 0) {
             if (cur > JOIST_MAX_THREADS || ++steps > JOIST_MAX_THREADS) {
                 VIOLATION("IPC: endpoint %u queue is corrupt or cyclic", o);
@@ -394,13 +406,15 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
         if (r->cs >= JOIST_MAX_CSPACES || !k->cs[r->cs].live) {
             VIOLATION("I1: thread %u is owned by dead space %u", t, r->cs);
         }
-        int queued = r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV;
+        int queued = r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
+                     r->state == JOIST_T_BLOCKED_WAIT;
         if (queued != (seen_in_queue[t] == 1) || seen_in_queue[t] > 1) {
             VIOLATION("IPC: thread %u state %u but found in %u queue(s)", t, r->state,
                       seen_in_queue[t]);
         }
-        if (r->state == JOIST_T_BLOCKED_RECV && r->reply_to != 0) {
-            VIOLATION("I10: thread %u receives while holding a reply capability", t);
+        if ((r->state == JOIST_T_BLOCKED_RECV || r->state == JOIST_T_BLOCKED_WAIT) &&
+            r->reply_to != 0) {
+            VIOLATION("I10: thread %u waits while holding a reply capability", t);
         }
         if (r->state == JOIST_T_BLOCKED_REPLY) {
             /* I6/I10: exactly one valid reply capability names a waiting caller,

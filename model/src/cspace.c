@@ -62,9 +62,7 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
     struct joist_object *o = &k->obj[obj_index];
     o->refs--;
     if (o->refs == 0) {
-        if (o->type == JOIST_OBJ_ENDPOINT) {
-            joist__endpoint_destroyed(k, obj_index); /* waiters wake with E_GONE */
-        }
+        joist__object_freed(k, obj_index); /* waiters wake; kernel references dropped */
         struct joist_cspace_state *donor = &k->cs[o->donor];
         donor->charged--;
         if (donor->live) {
@@ -75,6 +73,10 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
         o->qkind = JOIST_Q_NONE;
         o->qhead = 0;
         o->qtail = 0;
+        o->recv_caps = 0;
+        o->dead = 0;
+        o->ns_notif = 0;
+        o->word = 0;
         k->objects_live--;
     }
 }
@@ -117,6 +119,7 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
             k->objects_live++;
             s->slot[dst] = (struct joist_cap){
                 .obj = i + 1u, .type = (uint8_t)type, .rights = full_rights(type), .badge = 0};
+            joist__cap_added(k, &s->slot[dst]);
             return JOIST_OK;
         }
     }
@@ -154,9 +157,19 @@ static joist_err copy_cap(struct joist_kernel *k, joist_cspace cs, joist_slot sr
     to.rights = (joist_rights)(from->rights & mask); /* I8: a subset, never more */
     if (set_badge) {
         to.badge = badge;
+        /* The first send capability for a new badge needs its no-senders
+         * account (I4). Allocated here and only here, before anything is
+         * changed, so a full table fails the mint cleanly. */
+        if (to.type == JOIST_OBJ_ENDPOINT && (to.rights & JOIST_R_SEND) != 0) {
+            joist_err r = joist__acct_reserve(k, from->obj - 1u, badge);
+            if (r != JOIST_OK) {
+                return r;
+            }
+        }
     }
     k->obj[from->obj - 1u].refs++;
     s->slot[dst] = to;
+    joist__cap_added(k, &s->slot[dst]);
     return JOIST_OK;
 }
 
@@ -186,9 +199,10 @@ joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot s
     if (c->obj == 0) {
         return JOIST_E_EMPTY;
     }
-    uint32_t obj_index = c->obj - 1u;
+    struct joist_cap gone = *c;
     memset(c, 0, sizeof *c);
-    obj_unref(k, obj_index);
+    joist__cap_removed(k, &gone); /* may fire no-senders or kill the endpoint */
+    obj_unref(k, gone.obj - 1u);
     return JOIST_OK;
 }
 
@@ -304,7 +318,8 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
         }
     }
 #undef VIOLATION
-    return bad + joist__check_ipc(k, msg, msglen, bad == 0);
+    unsigned ipc = joist__check_ipc(k, msg, msglen, bad == 0);
+    return bad + ipc + joist__check_notify(k, msg, msglen, bad + ipc == 0);
 }
 
 const char *joist_err_name(joist_err e)
