@@ -1,0 +1,10 @@
+# Mutation list for `make mutate`: each line is
+#   name @@ file @@ text to find @@ replacement   (`@@` because C code contains `|`)
+# Every mutation must make the property tests fail. One that survives means
+# the tests no longer check what this line says they check.
+I8 rights grow     @@ src/cspace.c @@ to.rights = (joist_rights)(from->rights & mask); @@ to.rights = mask;
+I1 refcount        @@ src/cspace.c @@     k->obj[from->obj - 1u].refs++; @@     /* mutated */
+I3 refund          @@ src/cspace.c @@             donor->quota++; @@             /* mutated */;
+I7 rebadge         @@ src/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ if (badge == 0) {
+I1 destroy leaks   @@ src/cspace.c @@             (void)joist_cap_delete(k, cs, i); @@             /* mutated */;
+I3 quota ignored   @@ src/cspace.c @@     if (s->quota == 0) { @@     if (0) {

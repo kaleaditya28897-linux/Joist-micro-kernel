@@ -8,6 +8,7 @@
 #   make tsan       ... under ThreadSanitizer
 #   make check      all of the above: the Phase 1 bar is "every test, every sanitizer"
 #   make sanity     prove each sanitizer is live: a known-bad program must be caught
+#   make mutate     prove the property tests catch each bug in test/mutations.txt
 #   make format     clang-format the model's sources in place
 #   make clean
 
@@ -41,7 +42,7 @@ SAN_ubsan := -fsanitize=undefined -fsanitize-trap=undefined
 SAN_msan  := -fsanitize=memory -fsanitize-memory-track-origins
 SAN_tsan  := -fsanitize=thread
 
-.PHONY: all test check sanity format clean $(SANITIZERS)
+.PHONY: all test check sanity mutate format clean $(SANITIZERS)
 
 all: test
 
@@ -68,6 +69,10 @@ check: test $(SANITIZERS)
 # sanitizer can never make `make check` pass vacuously.
 sanity:
 	@sh test/sanitizer-sanity.sh "$(CC)"
+
+# Each listed bug, injected into a scratch copy, must fail the property tests.
+mutate:
+	@sh test/mutate.sh "$(CC)"
 
 format:
 	clang-format --style=file:../.clang-format -i $(SRC) $(TESTS) $(RUNNER) \

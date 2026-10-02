@@ -112,3 +112,26 @@ style is `/.clang-format`), Java 11 (enough for the TLA+ tools).
 | `ld.lld`, `llvm-ar`, `llvm-objdump` | §13 toolchain; not needed by the host model, needed from Phase 2 |
 
 These are workstation packages, to be installed by the project owner.
+
+## Progress
+
+### Work item 1: capability space and derivation (2026-10-02)
+
+`model/include/joist/model.h`, `model/src/cspace.c`. Capability spaces
+(a flat array for now; 0001 item 4 is still open), objects reference-counted by
+the capabilities naming them, per-space object quotas charged to the
+creator and refunded on destruction, `derive` (rights masked), `mint`
+(requires GRANT on an unbadged source; badges immutable), `delete`, and
+`cspace_destroy`. All state is in one caller-provided struct; no `malloc`.
+
+| Check | Result |
+|---|---|
+| Unit tests (`test/test_cspace.c`) | 10 tests, every operation and error path |
+| Property test (`test/test_props_cspace.c`) | 200 seeds × 2 000 steps: model and an independent shadow agree on every return code and the whole state after every step; `joist_check_invariants` clean throughout. Covers I1, I3, I7, I8 |
+| Coverage (printed by the run) | every operation reaches success and each of its error codes; the generator is biased to occupied slots so that deep states (many capabilities to one object) are built: ~50 000 successful derives per run |
+| `make mutate` (`test/mutations.txt`) | 6 of 6 injected bugs caught, each within the first seed: rights growing (I8), a missing reference count (I1), a missing quota refund (I3), re-badging (I7), a destroyed space leaking objects (I1), quota ignored (I3) |
+| `make check` | all tests under plain, ASan, UBSan, MSan and TSan |
+
+Not yet: **revoke** (needs a derivation tree; 0003 lets it block the caller,
+so it gets its own step), and transfer of capabilities between spaces
+(comes with IPC, work item 2).

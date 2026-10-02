@@ -5,8 +5,9 @@ notifications, lifetime notifications) as a C17 library, tested on the host
 under every sanitizer. Scope, invariants (I1–I10) and order of work:
 `docs/phase1-plan.md`.
 
-**State:** scaffold only. `src/` and `include/joist/` are empty; the test
-harness and the build are in place and verified.
+**State:** Phase 1 work item 1 (capability spaces, objects, derive/mint/
+delete, quotas) is implemented and property-tested. Progress is tracked in
+`docs/phase1-plan.md` under *Progress*.
 
 ## Build and test
 
@@ -14,6 +15,7 @@ harness and the build are in place and verified.
 make            # build and run the tests (plain)
 make check      # the same tests under plain, ASan, UBSan, MSan and TSan
 make sanity     # prove each sanitizer is live: a seeded bug must be caught
+make mutate     # prove the property tests catch each bug in test/mutations.txt
 make format     # clang-format in place (style: ../.clang-format)
 ```
 
@@ -32,6 +34,11 @@ the sanitizer's.
 | `test/harness.[ch]` | minimal in-tree test harness (`JT_TEST`, `JT_CHECK`, `JT_REQUIRE`) |
 | `test/test_*.c` | tests; picked up automatically |
 | `test/sanitizer-sanity.sh` | the sanitizer liveness check |
+| `test/test_props_*.c` | property tests: seeded random operations against a shadow model |
+| `test/mutations.txt`, `test/mutate.sh` | injected bugs the property tests must catch |
+
+Property tests take `JOIST_PROP_SEEDS`, `JOIST_PROP_STEPS` and, to replay a
+reported failure, `JOIST_PROP_SEED`.
 
 ## Rules for `src/`
 
