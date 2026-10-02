@@ -25,6 +25,16 @@
 #ifndef JOIST_CSPACE_SLOTS
 #define JOIST_CSPACE_SLOTS 64u
 #endif
+#ifndef JOIST_MAX_THREADS
+#define JOIST_MAX_THREADS 32u
+#endif
+/* Message registers: 0001's open item 1 (number and width). */
+#ifndef JOIST_MSG_REGS
+#define JOIST_MSG_REGS 4u
+#endif
+
+/* Timeout meaning "no deadline". 0 means "do not block". */
+#define JOIST_FOREVER UINT64_MAX
 
 typedef enum {
     JOIST_OK = 0,
@@ -35,7 +45,15 @@ typedef enum {
     JOIST_E_NOMEM,    /* quota or object table exhausted (I3: never blocks) */
     JOIST_E_BADGE,    /* badge already set, or badge value invalid */
     JOIST_E_TYPE,     /* wrong object type for the operation */
-    JOIST_E_DEAD      /* the capability space has been destroyed */
+    JOIST_E_DEAD,     /* the capability space has been destroyed */
+    JOIST_E_TIMEOUT,  /* a blocking operation's deadline passed */
+    JOIST_E_GONE,     /* the endpoint was destroyed while the thread waited (I10) */
+    JOIST_E_PEER,     /* the peer of a call is gone: server died holding the reply
+                         capability, or the caller stopped waiting (I6, I10) */
+    JOIST_E_NOREPLY,  /* Reply without a reply capability (I6: single use) */
+    JOIST_E_STATE,    /* thread is not running, or holds an unused reply capability */
+    JOIST_BLOCKED     /* not an error: the thread is now blocked; the outcome is
+                         left in its record when it wakes */
 } joist_err;
 
 typedef enum { JOIST_OBJ_NONE = 0, JOIST_OBJ_ENDPOINT, JOIST_OBJ_NOTIFICATION } joist_obj_type;
@@ -68,6 +86,47 @@ struct joist_object {
     uint8_t type;   /* joist_obj_type; JOIST_OBJ_NONE = free */
     uint32_t refs;  /* capabilities naming this object, across all spaces (I1) */
     uint32_t donor; /* capability space charged for this object (0004) */
+    /* Endpoints: one FIFO queue of blocked threads, all senders or all
+     * receivers (0001). Thread index plus one; 0 = empty. */
+    uint8_t qkind; /* joist_queue_kind */
+    uint32_t qhead;
+    uint32_t qtail;
+};
+
+typedef enum { JOIST_Q_NONE = 0, JOIST_Q_SENDERS, JOIST_Q_RECEIVERS } joist_queue_kind;
+
+typedef enum {
+    JOIST_T_FREE = 0,
+    JOIST_T_RUNNING,
+    JOIST_T_BLOCKED_SEND, /* queued on an endpoint to send (Send or Call) */
+    JOIST_T_BLOCKED_RECV, /* queued on an endpoint to receive */
+    JOIST_T_BLOCKED_REPLY /* Call delivered; waiting for the server's Reply */
+} joist_thread_state;
+
+struct joist_msg {
+    uint64_t r[JOIST_MSG_REGS];
+};
+
+typedef uint32_t joist_thread;
+
+struct joist_thread_rec {
+    uint8_t state;   /* joist_thread_state */
+    uint8_t is_call; /* while BLOCKED_SEND: the pending send is a Call */
+    uint32_t cs;     /* owning capability space (task stand-in) */
+    uint32_t ep;     /* while queued: endpoint object index plus one */
+    uint32_t qprev;  /* queue links: thread index plus one */
+    uint32_t qnext;
+    uint64_t deadline;    /* JOIST_FOREVER = none */
+    uint32_t call_seq;    /* bumped at each Call; a reply capability names (thread, seq) */
+    struct joist_msg msg; /* outgoing while BLOCKED_SEND; received after delivery */
+    joist_badge badge;    /* while BLOCKED_SEND: the sending capability's badge;
+                             after a receive: the badge delivered (I7) */
+    joist_err result;     /* outcome of the last blocking operation */
+    /* The reply capability this thread holds, if any (I6): the caller's index
+     * plus one and the caller's call_seq at delivery. One per thread, as 0001
+     * describes, not a capability-space slot. */
+    uint32_t reply_to;
+    uint32_t reply_seq;
 };
 
 struct joist_cspace_state {
@@ -80,7 +139,9 @@ struct joist_cspace_state {
 struct joist_kernel {
     struct joist_object obj[JOIST_MAX_OBJECTS];
     struct joist_cspace_state cs[JOIST_MAX_CSPACES];
+    struct joist_thread_rec th[JOIST_MAX_THREADS];
     uint32_t objects_live;
+    uint64_t now; /* model time: advanced only by joist_tick */
 };
 
 /* Lifecycle. */
@@ -112,6 +173,36 @@ joist_err joist_cap_mint(struct joist_kernel *k, joist_cspace cs, joist_slot src
 /* Delete the capability in slot. Deleting the last capability to an object
  * destroys it and refunds its donor. */
 joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
+
+/* ---- threads and IPC (Phase 1 work item 2; I6, I7, I10) ----
+ *
+ * A thread invokes operations only while RUNNING. A blocking operation either
+ * completes at once (JOIST_OK, or an error) or returns JOIST_BLOCKED; the
+ * thread is then blocked, and when it wakes (rendezvous, timeout, peer death)
+ * its record holds the result, message and badge. timeout is relative to
+ * k->now; 0 means "do not block", JOIST_FOREVER means "no deadline". */
+
+/* Create a running thread owned by cs. A fixture until work item 4. */
+joist_err joist_thread_create(struct joist_kernel *k, joist_cspace cs, joist_thread *out);
+
+/* Destroy a thread: dequeue it, and wake its call peer with JOIST_E_PEER if it
+ * held a reply capability. Bounded. */
+joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t);
+
+joist_err joist_send(struct joist_kernel *k, joist_thread t, joist_slot ep,
+                     const struct joist_msg *m, uint64_t timeout);
+joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot ep,
+                     const struct joist_msg *m, uint64_t timeout);
+joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot ep, uint64_t timeout);
+joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist_msg *m);
+/* Reply if a reply capability is held (a caller that stopped waiting is not
+ * an error here), then Recv. */
+joist_err joist_reply_recv(struct joist_kernel *k, joist_thread t, const struct joist_msg *m,
+                           joist_slot ep, uint64_t timeout);
+
+/* Advance model time and expire deadlines (JOIST_E_TIMEOUT). Bounded by
+ * JOIST_MAX_THREADS. */
+void joist_tick(struct joist_kernel *k, uint64_t dt);
 
 /* Read a capability (for tests and the eventual ABI's inspection call). */
 joist_err joist_cap_read(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,

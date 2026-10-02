@@ -8,3 +8,10 @@ I3 refund          @@ src/cspace.c @@             donor->quota++; @@            
 I7 rebadge         @@ src/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ if (badge == 0) {
 I1 destroy leaks   @@ src/cspace.c @@             (void)joist_cap_delete(k, cs, i); @@             /* mutated */;
 I3 quota ignored   @@ src/cspace.c @@     if (s->quota == 0) { @@     if (0) {
+I6 reply reusable    @@ src/ipc.c @@ me->reply_to = 0; /* consumed, whatever happens next (I6) */ @@ /* mutated */
+I10 server death     @@ src/ipc.c @@ wake(k, c, JOIST_E_PEER); @@ (void)c;
+I10 endpoint death   @@ src/cspace.c @@ joist__endpoint_destroyed(k, obj_index); /* waiters wake with E_GONE */ @@ /* mutated */
+I7 badge dropped     @@ src/ipc.c @@ k->th[r].badge = badge; @@ k->th[r].badge = 0;
+timeout late         @@ src/ipc.c @@ r->deadline == JOIST_FOREVER || r->deadline > k->now @@ r->deadline == JOIST_FOREVER || r->deadline >= k->now
+stale reply reuse    @@ src/ipc.c @@             r->call_seq = seq; @@             r->call_seq = seq * 0u;
+I10 recv w/ reply    @@ src/ipc.c @@     if (me->reply_to != 0) { @@     if (0) {

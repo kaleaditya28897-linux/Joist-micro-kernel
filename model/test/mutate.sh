@@ -1,7 +1,7 @@
 #!/bin/sh
 # Mutation check: apply each mutation in test/mutations.txt in turn to a
-# scratch copy of the tree, build, run the property tests, and require a
-# failure. The working tree is never modified.
+# scratch copy of the tree, build, run the whole test suite, and require a
+# failure (property or unit test). The working tree is never modified.
 # usage: mutate.sh CC
 CC=${1:-clang}
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -24,10 +24,10 @@ PY
     if ! make -s -C "$work/t" CC="$CC" build/plain/run-tests > "$work/build.log" 2>&1; then
         echo "STALE  $name: mutant does not build"; echo 1 > "$work/failed"; continue
     fi
-    if "$work/t/build/plain/run-tests" props > "$work/out" 2>&1; then
+    if "$work/t/build/plain/run-tests" > "$work/out" 2>&1; then
         echo "SURVIVED $name"; echo 1 > "$work/failed"
     else
-        echo "caught $name: $(grep -m1 'seed .* step' "$work/out" | sed 's/^ *//' | cut -c1-110)"
+        echo "caught $name: $( (grep -m1 'seed .* step' "$work/out" || grep -m1 'failed:' "$work/out") | sed 's/^ *//' | cut -c1-110)"
     fi
 done
 [ -f "$work/failed" ] && exit 1

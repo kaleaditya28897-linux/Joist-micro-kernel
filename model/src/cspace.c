@@ -3,7 +3,7 @@
  *
  * Every operation here touches a fixed number of slots and objects, except
  * joist_cspace_destroy, which is bounded by JOIST_CSPACE_SLOTS (I9). */
-#include "joist/model.h"
+#include "internal.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -62,6 +62,9 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
     struct joist_object *o = &k->obj[obj_index];
     o->refs--;
     if (o->refs == 0) {
+        if (o->type == JOIST_OBJ_ENDPOINT) {
+            joist__endpoint_destroyed(k, obj_index); /* waiters wake with E_GONE */
+        }
         struct joist_cspace_state *donor = &k->cs[o->donor];
         donor->charged--;
         if (donor->live) {
@@ -69,6 +72,9 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
         }
         o->type = JOIST_OBJ_NONE;
         o->donor = 0;
+        o->qkind = JOIST_Q_NONE;
+        o->qhead = 0;
+        o->qtail = 0;
         k->objects_live--;
     }
 }
@@ -193,6 +199,8 @@ joist_err joist_cspace_destroy(struct joist_kernel *k, joist_cspace cs)
     if (e != JOIST_OK) {
         return e;
     }
+    /* Threads first: they may hold reply capabilities whose callers must wake. */
+    joist__threads_destroy_owned(k, cs);
     for (joist_slot i = 0; i < JOIST_CSPACE_SLOTS; i++) {
         if (s->slot[i].obj != 0) {
             (void)joist_cap_delete(k, cs, i);
@@ -296,7 +304,7 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
         }
     }
 #undef VIOLATION
-    return bad;
+    return bad + joist__check_ipc(k, msg, msglen, bad == 0);
 }
 
 const char *joist_err_name(joist_err e)
@@ -320,6 +328,18 @@ const char *joist_err_name(joist_err e)
         return "E_TYPE";
     case JOIST_E_DEAD:
         return "E_DEAD";
+    case JOIST_E_TIMEOUT:
+        return "E_TIMEOUT";
+    case JOIST_E_GONE:
+        return "E_GONE";
+    case JOIST_E_PEER:
+        return "E_PEER";
+    case JOIST_E_NOREPLY:
+        return "E_NOREPLY";
+    case JOIST_E_STATE:
+        return "E_STATE";
+    case JOIST_BLOCKED:
+        return "BLOCKED";
     default:
         return "E_?";
     }

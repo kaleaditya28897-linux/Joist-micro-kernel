@@ -135,3 +135,43 @@ creator and refunded on destruction, `derive` (rights masked), `mint`
 Not yet: **revoke** (needs a derivation tree; 0003 lets it block the caller,
 so it gets its own step), and transfer of capabilities between spaces
 (comes with IPC, work item 2).
+
+### Work item 2: endpoints and synchronous IPC (2026-10-02)
+
+`model/src/ipc.c`. Threads (a minimal table owned by a capability space, a
+fixture until work item 4), endpoint queues (one FIFO, senders or receivers,
+never both; doubly linked through thread records for O(1) removal),
+`Send`/`Call`/`Recv`/`Reply`/`ReplyRecv`, model time with `joist_tick`, and
+peer death. A blocking operation either completes at once or returns
+`JOIST_BLOCKED`; the woken thread's record holds the outcome.
+
+| Check | Result |
+|---|---|
+| Unit tests (`test/test_ipc.c`) | 15 tests: both rendezvous orders, `Call`/`Reply` both orders, single-use reply (I6), badge delivery (I7), rights/type/range errors, timeout 0, expiry exactly at the deadline, a caller's timeout leaving the reply stale, endpoint destruction and server death waking waiters (I10), FIFO order, stale replies not reaching a reused thread slot, space destruction taking its threads |
+| Property test (`test/test_props_ipc.c`) | 200 seeds × 2 000 steps of random IPC, ticks, thread churn and endpoint deletion against an independent shadow of the queue and reply rules: return codes, every thread field and every queue's order agree after every step. At the end of each seed all deadlines are run out (nothing with a deadline may still be blocked, I10), then every space is destroyed (no thread or object may survive, I1) |
+| Coverage | every return path of every operation; wake-ups by reason: rendezvous ~11 000, timeout ~23 000, endpoint destroyed (`E_GONE`) ~2 000, server death (`E_PEER`) ~370 |
+| `make mutate` | 13 of 13 caught: the 6 capability mutations plus a reusable reply capability (I6), server death not waking the caller (I10), endpoint destruction not waking waiters (I10), a dropped badge (I7), timeouts one tick late, a reused thread slot resetting its call sequence, and `Recv` allowed while holding a reply. `make mutate` now runs the whole suite, so a unit test catching a mutation counts |
+| `make check` | 30 tests under plain, ASan, UBSan, MSan and TSan |
+
+**Semantics the model had to choose** (0001 doesn't fix them; `docs/abi.md`
+will inherit them unless Phase 1 revisits them):
+
+1. **The reply capability is per thread** (one per server thread), not a
+   capability-space slot. A server thread therefore holds at most one
+   outstanding reply. Hurd servers answer each request on the thread that
+   received it, so that suffices for now; deferred replies would need reply
+   capabilities in slots.
+2. **`Recv` while holding an unused reply capability is refused**
+   (`JOIST_E_STATE`). Overwriting it would strand the caller; `ReplyRecv`
+   replies first.
+3. **A `Call`'s timeout covers the whole call**, send and reply wait. A
+   `Call` with timeout 0 is refused (`JOIST_E_TIMEOUT`), since a call always
+   waits.
+4. **A reply to a caller that stopped waiting** (timed out, or destroyed)
+   returns `JOIST_E_PEER` and still consumes the reply capability.
+5. **A reply capability names (thread slot, call sequence),** and the
+   sequence survives the slot's reuse, so a stale reply can never reach a new
+   thread in the same slot.
+
+Not yet: capabilities passed in messages (grant), and scheduling-context
+donation (only the run/blocked state is modelled, as planned).
