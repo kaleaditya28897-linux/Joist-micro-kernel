@@ -16,6 +16,9 @@ static joist_rights full_rights(joist_obj_type t)
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
     case JOIST_OBJ_NOTIFICATION:
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
+    case JOIST_OBJ_TASK:
+    case JOIST_OBJ_THREAD:
+        return (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT);
     case JOIST_OBJ_NONE:
     default:
         return 0;
@@ -49,6 +52,7 @@ joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspa
             memset(s, 0, sizeof *s);
             s->live = 1;
             s->quota = quota;
+            k->budget += quota; /* fixture quota enters from nothing (I3) */
             *out = i;
             return JOIST_OK;
         }
@@ -62,14 +66,18 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
     struct joist_object *o = &k->obj[obj_index];
     o->refs--;
     if (o->refs == 0) {
-        joist__object_freed(k, obj_index); /* waiters wake; kernel references dropped */
+        joist__object_freed(k, obj_index);    /* waiters wake; kernel references dropped */
+        joist__lifecycle_freed(k, obj_index); /* an unreachable task or thread goes too */
         struct joist_cspace_state *donor = &k->cs[o->donor];
         donor->charged--;
         if (donor->live) {
             donor->quota++;
+        } else {
+            k->budget--; /* a dead parentless donor: the unit leaves (I3) */
         }
         o->type = JOIST_OBJ_NONE;
         o->donor = 0;
+        o->target = 0;
         o->qkind = JOIST_Q_NONE;
         o->qhead = 0;
         o->qtail = 0;
@@ -97,7 +105,8 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
     if (slot_check(dst) != JOIST_OK) {
         return JOIST_E_RANGE;
     }
-    if (full_rights(type) == 0) {
+    /* Tasks and threads have their own constructors (task.c). */
+    if (full_rights(type) == 0 || type == JOIST_OBJ_TASK || type == JOIST_OBJ_THREAD) {
         return JOIST_E_TYPE;
     }
     if (s->slot[dst].obj != 0) {
@@ -185,6 +194,49 @@ joist_err joist_cap_mint(struct joist_kernel *k, joist_cspace cs, joist_slot src
     return copy_cap(k, cs, src, dst, mask, 1, badge);
 }
 
+joist_err joist__cap_grant(struct joist_kernel *k, joist_cspace from, joist_slot src,
+                           joist_cspace to, joist_slot dst, joist_rights mask)
+{
+    struct joist_cspace_state *fs;
+    struct joist_cspace_state *ts;
+    joist_err e = get_space(k, from, &fs);
+    if (e == JOIST_OK) {
+        e = get_space(k, to, &ts);
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (slot_check(src) != JOIST_OK || slot_check(dst) != JOIST_OK) {
+        return JOIST_E_RANGE;
+    }
+    const struct joist_cap *c = &fs->slot[src];
+    if (c->obj == 0) {
+        return JOIST_E_EMPTY;
+    }
+    if ((c->rights & JOIST_R_GRANT) == 0) {
+        return JOIST_E_RIGHTS;
+    }
+    if (ts->slot[dst].obj != 0) {
+        return JOIST_E_OCCUPIED;
+    }
+    /* Same object and badge, so any no-senders account already exists. */
+    struct joist_cap copy = *c;
+    copy.rights = (joist_rights)(c->rights & mask); /* I8 */
+    k->obj[c->obj - 1u].refs++;
+    ts->slot[dst] = copy;
+    joist__cap_added(k, &ts->slot[dst]);
+    return JOIST_OK;
+}
+
+void joist__cap_delete_slot(struct joist_kernel *k, uint32_t s, joist_slot slot)
+{
+    struct joist_cap *c = &k->cs[s].slot[slot];
+    struct joist_cap gone = *c;
+    memset(c, 0, sizeof *c);
+    joist__cap_removed(k, &gone); /* may fire no-senders or kill the endpoint */
+    obj_unref(k, gone.obj - 1u);  /* may queue an unreachable task */
+}
+
 joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot slot)
 {
     struct joist_cspace_state *s;
@@ -195,14 +247,11 @@ joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot s
     if (slot_check(slot) != JOIST_OK) {
         return JOIST_E_RANGE;
     }
-    struct joist_cap *c = &s->slot[slot];
-    if (c->obj == 0) {
+    if (s->slot[slot].obj == 0) {
         return JOIST_E_EMPTY;
     }
-    struct joist_cap gone = *c;
-    memset(c, 0, sizeof *c);
-    joist__cap_removed(k, &gone); /* may fire no-senders or kill the endpoint */
-    obj_unref(k, gone.obj - 1u);
+    joist__cap_delete_slot(k, cs, slot);
+    joist__drain_pending(k);
     return JOIST_OK;
 }
 
@@ -213,15 +262,11 @@ joist_err joist_cspace_destroy(struct joist_kernel *k, joist_cspace cs)
     if (e != JOIST_OK) {
         return e;
     }
-    /* Threads first: they may hold reply capabilities whose callers must wake. */
-    joist__threads_destroy_owned(k, cs);
-    for (joist_slot i = 0; i < JOIST_CSPACE_SLOTS; i++) {
-        if (s->slot[i].obj != 0) {
-            (void)joist_cap_delete(k, cs, i);
-        }
+    if (k->root == cs + 1u) {
+        return JOIST_E_STATE; /* the root task never dies (0013) */
     }
-    s->live = 0;
-    s->quota = 0;
+    joist__space_destroy(k, cs);
+    joist__drain_pending(k);
     return JOIST_OK;
 }
 
@@ -319,7 +364,8 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     }
 #undef VIOLATION
     unsigned ipc = joist__check_ipc(k, msg, msglen, bad == 0);
-    return bad + ipc + joist__check_notify(k, msg, msglen, bad + ipc == 0);
+    unsigned note = joist__check_notify(k, msg, msglen, bad + ipc == 0);
+    return bad + ipc + note + joist__check_task(k, msg, msglen, bad + ipc + note == 0);
 }
 
 const char *joist_err_name(joist_err e)

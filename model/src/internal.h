@@ -35,6 +35,19 @@ void joist__q_push(struct joist_kernel *k, uint32_t obj, joist_queue_kind kind, 
 uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj);
 uint64_t joist__deadline(const struct joist_kernel *k, uint64_t timeout);
 
+/* Task lifecycle (task.c). */
+void joist__space_destroy(struct joist_kernel *k, uint32_t s);
+void joist__drain_pending(struct joist_kernel *k);
+void joist__lifecycle_freed(struct joist_kernel *k, uint32_t obj);
+/* Delete one capability with no argument checks and no draining. */
+void joist__cap_delete_slot(struct joist_kernel *k, uint32_t s, joist_slot slot);
+/* Copy a capability from one space to another (needs GRANT on the source;
+ * rights masked, never grown). A stand-in for capability transfer in
+ * messages, which is still open; used only by tests until then. */
+joist_err joist__cap_grant(struct joist_kernel *k, joist_cspace from, joist_slot src,
+                           joist_cspace to, joist_slot dst, joist_rights mask);
+unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msglen, int msg_free);
+
 /* Structural invariants of IPC and of notifications/lifetime events.
  * Each returns the number of violations and writes the first into msg if
  * msg_free. */

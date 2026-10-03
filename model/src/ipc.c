@@ -165,6 +165,9 @@ joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t)
             joist__wake(k, c, JOIST_E_PEER);
         }
     }
+    if (r->obj != 0) {
+        k->obj[r->obj - 1u].dead = 1; /* thread capabilities now fail with E_GONE */
+    }
     uint32_t seq = r->call_seq + 1u; /* invalidates reply capabilities naming t */
     memset(r, 0, sizeof *r);
     r->call_seq = seq;

@@ -65,7 +65,13 @@ typedef enum {
                          left in its record when it wakes */
 } joist_err;
 
-typedef enum { JOIST_OBJ_NONE = 0, JOIST_OBJ_ENDPOINT, JOIST_OBJ_NOTIFICATION } joist_obj_type;
+typedef enum {
+    JOIST_OBJ_NONE = 0,
+    JOIST_OBJ_ENDPOINT,
+    JOIST_OBJ_NOTIFICATION,
+    JOIST_OBJ_TASK,  /* a capability space with its threads (0004) */
+    JOIST_OBJ_THREAD /* a thread; its capability is 0010's thread control capability */
+} joist_obj_type;
 
 /* Rights bits (0001). */
 typedef uint8_t joist_rights;
@@ -74,6 +80,9 @@ typedef uint8_t joist_rights;
 #define JOIST_R_SEND_ONCE ((joist_rights)0x4u)
 #define JOIST_R_GRANT     ((joist_rights)0x8u)
 #define JOIST_R_ALL       ((joist_rights)0xfu)
+/* On task and thread capabilities, the SEND bit means "control": create
+ * threads in the task, destroy it, kill the thread (0004, 0010). */
+#define JOIST_R_CONTROL JOIST_R_SEND
 
 /* Badge. 0 means "unbadged". The width is 0001's open item 2; 64 bits until
  * the model settles it. */
@@ -95,6 +104,10 @@ struct joist_object {
     uint8_t type;   /* joist_obj_type; JOIST_OBJ_NONE = free */
     uint32_t refs;  /* capabilities naming this object, across all spaces (I1) */
     uint32_t donor; /* capability space charged for this object (0004) */
+    /* Tasks and threads: the space or thread record this object names (index
+     * plus one). Such an object is "dead" (the dead field below) once its task
+     * or thread is gone; capabilities to it then fail with JOIST_E_GONE. */
+    uint32_t target;
     /* One FIFO queue of blocked threads: an endpoint's senders or receivers,
      * or a notification's waiters (0001). Thread index plus one; 0 = empty. */
     uint8_t qkind; /* joist_queue_kind */
@@ -168,12 +181,16 @@ struct joist_thread_rec {
      * describes, not a capability-space slot. */
     uint32_t reply_to;
     uint32_t reply_seq;
+    uint32_t obj; /* the thread object naming this thread, plus one; 0 for fixtures */
 };
 
 struct joist_cspace_state {
     uint8_t live;
-    uint32_t quota;   /* objects this space may still create */
-    uint32_t charged; /* live objects this space paid for (I3) */
+    uint32_t quota;    /* objects this space may still create */
+    uint32_t charged;  /* live objects this space paid for (I3) */
+    uint32_t parent;   /* the space that donated this one's quota, plus one;
+                          0 for the root and for fixtures */
+    uint32_t task_obj; /* the task object naming this space, plus one; 0 if none */
     struct joist_cap slot[JOIST_CSPACE_SLOTS];
 };
 
@@ -185,13 +202,24 @@ struct joist_kernel {
     struct joist_deadname dn[JOIST_MAX_DEADNAMES];
     uint32_t objects_live;
     uint64_t now; /* model time: advanced only by joist_tick */
+    /* Quota conservation (I3): every unit of quota entered through joist_boot
+     * or a fixture space, and
+     *   sum over live spaces of quota + sum over all spaces of charged == budget.
+     * Quota only leaves when a parentless (fixture) space or its charges die. */
+    uint64_t budget;
+    uint32_t root; /* the root space, plus one, once booted (0013) */
+    /* Spaces whose destruction is pending: a task's destruction can make other
+     * tasks unreachable, and they are destroyed by a loop, not by recursion. */
+    uint32_t pending[JOIST_MAX_CSPACES];
+    uint32_t npending;
 };
 
 /* Lifecycle. */
 void joist_init(struct joist_kernel *k);
 
-/* Create a capability space with an object quota. A test fixture until task
- * creation (Phase 1 work item 4) replaces it. */
+/* Create a capability space with an object quota, from nothing (the quota
+ * is added to the budget). A test fixture: real spaces are tasks, created by
+ * joist_task_create from donated quota. */
 joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspace *out);
 
 /* Delete every capability in the space, then mark it dead (I1 end to end).
@@ -270,6 +298,34 @@ joist_err joist_bind_nosenders(struct joist_kernel *k, joist_cspace cs, joist_sl
  * Needs SEND on note_slot; any capability to the endpoint will do. */
 joist_err joist_request_deadname(struct joist_kernel *k, joist_cspace cs, joist_slot ep_slot,
                                  joist_slot note_slot);
+
+/* ---- tasks and threads (Phase 1 work item 4; I1, I3; 0004, 0010, 0013) ---- */
+
+/* Boot (0013): create the root space holding the whole budget. The root has
+ * no task object and can't be destroyed. k must be freshly initialised. */
+joist_err joist_boot(struct joist_kernel *k, uint32_t budget, joist_cspace *root);
+
+/* Create a task: a new space whose quota is donated from cs's (cs pays
+ * donation + 1, the one being the task object), and a task capability with
+ * all rights in cs's slot dst. The new space's parent is cs. */
+joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t donation,
+                            joist_slot dst);
+
+/* Destroy the task named by the task capability in slot (needs CONTROL):
+ * its threads, its capabilities, and, through them, any task this makes
+ * unreachable. Its unspent quota, and the charges for objects it paid for
+ * that are still alive, go to its parent; its children are re-parented to
+ * its parent (I3). The task object stays, dead, until its capabilities go. */
+joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
+
+/* Create a running thread in the task named by task_slot (needs CONTROL),
+ * charged to cs, with a thread capability with all rights in cs's slot dst.
+ * The thread's index is written to *out. */
+joist_err joist_thread_spawn(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                             joist_slot dst, joist_thread *out);
+
+/* Kill the thread named by the thread capability in slot (needs CONTROL). */
+joist_err joist_thread_kill(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
 
 /* Read a capability (for tests and the eventual ABI's inspection call). */
 joist_err joist_cap_read(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,

@@ -6,7 +6,7 @@ I8 rights grow     @@ src/cspace.c @@ to.rights = (joist_rights)(from->rights & 
 I1 refcount        @@ src/cspace.c @@     k->obj[from->obj - 1u].refs++; @@     /* mutated */
 I3 refund          @@ src/cspace.c @@             donor->quota++; @@             /* mutated */;
 I7 rebadge         @@ src/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ if (badge == 0) {
-I1 destroy leaks   @@ src/cspace.c @@             (void)joist_cap_delete(k, cs, i); @@             /* mutated */;
+I1 destroy leaks   @@ src/task.c @@ joist__cap_delete_slot(k, s, i); /* may queue unreachable tasks */ @@ (void)i;
 I3 quota ignored   @@ src/cspace.c @@     if (s->quota == 0) { @@     if (0) {
 I6 reply reusable    @@ src/ipc.c @@ me->reply_to = 0; /* consumed, whatever happens next (I6) */ @@ /* mutated */
 I10 server death     @@ src/ipc.c @@ joist__wake(k, c, JOIST_E_PEER); @@ (void)c;
@@ -24,3 +24,17 @@ I5 never dies        @@ src/notify.c @@         endpoint_die(k, obj); @@        
 I5 deadname repeats  @@ src/notify.c @@             memset(d, 0, sizeof *d); @@             (void)d;
 dangling binding     @@ src/notify.c @@                 k->obj[i].ns_notif = 0; @@                 (void)i;
 I5 dead still usable @@ src/ipc.c @@     if (k->obj[c->obj - 1u].dead) { @@     if (0) {
+task-no-reparent @@ src/task.c @@ k->cs[c].parent = p; @@ k->cs[c].parent = 0;
+task-quota-lost @@ src/task.c @@ ps->quota += st->quota; @@ ps->quota += 0;
+task-charges-not-moved @@ src/task.c @@ k->obj[o].donor = p - 1u; @@ k->obj[o].donor = s;
+task-not-marked-dead @@ src/task.c @@ k->obj[st->task_obj - 1u].dead = 1; @@ (void)0;
+task-no-cascade @@ src/task.c @@ pending_push(k, o->target - 1u); @@ if (o->dead) pending_push(k, o->target - 1u);
+task-thread-cap-no-kill @@ src/task.c @@ (void)joist_thread_destroy(k, t); @@ (void)t;
+task-donation-off-by-one @@ src/task.c @@ k->cs[cs].quota < donation + 1u @@ k->cs[cs].quota < donation
+task-destroy-no-control @@ src/task.c @@ if ((c->rights & JOIST_R_CONTROL) == 0) { @@ if (0) {
+task-dead-not-gone @@ src/task.c @@ if (k->obj[c->obj - 1u].dead) { @@ if (0) {
+task-no-drain @@ src/cspace.c @@ joist__drain_pending(k); @@ (void)0;
+task-root-destroyable @@ src/cspace.c @@ if (k->root == cs + 1u) { @@ if (0) {
+task-fixture-budget @@ src/cspace.c @@ k->budget--; @@ (void)0;
+task-thread-obj-not-dead @@ src/ipc.c @@ k->obj[r->obj - 1u].dead = 1; @@ (void)0;
+task-grant-no-rights @@ src/cspace.c @@ if ((c->rights & JOIST_R_GRANT) == 0) { @@ if (0) {

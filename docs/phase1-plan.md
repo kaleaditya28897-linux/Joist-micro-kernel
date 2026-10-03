@@ -219,3 +219,60 @@ shadow was updated to the new rule.
 6. **A dead-name request on an already dead endpoint returns `JOIST_E_GONE`**
    rather than firing at once.
 7. **`Wait` is refused while holding a reply capability**, as `Recv` is.
+
+### Work item 4: tasks, threads, the root task, task destruction (2026-10-02)
+
+`model/src/task.c`. Tasks and threads are now objects named by capabilities
+with a CONTROL right (`JOIST_R_CONTROL`, the same bit as SEND). Deleting the
+last capability to a live task destroys it, and deleting the last capability
+to a live thread kills it, so a task nobody can name can't leak (I1). Boot
+creates the root space holding the whole memory budget; it has no task object
+and can't be destroyed (0013). `joist_task_create` donates quota from the
+creator, which pays the donation plus one for the task object (0004), and
+records the creator as the new space's parent. `joist_thread_spawn` is paid
+for by the spawner, not by the task the thread runs in.
+
+**Destruction, end to end.** Destroying a task marks its task object dead
+(remaining capabilities fail with `JOIST_E_GONE`), kills its threads (callers
+blocked on them wake with `JOIST_E_PEER`, as before), and deletes its
+capabilities. If that deletes the last capability to another live task, that
+task goes too. The cascade runs from a work list (`k->pending`), never by
+recursion, and each space is destroyed once, so cycles (a task holding its own
+capability, two tasks holding each other's) terminate. Whatever the dead task
+still owns goes to its parent: its unspent quota, the charges for objects it
+paid for that are still alive (because another task holds a capability), and
+its children, which are re-parented (I3). Fixture spaces made by
+`joist_cspace_create` have no parent; their quota enters the budget at
+creation and leaves it at destruction, so conservation can be checked in
+every test.
+
+**I3 is now checked as conservation**: the sum of every live space's quota and
+every space's charges equals the budget, after every step. The invariant
+check also verifies that task and thread objects and their spaces and threads
+name each other, that parent chains are live and acyclic, and that no
+destruction is left pending between operations.
+
+| Check | Result |
+|---|---|
+| Unit tests (`test/test_task.c`) | 19 tests: boot and the root's protection (0013), donation and its errors, the space table filling up, tasks and threads refused by `obj_create`, quota and charges returned on destruction, shared objects re-charged to the parent, the last task capability destroying the task, a three-deep cascade, reachable children re-parented, a self-referencing task, grant and rights and type checks, thread spawn, kill, errors and exhaustion, the last thread capability killing the thread, task destruction waking a blocked caller (I10), and fixture quota leaving the budget |
+| Property test (`test/test_props_task.c`) | 200 seeds × 2 000 steps of task, thread, grant, derive and delete operations against a shadow that destroys tasks by **recursion at the moment they become unreachable**, where the model uses a work list drained afterwards. The final states must agree, which checks that a cascade's order doesn't change where quota and charges end up. Every result code of every operation is reached; about 1 570 operations per run destroy more than one task |
+| `make mutate` | 36 of 36 caught, including 14 new: children not re-parented, quota or charges not handed to the parent, a task object not marked dead, no cascade, a thread capability's deletion not killing the thread, the donation off by one, CONTROL or GRANT not checked, a dead task usable, the work list not drained, the root destroyable, a fixture's budget not reduced, a killed thread's object not marked dead |
+| `make check` | 65 tests under plain, ASan, UBSan, MSan, TSan and small |
+
+**Semantics the model chose** (to revisit in Phase 1, or carry into `docs/abi.md`):
+
+1. **A task dies with its last capability**, like an endpoint with its last
+   RECV capability. There is no separate "terminate" right; CONTROL is it.
+2. **Orphans go to the grandparent**, with their charges. The alternative,
+   destroying a task's children with it, would make a server that outlives its
+   launcher impossible (an init-like reaper has to be able to inherit).
+3. **The spawner pays for a thread**, so a task with no quota can still be
+   given threads by its creator.
+4. **Capability transfer is still open.** The tests copy capabilities between
+   spaces with an internal `joist__cap_grant` (needs GRANT; rights masked) as
+   a stand-in until transfer in messages is modelled.
+
+**Open, recorded:** a cascade is bounded by the table sizes but not per
+operation (I9). This is the case 0003 means by "revoke may block the caller":
+the kernel's version has to be preemptible, with the work list as its
+continuation. Settling that is part of item 6 or Phase 2.

@@ -367,6 +367,10 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
             if (ob->recv_caps != 0 || ob->dead) {
                 VIOLATION("notification %u carries endpoint state", o);
             }
+        } else if (ob->type == JOIST_OBJ_TASK || ob->type == JOIST_OBJ_THREAD) {
+            if (ob->word != 0 || ob->recv_caps != 0) {
+                VIOLATION("task/thread object %u carries endpoint or notification state", o);
+            }
         } else if (ob->word != 0 || ob->recv_caps != 0 || ob->dead) {
             VIOLATION("free object %u carries state", o);
         }
