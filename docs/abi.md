@@ -87,10 +87,10 @@ in a badge, typically its per-client record's address or index.
 | Operation | Arguments | Results, in check order | Effect | Bound |
 |---|---|---|---|---|
 | `obj_create` | type, dst | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (dst), `E_TYPE` (not endpoint, notification or reply object), `E_OCCUPIED`, `E_NOMEM` (quota, then object table) | new object, paid by the caller; a capability with all rights in dst | one table scan |
-| `cap_derive` | src, dst, mask | space, `E_RANGE` (src or dst), `E_EMPTY`, `E_OCCUPIED` | dst = src with rights ∩ mask; same badge (I8) | O(1) |
-| `cap_mint` | src, dst, mask, badge | as derive, then `E_RIGHTS` (src lacks GRANT), `E_BADGE` (src already badged, or badge 0), `E_NOMEM` (no-senders account table full) | as derive, with the badge set (I7); allocates the badge's no-senders account if it is the first sender with it | one account scan |
-| `cap_delete` | slot | space, `E_RANGE`, `E_EMPTY` | the capability goes; may fire no-senders, kill an endpoint, free the object, destroy an unreachable task (cascade) | cascade |
-| `cap_read` | slot | space, `E_RANGE` | returns type, rights and badge (inspection) | O(1) |
+| `cap_derive` | src, dst, mask | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (src or dst), `E_EMPTY`, `E_OCCUPIED` | dst = src with rights ∩ mask; same badge (I8) | O(1) |
+| `cap_mint` | src, dst, mask, badge | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (src or dst), `E_EMPTY`, `E_OCCUPIED`, `E_RIGHTS` (src lacks GRANT), `E_BADGE` (src already badged, or badge 0), `E_NOMEM` (no-senders account table full) | as derive, with the badge set (I7); allocates the badge's no-senders account if it is the first sender with it | one account scan |
+| `cap_delete` | slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY` | the capability goes; may fire no-senders, kill an endpoint, free the object, destroy an unreachable task (cascade) | cascade |
+| `cap_read` | slot | `E_RANGE` (space or slot), `E_DEAD`, `E_EMPTY` (the empty slot is still returned) | returns type, rights and badge (inspection) | O(1) |
 
 Passing capabilities between tasks is **open** (capability transfer in
 messages; see the end). The model's tests use an internal stand-in,
@@ -102,10 +102,10 @@ derive.
 | Operation | Arguments | Results, in check order | Effect | Bound |
 |---|---|---|---|---|
 | boot | budget | `E_STATE` if already booted | the root task holds the whole budget; it has no task object and can't be destroyed (0013) | O(1) |
-| `task_create` | donation, dst | space, `E_RANGE` (dst), `E_OCCUPIED`, `E_NOMEM` (quota < donation + 1), `E_NOMEM` (space or object table) | a new task with quota = donation; the caller pays donation + 1 (the task object) and becomes its parent; a task capability in dst | table scans |
-| `task_destroy` | task slot | space, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` (already dead) | its threads die, its capabilities are deleted (cascading), its unspent quota, its live objects' charges and its children go to its parent (I1, I3) | cascade |
-| `thread_spawn` | task slot, dst | space, task slot checks as `task_destroy`, `E_RANGE` (dst), `E_OCCUPIED`, `E_NOMEM` (caller's quota), `E_NOMEM` (thread or object table) | a running thread in that task, paid by the caller; a thread capability in dst | table scans |
-| `thread_kill` | thread slot | space, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` | the thread dies: dequeued, and a caller it owed a reply wakes with `E_PEER` (I10) | O(1) |
+| `task_create` | donation, dst | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (dst), `E_OCCUPIED`, `E_NOMEM` (quota < donation + 1), `E_NOMEM` (space or object table) | a new task with quota = donation; the caller pays donation + 1 (the task object) and becomes its parent; a task capability in dst | table scans |
+| `task_destroy` | task slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` (already dead) | its threads die, its capabilities are deleted (cascading), its unspent quota, its live objects' charges and its children go to its parent (I1, I3) | cascade |
+| `thread_spawn` | task slot, dst | `E_RANGE`/`E_DEAD` (space), then the task slot: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE`; then `E_RANGE` (dst), `E_OCCUPIED`, `E_NOMEM` (caller's quota), `E_NOMEM` (thread or object table) | a running thread in that task, paid by the caller; a thread capability in dst | table scans |
+| `thread_kill` | thread slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` | the thread dies: dequeued, and a caller it owed a reply wakes with `E_PEER` (I10) | O(1) |
 
 Deleting the last capability to a live thread kills it, as `thread_kill`.
 
@@ -119,11 +119,11 @@ single-use (**I6**) and, until saved, belongs to the receiving thread.
 | Operation | Arguments | Results, in check order | Blocks? | Effect |
 |---|---|---|---|---|
 | `Call` | endpoint slot, message, timeout | `E_RANGE`/`E_STATE` (thread), `E_TIMEOUT` (timeout 0: a Call always waits), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_GONE` (endpoint dead) | always: `BLOCKED` | rendezvous with the first queued receiver, or queue (FIFO); then wait for the reply. Wakes with `OK` and the reply, `E_TIMEOUT` (the timeout covers the whole call), `E_GONE` (endpoint died while queued), or `E_PEER` (the reply capability was destroyed unused) |
-| `Recv` | endpoint slot, timeout | thread, `E_STATE` (holding an unused reply capability: save or answer it first), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV), `E_GONE`; `E_TIMEOUT` if timeout 0 and no caller | if no caller queued | the first queued caller's message and badge, and its reply capability |
-| `Reply` | message | thread, `E_NOREPLY` (none held), `E_PEER` (the caller stopped waiting; the capability is consumed anyway) | no | the caller wakes with `OK` and the message |
-| `ReplyRecv` | message, endpoint slot, timeout | thread; then as `Reply` (a stale caller is not an error here), then as `Recv` | as `Recv` | the server loop's fast path |
-| `reply_save` | reply-object slot | thread, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (none held), `E_OCCUPIED` (object already bound) | no | the thread's reply capability moves into the object; the thread may `Recv` again |
-| `reply_saved` | reply-object slot, message | thread, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (object unbound), `E_PEER` (caller stopped waiting; consumed anyway) | no | as `Reply`, from any thread of a task holding the object |
+| `Recv` | endpoint slot, timeout | `E_RANGE`/`E_STATE` (thread), `E_STATE` (holding an unused reply capability: save or answer it first), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV); `E_TIMEOUT` if timeout 0 and no caller, otherwise `BLOCKED`. Never `E_GONE` on return: holding RECV keeps the endpoint alive | if no caller queued | the first queued caller's message and badge, and its reply capability |
+| `Reply` | message | `E_RANGE`/`E_STATE` (thread), `E_NOREPLY` (none held), `E_PEER` (the caller stopped waiting; the capability is consumed anyway) | no | the caller wakes with `OK` and the message |
+| `ReplyRecv` | message, endpoint slot, timeout | `E_RANGE`/`E_STATE` (thread); a held reply capability is used as by `Reply`, its result ignored (a stale caller is not an error here); then as `Recv`: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV), `E_TIMEOUT` if timeout 0 and no caller, otherwise `BLOCKED` | as `Recv` | the server loop's fast path |
+| `reply_save` | reply-object slot | `E_RANGE`/`E_STATE` (thread), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (none held), `E_OCCUPIED` (object already bound) | no | the thread's reply capability moves into the object; the thread may `Recv` again |
+| `reply_saved` | reply-object slot, message | `E_RANGE`/`E_STATE` (thread), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (object unbound), `E_PEER` (caller stopped waiting; consumed anyway) | no | as `Reply`, from any thread of a task holding the object |
 
 All IPC operations are O(1): queues are linked through thread records.
 
@@ -152,8 +152,8 @@ A notification is a 64-bit word of pending bits (0001 amendment, item 3).
 
 | Operation | Arguments | Results, in check order | Blocks? | Effect |
 |---|---|---|---|---|
-| `Signal` | notification slot | thread, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_BADGE` (unbadged: it would signal nothing) | never | ORs the capability's badge into the word, or hands it to the first waiter |
-| `Wait` | notification slot, timeout | thread, `E_STATE` (holding an unused reply capability), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV); `E_TIMEOUT` if timeout 0 and the word is 0 | if the word is 0 | returns the word (in the badge field) and clears it |
+| `Signal` | notification slot | `E_RANGE`/`E_STATE` (thread), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_BADGE` (unbadged: it would signal nothing) | never | ORs the capability's badge into the word, or hands it to the first waiter |
+| `Wait` | notification slot, timeout | `E_RANGE`/`E_STATE` (thread), `E_STATE` (holding an unused reply capability), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV); `E_TIMEOUT` if timeout 0 and the word is 0, otherwise `BLOCKED` | if the word is 0 | returns the word (in the badge field) and clears it |
 
 **I2.** A signal is never lost and never delivered twice: bits clear only
 when a `Wait` returns them, and a waiter exists only while the word is 0.
@@ -167,9 +167,9 @@ records (0005's `select` groups descriptors per bit beyond 64).
 
 | Operation | Arguments | Results, in check order | Effect |
 |---|---|---|---|
-| `bind_nosenders` | endpoint slot, notification slot | space, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV on the endpoint), then the notification: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_BADGE` (unbadged) | binds; rebinding replaces; badges already queued stay |
-| `nosenders_next` | endpoint slot | space, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV) | returns the oldest queued badge and frees its account, or badge 0 when none is queued |
-| `request_deadname` | endpoint slot, notification slot | space, `E_RANGE`, `E_EMPTY`, `E_TYPE` (any capability to the endpoint will do), then the notification: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_BADGE` (unbadged), then `E_GONE` (endpoint already dead), `E_NOMEM` (registration table full) | registers |
+| `bind_nosenders` | endpoint slot, notification slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV on the endpoint), then the notification: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_BADGE` (unbadged) | binds; rebinding replaces; badges already queued stay |
+| `nosenders_next` | endpoint slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV) | returns the oldest queued badge and frees its account, or badge 0 when none is queued |
+| `request_deadname` | endpoint slot, notification slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE` (any capability to the endpoint will do), then the notification: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_BADGE` (unbadged), then `E_GONE` (endpoint already dead), `E_NOMEM` (registration table full) | registers |
 
 **No-senders (I4)** is counted per badge, over capabilities with SEND and a
 badge, in an account allocated by the `mint` that creates the badge's first

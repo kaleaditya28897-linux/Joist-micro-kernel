@@ -482,10 +482,17 @@ updated). Verification of that state: 76 tests in six builds, 43 of 43
 mutations, 7 of 7 fuzz-sanity bugs, a 5-minute fuzz run with no crash
 (`docs/phase1-data/item7/`).
 
-Every check order in `docs/abi.md` is taken from the model's code. The
-coverage lines in `make-check.log` show which result codes the property tests
-reach for each operation; a code-by-code cross-check of the document against
-them has not been done yet.
+Every check order in `docs/abi.md` is taken from the model's code, and
+`tools/phase1/abicheck.py` checks the document against the tests in both
+directions: each result code a row lists must be asserted by a unit test or
+reached by a property test, and each code a property test reaches must be
+listed. The first run found three problems, now fixed: `Recv` listed
+`E_GONE`, which it can never return (holding RECV keeps the endpoint alive);
+`cap_read`'s row had the wrong checks, and its errors had no test (one
+added); and many rows abbreviated their codes ("space", "thread", "as
+derive"), which are now spelled out. Result: 139 codes over 21 operations,
+all listed, all reached (`docs/phase1-data/item7/abi-coverage.csv`).
+`make check` after the added test: 77 tests in six builds.
 
 **Phase 1's exit criterion** (plan §11: invariants proven or property-tested;
 the API written down as `docs/abi.md`) is met for the model's scope, with the

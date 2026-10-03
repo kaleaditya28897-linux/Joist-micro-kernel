@@ -117,3 +117,13 @@ checked byte-identical to the committed `model/`.
 Results: 76 tests pass in all six builds; 43 of 43 mutations caught; 7 of 7
 fuzz-sanity bugs caught from seeds and from nothing; 1 972 fuzz inputs,
 1.8 million steps, no crash.
+
+**The `docs/abi.md` cross-check**, `abi-coverage.csv`:
+`tools/phase1/abicheck.py docs/abi.md model/test docs/phase1-data/item7/make-check.log`.
+One row per (operation, result code) that `docs/abi.md` lists or a property
+test reaches: `listed` (in the doc), `unit` (asserted by a unit test),
+`property` (reached in a coverage line of `make-check.log`), `reached`
+(either). All 139 rows have `listed` = `reached` = 1. The property evidence
+is the item 7 `make check` log; the unit evidence is the test sources at this
+commit, which add `cap_read_errors` (`make check` afterwards: 77 tests, six
+builds, all pass).

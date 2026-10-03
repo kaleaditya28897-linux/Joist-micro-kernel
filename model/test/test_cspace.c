@@ -187,3 +187,17 @@ JT_TEST(cspace_table_exhaustion)
     JT_CHECK(joist_cspace_create(&k, 0, &c) == JOIST_E_NOMEM);
     JT_CHECK(clean());
 }
+
+JT_TEST(cap_read_errors)
+{
+    fresh();
+    joist_cspace a;
+    struct joist_cap c;
+    JT_REQUIRE(joist_cspace_create(&k, 1, &a) == JOIST_OK);
+    JT_CHECK(joist_cap_read(&k, JOIST_MAX_CSPACES, 0, &c) == JOIST_E_RANGE);
+    JT_CHECK(joist_cap_read(&k, a, JOIST_CSPACE_SLOTS, &c) == JOIST_E_RANGE);
+    JT_CHECK(joist_cap_read(&k, a, 0, &c) == JOIST_E_EMPTY && c.obj == 0);
+    JT_REQUIRE(joist_cspace_destroy(&k, a) == JOIST_OK);
+    JT_CHECK(joist_cap_read(&k, a, 0, &c) == JOIST_E_DEAD);
+    JT_CHECK(clean());
+}
