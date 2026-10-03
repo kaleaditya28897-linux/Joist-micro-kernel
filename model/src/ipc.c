@@ -128,6 +128,7 @@ joist_err joist_thread_create(struct joist_kernel *k, joist_cspace cs, joist_thr
         return JOIST_E_DEAD;
     }
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        JOIST_WORK(k);
         struct joist_thread_rec *r = &k->th[i];
         if (r->state == JOIST_T_FREE) {
             /* call_seq survives reuse of the slot, so a stale reply capability
@@ -177,6 +178,7 @@ joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t)
 void joist__threads_destroy_owned(struct joist_kernel *k, joist_cspace cs)
 {
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        JOIST_WORK(k);
         if (k->th[i].state != JOIST_T_FREE && k->th[i].cs == cs) {
             (void)joist_thread_destroy(k, i);
         }
@@ -186,6 +188,7 @@ void joist__threads_destroy_owned(struct joist_kernel *k, joist_cspace cs)
 void joist__queue_wake_all(struct joist_kernel *k, uint32_t obj, joist_err r)
 {
     while (k->obj[obj].qhead != 0) {
+        JOIST_WORK(k);
         uint32_t t = joist__q_pop(k, obj);
         joist__wake(k, t, r);
     }
@@ -327,6 +330,7 @@ void joist_tick(struct joist_kernel *k, uint64_t dt)
 {
     k->now = (k->now > JOIST_FOREVER - dt) ? JOIST_FOREVER : k->now + dt;
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        JOIST_WORK(k);
         struct joist_thread_rec *r = &k->th[i];
         if (r->state == JOIST_T_FREE || r->state == JOIST_T_RUNNING ||
             r->deadline == JOIST_FOREVER || r->deadline > k->now) {

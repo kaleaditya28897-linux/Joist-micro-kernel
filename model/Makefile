@@ -10,6 +10,8 @@
 #   make check      all of the above: the Phase 1 bar is "every test, every sanitizer"
 #   make sanity     prove each sanitizer is live: a known-bad program must be caught
 #   make mutate     prove the property tests catch each bug in test/mutations.txt
+#   make fuzz       libFuzzer over the whole model (FUZZ_TIME seconds, default 60)
+#   make fuzz-sanity prove the fuzzer finds injected bugs (FUZZ_SANITY list)
 #   make format     clang-format the model's sources in place
 #   make clean
 
@@ -29,6 +31,7 @@ OPT      ?= -O1 -g -fno-omit-frame-pointer
 SRC      := $(wildcard src/*.c)
 TESTS    := $(wildcard test/test_*.c)
 RUNNER   := test/harness.c
+EXEC     := test/exec.c
 
 BUILD    := build
 # Make only rebuilds when a prerequisite is newer, and a deleted file never
@@ -47,15 +50,15 @@ SAN_tsan  := -fsanitize=thread
 SAN_small := -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u \
              -DJOIST_MAX_DEADNAMES=4u -fsanitize=address,undefined -fsanitize-trap=undefined
 
-.PHONY: all test check sanity mutate format clean $(SANITIZERS)
+.PHONY: all test check sanity mutate fuzz fuzz-sanity format clean $(SANITIZERS)
 
 all: test
 
 # $(1): variant name, $(2): extra flags
 define variant
-$(BUILD)/$(1)/run-tests: $(SRC) $(TESTS) $(RUNNER) $(STAMP) $(wildcard include/joist/*.h src/*.h test/*.h)
+$(BUILD)/$(1)/run-tests: $(SRC) $(TESTS) $(RUNNER) $(EXEC) $(STAMP) $(wildcard include/joist/*.h src/*.h test/*.h)
 	@mkdir -p $$(@D)
-	$$(CC) $$(CSTD) $$(OPT) $$(WARN) $$(CPPFLAGS) $(2) $$(SRC) $$(TESTS) $$(RUNNER) -o $$@ -lpthread
+	$$(CC) $$(CSTD) $$(OPT) $$(WARN) $$(CPPFLAGS) $(2) $$(SRC) $$(TESTS) $$(RUNNER) $$(EXEC) -o $$@ -lpthread
 endef
 
 $(eval $(call variant,plain,))
@@ -79,9 +82,46 @@ sanity:
 mutate:
 	@sh test/mutate.sh "$(CC)"
 
+# The fuzzer drives the same executor as test_props_all.c from fuzz input,
+# under ASan and UBSan. A crash leaves its input in build/ as crash-*; replay
+# it with ./build/fuzz/fuzz-model build/crash-<hash>.
+FUZZ_TIME ?= 60
+$(BUILD)/fuzz/fuzz-model: $(SRC) $(EXEC) fuzz/fuzz_model.c $(wildcard include/joist/*.h src/*.h test/*.h)
+	@mkdir -p $(@D) $(BUILD)/fuzz-corpus
+	$(CC) $(CSTD) $(OPT) $(WARN) $(CPPFLAGS) -Itest \
+	    -fsanitize=fuzzer,address,undefined -fsanitize-trap=undefined \
+	    $(SRC) $(EXEC) fuzz/fuzz_model.c -o $@
+
+# Seed corpus: the property test's first FUZZ_SEEDS sequences, recorded in the
+# fuzz input encoding (fuzz/make_seeds.c), FUZZ_SEED_STEPS steps each.
+FUZZ_SEEDS      ?= 32
+FUZZ_SEED_STEPS ?= 1000
+$(BUILD)/fuzz/make-seeds: $(SRC) $(EXEC) fuzz/make_seeds.c $(wildcard include/joist/*.h src/*.h test/*.h)
+	@mkdir -p $(@D)
+	$(CC) $(CSTD) $(OPT) $(WARN) $(CPPFLAGS) -Itest $(SRC) $(EXEC) fuzz/make_seeds.c -o $@
+
+$(BUILD)/fuzz-seeds/stamp: $(BUILD)/fuzz/make-seeds
+	@rm -rf $(@D); mkdir -p $(@D)
+	./$< $(@D) $(FUZZ_SEEDS) $(FUZZ_SEED_STEPS)
+	@touch $@
+
+fuzz: $(BUILD)/fuzz/fuzz-model $(BUILD)/fuzz-seeds/stamp
+	@mkdir -p $(BUILD)/fuzz-corpus
+	./$< -max_total_time=$(FUZZ_TIME) -max_len=8192 -len_control=0 -artifact_prefix=$(BUILD)/ \
+	    -print_final_stats=1 $(BUILD)/fuzz-corpus $(BUILD)/fuzz-seeds
+
+# A few mutations from test/mutations.txt, one per area; each must crash the
+# fuzzer started from the seed corpus within FUZZ_SANITY_TIME seconds. Each is
+# also tried from an empty corpus for FUZZ_BLIND_TIME seconds, reported only.
+FUZZ_SANITY      ?= I1 refcount|I3 refund|I6 reply reusable|I2 bits lost|I5 never dies|task-quota-lost|task-no-cascade
+FUZZ_SANITY_TIME ?= 300
+FUZZ_BLIND_TIME  ?= 120
+fuzz-sanity: $(BUILD)/fuzz-seeds/stamp
+	@sh test/fuzz-sanity.sh "$(CC)" $(FUZZ_SANITY_TIME) '$(FUZZ_SANITY)' $(FUZZ_BLIND_TIME)
+
 format:
-	clang-format --style=file:../.clang-format -i $(SRC) $(TESTS) $(RUNNER) \
-	    $(wildcard include/joist/*.h src/*.h test/*.h)
+	clang-format --style=file:../.clang-format -i $(SRC) $(TESTS) $(RUNNER) $(EXEC) \
+	    fuzz/*.c $(wildcard include/joist/*.h src/*.h test/*.h)
 
 clean:
 	rm -rf $(BUILD)

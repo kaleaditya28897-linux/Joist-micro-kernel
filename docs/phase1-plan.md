@@ -276,3 +276,135 @@ destruction is left pending between operations.
 operation (I9). This is the case 0003 means by "revoke may block the caller":
 the kernel's version has to be preemptible, with the work list as its
 continuation. Settling that is part of item 6 or Phase 2.
+
+### Work item 5: whole-model property test and libFuzzer harness (2026-10-03)
+
+`model/test/exec.[ch]` is one **sequence executor** over every operation of
+items 1–4 (23 operations, interleaved). It decodes each operation and its
+arguments from a stream of choices, applies it, and checks after every step:
+
+- every structural invariant (`joist_check_invariants`: I1, I3, I4, I5, I6,
+  I10's queue structure, 0013);
+- **I8** directly: a derived, minted or granted capability has no right its
+  source lacks;
+- **I2** directly: after a signal, every bit that was pending and every
+  signalled bit is still pending or was received by a waiter;
+- **I6** directly: a successful reply consumes the reply capability and
+  reaches the caller with that step's message;
+- **I9** as a work bound (below).
+
+At the end of each sequence a **teardown** destroys the fixtures and deletes
+the root's capabilities, so every task should go by cascade alone, then checks
+that nothing is left: no object, thread, no-senders account or dead-name
+registration, and the whole budget back in the root (I1, I3), with no thread
+blocked except on a reply its live server still owes (I10).
+
+Two drivers feed it: `test/test_props_all.c` (a seeded RNG, in `make check`)
+and `fuzz/fuzz_model.c` (libFuzzer: the fuzz input is the choice stream, one
+byte per choice of up to 256 values; `make fuzz`). A fuzzer crash replays in
+the fuzz binary, and a property failure replays from its seed. Every sequence
+starts from a small world in the root (an endpoint and a send-only copy, a
+notification and two copies with different badges, three threads), so both
+drivers reach IPC at once.
+
+**I9, measured.** Every loop an operation runs now counts a unit of work
+(`JOIST_WORK`, the host stand-in for WCET; invariant checks don't count). Two
+closed-form bounds come from the table sizes alone (`test/exec.h`). An
+operation that frees nothing must stay under four sweeps of every table
+(1 856 units at the default sizes). One that can free (delete, destroy, kill)
+must stay under the cascade bound: every space destroyed at most once, every
+object freed at most once, every capability deleted at most once, each at a
+fixed cost (186 368 units). Worst cases seen over 400 000 steps:
+
+| Operation | Worst work | Bound |
+|---|---:|---:|
+| `obj_create`, `mint`, `task_create`, `spawn` | 76–94 | 1 856 |
+| `derive`, `grant`, `tick`, `th_create`, `deadname` | 10–32 | 1 856 |
+| IPC and notification operations, `kill`, `th_destroy` | 0 | 1 856 / 186 368 |
+| `delete` | 2 082 | 186 368 |
+| `space_destroy` | 2 340 | 186 368 |
+| `task_destroy` | 2 980 | 186 368 |
+
+Thread operations and IPC are constant-time in this model (queues are linked
+lists). Linear scans for a free table slot are the largest non-cascading cost;
+a kernel would use free lists. Cascades are about 30 times dearer than the
+worst non-cascading operation, which is the measured size of the open
+preemptible-revoke question.
+
+**Making the fuzzer find bugs.** `make fuzz-sanity` injects bugs from
+`test/mutations.txt` and requires the fuzzer to crash on each, the fuzzing
+analogue of `make sanity`. The first version caught 4 of 7, and the misses
+were instructive:
+
+- **Reply capability reusable (I6), lost signal bits (I2):** state stays
+  consistent, so invariant checking can't see either. That led to the direct
+  I2 and I6 checks above. The first I2 check was also wrong: it tested only
+  the new bits, and the mutant loses the *old* ones.
+- **No cascade on the last task capability (I1):** an unreachable task stayed
+  alive, and nothing told a task space from a test fixture. Spaces now carry a
+  `fixture` flag, and a new invariant says a live space with no task object
+  must be the root or a fixture.
+- **Fuzzer reach:** with those checks in, the fuzzer still missed I2 and I6.
+  A coverage dump (`JOIST_FUZZ_STATS=1`) showed it almost never had a running
+  thread: nearly every IPC call failed with `E_STATE`. Three fixes: the
+  starting world, denser input encoding, and `-len_control=0` so inputs can be
+  long at once.
+- **Biased picks:** even then, I2 was caught in one fuzz-sanity run and
+  missed in the next. The executor picked "the first matching slot after a
+  random start", which favours the first of every run of adjacent matches.
+  Here that was the unbadged notification, so most signals failed with
+  `E_BADGE`. All four pickers now choose uniformly among the matches.
+- **Still flaky, so seeds:** the next run caught I2 and missed I6. A
+  15-minute coverage dump showed why: libFuzzer favours small byte values,
+  which decode to the first operations (`space_create`, `task_create`), and
+  successful replies were about 50 times rarer than under the seeded RNG.
+  `fuzz/make_seeds.c` now records the property test's first 32 sequences in
+  the fuzz input encoding. Each file replays its sequence exactly (checked:
+  32 × 1 000 steps, replies at the seeded rate), and `make fuzz` starts from
+  them.
+
+`make fuzz-sanity` therefore runs each bug twice. **From the seed corpus**
+(pass/fail), the fuzz binary must crash. That guarantees it reaches at least
+what the property test reaches, though the seeds often hit the bug on replay
+alone. **From an empty corpus** (reported, not failing) shows whether
+coverage-guided search finds the bug unaided.
+
+**Results** (raw logs and their SHA-256 sums in `docs/phase1-data/item5/`):
+
+- **`make fuzz-sanity`:** all 7 bugs (one or more per area: I1, I2, I3, I5,
+  I6, two task bugs) crash the fuzzer from the seed corpus within a second.
+  From an empty corpus, coverage-guided search alone finds each one too: five
+  at once, the lost signal bits in 1 s, the reusable reply capability in 15 s.
+- **`make fuzz`, 15 minutes from an empty corpus plus the seeds:** no crash.
+  8 080 inputs, 6.6 million steps (about 7 400 a second, under ASan and
+  UBSan with every invariant checked after every step), 546 new corpus
+  entries. Successful replies went from 353 in an earlier 15-minute run
+  without seeds to 12 924, which shows what the seeds change.
+
+**Found: task cycles aren't collected (open, for a decision).** Two tasks
+holding each other's task capabilities outlive their last outside capability,
+because reference counting can't collect a cycle (`task_cycle_outlives_outside_caps`
+pins the current behaviour). Quota stays conserved but is stranded until
+someone destroys one of them directly. The whole-model test reaches this
+in 18 of 200 sequences. Mach and seL4 have the same property. The options:
+
+1. **Accept it, as seL4 does:** whoever creates tasks (in the Hurd, `proc`)
+   keeps a CONTROL capability to each, so it never loses the ability to
+   destroy them. The cost is a protocol rule, enforced nowhere.
+2. **Parent authority:** let a task destroy any descendant through the
+   parent chain the model already records (0004's donor relation), without a
+   capability to it. That makes the parent chain an authority path, which
+   capability purists avoid, but quota already flows along it.
+3. **A collector:** detect unreachable cycles (in the kernel, or a
+   privileged user task given a "list my descendants" call). The most
+   machinery, and the kernel version breaks I9.
+
+The model takes no position yet. Option 1 needs nothing new, and option 2 is
+a small, bounded addition to `task_destroy`.
+
+| Check | Result |
+|---|---|
+| Whole-model property test (`test/test_props_all.c`) | 200 seeds × 2 000 steps, 23 operations, every invariant after every step, clean teardowns. Wake-ups over the run: 4 668 by rendezvous, 13 494 by timeout, 659 by endpoint death (`E_GONE`), 30 by server death (`E_PEER`) |
+| Unit test | `task_cycle_outlives_outside_caps` (`test_task.c` now has 20) |
+| `make mutate` | 36 of 36 caught. No new mutations: item 5 adds checks, and `make fuzz-sanity` reuses the existing ones |
+| `make check` | 67 tests under plain, ASan, UBSan, MSan, TSan and small |

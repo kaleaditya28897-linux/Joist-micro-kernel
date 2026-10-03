@@ -1,0 +1,37 @@
+caught I8 rights grow: seed 1 step 0: I8: mint grew rights 0xb -> 0xf
+caught I1 refcount: seed 1 step 0: I1: object 0 refs 1 but 2 capabilities name it (after mint -> OK)
+caught I3 refund: seed 1 step 74: I3: quota not conserved: live quota + charges = 12, budget 13 (after delete -> OK)
+caught I7 rebadge: seed 1 step 1117: mint returned OK, shadow predicted E_BADGE 
+caught I1 destroy leaks: seed 1 step 355: I1: dead space 5 still holds a capability in slot 1 (after space_destroy -> OK)
+caught I3 quota ignored: seed 1 step 110: I3: quota not conserved: live quota + charges = 4294967312, budget 16 (after obj_create -> OK
+caught I6 reply reusable: seed 1 step 617: I6: reply by thread 1 kept its capability or missed caller 4
+caught I10 server death: seed 13 step 1927: I6: caller 12 waits for a reply but 0 valid reply capabilities name it (after space_destroy
+caught I10 endpoint death: seed 3 step 149: I5: dead endpoint 0 still has a queue (after delete -> OK)
+caught I7 badge dropped: seed 1 step 153 after send: thread 1: cs 1/1 ep 0/0 result OK/OK reply 0.0/0.0 badge 0/121 msg 575186566924121
+caught timeout late: seed 1 step 104 after tick: thread 0: state 3/1 call_seq 0/0
+caught stale reply reuse: seed 121 step 1246: I6: caller 13 waits for a reply but 2 valid reply capabilities name it (after call -> BLOC
+caught I10 recv w/ reply: seed 1 step 1443: I10: thread 4 waits while holding a reply capability (after recv -> BLOCKED)
+caught I2 bits lost: seed 1 step 867: I2: signal of 0x80 to notification 17 was lost
+caught I2 delivered twice: seed 1 step 368 after wait: object 6: word 0x2/0x0 dead 0/0 bind 0/0
+caught I4 never fires: seed 3 step 83 after delete: thread 0: state 5/1
+caught I4 fires early: seed 1 step 1364: I4: space 7 slot 6: badged send capability has no account (after delete -> OK)
+caught I4 fires when dead: seed 6 step 1108 after delete: thread 2: state 1/5
+caught I5 never dies: seed 3 step 149: I5: endpoint 0 dead=0 with 0 RECV capabilities (after delete -> OK)
+caught I5 deadname repeats: seed 10 step 785: I5: dead-name registration 0 names a dead or freed endpoint (after space_destroy -> OK)
+caught dangling binding: seed 1 step 355: I4: object 2 no-senders binding 18 is not a live notification (after space_destroy -> OK)
+caught I5 dead still usable: seed 3 step 168: I5: dead endpoint 0 still has a queue (after call -> BLOCKED)
+caught task-no-reparent: seed 1 step 241 after task_destroy: space 9: live 1/1 quota 1/1 charged 0/0 parent 0/3 task 9/9 (model/shadow)
+caught task-quota-lost: seed 1 step 355: I3: quota not conserved: live quota + charges = 18, budget 19 (after space_destroy -> OK)
+caught task-charges-not-moved: seed 2 step 99: I3: space 0 charged 5 but donated 4 live objects (after delete -> OK)
+caught task-not-marked-dead: seed 1 step 172: I1: live task object 12 doesn't name a live space naming it (after task_destroy -> OK)
+caught task-no-cascade: seed 1 step 1402: I1: space 9 is alive but no task object names it (after space_destroy -> OK)
+caught task-thread-cap-no-kill: seed 1 step 241 after task_destroy: thread 2: live 1/0 cs 9/0 obj 0/0
+caught task-donation-off-by-one: seed 1 step 661: I3: quota not conserved: live quota + charges = 4294967320, budget 24 (after task_create -> O
+caught task-destroy-no-control: seed 1 step 135: task_destroy returned E_GONE, shadow predicted E_RIGHTS 
+caught task-dead-not-gone: seed 1 step 1107: I1: thread 6 is owned by dead space 4 (after spawn -> OK)
+caught task-no-drain: seed 2 step 99: I1: 1 task destructions left pending (after delete -> OK)
+caught task-root-destroyable: seed 1 step 111: 0013: the root space is dead or has a parent (after space_destroy -> OK)
+caught task-fixture-budget: seed 1 step 1210: I3: quota not conserved: live quota + charges = 26, budget 27 (after delete -> OK)
+caught task-thread-obj-not-dead: seed 2 step 90: I1: live thread object 5 doesn't name a live thread naming it (after kill -> OK)
+caught task-grant-no-rights: seed 1 step 214: grant returned OK, shadow predicted E_RIGHTS 
+mutate exit 0

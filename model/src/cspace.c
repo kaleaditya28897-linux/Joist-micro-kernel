@@ -45,6 +45,7 @@ static joist_err get_space(struct joist_kernel *k, joist_cspace cs, struct joist
 joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspace *out)
 {
     for (uint32_t i = 0; i < JOIST_MAX_CSPACES; i++) {
+        JOIST_WORK(k);
         struct joist_cspace_state *s = &k->cs[i];
         /* A destroyed space is not reused while it is still charged for
          * objects that outlive it, so the charge stays attributable. */
@@ -52,6 +53,7 @@ joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspa
             memset(s, 0, sizeof *s);
             s->live = 1;
             s->quota = quota;
+            s->fixture = 1;
             k->budget += quota; /* fixture quota enters from nothing (I3) */
             *out = i;
             return JOIST_OK;
@@ -118,6 +120,7 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
     /* Linear scan of a fixed-size table: bounded by JOIST_MAX_OBJECTS. The
      * kernel will keep a free list; the bound, not the constant, is the point. */
     for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+        JOIST_WORK(k);
         struct joist_object *o = &k->obj[i];
         if (o->type == JOIST_OBJ_NONE) {
             o->type = (uint8_t)type;

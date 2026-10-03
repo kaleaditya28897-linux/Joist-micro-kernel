@@ -5,17 +5,21 @@ notifications, lifetime notifications) as a C17 library, tested on the host
 under every sanitizer. Scope, invariants (I1–I10) and order of work:
 `docs/phase1-plan.md`.
 
-**State:** Phase 1 work item 1 (capability spaces, objects, derive/mint/
-delete, quotas) is implemented and property-tested. Progress is tracked in
+**State:** Phase 1 work items 1–5 are implemented and tested: capability
+spaces and quotas, endpoints and synchronous IPC, notifications and lifetime
+events, tasks and threads with task destruction, and a whole-model property
+test and libFuzzer harness over all of it. Progress is tracked in
 `docs/phase1-plan.md` under *Progress*.
 
 ## Build and test
 
 ```sh
 make            # build and run the tests (plain)
-make check      # the same tests under plain, ASan, UBSan, MSan and TSan
+make check      # the same tests under plain, ASan, UBSan, MSan, TSan and small
 make sanity     # prove each sanitizer is live: a seeded bug must be caught
 make mutate     # prove the property tests catch each bug in test/mutations.txt
+make fuzz       # libFuzzer over the whole model (FUZZ_TIME=seconds, default 60)
+make fuzz-sanity  # prove the fuzzer crashes on a set of injected bugs
 make format     # clang-format in place (style: ../.clang-format)
 ```
 
@@ -34,8 +38,12 @@ the sanitizer's.
 | `test/harness.[ch]` | minimal in-tree test harness (`JT_TEST`, `JT_CHECK`, `JT_REQUIRE`) |
 | `test/test_*.c` | tests; picked up automatically |
 | `test/sanitizer-sanity.sh` | the sanitizer liveness check |
-| `test/test_props_*.c` | property tests: seeded random operations against a shadow model |
-| `test/mutations.txt`, `test/mutate.sh` | injected bugs the property tests must catch |
+| `test/test_props_*.c` | property tests: seeded random operations against a shadow model, per area |
+| `test/exec.[ch]`, `test/test_props_all.c` | the whole-model sequence executor and its seeded property test |
+| `fuzz/fuzz_model.c` | libFuzzer entry point: the same executor, choices from fuzz input |
+| `fuzz/make_seeds.c` | writes the seed corpus: property-test sequences in the fuzz input encoding |
+| `test/mutations.txt`, `test/mutate.sh` | injected bugs the tests must catch |
+| `test/fuzz-sanity.sh` | injected bugs the fuzzer must crash on |
 
 Property tests take `JOIST_PROP_SEEDS`, `JOIST_PROP_STEPS` and, to replay a
 reported failure, `JOIST_PROP_SEED`.

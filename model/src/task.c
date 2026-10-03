@@ -19,6 +19,7 @@
 static void pending_push(struct joist_kernel *k, uint32_t s)
 {
     for (uint32_t i = 0; i < k->npending; i++) {
+        JOIST_WORK(k);
         if (k->pending[i] == s) {
             return;
         }
@@ -29,6 +30,7 @@ static void pending_push(struct joist_kernel *k, uint32_t s)
 void joist__drain_pending(struct joist_kernel *k)
 {
     while (k->npending != 0) {
+        JOIST_WORK(k);
         uint32_t s = k->pending[--k->npending];
         joist__space_destroy(k, s);
     }
@@ -50,6 +52,7 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
      * callers must wake. */
     joist__threads_destroy_owned(k, s);
     for (joist_slot i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+        JOIST_WORK(k);
         if (st->slot[i].obj != 0) {
             joist__cap_delete_slot(k, s, i); /* may queue unreachable tasks */
         }
@@ -58,6 +61,7 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
      * children too, so no quota is lost and the parent chain stays live. */
     uint32_t p = st->parent;
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
+        JOIST_WORK(k);
         if (k->cs[c].live && k->cs[c].parent == s + 1u) {
             k->cs[c].parent = p;
         }
@@ -66,6 +70,7 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
         struct joist_cspace_state *ps = &k->cs[p - 1u];
         ps->quota += st->quota;
         for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
+            JOIST_WORK(k);
             if (k->obj[o].type != JOIST_OBJ_NONE && k->obj[o].donor == s) {
                 k->obj[o].donor = p - 1u;
                 ps->charged++;
@@ -77,6 +82,7 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
     }
     st->quota = 0;
     st->parent = 0;
+    st->fixture = 0;
     st->live = 0;
 }
 
@@ -123,9 +129,10 @@ static joist_err space_live(const struct joist_kernel *k, joist_cspace cs)
     return k->cs[cs].live ? JOIST_OK : JOIST_E_DEAD;
 }
 
-static int free_object(const struct joist_kernel *k, uint32_t *out)
+static int free_object(struct joist_kernel *k, uint32_t *out)
 {
     for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+        JOIST_WORK(k);
         if (k->obj[i].type == JOIST_OBJ_NONE) {
             *out = i;
             return 1;
@@ -175,6 +182,7 @@ joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t do
         return JOIST_E_NOMEM;
     }
     for (uint32_t i = 0; i < JOIST_MAX_CSPACES; i++) {
+        JOIST_WORK(k);
         if (!k->cs[i].live && k->cs[i].charged == 0) {
             ns = i;
             break;
@@ -256,6 +264,7 @@ joist_err joist_thread_spawn(struct joist_kernel *k, joist_cspace cs, joist_slot
         return JOIST_E_NOMEM;
     }
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        JOIST_WORK(k);
         if (k->th[i].state == JOIST_T_FREE) {
             t = i;
             break;
@@ -312,7 +321,7 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
         const struct joist_cspace_state *st = &k->cs[s];
         sum += st->charged;
         if (!st->live) {
-            if (st->quota != 0 || st->parent != 0 || st->task_obj != 0) {
+            if (st->quota != 0 || st->parent != 0 || st->task_obj != 0 || st->fixture) {
                 VIOLATION("I3: dead space %u still has quota %u, parent %u or task %u", s,
                           st->quota, st->parent, st->task_obj);
             }
@@ -328,6 +337,10 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
                 break;
             }
             p = k->cs[p - 1u].parent;
+        }
+        /* I1: a space nothing can name is destroyed, not left running. */
+        if (st->task_obj == 0 && !st->fixture && k->root != s + 1u) {
+            VIOLATION("I1: space %u is alive but no task object names it", s);
         }
         if (st->task_obj != 0) {
             const struct joist_object *o = &k->obj[st->task_obj - 1u];

@@ -191,6 +191,7 @@ struct joist_cspace_state {
     uint32_t parent;   /* the space that donated this one's quota, plus one;
                           0 for the root and for fixtures */
     uint32_t task_obj; /* the task object naming this space, plus one; 0 if none */
+    uint8_t fixture;   /* made by joist_cspace_create: nameless by design */
     struct joist_cap slot[JOIST_CSPACE_SLOTS];
 };
 
@@ -212,6 +213,8 @@ struct joist_kernel {
      * tasks unreachable, and they are destroyed by a loop, not by recursion. */
     uint32_t pending[JOIST_MAX_CSPACES];
     uint32_t npending;
+    /* Loop iterations run by operations so far (I9; see JOIST_WORK). */
+    uint64_t work;
 };
 
 /* Lifecycle. */

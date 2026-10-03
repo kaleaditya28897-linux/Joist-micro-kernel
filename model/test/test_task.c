@@ -342,3 +342,26 @@ JT_TEST(fixture_space_quota_leaves_budget)
     JT_CHECK(k.budget == 64);
     JT_CHECK(clean());
 }
+
+/* Characterises an open question (docs/phase1-plan.md, work item 5): two
+ * tasks holding each other's task capabilities outlive their last outside
+ * capability, because reference counting can't collect a cycle. Their quota
+ * stays conserved but stranded until someone destroys them directly. */
+JT_TEST(task_cycle_outlives_outside_caps)
+{
+    boot();
+    JT_REQUIRE(joist_task_create(&k, root, 5, 0) == JOIST_OK);
+    JT_REQUIRE(joist_task_create(&k, root, 5, 1) == JOIST_OK);
+    joist_cspace a = space_of(root, 0);
+    joist_cspace b = space_of(root, 1);
+    JT_REQUIRE(joist__cap_grant(&k, root, 1, a, 0, JOIST_R_ALL) == JOIST_OK);
+    JT_REQUIRE(joist__cap_grant(&k, root, 0, b, 0, JOIST_R_ALL) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, root, 0) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, root, 1) == JOIST_OK);
+    JT_CHECK(k.cs[a].live && k.cs[b].live); /* the cycle survives */
+    JT_CHECK(k.cs[root].quota == 52);       /* 12 units stranded */
+    JT_CHECK(clean());
+    JT_CHECK(joist_cspace_destroy(&k, a) == JOIST_OK);
+    JT_CHECK(!k.cs[a].live && !k.cs[b].live && k.cs[root].quota == 64 && k.objects_live == 0);
+    JT_CHECK(clean());
+}

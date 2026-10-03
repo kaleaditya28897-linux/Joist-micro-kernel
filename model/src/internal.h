@@ -4,6 +4,11 @@
 
 #include "joist/model.h"
 
+/* I9's host stand-in for WCET: every loop an operation runs counts one unit
+ * of work per iteration, so a test can bound each operation's work. The
+ * invariant checks don't count; they aren't operations. */
+#define JOIST_WORK(k) ((k)->work++)
+
 /* Every capability creation and deletion goes through these two hooks, so
  * the per-endpoint RECV count (endpoint death, I5) and the per-badge send
  * accounting (no-senders, I4) can't drift from the capability tables. A

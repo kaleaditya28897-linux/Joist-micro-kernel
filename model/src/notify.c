@@ -17,6 +17,7 @@
 static struct joist_badge_acct *acct_find(struct joist_kernel *k, uint32_t obj, joist_badge b)
 {
     for (uint32_t i = 0; i < JOIST_MAX_BADGE_ACCTS; i++) {
+        JOIST_WORK(k);
         if (k->acct[i].obj == obj + 1u && k->acct[i].badge == b) {
             return &k->acct[i];
         }
@@ -30,6 +31,7 @@ joist_err joist__acct_reserve(struct joist_kernel *k, uint32_t obj, joist_badge 
         return JOIST_OK;
     }
     for (uint32_t i = 0; i < JOIST_MAX_BADGE_ACCTS; i++) {
+        JOIST_WORK(k);
         if (k->acct[i].obj == 0) {
             k->acct[i] = (struct joist_badge_acct){.obj = obj + 1u, .badge = badge, .send_caps = 0};
             return JOIST_OK;
@@ -69,6 +71,7 @@ static void endpoint_die(struct joist_kernel *k, uint32_t obj)
     joist__queue_wake_all(k, obj, JOIST_E_GONE);
     /* I5: each registered holder is told once, then the registration goes. */
     for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
+        JOIST_WORK(k);
         struct joist_deadname *d = &k->dn[i];
         if (d->ep == obj + 1u) {
             uint32_t notif = d->notif - 1u;
@@ -110,11 +113,13 @@ void joist__object_freed(struct joist_kernel *k, uint32_t obj)
     if (o->type == JOIST_OBJ_NOTIFICATION) {
         /* Drop every reference the kernel keeps to this notification. */
         for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+            JOIST_WORK(k);
             if (k->obj[i].ns_notif == obj + 1u) {
                 k->obj[i].ns_notif = 0;
             }
         }
         for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
+            JOIST_WORK(k);
             if (k->dn[i].notif == obj + 1u) {
                 memset(&k->dn[i], 0, sizeof k->dn[i]);
             }
@@ -122,6 +127,7 @@ void joist__object_freed(struct joist_kernel *k, uint32_t obj)
     }
     if (o->type == JOIST_OBJ_ENDPOINT) {
         for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
+            JOIST_WORK(k);
             if (k->dn[i].ep == obj + 1u) {
                 memset(&k->dn[i], 0, sizeof k->dn[i]);
             }
@@ -297,6 +303,7 @@ joist_err joist_request_deadname(struct joist_kernel *k, joist_cspace cs, joist_
         return JOIST_E_GONE;
     }
     for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
+        JOIST_WORK(k);
         if (k->dn[i].ep == 0) {
             k->dn[i] = (struct joist_deadname){.ep = ec->obj, .notif = nobj + 1u, .bits = nbadge};
             return JOIST_OK;
