@@ -5,10 +5,12 @@ notifications, lifetime notifications) as a C17 library, tested on the host
 under every sanitizer. Scope, invariants (I1–I10) and order of work:
 `docs/phase1-plan.md`.
 
-**State:** Phase 1 work items 1–5 are implemented and tested: capability
-spaces and quotas, endpoints and synchronous IPC, notifications and lifetime
-events, tasks and threads with task destruction, and a whole-model property
-test and libFuzzer harness over all of it. Progress is tracked in
+**State:** Phase 1 work items 1–6 are implemented and tested: capability
+spaces and quotas, endpoints and synchronous IPC with deferred replies,
+notifications and lifetime events with queued no-senders, tasks and threads
+with task destruction, and a whole-model property test and libFuzzer harness
+over all of it. Item 6's parameter choices are a proposed amendment to
+decision 0001. Progress is tracked in
 `docs/phase1-plan.md` under *Progress*.
 
 ## Build and test

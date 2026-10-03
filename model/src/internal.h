@@ -40,6 +40,9 @@ void joist__q_push(struct joist_kernel *k, uint32_t obj, joist_queue_kind kind, 
 uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj);
 uint64_t joist__deadline(const struct joist_kernel *k, uint64_t timeout);
 
+/* A reply object's last capability is gone (ipc.c). */
+void joist__reply_obj_freed(struct joist_kernel *k, uint32_t obj);
+
 /* Task lifecycle (task.c). */
 void joist__space_destroy(struct joist_kernel *k, uint32_t s);
 void joist__drain_pending(struct joist_kernel *k);

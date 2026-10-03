@@ -53,13 +53,18 @@ static uint64_t sh_word[JOIST_MAX_OBJECTS];
 static uint32_t sh_q[JOIST_MAX_OBJECTS][JOIST_MAX_THREADS];
 static uint32_t sh_qlen[JOIST_MAX_OBJECTS];
 static uint8_t sh_dead[JOIST_MAX_OBJECTS];
-static uint32_t sh_bind[JOIST_MAX_OBJECTS]; /* notification index + 1 */
+static uint32_t sh_bind[JOIST_MAX_OBJECTS];    /* notification index + 1 */
+static joist_badge sh_bits[JOIST_MAX_OBJECTS]; /* the binding's summary bits */
+/* Per endpoint, the no-senders badges fired and not yet collected, oldest
+ * first. */
+static joist_badge sh_fired[JOIST_MAX_OBJECTS][JOIST_MAX_BADGE_ACCTS];
+static uint32_t sh_nfired[JOIST_MAX_OBJECTS];
 static struct joist_deadname sh_dn[JOIST_MAX_DEADNAMES];
 static uint64_t sh_now;
 
 #define N_WAKE 16u
 static unsigned long wake_cov[N_WAKE];
-static unsigned long fired_nosenders, fired_deadname, endpoint_deaths, notes_freed;
+static unsigned long fired_nosenders, fired_deadname, endpoint_deaths, notes_freed, collected;
 
 static void sh_wake(uint32_t t, joist_err r)
 {
@@ -152,11 +157,13 @@ static void sh_after_delete(const struct joist_cap *gone)
     if (gone->type == JOIST_OBJ_ENDPOINT) {
         if ((gone->rights & JOIST_R_SEND) != 0 && gone->badge != 0 &&
             count_send(o, gone->badge) == 0 && !sh_dead[o] && sh_bind[o] != 0) {
-            sh_signal(sh_bind[o] - 1u, gone->badge); /* I4 */
+            sh_fired[o][sh_nfired[o]++] = gone->badge; /* I4: queued for the owner */
+            sh_signal(sh_bind[o] - 1u, sh_bits[o]);
             fired_nosenders++;
         }
         if ((gone->rights & JOIST_R_RECV) != 0 && count_recv(o) == 0 && !sh_dead[o]) {
-            sh_dead[o] = 1; /* I5 */
+            sh_dead[o] = 1;   /* I5 */
+            sh_nfired[o] = 0; /* nobody can collect them now */
             endpoint_deaths++;
             sh_wake_all(o, JOIST_E_GONE);
             for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
@@ -177,6 +184,7 @@ static void sh_after_delete(const struct joist_cap *gone)
             for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
                 if (sh_bind[i] == o + 1u) {
                     sh_bind[i] = 0;
+                    sh_bits[i] = 0;
                 }
             }
             for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
@@ -194,6 +202,8 @@ static void sh_after_delete(const struct joist_cap *gone)
         sh_word[o] = 0;
         sh_dead[o] = 0;
         sh_bind[o] = 0;
+        sh_bits[o] = 0;
+        sh_nfired[o] = 0;
     }
 }
 
@@ -303,7 +313,32 @@ static joist_err sh_do_bind(uint32_t ep_slot, uint32_t note_slot)
     if (e != JOIST_OK) {
         return e;
     }
+    if (b == 0) {
+        return JOIST_E_BADGE;
+    }
     sh_bind[ec->obj - 1u] = o + 1u;
+    sh_bits[ec->obj - 1u] = b;
+    return JOIST_OK;
+}
+
+static joist_err sh_do_collect(uint32_t ep_slot, joist_badge *out)
+{
+    const struct joist_cap *ec;
+    joist_err e = sh_ep_cap(ep_slot, &ec);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if ((ec->rights & JOIST_R_RECV) == 0) {
+        return JOIST_E_RIGHTS;
+    }
+    uint32_t o = ec->obj - 1u;
+    *out = 0;
+    if (sh_nfired[o] != 0) {
+        *out = sh_fired[o][0];
+        memmove(&sh_fired[o][0], &sh_fired[o][1], (sh_nfired[o] - 1u) * sizeof sh_fired[o][0]);
+        sh_nfired[o]--;
+        collected++;
+    }
     return JOIST_OK;
 }
 
@@ -369,10 +404,24 @@ static int compare(void)
     }
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
         const struct joist_object *ob = &k.obj[o];
-        if (ob->word != sh_word[o] || ob->dead != sh_dead[o] || ob->ns_notif != sh_bind[o]) {
+        if (ob->word != sh_word[o] || ob->dead != sh_dead[o] || ob->ns_notif != sh_bind[o] ||
+            ob->ns_bits != sh_bits[o]) {
             (void)snprintf(why, sizeof why,
                            "object %u: word 0x%" PRIx64 "/0x%" PRIx64 " dead %u/%u bind %u/%u", o,
                            ob->word, sh_word[o], ob->dead, sh_dead[o], ob->ns_notif, sh_bind[o]);
+            return 0;
+        }
+        uint32_t f = ob->ns_first;
+        for (uint32_t i = 0; i < sh_nfired[o]; i++) {
+            if (f == 0 || k.acct[f - 1u].badge != sh_fired[o][i]) {
+                (void)snprintf(why, sizeof why, "endpoint %u: no-senders queue position %u differs",
+                               o, i);
+                return 0;
+            }
+            f = k.acct[f - 1u].next;
+        }
+        if (f != 0) {
+            (void)snprintf(why, sizeof why, "endpoint %u: model no-senders queue longer", o);
             return 0;
         }
         uint32_t cur = ob->qhead;
@@ -409,10 +458,11 @@ enum {
     OP_SIGNAL,
     OP_WAIT,
     OP_TICK,
+    OP_COLLECT,
     OP_COUNT
 };
 static const char *const op_name[OP_COUNT] = {"create",   "mint",   "derive", "delete", "bind",
-                                              "deadname", "signal", "wait",   "tick"};
+                                              "deadname", "signal", "wait",   "tick",   "collect"};
 #define N_RES 16u
 static unsigned long coverage[OP_COUNT][N_RES];
 
@@ -434,6 +484,41 @@ static uint32_t occupied_slot(void)
     return pick(N_SLOTS);
 }
 
+/* A slot satisfying want(), picked uniformly, 3 times in 4 when one exists;
+ * otherwise any occupied slot. */
+static uint32_t slot_where(int (*want)(const struct joist_cap *))
+{
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < N_SLOTS; i++) {
+        n += (uint32_t)want(&k.cs[cs].slot[i]);
+    }
+    if (n != 0 && pick(4) != 0) {
+        uint32_t r = pick(n);
+        for (uint32_t i = 0; i < N_SLOTS; i++) {
+            if (want(&k.cs[cs].slot[i]) && r-- == 0) {
+                return i;
+            }
+        }
+    }
+    return occupied_slot();
+}
+
+static int badged_note(const struct joist_cap *c)
+{
+    return c->obj != 0 && c->type == JOIST_OBJ_NOTIFICATION && c->badge != 0 &&
+           (c->rights & JOIST_R_SEND) != 0;
+}
+
+static int owned_ep(const struct joist_cap *c)
+{
+    return c->obj != 0 && c->type == JOIST_OBJ_ENDPOINT && (c->rights & JOIST_R_RECV) != 0;
+}
+
+static int ep_with_queue(const struct joist_cap *c)
+{
+    return owned_ep(c) && sh_nfired[c->obj - 1u] != 0;
+}
+
 static int run_seed(uint64_t seed, unsigned long steps)
 {
     rng_state = seed * 0x9E3779B97F4A7C15ULL + 11u;
@@ -443,6 +528,8 @@ static int run_seed(uint64_t seed, unsigned long steps)
     memset(sh_qlen, 0, sizeof sh_qlen);
     memset(sh_dead, 0, sizeof sh_dead);
     memset(sh_bind, 0, sizeof sh_bind);
+    memset(sh_bits, 0, sizeof sh_bits);
+    memset(sh_nfired, 0, sizeof sh_nfired);
     memset(sh_dn, 0, sizeof sh_dn);
     sh_now = 0;
     if (joist_cspace_create(&k, 1000, &cs) != JOIST_OK) {
@@ -458,6 +545,7 @@ static int run_seed(uint64_t seed, unsigned long steps)
     }
 
     for (unsigned long step = 0; step < steps; step++) {
+        why[0] = '\0';
         uint32_t roll = pick(100);
         uint32_t a = occupied_slot();
         uint32_t b = pick(4) == 0 ? pick(N_SLOTS) : occupied_slot();
@@ -486,6 +574,8 @@ static int run_seed(uint64_t seed, unsigned long steps)
             }
         } else if (roll < 53) {
             op = OP_BIND;
+            a = slot_where(owned_ep);
+            b = slot_where(badged_note);
             want = sh_do_bind(a, b);
             got = joist_bind_nosenders(&k, cs, a, b);
         } else if (roll < 60) {
@@ -501,16 +591,27 @@ static int run_seed(uint64_t seed, unsigned long steps)
             uint64_t to = pick(3) == 0 ? 0 : pick(3) == 0 ? JOIST_FOREVER : 1u + pick(8);
             want = sh_do_wait(t, a, to);
             got = joist_wait(&k, t, a, to);
-        } else {
+        } else if (roll < 96) {
             op = OP_TICK;
             uint64_t dt = pick(5);
             sh_tick(dt);
             joist_tick(&k, dt);
+        } else {
+            op = OP_COLLECT;
+            a = slot_where(ep_with_queue);
+            joist_badge mb = 1, sb = 2;
+            want = sh_do_collect(a, &sb);
+            got = joist_nosenders_next(&k, cs, a, &mb);
+            if (got == JOIST_OK && want == JOIST_OK && mb != sb) {
+                (void)snprintf(why, sizeof why, "collected badge 0x%" PRIx64 ", shadow 0x%" PRIx64,
+                               mb, sb);
+                got = JOIST_E_STATE;
+            }
         }
         coverage[op][(unsigned)got < N_RES ? (unsigned)got : N_RES - 1u]++;
         if (got != want) {
-            fprintf(stderr, "  seed %" PRIu64 " step %lu: %s returned %s, shadow %s\n", seed, step,
-                    op_name[op], joist_err_name(got), joist_err_name(want));
+            fprintf(stderr, "  seed %" PRIu64 " step %lu: %s returned %s, shadow %s %s\n", seed,
+                    step, op_name[op], joist_err_name(got), joist_err_name(want), why);
             return 0;
         }
         if (!compare()) {
@@ -547,7 +648,7 @@ JT_TEST(props_notify_model_matches_shadow)
     const char *one = getenv("JOIST_PROP_SEED");
     memset(coverage, 0, sizeof coverage);
     memset(wake_cov, 0, sizeof wake_cov);
-    fired_nosenders = fired_deadname = endpoint_deaths = notes_freed = 0;
+    fired_nosenders = fired_deadname = endpoint_deaths = notes_freed = collected = 0;
     if (one != NULL && *one != '\0') {
         JT_CHECK(run_seed(strtoull(one, NULL, 0), steps));
     } else {
@@ -576,6 +677,6 @@ JT_TEST(props_notify_model_matches_shadow)
     }
     fprintf(stderr,
             "\n  coverage events     no-senders fired=%lu dead-names fired=%lu "
-            "endpoint deaths=%lu notifications freed=%lu\n",
-            fired_nosenders, fired_deadname, endpoint_deaths, notes_freed);
+            "endpoint deaths=%lu notifications freed=%lu no-senders collected=%lu\n",
+            fired_nosenders, fired_deadname, endpoint_deaths, notes_freed, collected);
 }

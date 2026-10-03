@@ -290,6 +290,19 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
     return JOIST_BLOCKED;
 }
 
+/* Deliver a reply to caller c, if it still waits for the call numbered seq. */
+static joist_err deliver_reply(struct joist_kernel *k, uint32_t c, uint32_t seq,
+                               const struct joist_msg *m)
+{
+    if (k->th[c].state != JOIST_T_BLOCKED_REPLY || k->th[c].call_seq != seq) {
+        return JOIST_E_PEER; /* the caller stopped waiting */
+    }
+    k->th[c].msg = *m;
+    k->th[c].badge = 0;
+    joist__wake(k, c, JOIST_OK);
+    return JOIST_OK;
+}
+
 joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist_msg *m)
 {
     joist_err e = running(k, t);
@@ -304,13 +317,90 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
     uint32_t seq = me->reply_seq;
     me->reply_to = 0; /* consumed, whatever happens next (I6) */
     me->reply_seq = 0;
-    if (k->th[c].state != JOIST_T_BLOCKED_REPLY || k->th[c].call_seq != seq) {
-        return JOIST_E_PEER; /* the caller stopped waiting */
+    return deliver_reply(k, c, seq, m);
+}
+
+/* Look up a reply object capability in t's space, needing SEND. */
+static joist_err reply_obj(const struct joist_kernel *k, joist_thread t, joist_slot slot,
+                           uint32_t *obj)
+{
+    if (slot >= JOIST_CSPACE_SLOTS) {
+        return JOIST_E_RANGE;
     }
-    k->th[c].msg = *m;
-    k->th[c].badge = 0;
-    joist__wake(k, c, JOIST_OK);
+    const struct joist_cap *c = &k->cs[k->th[t].cs].slot[slot];
+    if (c->obj == 0) {
+        return JOIST_E_EMPTY;
+    }
+    if (c->type != JOIST_OBJ_REPLY) {
+        return JOIST_E_TYPE;
+    }
+    if ((c->rights & JOIST_R_SEND) == 0) {
+        return JOIST_E_RIGHTS;
+    }
+    *obj = c->obj - 1u;
     return JOIST_OK;
+}
+
+joist_err joist_reply_save(struct joist_kernel *k, joist_thread t, joist_slot slot)
+{
+    uint32_t obj;
+    joist_err e = running(k, t);
+    if (e == JOIST_OK) {
+        e = reply_obj(k, t, slot, &obj);
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    struct joist_thread_rec *me = &k->th[t];
+    if (me->reply_to == 0) {
+        return JOIST_E_NOREPLY;
+    }
+    struct joist_object *o = &k->obj[obj];
+    if (o->target != 0) {
+        return JOIST_E_OCCUPIED;
+    }
+    o->target = me->reply_to; /* moved, not copied: still exactly one (I6) */
+    o->rseq = me->reply_seq;
+    me->reply_to = 0;
+    me->reply_seq = 0;
+    return JOIST_OK;
+}
+
+joist_err joist_reply_saved(struct joist_kernel *k, joist_thread t, joist_slot slot,
+                            const struct joist_msg *m)
+{
+    uint32_t obj;
+    joist_err e = running(k, t);
+    if (e == JOIST_OK) {
+        e = reply_obj(k, t, slot, &obj);
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    struct joist_object *o = &k->obj[obj];
+    if (o->target == 0) {
+        return JOIST_E_NOREPLY;
+    }
+    uint32_t c = o->target - 1u;
+    uint32_t seq = o->rseq;
+    o->target = 0; /* consumed (I6) */
+    o->rseq = 0;
+    return deliver_reply(k, c, seq, m);
+}
+
+/* A bound reply object's last capability is gone: its caller would wait
+ * forever, so it wakes now (I10). */
+void joist__reply_obj_freed(struct joist_kernel *k, uint32_t obj)
+{
+    struct joist_object *o = &k->obj[obj];
+    if (o->target != 0) {
+        uint32_t c = o->target - 1u;
+        if (k->th[c].state == JOIST_T_BLOCKED_REPLY && k->th[c].call_seq == o->rseq) {
+            joist__wake(k, c, JOIST_E_PEER);
+        }
+        o->target = 0;
+        o->rseq = 0;
+    }
 }
 
 joist_err joist_reply_recv(struct joist_kernel *k, joist_thread t, const struct joist_msg *m,
@@ -431,6 +521,13 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
                 const struct joist_thread_rec *h = &k->th[s];
                 if (h->state != JOIST_T_FREE && h->reply_to == t + 1u &&
                     h->reply_seq == r->call_seq) {
+                    holders++;
+                }
+            }
+            for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
+                const struct joist_object *ro = &k->obj[o];
+                if (ro->type == JOIST_OBJ_REPLY && ro->target == t + 1u &&
+                    ro->rseq == r->call_seq) {
                     holders++;
                 }
             }

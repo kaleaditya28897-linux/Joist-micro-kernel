@@ -408,3 +408,57 @@ a small, bounded addition to `task_destroy`.
 | Unit test | `task_cycle_outlives_outside_caps` (`test_task.c` now has 20) |
 | `make mutate` | 36 of 36 caught. No new mutations: item 5 adds checks, and `make fuzz-sanity` reuses the existing ones |
 | `make check` | 67 tests under plain, ASan, UBSan, MSan, TSan and small |
+
+### Work item 6: settling 0001's five parameters (2026-10-03)
+
+The result is a **proposed amendment to decision 0001**, at the end of
+`docs/decisions/0001-native-ipc-model.md`, awaiting acceptance. In short:
+
+| 0001 item | Proposed | Evidence |
+|---|---|---|
+| 1. Message registers | 4 × 64-bit registers, plus a 4 KiB per-thread IPC buffer; bulk via 0006's grants | MIG payload sizes × traced call mix: 4 words fit 37–50% of calls, 16 words only 2 points more; 512 words fit 92–94% |
+| 2. Badges | 64 bits, server-chosen; no-senders delivered by a queue, not as bits | the model: ORing badges into the word loses them when two fire |
+| 3. Notification word | 64 bits; bits are summaries beyond that | 0005's and 0014's needs |
+| 4. Capability space | two-level radix table, 4 KiB leaves from donated memory, O(1), up to 65 536 slots | `portinfo` on 564 processes: median 22, p99 119, max 49 147 |
+| 5. Bare `Send` | dropped; deferred replies through reply objects instead | 172 one-way routines: 165 are halves of deferred-reply routines, 7 truly one-way, 1 fired |
+
+The measurements are new and recorded in `docs/phase1-data/item6/`
+(tools in `tools/phase1/`). They answer questions Phase 0's counts couldn't:
+how big each message is, how many capabilities a real process holds, and
+what the one-way messages are for.
+
+**Two model changes came out of it, both in the model now:**
+
+1. **Queued no-senders** (items 2 and 3). A fired badge account is linked onto
+   its endpoint instead of freed, the bound notification gets the binding's
+   summary bit, and the owner collects badges with
+   `joist_nosenders_next` (O(1), needs RECV; returns 0 when none is queued).
+   Pending badges are dropped when the endpoint dies. A badge minted again
+   while its previous firing is still queued starts a fresh account, so two
+   firings are two events. Binding now needs a badged notification
+   capability. New invariants: every fired account is queued exactly once on
+   a live endpoint, with no senders; live accounts are never queued.
+2. **Reply objects** (item 5). `JOIST_OBJ_REPLY`, created from the server's
+   quota; `joist_reply_save` moves a thread's reply capability into one,
+   `joist_reply_saved` answers through it from any thread of the space.
+   Freeing a bound reply object wakes its caller with `E_PEER`. I6's
+   invariant now counts bound reply objects as holders. The per-thread
+   reply capability and `ReplyRecv` are unchanged: they stay the fast path.
+
+| Check | Result |
+|---|---|
+| Unit tests | `test_notify.c` +5 (collect order, 64-bit badges survive, errors, re-fired badge, queue dropped at death; 3 rewritten); `test_ipc.c` +5 (out-of-order deferred replies, reply from another thread, object deleted while bound, reply to a departed caller, errors) |
+| Property tests | `test_props_notify.c`'s shadow models the queue and the collect call (about 910 firings and 470 collections per run); `test_props_ipc.c`'s shadow models reply objects (about 1 400 saves, 300 saved replies, 400 stale per run); the whole-model executor gains `collect`, `reply_save` and `reply_saved`, with I6 checked directly on saved replies |
+| `make mutate` | 43 of 43 caught, 7 new: a fired badge never queued, collection that doesn't pop, the queue kept at endpoint death, a binding without bits; a saved reply reusable, a freed bound reply object silent, a save overwriting a bound object. The logged run caught 42 and reported one stale ("I4 never fires" targeted the signal line this item replaced); re-targeted, it is caught (`docs/phase1-data/item6/`) |
+| `make check` | 76 tests under plain, ASan, UBSan, MSan, TSan and small. Also: `make fuzz-sanity` 7 of 7 from seeds, 7 of 7 from nothing within 26 s; `make fuzz` 10 minutes, 3.7 million steps, no crash |
+
+**Semantics the model chose** (for `docs/abi.md`):
+
+1. **`nosenders_next` returns badge 0 for "none"**, not an error, since 0 is
+   never a valid badge.
+2. **A reply object needs SEND** to save into or reply through; GRANT lets
+   it be passed on, so a thread pool in another task could answer.
+3. **Saving into a bound reply object fails** (`E_OCCUPIED`) and leaves the
+   thread's reply capability where it was.
+4. **Reply objects survive the thread that saved into them**: the reply
+   belongs to the space, not the thread.

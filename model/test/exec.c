@@ -8,13 +8,37 @@
 #include "internal.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-const char *const jx_op_name[JX_OPS] = {
-    "space_create", "space_destroy", "obj_create",   "derive",   "mint",  "grant",
-    "delete",       "task_create",   "task_destroy", "spawn",    "kill",  "th_create",
-    "th_destroy",   "send",          "call",         "recv",     "reply", "reply_recv",
-    "signal",       "wait",          "bind",         "deadname", "tick"};
+/* Designated, so an operation added to the enum without a name or weight is
+ * caught by the checks in jx_begin rather than printing NULL. */
+const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
+                                        [JX_SPACE_DESTROY] = "space_destroy",
+                                        [JX_OBJ_CREATE] = "obj_create",
+                                        [JX_DERIVE] = "derive",
+                                        [JX_MINT] = "mint",
+                                        [JX_GRANT] = "grant",
+                                        [JX_DELETE] = "delete",
+                                        [JX_TASK_CREATE] = "task_create",
+                                        [JX_TASK_DESTROY] = "task_destroy",
+                                        [JX_SPAWN] = "spawn",
+                                        [JX_KILL] = "kill",
+                                        [JX_TH_CREATE] = "th_create",
+                                        [JX_TH_DESTROY] = "th_destroy",
+                                        [JX_SEND] = "send",
+                                        [JX_CALL] = "call",
+                                        [JX_RECV] = "recv",
+                                        [JX_REPLY] = "reply",
+                                        [JX_REPLY_RECV] = "reply_recv",
+                                        [JX_SIGNAL] = "signal",
+                                        [JX_WAIT] = "wait",
+                                        [JX_BIND] = "bind",
+                                        [JX_DEADNAME] = "deadname",
+                                        [JX_COLLECT] = "collect",
+                                        [JX_SAVE] = "reply_save",
+                                        [JX_SAVED] = "reply_saved",
+                                        [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
 static const uint8_t weight[JX_OPS] = {
@@ -23,7 +47,8 @@ static const uint8_t weight[JX_OPS] = {
     [JX_TASK_DESTROY] = 2, [JX_SPAWN] = 5,         [JX_KILL] = 2,        [JX_TH_CREATE] = 2,
     [JX_TH_DESTROY] = 1,   [JX_SEND] = 5,          [JX_CALL] = 6,        [JX_RECV] = 6,
     [JX_REPLY] = 4,        [JX_REPLY_RECV] = 4,    [JX_SIGNAL] = 5,      [JX_WAIT] = 5,
-    [JX_BIND] = 3,         [JX_DEADNAME] = 3,      [JX_TICK] = 6};
+    [JX_BIND] = 3,         [JX_DEADNAME] = 3,      [JX_COLLECT] = 3,     [JX_SAVE] = 3,
+    [JX_SAVED] = 3,        [JX_TICK] = 6};
 
 static uint64_t boot_budget;
 
@@ -160,19 +185,26 @@ static joist_badge pick_badge(struct jx_source *src)
 void jx_begin(struct joist_kernel *k, struct jx_source *src)
 {
     joist_cspace root;
+    for (unsigned op = 0; op < JX_OPS; op++) {
+        if (jx_op_name[op] == NULL || weight[op] == 0) {
+            fprintf(stderr, "exec.c: operation %u has no name or weight\n", op);
+            abort();
+        }
+    }
     joist_init(k);
     boot_budget = 8u + ch(src, 120);
     (void)joist_boot(k, (uint32_t)boot_budget, &root);
     /* A starting world, so every sequence can reach IPC at once instead of
      * waiting for random choices to build one: an endpoint and a send-only
      * copy, a notification and two copies with different badges (so signals
-     * can pile up), three threads. */
+     * can pile up), a reply object, three threads. */
     joist_thread t;
     (void)joist_obj_create(k, root, JOIST_OBJ_ENDPOINT, 0);
     (void)joist_cap_derive(k, root, 0, 1, JOIST_R_SEND);
     (void)joist_obj_create(k, root, JOIST_OBJ_NOTIFICATION, 2);
     (void)joist_cap_mint(k, root, 2, 3, JOIST_R_ALL, 1);
     (void)joist_cap_mint(k, root, 2, 4, JOIST_R_ALL, 2);
+    (void)joist_obj_create(k, root, JOIST_OBJ_REPLY, 5);
     for (int i = 0; i < 3; i++) {
         (void)joist_thread_create(k, root, &t);
     }
@@ -200,12 +232,14 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     }
     case JX_SPACE_DESTROY:
         return joist_cspace_destroy(k, cs);
-    case JX_OBJ_CREATE:
+    case JX_OBJ_CREATE: {
         /* An invalid type (none, task, thread) 1 time in 8. */
-        return joist_obj_create(k, cs,
-                                (joist_obj_type)(ch(src, 8) == 0 ? ch(src, JOIST_OBJ_THREAD + 1u)
-                                                                 : JOIST_OBJ_ENDPOINT + ch(src, 2)),
-                                pick_dst(k, src, cs));
+        static const joist_obj_type valid[] = {JOIST_OBJ_ENDPOINT, JOIST_OBJ_NOTIFICATION,
+                                               JOIST_OBJ_REPLY};
+        joist_obj_type ty =
+            ch(src, 8) == 0 ? (joist_obj_type)ch(src, JOIST_OBJ_THREAD + 1u) : valid[ch(src, 3)];
+        return joist_obj_create(k, cs, ty, pick_dst(k, src, cs));
+    }
     case JX_DERIVE:
     case JX_MINT:
     case JX_GRANT: {
@@ -283,6 +317,26 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         return op == JX_BIND ? joist_bind_nosenders(k, cs, ep, n)
                              : joist_request_deadname(k, cs, ep, n);
     }
+    case JX_SAVE:
+    case JX_SAVED: {
+        uint32_t t = pick_thread(k, src, ch(src, 4) != 0);
+        uint32_t r = pick_slot(k, src, thread_space(k, t), JOIST_OBJ_REPLY);
+        if (op == JX_SAVE) {
+            return joist_reply_save(k, t, r);
+        }
+        if (t < JOIST_MAX_THREADS && r < JOIST_CSPACE_SLOTS && k->th[t].state != JOIST_T_FREE) {
+            const struct joist_cap *c = &k->cs[k->th[t].cs].slot[r];
+            if (c->obj != 0 && c->type == JOIST_OBJ_REPLY) {
+                ls->caller = k->obj[c->obj - 1u].target;
+            }
+        }
+        ls->t = t;
+        return joist_reply_saved(k, t, r, &m);
+    }
+    case JX_COLLECT: {
+        joist_badge b;
+        return joist_nosenders_next(k, cs, pick_slot(k, src, cs, JOIST_OBJ_ENDPOINT), &b);
+    }
     default:
         joist_tick(k, 1u + ch(src, 6));
         return JOIST_OK;
@@ -345,6 +399,14 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     }
     /* I6, directly: a reply consumes the reply capability and reaches the
      * caller, with this step's message. */
+    if (op == JX_SAVED && e == JOIST_OK &&
+        (ls.caller == 0 || k->th[ls.caller - 1u].state != JOIST_T_RUNNING ||
+         k->th[ls.caller - 1u].result != JOIST_OK ||
+         k->th[ls.caller - 1u].msg.r[0] != st->steps - 1u)) {
+        (void)snprintf(why, whylen, "I6: saved reply by thread %u missed caller %u", ls.t,
+                       ls.caller);
+        return 0;
+    }
     if (op == JX_REPLY && e == JOIST_OK &&
         (k->th[ls.t].reply_to != 0 || ls.caller == 0 ||
          k->th[ls.caller - 1u].state != JOIST_T_RUNNING ||

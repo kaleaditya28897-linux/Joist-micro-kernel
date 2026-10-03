@@ -40,6 +40,9 @@ enum {
     JX_WAIT,
     JX_BIND,
     JX_DEADNAME,
+    JX_COLLECT,
+    JX_SAVE,
+    JX_SAVED,
     JX_TICK,
     JX_OPS
 };

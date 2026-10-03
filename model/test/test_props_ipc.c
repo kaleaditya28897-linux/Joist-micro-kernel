@@ -1,8 +1,9 @@
 /* test_props_ipc.c - property test for synchronous IPC (Phase 1 work item 2;
  * invariants I6, I7, I10).
  *
- * Random Send/Call/Recv/Reply/ReplyRecv, clock ticks, thread creation and
- * destruction, and endpoint deletion run against the model and an independent
+ * Random Send/Call/Recv/Reply/ReplyRecv, deferred replies through reply
+ * objects (work item 6), clock ticks, thread creation and destruction, and
+ * capability deletion run against the model and an independent
  * shadow of 0001's IPC rules (queues as ordered lists, thread states,
  * messages, badges, deadlines, reply capabilities). After every step the two
  * must agree on the return code, every thread field and every queue's order,
@@ -57,6 +58,11 @@ static uint32_t shq_len[JOIST_MAX_OBJECTS];
 static uint8_t shq_kind[JOIST_MAX_OBJECTS];
 static uint64_t sh_now;
 static uint8_t sh_dead[JOIST_MAX_OBJECTS]; /* endpoint death already processed */
+/* Reply objects, by model object index: the saved reply capability. */
+static struct {
+    uint32_t target; /* caller + 1, 0 = unbound */
+    uint32_t seq;
+} sh_rep[JOIST_MAX_OBJECTS];
 static struct joist_kernel k;
 
 /* An endpoint is dead exactly when no capability with RECV names it: the
@@ -264,6 +270,90 @@ static joist_err sh_reply(uint32_t t, const struct joist_msg *m)
     return JOIST_OK;
 }
 
+static joist_err sh_reply_obj(uint32_t t, uint32_t slot, uint32_t *o)
+{
+    if (slot >= JOIST_CSPACE_SLOTS) {
+        return JOIST_E_RANGE;
+    }
+    const struct joist_cap *c = &k.cs[sh[t].cs].slot[slot];
+    if (c->obj == 0) {
+        return JOIST_E_EMPTY;
+    }
+    if (c->type != JOIST_OBJ_REPLY) {
+        return JOIST_E_TYPE;
+    }
+    if ((c->rights & JOIST_R_SEND) == 0) {
+        return JOIST_E_RIGHTS;
+    }
+    *o = c->obj - 1u;
+    return JOIST_OK;
+}
+
+static joist_err sh_save(uint32_t t, uint32_t slot)
+{
+    uint32_t o;
+    joist_err e = sh_running(t);
+    if (e == JOIST_OK) {
+        e = sh_reply_obj(t, slot, &o);
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (sh[t].reply_to == 0) {
+        return JOIST_E_NOREPLY;
+    }
+    if (sh_rep[o].target != 0) {
+        return JOIST_E_OCCUPIED;
+    }
+    sh_rep[o].target = sh[t].reply_to;
+    sh_rep[o].seq = sh[t].reply_seq;
+    sh[t].reply_to = 0;
+    sh[t].reply_seq = 0;
+    return JOIST_OK;
+}
+
+static joist_err sh_saved(uint32_t t, uint32_t slot, const struct joist_msg *m)
+{
+    uint32_t o;
+    joist_err e = sh_running(t);
+    if (e == JOIST_OK) {
+        e = sh_reply_obj(t, slot, &o);
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (sh_rep[o].target == 0) {
+        return JOIST_E_NOREPLY;
+    }
+    uint32_t c = sh_rep[o].target - 1u;
+    uint32_t seq = sh_rep[o].seq;
+    sh_rep[o].target = 0;
+    sh_rep[o].seq = 0;
+    if (sh[c].state != JOIST_T_BLOCKED_REPLY || sh[c].call_seq != seq) {
+        return JOIST_E_PEER;
+    }
+    sh[c].msg = *m;
+    sh[c].badge = 0;
+    sh_wake(c, JOIST_OK);
+    return JOIST_OK;
+}
+
+/* After a capability deletion: a reply object that was freed while bound
+ * wakes its caller (I10). */
+static void sh_reap_replies(void)
+{
+    for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
+        if (k.obj[o].type == JOIST_OBJ_NONE && sh_rep[o].target != 0) {
+            uint32_t c = sh_rep[o].target - 1u;
+            if (sh[c].state == JOIST_T_BLOCKED_REPLY && sh[c].call_seq == sh_rep[o].seq) {
+                sh_wake(c, JOIST_E_PEER);
+            }
+            sh_rep[o].target = 0;
+            sh_rep[o].seq = 0;
+        }
+    }
+}
+
 static joist_err sh_reply_recv(uint32_t t, const struct joist_msg *m, uint32_t slot,
                                uint64_t timeout)
 {
@@ -396,6 +486,12 @@ static int compare(void)
         }
     }
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
+        if (k.obj[o].type == JOIST_OBJ_REPLY &&
+            (k.obj[o].target != sh_rep[o].target || k.obj[o].rseq != sh_rep[o].seq)) {
+            (void)snprintf(why, sizeof why, "reply object %u: bound to %u.%u, shadow %u.%u", o,
+                           k.obj[o].target, k.obj[o].rseq, sh_rep[o].target, sh_rep[o].seq);
+            return 0;
+        }
         if (k.obj[o].qkind != shq_kind[o]) {
             (void)snprintf(why, sizeof why, "endpoint %u: queue kind %u/%u", o, k.obj[o].qkind,
                            shq_kind[o]);
@@ -422,7 +518,16 @@ static int compare(void)
 /* Each space gets endpoints with full, send-only (badged) and receive-only
  * capabilities in fixed slots; deleted capabilities are re-created by the
  * generator so the world doesn't die out. */
-enum { SLOTS_PER_EP = 3, N_EP = 3, N_SPACES = 2 };
+enum { SLOTS_PER_EP = 3, N_EP = 3, N_SPACES = 2, RPL_SLOT = N_EP * SLOTS_PER_EP, N_RPL = 2 };
+
+static void ensure_replies(uint32_t cs)
+{
+    for (uint32_t i = 0; i < N_RPL; i++) {
+        if (k.cs[cs].slot[RPL_SLOT + i].obj == 0) {
+            (void)joist_obj_create(&k, cs, JOIST_OBJ_REPLY, RPL_SLOT + i);
+        }
+    }
+}
 
 static void ensure_endpoint(uint32_t cs, uint32_t e)
 {
@@ -446,10 +551,13 @@ enum {
     OP_TH_CREATE,
     OP_TH_DESTROY,
     OP_CAP_DELETE,
+    OP_SAVE,
+    OP_SAVED,
     OP_COUNT
 };
 static const char *const op_name[OP_COUNT] = {
-    "send", "call", "recv", "reply", "reply_recv", "tick", "th_create", "th_destroy", "cap_delete"};
+    "send",      "call",       "recv",       "reply",      "reply_recv", "tick",
+    "th_create", "th_destroy", "cap_delete", "reply_save", "reply_saved"};
 #define N_RES 16u
 static unsigned long coverage[OP_COUNT][N_RES];
 
@@ -473,6 +581,7 @@ static int run_seed(uint64_t seed, unsigned long steps)
     memset(shq_len, 0, sizeof shq_len);
     memset(shq_kind, 0, sizeof shq_kind);
     memset(sh_dead, 0, sizeof sh_dead);
+    memset(sh_rep, 0, sizeof sh_rep);
     sh_now = 0;
 
     for (uint32_t c = 0; c < N_SPACES; c++) {
@@ -487,6 +596,9 @@ static int run_seed(uint64_t seed, unsigned long steps)
                 if (pick(8) == 0) {
                     ensure_endpoint(c, e);
                 }
+            }
+            if (pick(8) == 0) {
+                ensure_replies(c);
             }
         }
         /* A thread index, usually a live one, occasionally out of range. */
@@ -506,7 +618,7 @@ static int run_seed(uint64_t seed, unsigned long steps)
         m.r[0] = rng();
         m.r[JOIST_MSG_REGS - 1u] = step;
         uint64_t timeout = pick_timeout();
-        uint32_t roll = pick(100);
+        uint32_t roll = pick(110);
         int op;
         joist_err got;
         joist_err want;
@@ -552,7 +664,7 @@ static int run_seed(uint64_t seed, unsigned long steps)
             uint32_t victim = pick(JOIST_MAX_THREADS + 1u);
             want = sh_thread_destroy(victim);
             got = joist_thread_destroy(&k, victim);
-        } else {
+        } else if (roll < 97) {
             op = OP_CAP_DELETE;
             uint32_t cs = pick(N_SPACES);
             want = k.cs[cs].slot[slot < JOIST_CSPACE_SLOTS ? slot : 0].obj != 0 ? JOIST_OK
@@ -562,6 +674,35 @@ static int run_seed(uint64_t seed, unsigned long steps)
             }
             got = joist_cap_delete(&k, cs, slot);
             sh_reap_endpoints();
+            sh_reap_replies();
+        } else if (roll < 100) {
+            /* Deleting a reply object: the bound-and-freed path (I10). */
+            op = OP_CAP_DELETE;
+            uint32_t cs = pick(N_SPACES);
+            uint32_t rs = RPL_SLOT + pick(N_RPL);
+            want = k.cs[cs].slot[rs].obj != 0 ? JOIST_OK : JOIST_E_EMPTY;
+            got = joist_cap_delete(&k, cs, rs);
+            sh_reap_endpoints();
+            sh_reap_replies();
+        } else {
+            /* A thread holding a reply capability, usually, so saves succeed. */
+            for (uint32_t n = 0; n < JOIST_MAX_THREADS && pick(4) != 0; n++) {
+                uint32_t i = (t + n) % JOIST_MAX_THREADS;
+                if (sh[i].state == JOIST_T_RUNNING && sh[i].reply_to != 0) {
+                    t = i;
+                    break;
+                }
+            }
+            uint32_t rs = pick(4) == 0 ? slot : RPL_SLOT + pick(N_RPL);
+            if (roll < 105) {
+                op = OP_SAVE;
+                want = sh_save(t, rs);
+                got = joist_reply_save(&k, t, rs);
+            } else {
+                op = OP_SAVED;
+                want = sh_saved(t, rs, &m);
+                got = joist_reply_saved(&k, t, rs, &m);
+            }
         }
 
         coverage[op][(unsigned)got < N_RES ? (unsigned)got : N_RES - 1u]++;

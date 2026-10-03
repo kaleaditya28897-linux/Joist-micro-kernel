@@ -100,9 +100,13 @@ JT_TEST(nosenders_fires_once_on_last_sender)
     JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);
     JT_CHECK(k.obj[1].word == 0); /* one sender with badge 0x10 remains */
     JT_CHECK(joist_cap_delete(&k, cs, EP_C2) == JOIST_OK);
-    /* I4: the last sender with this badge is gone; the owner hears its badge. */
-    JT_CHECK(k.obj[1].word == 0x10);
-    JT_CHECK(joist_wait(&k, b, NOTE, 0) == JOIST_OK && k.th[b].badge == 0x10);
+    /* I4: the last sender with this badge is gone. The owner's notification
+     * gets the binding's summary bit, and the badge waits to be collected. */
+    JT_CHECK(k.obj[1].word == 0x1);
+    JT_CHECK(joist_wait(&k, b, NOTE, 0) == JOIST_OK && k.th[b].badge == 0x1);
+    joist_badge got = 7;
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x10);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0); /* once */
     JT_CHECK(clean());
 }
 
@@ -113,9 +117,82 @@ JT_TEST(nosenders_badges_are_independent)
     JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C2, JOIST_R_SEND, 0x20) == JOIST_OK);
     JT_REQUIRE(joist_bind_nosenders(&k, cs, EP, NOTE_SIG1) == JOIST_OK);
     JT_CHECK(joist_cap_delete(&k, cs, EP_C2) == JOIST_OK);
-    JT_CHECK(k.obj[1].word == 0x20);
     JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);
-    JT_CHECK(k.obj[1].word == 0x30);
+    /* Two badges, one summary bit, both badges kept, in the order they fired:
+     * nothing is merged, unlike ORing badges into the word would. */
+    JT_CHECK(k.obj[1].word == 0x1);
+    joist_badge got = 0;
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x20);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x10);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(nosenders_arbitrary_badges_survive)
+{
+    setup();
+    /* Badges are 64-bit values (a server's per-client pointer, say), not
+     * bits: two firing together must come back intact. */
+    const joist_badge p1 = 0x00007f3a12345670ull, p2 = 0x00007f3a12345678ull;
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, p1) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C2, JOIST_R_SEND, p2) == JOIST_OK);
+    JT_REQUIRE(joist_bind_nosenders(&k, cs, EP, NOTE_SIG2) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C2) == JOIST_OK);
+    JT_CHECK(k.obj[1].word == 0x4);
+    joist_badge got = 0;
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == p1);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == p2);
+    JT_CHECK(clean());
+}
+
+JT_TEST(nosenders_next_errors)
+{
+    setup();
+    joist_badge got = 0;
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP_C1, &got) == JOIST_E_RIGHTS); /* owner only */
+    JT_CHECK(joist_nosenders_next(&k, cs, NOTE, &got) == JOIST_E_TYPE);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP_C2, &got) == JOIST_E_EMPTY);
+    JT_CHECK(joist_nosenders_next(&k, cs, JOIST_CSPACE_SLOTS, &got) == JOIST_E_RANGE);
+    JT_CHECK(joist_nosenders_next(&k, JOIST_MAX_CSPACES, EP, &got) == JOIST_E_RANGE);
+    /* A binding must carry bits. */
+    JT_CHECK(joist_bind_nosenders(&k, cs, EP, NOTE) == JOIST_E_BADGE);
+    JT_CHECK(clean());
+}
+
+JT_TEST(nosenders_refired_badge_is_a_new_account)
+{
+    setup();
+    joist_badge got = 0;
+    JT_REQUIRE(joist_bind_nosenders(&k, cs, EP, NOTE_SIG1) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK); /* fired, not collected */
+    /* The same badge minted again counts from zero, separately... */
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
+    JT_CHECK(clean());
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);
+    /* ...and fires again: two separate events, each collected once. */
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x10);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x10);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(nosenders_queue_dropped_at_endpoint_death)
+{
+    setup();
+    JT_REQUIRE(joist_bind_nosenders(&k, cs, EP, NOTE_SIG1) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C2, JOIST_R_SEND, 0x20) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK); /* 0x10 queued */
+    JT_CHECK(joist_cap_delete(&k, cs, EP) == JOIST_OK);    /* the owner goes */
+    /* Nobody can collect the queue now: its accounts are freed (I3). */
+    uint32_t used = 0;
+    for (uint32_t i = 0; i < JOIST_MAX_BADGE_ACCTS; i++) {
+        used += k.acct[i].obj != 0;
+    }
+    JT_CHECK(used == 1); /* only 0x20's, still counting its sender */
     JT_CHECK(clean());
 }
 
@@ -127,7 +204,10 @@ JT_TEST(nosenders_counts_only_send_capabilities)
     JT_REQUIRE(joist_cap_derive(&k, cs, EP_C1, EP_C2, JOIST_R_GRANT) == JOIST_OK);
     JT_REQUIRE(joist_bind_nosenders(&k, cs, EP, NOTE_SIG1) == JOIST_OK);
     JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);
-    JT_CHECK(k.obj[1].word == 0x10); /* the badged non-sender doesn't hold it open */
+    /* The badged non-sender doesn't hold it open. */
+    joist_badge got = 0;
+    JT_CHECK(k.obj[1].word == 0x1);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x10);
     JT_CHECK(clean());
 }
 

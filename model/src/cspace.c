@@ -19,6 +19,8 @@ static joist_rights full_rights(joist_obj_type t)
     case JOIST_OBJ_TASK:
     case JOIST_OBJ_THREAD:
         return (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT);
+    case JOIST_OBJ_REPLY:
+        return (joist_rights)(JOIST_R_SEND | JOIST_R_GRANT); /* SEND: may reply */
     case JOIST_OBJ_NONE:
     default:
         return 0;
@@ -80,12 +82,16 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
         o->type = JOIST_OBJ_NONE;
         o->donor = 0;
         o->target = 0;
+        o->rseq = 0;
         o->qkind = JOIST_Q_NONE;
         o->qhead = 0;
         o->qtail = 0;
         o->recv_caps = 0;
         o->dead = 0;
         o->ns_notif = 0;
+        o->ns_bits = 0;
+        o->ns_first = 0;
+        o->ns_last = 0;
         o->word = 0;
         k->objects_live--;
     }

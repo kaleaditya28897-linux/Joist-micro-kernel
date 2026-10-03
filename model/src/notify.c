@@ -14,11 +14,14 @@
 
 /* ---- accounting (no-senders) ---- */
 
+/* The live (not fired) account for (obj, b). A fired account for the same
+ * pair may also exist, waiting to be collected; a new mint of that badge
+ * then starts a fresh account. */
 static struct joist_badge_acct *acct_find(struct joist_kernel *k, uint32_t obj, joist_badge b)
 {
     for (uint32_t i = 0; i < JOIST_MAX_BADGE_ACCTS; i++) {
         JOIST_WORK(k);
-        if (k->acct[i].obj == obj + 1u && k->acct[i].badge == b) {
+        if (k->acct[i].obj == obj + 1u && k->acct[i].badge == b && !k->acct[i].fired) {
             return &k->acct[i];
         }
     }
@@ -69,6 +72,14 @@ static void endpoint_die(struct joist_kernel *k, uint32_t obj)
     struct joist_object *e = &k->obj[obj];
     e->dead = 1;
     joist__queue_wake_all(k, obj, JOIST_E_GONE);
+    /* Queued no-senders badges: nobody can collect them now. */
+    while (e->ns_first != 0) {
+        JOIST_WORK(k);
+        struct joist_badge_acct *a = &k->acct[e->ns_first - 1u];
+        e->ns_first = a->next;
+        memset(a, 0, sizeof *a);
+    }
+    e->ns_last = 0;
     /* I5: each registered holder is told once, then the registration goes. */
     for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
         JOIST_WORK(k);
@@ -92,12 +103,23 @@ void joist__cap_removed(struct joist_kernel *k, const struct joist_cap *c)
     if (counted_send(c)) {
         struct joist_badge_acct *a = acct_find(k, obj, c->badge);
         if (a != NULL && --a->send_caps == 0) {
-            joist_badge b = a->badge;
-            memset(a, 0, sizeof *a);
-            /* I4: the last sender with this badge is gone. A dead endpoint has
-             * nobody left to tell. */
+            /* I4: the last sender with this badge is gone. Queue the badge for
+             * the owner, using the account itself as the queue node, and
+             * signal the binding's summary bit. A dead or unbound endpoint
+             * has nobody to tell, and the account is simply freed. */
             if (!e->dead && e->ns_notif != 0) {
-                joist__notify_signal(k, e->ns_notif - 1u, b);
+                uint32_t idx = (uint32_t)(a - k->acct) + 1u;
+                a->fired = 1;
+                a->next = 0;
+                if (e->ns_last != 0) {
+                    k->acct[e->ns_last - 1u].next = idx;
+                } else {
+                    e->ns_first = idx;
+                }
+                e->ns_last = idx;
+                joist__notify_signal(k, e->ns_notif - 1u, e->ns_bits);
+            } else {
+                memset(a, 0, sizeof *a);
             }
         }
     }
@@ -110,12 +132,16 @@ void joist__object_freed(struct joist_kernel *k, uint32_t obj)
 {
     struct joist_object *o = &k->obj[obj];
     joist__queue_wake_all(k, obj, JOIST_E_GONE);
+    if (o->type == JOIST_OBJ_REPLY) {
+        joist__reply_obj_freed(k, obj);
+    }
     if (o->type == JOIST_OBJ_NOTIFICATION) {
         /* Drop every reference the kernel keeps to this notification. */
         for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
             JOIST_WORK(k);
             if (k->obj[i].ns_notif == obj + 1u) {
                 k->obj[i].ns_notif = 0;
+                k->obj[i].ns_bits = 0;
             }
         }
         for (uint32_t i = 0; i < JOIST_MAX_DEADNAMES; i++) {
@@ -269,7 +295,45 @@ joist_err joist_bind_nosenders(struct joist_kernel *k, joist_cspace cs, joist_sl
     if (e != JOIST_OK) {
         return e;
     }
+    if (nbadge == 0) {
+        return JOIST_E_BADGE; /* the signal would carry no bits */
+    }
     k->obj[ec->obj - 1u].ns_notif = nobj + 1u;
+    k->obj[ec->obj - 1u].ns_bits = nbadge;
+    return JOIST_OK;
+}
+
+joist_err joist_nosenders_next(struct joist_kernel *k, joist_cspace cs, joist_slot ep_slot,
+                               joist_badge *badge)
+{
+    joist_err e = space_live(k, cs);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (ep_slot >= JOIST_CSPACE_SLOTS) {
+        return JOIST_E_RANGE;
+    }
+    const struct joist_cap *ec = &k->cs[cs].slot[ep_slot];
+    if (ec->obj == 0) {
+        return JOIST_E_EMPTY;
+    }
+    if (ec->type != JOIST_OBJ_ENDPOINT) {
+        return JOIST_E_TYPE;
+    }
+    if ((ec->rights & JOIST_R_RECV) == 0) {
+        return JOIST_E_RIGHTS; /* only the endpoint's owner collects */
+    }
+    struct joist_object *o = &k->obj[ec->obj - 1u];
+    *badge = 0;
+    if (o->ns_first != 0) {
+        struct joist_badge_acct *a = &k->acct[o->ns_first - 1u];
+        *badge = a->badge;
+        o->ns_first = a->next;
+        if (o->ns_first == 0) {
+            o->ns_last = 0;
+        }
+        memset(a, 0, sizeof *a);
+    }
     return JOIST_OK;
 }
 
@@ -318,7 +382,9 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
 {
     unsigned bad = 0;
     uint32_t recv_seen[JOIST_MAX_OBJECTS];
+    uint32_t fired_seen[JOIST_MAX_BADGE_ACCTS];
     memset(recv_seen, 0, sizeof recv_seen);
+    memset(fired_seen, 0, sizeof fired_seen);
 
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
@@ -339,7 +405,8 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
             if (counted_send(cap)) {
                 const struct joist_badge_acct *a = NULL;
                 for (uint32_t j = 0; j < JOIST_MAX_BADGE_ACCTS; j++) {
-                    if (k->acct[j].obj == cap->obj && k->acct[j].badge == cap->badge) {
+                    if (k->acct[j].obj == cap->obj && k->acct[j].badge == cap->badge &&
+                        !k->acct[j].fired) {
                         a = &k->acct[j];
                     }
                 }
@@ -374,6 +441,13 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
             if (ob->recv_caps != 0 || ob->dead) {
                 VIOLATION("notification %u carries endpoint state", o);
             }
+        } else if (ob->type == JOIST_OBJ_REPLY) {
+            if (ob->word != 0 || ob->recv_caps != 0 || ob->dead) {
+                VIOLATION("reply object %u carries other objects' state", o);
+            }
+            if (ob->target > JOIST_MAX_THREADS) {
+                VIOLATION("I6: reply object %u names thread %u", o, ob->target);
+            }
         } else if (ob->type == JOIST_OBJ_TASK || ob->type == JOIST_OBJ_THREAD) {
             if (ob->word != 0 || ob->recv_caps != 0) {
                 VIOLATION("task/thread object %u carries endpoint or notification state", o);
@@ -387,6 +461,31 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
             VIOLATION("I4: object %u no-senders binding %u is not a live notification", o,
                       ob->ns_notif);
         }
+        if ((ob->ns_notif != 0) != (ob->ns_bits != 0)) {
+            VIOLATION("I4: object %u binding %u with bits 0x%llx", o, ob->ns_notif,
+                      (unsigned long long)ob->ns_bits);
+        }
+        /* The fired queue: only on a live endpoint, every node a fired
+         * account of this endpoint, ending at ns_last, no cycle. */
+        if (ob->ns_first != 0 && (ob->type != JOIST_OBJ_ENDPOINT || ob->dead)) {
+            VIOLATION("I4: object %u (dead or not an endpoint) has queued no-senders", o);
+        }
+        uint32_t cur = ob->ns_first;
+        uint32_t prev = 0;
+        uint32_t steps = 0;
+        while (cur != 0) {
+            if (cur > JOIST_MAX_BADGE_ACCTS || ++steps > JOIST_MAX_BADGE_ACCTS ||
+                !k->acct[cur - 1u].fired || k->acct[cur - 1u].obj != o + 1u) {
+                VIOLATION("I4: endpoint %u no-senders queue is corrupt", o);
+                break;
+            }
+            fired_seen[cur - 1u]++;
+            prev = cur;
+            cur = k->acct[cur - 1u].next;
+        }
+        if (cur == 0 && prev != ob->ns_last) {
+            VIOLATION("I4: endpoint %u no-senders queue ends at %u, last %u", o, prev, ob->ns_last);
+        }
     }
     for (uint32_t j = 0; j < JOIST_MAX_BADGE_ACCTS; j++) {
         const struct joist_badge_acct *a = &k->acct[j];
@@ -396,6 +495,17 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
         if (a->obj > JOIST_MAX_OBJECTS || k->obj[a->obj - 1u].type != JOIST_OBJ_ENDPOINT) {
             VIOLATION("I4: account %u names a non-endpoint %u", j, a->obj);
             continue;
+        }
+        if (a->fired) {
+            /* Collected exactly once: queued on its endpoint exactly once. */
+            if (a->send_caps != 0 || fired_seen[j] != 1) {
+                VIOLATION("I4: fired account %u counts %u senders, queued %u times", j,
+                          a->send_caps, fired_seen[j]);
+            }
+            continue;
+        }
+        if (a->next != 0) {
+            VIOLATION("I4: live account %u has a queue link", j);
         }
         uint32_t n = 0;
         for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
@@ -411,7 +521,7 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
                       (unsigned long long)a->badge, a->send_caps, n);
         }
         for (uint32_t j2 = j + 1u; j2 < JOIST_MAX_BADGE_ACCTS; j2++) {
-            if (k->acct[j2].obj == a->obj && k->acct[j2].badge == a->badge) {
+            if (k->acct[j2].obj == a->obj && k->acct[j2].badge == a->badge && !k->acct[j2].fired) {
                 VIOLATION("I4: duplicate accounts %u and %u", j, j2);
             }
         }

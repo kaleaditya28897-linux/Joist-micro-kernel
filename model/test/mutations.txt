@@ -17,7 +17,7 @@ stale reply reuse    @@ src/ipc.c @@             r->call_seq = seq; @@          
 I10 recv w/ reply    @@ src/ipc.c @@     if (me->reply_to != 0) { @@     if (0) {
 I2 bits lost         @@ src/notify.c @@     n->word |= bits; @@     n->word = bits;
 I2 delivered twice   @@ src/notify.c @@         n->word = 0; /* bits clear only when returned (I2) */ @@         /* mutated */
-I4 never fires       @@ src/notify.c @@ joist__notify_signal(k, e->ns_notif - 1u, b); @@ (void)b;
+I4 never fires       @@ src/notify.c @@ joist__notify_signal(k, e->ns_notif - 1u, e->ns_bits); @@ (void)e->ns_bits;
 I4 fires early       @@ src/notify.c @@ if (a != NULL && --a->send_caps == 0) { @@ if (a != NULL && (--a->send_caps, 1)) {
 I4 fires when dead   @@ src/notify.c @@             if (!e->dead && e->ns_notif != 0) { @@             if (e->ns_notif != 0) {
 I5 never dies        @@ src/notify.c @@         endpoint_die(k, obj); @@         (void)endpoint_die;
@@ -38,3 +38,10 @@ task-root-destroyable @@ src/cspace.c @@ if (k->root == cs + 1u) { @@ if (0) {
 task-fixture-budget @@ src/cspace.c @@ k->budget--; @@ (void)0;
 task-thread-obj-not-dead @@ src/ipc.c @@ k->obj[r->obj - 1u].dead = 1; @@ (void)0;
 task-grant-no-rights @@ src/cspace.c @@ if ((c->rights & JOIST_R_GRANT) == 0) { @@ if (0) {
+ns-not-queued @@ src/notify.c @@ e->ns_last = idx; @@ (void)idx;
+ns-collect-repeats @@ src/notify.c @@ o->ns_first = a->next; @@ (void)a->next;
+ns-queue-kept-at-death @@ src/notify.c @@ e->ns_first = a->next; @@ break;
+ns-bind-no-bits @@ src/notify.c @@ return JOIST_E_BADGE; /* the signal would carry no bits */ @@ (void)0;
+reply-saved-reusable @@ src/ipc.c @@ o->target = 0; /* consumed (I6) */ @@ (void)0;
+reply-obj-freed-silent @@ src/notify.c @@ joist__reply_obj_freed(k, obj); @@ (void)obj;
+reply-save-overwrites @@ src/ipc.c @@ return JOIST_E_OCCUPIED; @@ (void)0;

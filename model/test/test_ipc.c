@@ -259,3 +259,111 @@ JT_TEST(ipc_blocked_thread_cannot_act)
     JT_CHECK(joist_reply(&k, srv, &m) == JOIST_E_STATE);
     JT_CHECK(clean());
 }
+
+/* ---- deferred replies (work item 6: what proc_wait, select and terminal
+ * reads need, and what makes a bare Send unnecessary) ---- */
+
+enum { RPL1 = 10, RPL2 = 11 };
+
+static joist_thread cli2;
+
+static void setup_deferred(void)
+{
+    setup();
+    if (joist_obj_create(&k, srv_cs, JOIST_OBJ_REPLY, RPL1) != JOIST_OK ||
+        joist_obj_create(&k, srv_cs, JOIST_OBJ_REPLY, RPL2) != JOIST_OK ||
+        joist_thread_create(&k, srv_cs, &cli2) != JOIST_OK) {
+        fprintf(stderr, "  setup_deferred failed\n");
+    }
+}
+
+JT_TEST(ipc_deferred_replies_out_of_order)
+{
+    setup_deferred();
+    struct joist_msg m = mk(1);
+    struct joist_msg r1 = mk(101), r2 = mk(102);
+    /* Two calls arrive; the server parks each and keeps receiving. */
+    JT_REQUIRE(joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_call(&k, cli2, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
+    JT_CHECK(joist_reply_save(&k, srv, RPL1) == JOIST_OK);
+    JT_CHECK(k.th[srv].reply_to == 0); /* moved, not copied */
+    JT_REQUIRE(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
+    JT_CHECK(joist_reply_save(&k, srv, RPL2) == JOIST_OK);
+    JT_CHECK(clean());
+    /* Answered in the other order, each reaching its own caller. */
+    JT_CHECK(joist_reply_saved(&k, srv, RPL2, &r2) == JOIST_OK);
+    JT_CHECK(k.th[cli2].state == JOIST_T_RUNNING && k.th[cli2].msg.r[0] == 102);
+    JT_CHECK(k.th[cli].state == JOIST_T_BLOCKED_REPLY);
+    JT_CHECK(joist_reply_saved(&k, srv, RPL1, &r1) == JOIST_OK);
+    JT_CHECK(k.th[cli].state == JOIST_T_RUNNING && k.th[cli].msg.r[0] == 101);
+    /* I6: single-use, and the object is free for the next call. */
+    JT_CHECK(joist_reply_saved(&k, srv, RPL1, &r1) == JOIST_E_NOREPLY);
+    JT_CHECK(clean());
+}
+
+JT_TEST(ipc_deferred_reply_from_another_thread)
+{
+    setup_deferred();
+    struct joist_msg m = mk(1);
+    JT_REQUIRE(joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
+    JT_REQUIRE(joist_reply_save(&k, srv, RPL1) == JOIST_OK);
+    /* A worker thread in the same space answers; the receiver dying doesn't
+     * matter, since the reply now belongs to the space. */
+    JT_CHECK(joist_thread_destroy(&k, srv) == JOIST_OK);
+    JT_CHECK(k.th[cli].state == JOIST_T_BLOCKED_REPLY);
+    JT_CHECK(joist_reply_saved(&k, cli2, RPL1, &m) == JOIST_OK);
+    JT_CHECK(k.th[cli].state == JOIST_T_RUNNING && k.th[cli].result == JOIST_OK);
+    JT_CHECK(clean());
+}
+
+JT_TEST(ipc_deferred_reply_object_deleted_wakes_caller)
+{
+    setup_deferred();
+    struct joist_msg m = mk(1);
+    JT_REQUIRE(joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
+    JT_REQUIRE(joist_reply_save(&k, srv, RPL1) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, srv_cs, RPL1) == JOIST_OK);
+    /* I10: nobody can answer now, so the caller doesn't wait forever. */
+    JT_CHECK(k.th[cli].state == JOIST_T_RUNNING && k.th[cli].result == JOIST_E_PEER);
+    JT_CHECK(clean());
+}
+
+JT_TEST(ipc_deferred_reply_to_departed_caller)
+{
+    setup_deferred();
+    struct joist_msg m = mk(1);
+    JT_REQUIRE(joist_call(&k, cli, EP_SEND, &m, 5) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
+    JT_REQUIRE(joist_reply_save(&k, srv, RPL1) == JOIST_OK);
+    joist_tick(&k, 5); /* the call's timeout covers the whole call */
+    JT_CHECK(k.th[cli].result == JOIST_E_TIMEOUT);
+    JT_CHECK(joist_reply_saved(&k, srv, RPL1, &m) == JOIST_E_PEER);
+    JT_CHECK(k.obj[k.cs[srv_cs].slot[RPL1].obj - 1u].target == 0); /* consumed anyway */
+    JT_CHECK(clean());
+}
+
+JT_TEST(ipc_deferred_reply_errors)
+{
+    setup_deferred();
+    struct joist_msg m = mk(1);
+    JT_CHECK(joist_reply_save(&k, srv, RPL1) == JOIST_E_NOREPLY);
+    JT_CHECK(joist_reply_saved(&k, srv, RPL1, &m) == JOIST_E_NOREPLY);
+    JT_CHECK(joist_reply_save(&k, srv, EP) == JOIST_E_TYPE);
+    JT_CHECK(joist_reply_save(&k, srv, 20) == JOIST_E_EMPTY);
+    JT_CHECK(joist_reply_save(&k, srv, JOIST_CSPACE_SLOTS) == JOIST_E_RANGE);
+    JT_CHECK(joist_reply_save(&k, JOIST_MAX_THREADS, RPL1) == JOIST_E_RANGE);
+    JT_REQUIRE(joist_cap_derive(&k, srv_cs, RPL1, 12, JOIST_R_GRANT) == JOIST_OK);
+    JT_CHECK(joist_reply_saved(&k, srv, 12, &m) == JOIST_E_RIGHTS);
+    /* A bound object can't take a second reply capability. */
+    JT_REQUIRE(joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_call(&k, cli2, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
+    JT_REQUIRE(joist_reply_save(&k, srv, RPL1) == JOIST_OK);
+    JT_REQUIRE(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
+    JT_CHECK(joist_reply_save(&k, srv, RPL1) == JOIST_E_OCCUPIED);
+    JT_CHECK(k.th[srv].reply_to != 0); /* unchanged: still the server's */
+    JT_CHECK(clean());
+}

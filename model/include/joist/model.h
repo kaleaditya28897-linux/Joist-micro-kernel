@@ -69,8 +69,9 @@ typedef enum {
     JOIST_OBJ_NONE = 0,
     JOIST_OBJ_ENDPOINT,
     JOIST_OBJ_NOTIFICATION,
-    JOIST_OBJ_TASK,  /* a capability space with its threads (0004) */
-    JOIST_OBJ_THREAD /* a thread; its capability is 0010's thread control capability */
+    JOIST_OBJ_TASK,   /* a capability space with its threads (0004) */
+    JOIST_OBJ_THREAD, /* a thread; its capability is 0010's thread control capability */
+    JOIST_OBJ_REPLY   /* holds one saved reply capability: a deferred reply (0001) */
 } joist_obj_type;
 
 /* Rights bits (0001). */
@@ -108,6 +109,9 @@ struct joist_object {
      * plus one). Such an object is "dead" (the dead field below) once its task
      * or thread is gone; capabilities to it then fail with JOIST_E_GONE. */
     uint32_t target;
+    /* Reply objects: while bound, target is the waiting caller plus one and
+     * rseq the caller's call_seq at delivery (as a thread's reply_seq). */
+    uint32_t rseq;
     /* One FIFO queue of blocked threads: an endpoint's senders or receivers,
      * or a notification's waiters (0001). Thread index plus one; 0 = empty. */
     uint8_t qkind; /* joist_queue_kind */
@@ -119,7 +123,13 @@ struct joist_object {
      * reaches 0. */
     uint32_t recv_caps; /* capabilities with RECV naming it */
     uint8_t dead;
-    uint32_t ns_notif; /* no-senders notification bound to it: object index + 1 */
+    uint32_t ns_notif;   /* no-senders notification bound to it: object index + 1 */
+    joist_badge ns_bits; /* the bit(s) that binding signals: its capability's badge */
+    /* Fired no-senders accounts not yet collected by joist_nosenders_next, a
+     * FIFO linked through the accounts themselves (index + 1), so it needs
+     * no memory of its own (I3, I4). */
+    uint32_t ns_first;
+    uint32_t ns_last;
     /* Notifications: the pending bit-set. Width: 0001's open item 3. */
     uint64_t word;
 };
@@ -132,12 +142,17 @@ typedef enum {
 } joist_queue_kind;
 
 /* No-senders accounting (I4, §5.4): send-capable capabilities per
- * (endpoint, badge), allocated when mint creates the first one and freed
- * when the count reaches 0. Deriving and deleting never allocate. */
+ * (endpoint, badge), allocated when mint creates the first one. When the
+ * count reaches 0 the account is freed, or, if a notification is bound to
+ * the endpoint, it is marked fired and queued on the endpoint until the owner
+ * collects the badge (joist_nosenders_next). Deriving and deleting never
+ * allocate. */
 struct joist_badge_acct {
     uint32_t obj; /* endpoint object index + 1; 0 = free entry */
     joist_badge badge;
     uint32_t send_caps;
+    uint8_t fired; /* the last sender is gone; waiting to be collected */
+    uint32_t next; /* while fired: the next fired account of the endpoint, plus one */
 };
 
 /* A dead-name notification registration (I5): when endpoint ep dies, signal
@@ -274,6 +289,27 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
 joist_err joist_reply_recv(struct joist_kernel *k, joist_thread t, const struct joist_msg *m,
                            joist_slot ep, uint64_t timeout);
 
+/* Deferred replies. A server that can't answer a call at once (proc_wait
+ * until a child exits, select until a descriptor is ready, a terminal read
+ * until input arrives) saves the reply capability into a reply object it
+ * created beforehand (joist_obj_create, JOIST_OBJ_REPLY: paid from its own
+ * quota, so nothing is allocated when the call arrives), receives other
+ * calls, and replies later through the object, from any of its threads.
+ * Single-use as before (I6); the object is reusable afterwards. Deleting the
+ * object's last capability while it is bound wakes the caller with
+ * JOIST_E_PEER (I10). */
+
+/* Move t's reply capability into the unbound reply object in slot (needs
+ * SEND). JOIST_E_NOREPLY if t holds none, JOIST_E_OCCUPIED if the object is
+ * already bound. */
+joist_err joist_reply_save(struct joist_kernel *k, joist_thread t, joist_slot slot);
+
+/* Reply through the reply object in slot (needs SEND), unbinding it.
+ * JOIST_E_NOREPLY if it is unbound, JOIST_E_PEER if the caller stopped
+ * waiting. */
+joist_err joist_reply_saved(struct joist_kernel *k, joist_thread t, joist_slot slot,
+                            const struct joist_msg *m);
+
 /* Advance model time and expire deadlines (JOIST_E_TIMEOUT). Bounded by
  * JOIST_MAX_THREADS. */
 void joist_tick(struct joist_kernel *k, uint64_t dt);
@@ -290,11 +326,20 @@ joist_err joist_signal(struct joist_kernel *k, joist_thread t, joist_slot slot);
 joist_err joist_wait(struct joist_kernel *k, joist_thread t, joist_slot slot, uint64_t timeout);
 
 /* Bind a notification to an endpoint for no-senders (I4): when the last
- * send-capable capability carrying badge B is deleted, the notification is
- * signalled with B. ep_slot needs RECV (the endpoint's owner); note_slot names
- * a notification. Rebinding replaces the binding. */
+ * send-capable capability carrying badge B is deleted, B is queued on the
+ * endpoint and the notification is signalled with the badge of the
+ * capability in note_slot (a summary bit the owner chose: badges are 64-bit
+ * values, too many to be bits themselves). ep_slot needs RECV (the
+ * endpoint's owner); note_slot needs SEND and a badge. Rebinding replaces the
+ * binding; badges already queued stay queued. */
 joist_err joist_bind_nosenders(struct joist_kernel *k, joist_cspace cs, joist_slot ep_slot,
                                joist_slot note_slot);
+
+/* Collect one queued no-senders badge from the endpoint in ep_slot (needs
+ * RECV), oldest first, into *badge, freeing its account; *badge = 0 (never a
+ * valid badge) when none is queued. Bounded: O(1). */
+joist_err joist_nosenders_next(struct joist_kernel *k, joist_cspace cs, joist_slot ep_slot,
+                               joist_badge *badge);
 
 /* Ask to be told when the endpoint named by ep_slot dies (I5): the
  * notification in note_slot is signalled once with its capability's badge.
