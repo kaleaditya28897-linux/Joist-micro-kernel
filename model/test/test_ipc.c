@@ -44,25 +44,28 @@ static void setup(void)
     cli_cs = srv_cs;
 }
 
-JT_TEST(ipc_send_then_recv)
+/* There is no bare Send (0001's 2026-10-03 amendment): every message is a
+ * Call, whose reply may be deferred (reply objects, below). */
+
+JT_TEST(ipc_call_then_recv_delivers_badge)
 {
     setup();
     struct joist_msg m = mk(5);
-    JT_CHECK(joist_send(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
     JT_CHECK(k.th[cli].state == JOIST_T_BLOCKED_SEND);
     JT_CHECK(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_OK);
     JT_CHECK(k.th[srv].msg.r[0] == 5);
     JT_CHECK(k.th[srv].badge == 77); /* I7: the badge of the capability used */
-    JT_CHECK(k.th[cli].state == JOIST_T_RUNNING && k.th[cli].result == JOIST_OK);
+    JT_CHECK(k.th[cli].state == JOIST_T_BLOCKED_REPLY);
     JT_CHECK(clean());
 }
 
-JT_TEST(ipc_recv_then_send)
+JT_TEST(ipc_recv_then_call_delivers_badge)
 {
     setup();
     struct joist_msg m = mk(9);
     JT_CHECK(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_CHECK(joist_send(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_OK);
+    JT_CHECK(joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_BLOCKED);
     JT_CHECK(k.th[srv].state == JOIST_T_RUNNING && k.th[srv].result == JOIST_OK);
     JT_CHECK(k.th[srv].msg.r[0] == 9 && k.th[srv].badge == 77);
     JT_CHECK(clean());
@@ -102,12 +105,12 @@ JT_TEST(ipc_rights_and_types)
 {
     setup();
     struct joist_msg m = mk(0);
-    JT_CHECK(joist_send(&k, cli, EP_RECV, &m, JOIST_FOREVER) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_call(&k, cli, EP_RECV, &m, JOIST_FOREVER) == JOIST_E_RIGHTS);
     JT_CHECK(joist_recv(&k, srv, EP_SEND, JOIST_FOREVER) == JOIST_E_RIGHTS);
-    JT_CHECK(joist_send(&k, cli, NOTE, &m, JOIST_FOREVER) == JOIST_E_TYPE);
-    JT_CHECK(joist_send(&k, cli, 40, &m, JOIST_FOREVER) == JOIST_E_EMPTY);
-    JT_CHECK(joist_send(&k, cli, JOIST_CSPACE_SLOTS, &m, JOIST_FOREVER) == JOIST_E_RANGE);
-    JT_CHECK(joist_send(&k, JOIST_MAX_THREADS, EP_SEND, &m, JOIST_FOREVER) == JOIST_E_RANGE);
+    JT_CHECK(joist_call(&k, cli, NOTE, &m, JOIST_FOREVER) == JOIST_E_TYPE);
+    JT_CHECK(joist_call(&k, cli, 40, &m, JOIST_FOREVER) == JOIST_E_EMPTY);
+    JT_CHECK(joist_call(&k, cli, JOIST_CSPACE_SLOTS, &m, JOIST_FOREVER) == JOIST_E_RANGE);
+    JT_CHECK(joist_call(&k, JOIST_MAX_THREADS, EP_SEND, &m, JOIST_FOREVER) == JOIST_E_RANGE);
     JT_CHECK(clean());
 }
 
@@ -115,7 +118,6 @@ JT_TEST(ipc_timeout_zero_never_blocks)
 {
     setup();
     struct joist_msg m = mk(0);
-    JT_CHECK(joist_send(&k, cli, EP_SEND, &m, 0) == JOIST_E_TIMEOUT);
     JT_CHECK(joist_recv(&k, srv, EP_RECV, 0) == JOIST_E_TIMEOUT);
     /* A Call always waits for a reply, so timeout 0 is refused up front. */
     JT_CHECK(joist_call(&k, cli, EP_SEND, &m, 0) == JOIST_E_TIMEOUT);
@@ -128,7 +130,7 @@ JT_TEST(ipc_timeout_expires_exactly_at_deadline)
 {
     setup();
     struct joist_msg m = mk(0);
-    JT_CHECK(joist_send(&k, cli, EP_SEND, &m, 10) == JOIST_BLOCKED);
+    JT_CHECK(joist_call(&k, cli, EP_SEND, &m, 10) == JOIST_BLOCKED);
     joist_tick(&k, 9);
     JT_CHECK(k.th[cli].state == JOIST_T_BLOCKED_SEND); /* not yet */
     joist_tick(&k, 1);
@@ -203,9 +205,10 @@ JT_TEST(ipc_senders_are_fifo)
     struct joist_msg ma = mk(10), mb = mk(20);
     JT_REQUIRE(joist_thread_create(&k, cli_cs, &a) == JOIST_OK);
     JT_REQUIRE(joist_thread_create(&k, cli_cs, &b) == JOIST_OK);
-    JT_CHECK(joist_send(&k, a, EP_SEND, &ma, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_CHECK(joist_send(&k, b, EP_SEND, &mb, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(joist_call(&k, a, EP_SEND, &ma, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(joist_call(&k, b, EP_SEND, &mb, JOIST_FOREVER) == JOIST_BLOCKED);
     JT_CHECK(joist_recv(&k, srv, EP_RECV, 0) == JOIST_OK && k.th[srv].msg.r[0] == 10);
+    JT_CHECK(joist_reply(&k, srv, &ma) == JOIST_OK);
     JT_CHECK(joist_recv(&k, srv, EP_RECV, 0) == JOIST_OK && k.th[srv].msg.r[0] == 20);
     JT_CHECK(clean());
 }
@@ -255,7 +258,7 @@ JT_TEST(ipc_blocked_thread_cannot_act)
     setup();
     struct joist_msg m = mk(0);
     JT_CHECK(joist_recv(&k, srv, EP_RECV, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_CHECK(joist_send(&k, srv, EP_SEND, &m, 0) == JOIST_E_STATE);
+    JT_CHECK(joist_call(&k, srv, EP_SEND, &m, JOIST_FOREVER) == JOIST_E_STATE);
     JT_CHECK(joist_reply(&k, srv, &m) == JOIST_E_STATE);
     JT_CHECK(clean());
 }

@@ -31,7 +31,6 @@ enum {
     JX_KILL,
     JX_TH_CREATE,
     JX_TH_DESTROY,
-    JX_SEND,
     JX_CALL,
     JX_RECV,
     JX_REPLY,

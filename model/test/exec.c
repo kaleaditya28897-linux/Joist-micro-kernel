@@ -26,7 +26,7 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_KILL] = "kill",
                                         [JX_TH_CREATE] = "th_create",
                                         [JX_TH_DESTROY] = "th_destroy",
-                                        [JX_SEND] = "send",
+
                                         [JX_CALL] = "call",
                                         [JX_RECV] = "recv",
                                         [JX_REPLY] = "reply",
@@ -45,10 +45,10 @@ static const uint8_t weight[JX_OPS] = {
     [JX_SPACE_CREATE] = 1, [JX_SPACE_DESTROY] = 1, [JX_OBJ_CREATE] = 10, [JX_DERIVE] = 6,
     [JX_MINT] = 6,         [JX_GRANT] = 10,        [JX_DELETE] = 8,      [JX_TASK_CREATE] = 5,
     [JX_TASK_DESTROY] = 2, [JX_SPAWN] = 5,         [JX_KILL] = 2,        [JX_TH_CREATE] = 2,
-    [JX_TH_DESTROY] = 1,   [JX_SEND] = 5,          [JX_CALL] = 6,        [JX_RECV] = 6,
-    [JX_REPLY] = 4,        [JX_REPLY_RECV] = 4,    [JX_SIGNAL] = 5,      [JX_WAIT] = 5,
-    [JX_BIND] = 3,         [JX_DEADNAME] = 3,      [JX_COLLECT] = 3,     [JX_SAVE] = 3,
-    [JX_SAVED] = 3,        [JX_TICK] = 6};
+    [JX_TH_DESTROY] = 1,   [JX_CALL] = 11,         [JX_RECV] = 6,        [JX_REPLY] = 4,
+    [JX_REPLY_RECV] = 4,   [JX_SIGNAL] = 5,        [JX_WAIT] = 5,        [JX_BIND] = 3,
+    [JX_DEADNAME] = 3,     [JX_COLLECT] = 3,       [JX_SAVE] = 3,        [JX_SAVED] = 3,
+    [JX_TICK] = 6};
 
 static uint64_t boot_budget;
 
@@ -279,15 +279,12 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     }
     case JX_TH_DESTROY:
         return joist_thread_destroy(k, ch(src, JOIST_MAX_THREADS + 1u));
-    case JX_SEND:
     case JX_CALL:
     case JX_RECV: {
         uint32_t t = pick_thread(k, src, 0);
         uint32_t ep = pick_slot(k, src, thread_space(k, t), JOIST_OBJ_ENDPOINT);
         uint64_t to = pick_timeout(src);
-        return op == JX_SEND   ? joist_send(k, t, ep, &m, to)
-               : op == JX_CALL ? joist_call(k, t, ep, &m, to)
-                               : joist_recv(k, t, ep, to);
+        return op == JX_CALL ? joist_call(k, t, ep, &m, to) : joist_recv(k, t, ep, to);
     }
     case JX_REPLY:
         ls->t = pick_thread(k, src, 1);

@@ -9,8 +9,8 @@ under every sanitizer. Scope, invariants (I1–I10) and order of work:
 spaces and quotas, endpoints and synchronous IPC with deferred replies,
 notifications and lifetime events with queued no-senders, tasks and threads
 with task destruction, and a whole-model property test and libFuzzer harness
-over all of it. Item 6's parameter choices are a proposed amendment to
-decision 0001. Progress is tracked in
+over all of it. Item 6's parameter choices are an accepted amendment to
+decision 0001 (no bare `Send`). Progress is tracked in
 `docs/phase1-plan.md` under *Progress*.
 
 ## Build and test

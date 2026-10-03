@@ -253,14 +253,13 @@ JT_TEST(endpoint_dies_with_its_last_receiver)
     struct joist_msg m = {{0}};
     JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
     JT_REQUIRE(joist_cap_derive(&k, cs, EP, EP_RECV, JOIST_R_RECV) == JOIST_OK);
-    JT_CHECK(joist_send(&k, a, EP_C1, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(joist_call(&k, a, EP_C1, &m, JOIST_FOREVER) == JOIST_BLOCKED);
     JT_CHECK(joist_cap_delete(&k, cs, EP) == JOIST_OK);
     JT_CHECK(k.obj[0].dead == 0); /* EP_RECV still receives */
     JT_CHECK(joist_cap_delete(&k, cs, EP_RECV) == JOIST_OK);
     /* I5: the server side is gone. The queued sender woke; every use fails. */
     JT_CHECK(k.obj[0].dead == 1 && k.obj[0].type == JOIST_OBJ_ENDPOINT);
     JT_CHECK(k.th[a].state == JOIST_T_RUNNING && k.th[a].result == JOIST_E_GONE);
-    JT_CHECK(joist_send(&k, a, EP_C1, &m, JOIST_FOREVER) == JOIST_E_GONE);
     JT_CHECK(joist_call(&k, a, EP_C1, &m, JOIST_FOREVER) == JOIST_E_GONE);
     /* Memory goes with the last capability. */
     JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);

@@ -166,7 +166,7 @@ struct joist_deadname {
 typedef enum {
     JOIST_T_FREE = 0,
     JOIST_T_RUNNING,
-    JOIST_T_BLOCKED_SEND,  /* queued on an endpoint to send (Send or Call) */
+    JOIST_T_BLOCKED_SEND,  /* queued on an endpoint with a Call not yet received */
     JOIST_T_BLOCKED_RECV,  /* queued on an endpoint to receive */
     JOIST_T_BLOCKED_REPLY, /* Call delivered; waiting for the server's Reply */
     JOIST_T_BLOCKED_WAIT   /* queued on a notification */
@@ -179,11 +179,10 @@ struct joist_msg {
 typedef uint32_t joist_thread;
 
 struct joist_thread_rec {
-    uint8_t state;   /* joist_thread_state */
-    uint8_t is_call; /* while BLOCKED_SEND: the pending send is a Call */
-    uint32_t cs;     /* owning capability space (task stand-in) */
-    uint32_t ep;     /* while queued: endpoint object index plus one */
-    uint32_t qprev;  /* queue links: thread index plus one */
+    uint8_t state;  /* joist_thread_state */
+    uint32_t cs;    /* owning capability space (task stand-in) */
+    uint32_t ep;    /* while queued: endpoint object index plus one */
+    uint32_t qprev; /* queue links: thread index plus one */
     uint32_t qnext;
     uint64_t deadline;    /* JOIST_FOREVER = none */
     uint32_t call_seq;    /* bumped at each Call; a reply capability names (thread, seq) */
@@ -278,8 +277,9 @@ joist_err joist_thread_create(struct joist_kernel *k, joist_cspace cs, joist_thr
  * held a reply capability. Bounded. */
 joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t);
 
-joist_err joist_send(struct joist_kernel *k, joist_thread t, joist_slot ep,
-                     const struct joist_msg *m, uint64_t timeout);
+/* Send m on the endpoint in slot and wait for the reply (there is no bare
+ * Send: 0001's 2026-10-03 amendment). timeout covers the whole call; 0 is
+ * refused, since a Call always waits. */
 joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot ep,
                      const struct joist_msg *m, uint64_t timeout);
 joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot ep, uint64_t timeout);

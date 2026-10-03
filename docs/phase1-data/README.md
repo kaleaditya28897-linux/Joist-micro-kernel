@@ -99,3 +99,21 @@ Verification of the model changes, run as for item 5 (four scratch copies of
 target was the line that signalled the client's badge, which this item
 replaced). Re-targeted at the new signal line and run alone, it is caught:
 `caught I4 never fires: seed 1 step 377 after delete: object 8: word 0x0/0x20`.
+
+## Work item 7 (2026-10-03): `item7/`
+
+Verification after the 0001 amendment was accepted and bare `Send` removed
+from the model, the state `docs/abi.md` was written from. Run as before, in
+four copies of `model/` (under `model/build/verify/`, not committed), each
+checked byte-identical to the committed `model/`.
+
+| File | Command | Lines | SHA-256 |
+|---|---|---:|---|
+| `make-check.log` | `make check` | 416 | `17d48b74a7484103fae75c70bf6c50ed4f92fc3836d1a9c4b28a425536a6810c` |
+| `make-mutate.log` | `make mutate` | 44 | `162d1683c028c3f1ae616c87673e5299ca89a874aae61eaa3434d3e9770b73ee` |
+| `make-fuzz-sanity.log` | `make fuzz-sanity` | 17 | `4b8ab9181162928b95cc8e9b0f9113a110e65027230eec5ad16848d41139185d` |
+| `make-fuzz-300s.log` | `JOIST_FUZZ_STATS=1 make fuzz FUZZ_TIME=300`, empty corpus plus seeds | 511 | `1fcba10dc84d341c868b4d6a55b8f879c29208481ca7107c86c91ebdecea426a` |
+
+Results: 76 tests pass in all six builds; 43 of 43 mutations caught; 7 of 7
+fuzz-sanity bugs caught from seeds and from nothing; 1 972 fuzz inputs,
+1.8 million steps, no crash.

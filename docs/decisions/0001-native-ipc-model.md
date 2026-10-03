@@ -1,7 +1,7 @@
 # 0001 — Native IPC model
 
 Date: 2026-09-23
-Status: accepted (2026-10-01)
+Status: accepted (2026-10-01); open items settled by the amendment of 2026-10-03 (accepted)
 Covers: §6 rows *Port receive right*, *Port send right*, *Send-once right*,
 *`mach_msg` RPC*, and *No-senders / dead-name notification*.
 Blocks: Phase 3 (IPC and capabilities). Must be accepted before Phase 3 starts.
@@ -112,7 +112,7 @@ drives the choice: option A is the more reusable, more Hurd-compatible design
 and is rejected anyway because it cannot bound kernel memory. Reuse loses the
 tie, as the priority order requires.
 
-## Amendment, 2026-10-03: the five open parameters (proposed, not yet accepted)
+## Amendment, 2026-10-03: the five open parameters (accepted 2026-10-03)
 
 Settled with the Phase 1 model (work items 1–6, `docs/phase1-plan.md`) and
 new measurements of the Phase 0 x86_64 traces and the running testbed. Every
@@ -216,5 +216,11 @@ Of the 172 MIG `simpleroutine`s (one-way messages) in the Hurd's interfaces,
   `E_PEER` if the object goes while bound (I10). It is the shape of seL4's
   MCS reply objects. Unit, property and mutation tested.
 
-**Proposed: the ABI has no `Send`.** The model's `joist_send` stays until
-this amendment is accepted, then goes.
+**The ABI has no `Send`.** On acceptance the model's `joist_send` was
+removed, with the thread state that told a queued Call from a Send: every
+queued sender is now a caller.
+
+**Accepted 2026-10-03, all five parts as written.** Open items 1–5 above are
+settled; Phase 3 builds on these numbers. Primitives are now `Call`, `Recv`,
+`Reply`, `ReplyRecv`, deferred replies through reply objects, `Signal` and
+`Wait`.

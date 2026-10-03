@@ -9,7 +9,7 @@ permanent; a superseded decision keeps its number and gains a
 | # | Title | Status | Blocks |
 |---|---|---|---|
 | 0000 | Project name: Joist | accepted | — |
-| 0001 | Native IPC model | accepted | Phase 3 |
+| 0001 | Native IPC model | accepted; open items settled by the 2026-10-03 amendment | Phase 3 |
 | 0002 | Clang everywhere, pre-committed GCC fallback for glibc | accepted (Clang branch) | Phase 7 |
 | 0003 | SMP + no runtime allocation + bounded WCET | accepted | Phase 3 |
 | 0004 | Task and thread objects | accepted | — |
@@ -87,8 +87,10 @@ main argument for having done Phase 0 before Phase 1:
 
 Each entry has its own open items; the ones that block the earliest work:
 
-- 0001 open item 4 (capability space representation) also constrains 0011's
-  capability-copy loop. Settle them together.
+- ~~0001 open items 1–5~~: settled by the 2026-10-03 amendment (accepted),
+  from the Phase 1 model and new measurements. Item 4's two-level table is
+  copied leaf by leaf, which is what 0011's capability-copy loop needs. The
+  amendment also replaces bare `Send` with deferred replies.
 - 0007's fault-reply read-ahead question and 0008's delegated-range escape
   hatch are both Phase 4 performance decisions that glibc will be written
   against. Neither can wait for Phase 11.

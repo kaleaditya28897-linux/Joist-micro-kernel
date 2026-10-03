@@ -411,8 +411,9 @@ a small, bounded addition to `task_destroy`.
 
 ### Work item 6: settling 0001's five parameters (2026-10-03)
 
-The result is a **proposed amendment to decision 0001**, at the end of
-`docs/decisions/0001-native-ipc-model.md`, awaiting acceptance. In short:
+The result is an **amendment to decision 0001**, at the end of
+`docs/decisions/0001-native-ipc-model.md`, **accepted 2026-10-03** as
+written; on acceptance the model's bare `Send` was removed. In short:
 
 | 0001 item | Proposed | Evidence |
 |---|---|---|
@@ -462,3 +463,30 @@ what the one-way messages are for.
    thread's reply capability where it was.
 4. **Reply objects survive the thread that saved into them**: the reply
    belongs to the space, not the thread.
+
+### Work item 7: `docs/abi.md` (2026-10-03)
+
+`docs/abi.md` is now written from the model's API: objects and the rights
+each is created with, rights and badges, and every operation (capability,
+task and thread, IPC including deferred replies, notifications, lifetime
+notifications) with its arguments, the rights it needs, its result codes in
+the order they are checked, whether it blocks, and its bound. It ends with
+the result-code table and five items still open before Phase 3: capability
+transfer in messages, preemptible cascades, task cycles, revoke and the
+batched copy, and thread state and fault IPC.
+
+It describes the model **after** the 0001 amendment was accepted: bare
+`Send` is gone (`joist_send` and the `is_call` thread field removed, its
+unit tests rewritten as `Call`s, the IPC shadow and the whole-model executor
+updated). Verification of that state: 76 tests in six builds, 43 of 43
+mutations, 7 of 7 fuzz-sanity bugs, a 5-minute fuzz run with no crash
+(`docs/phase1-data/item7/`).
+
+Every check order in `docs/abi.md` is taken from the model's code. The
+coverage lines in `make-check.log` show which result codes the property tests
+reach for each operation; a code-by-code cross-check of the document against
+them has not been done yet.
+
+**Phase 1's exit criterion** (plan §11: invariants proven or property-tested;
+the API written down as `docs/abi.md`) is met for the model's scope, with the
+open items listed at the end of `docs/abi.md`. Item 8 (TLA+) is optional.

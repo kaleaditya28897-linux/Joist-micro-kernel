@@ -29,7 +29,6 @@ void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
 {
     struct joist_thread_rec *r = &k->th[t];
     r->state = JOIST_T_RUNNING;
-    r->is_call = 0;
     r->deadline = JOIST_FOREVER;
     r->result = result;
 }
@@ -112,7 +111,6 @@ static void mint_reply(struct joist_kernel *k, uint32_t server, uint32_t c)
 {
     k->th[c].call_seq++;
     k->th[c].state = JOIST_T_BLOCKED_REPLY; /* the Call's deadline keeps running */
-    k->th[c].is_call = 0;
     k->th[server].reply_to = c + 1u;
     k->th[server].reply_seq = k->th[c].call_seq;
 }
@@ -196,8 +194,8 @@ void joist__queue_wake_all(struct joist_kernel *k, uint32_t obj, joist_err r)
 
 /* ---- IPC ---- */
 
-static joist_err do_send(struct joist_kernel *k, joist_thread t, joist_slot slot,
-                         const struct joist_msg *m, uint64_t timeout, int is_call)
+joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot slot,
+                     const struct joist_msg *m, uint64_t timeout)
 {
     uint32_t obj;
     joist_badge badge;
@@ -206,7 +204,7 @@ static joist_err do_send(struct joist_kernel *k, joist_thread t, joist_slot slot
         return e;
     }
     /* A Call always waits for its reply, so "do not block" can't be honoured. */
-    if (is_call && timeout == 0) {
+    if (timeout == 0) {
         return JOIST_E_TIMEOUT;
     }
     e = ep_lookup(k, t, slot, JOIST_R_SEND, &obj, &badge);
@@ -215,40 +213,20 @@ static joist_err do_send(struct joist_kernel *k, joist_thread t, joist_slot slot
     }
     struct joist_object *ep = &k->obj[obj];
     struct joist_thread_rec *me = &k->th[t];
+    me->deadline = joist__deadline(k, timeout);
     if (ep->qkind == JOIST_Q_RECEIVERS) {
         uint32_t r = joist__q_pop(k, obj);
         k->th[r].msg = *m;
         k->th[r].badge = badge; /* I7: the badge of the capability used */
         joist__wake(k, r, JOIST_OK);
-        if (is_call) {
-            me->deadline = joist__deadline(k, timeout);
-            mint_reply(k, r, t);
-            return JOIST_BLOCKED;
-        }
-        return JOIST_OK;
-    }
-    if (timeout == 0) {
-        return JOIST_E_TIMEOUT;
+        mint_reply(k, r, t);
+        return JOIST_BLOCKED;
     }
     me->msg = *m;
     me->badge = badge;
-    me->is_call = (uint8_t)(is_call != 0);
     me->state = JOIST_T_BLOCKED_SEND;
-    me->deadline = joist__deadline(k, timeout);
     joist__q_push(k, obj, JOIST_Q_SENDERS, t);
     return JOIST_BLOCKED;
-}
-
-joist_err joist_send(struct joist_kernel *k, joist_thread t, joist_slot ep,
-                     const struct joist_msg *m, uint64_t timeout)
-{
-    return do_send(k, t, ep, m, timeout, 0);
-}
-
-joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot ep,
-                     const struct joist_msg *m, uint64_t timeout)
-{
-    return do_send(k, t, ep, m, timeout, 1);
 }
 
 joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, uint64_t timeout)
@@ -274,11 +252,7 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         me->msg = k->th[s].msg;
         me->badge = k->th[s].badge;
         me->result = JOIST_OK;
-        if (k->th[s].is_call) {
-            mint_reply(k, t, s);
-        } else {
-            joist__wake(k, s, JOIST_OK);
-        }
+        mint_reply(k, t, s);
         return JOIST_OK;
     }
     if (timeout == 0) {

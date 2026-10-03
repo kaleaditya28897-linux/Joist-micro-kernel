@@ -1,7 +1,7 @@
 /* test_props_ipc.c - property test for synchronous IPC (Phase 1 work item 2;
  * invariants I6, I7, I10).
  *
- * Random Send/Call/Recv/Reply/ReplyRecv, deferred replies through reply
+ * Random Call/Recv/Reply/ReplyRecv (no bare Send: 0001's amendment), deferred replies through reply
  * objects (work item 6), clock ticks, thread creation and destruction, and
  * capability deletion run against the model and an independent
  * shadow of 0001's IPC rules (queues as ordered lists, thread states,
@@ -40,7 +40,6 @@ static uint32_t pick(uint32_t n)
 
 struct sh_th {
     uint8_t state;
-    uint8_t is_call;
     uint32_t cs;
     uint32_t ep; /* object index + 1 while queued */
     uint64_t deadline;
@@ -94,7 +93,6 @@ static void sh_wake(uint32_t t, joist_err r)
 {
     wake_cov[(unsigned)r < N_WAKE ? (unsigned)r : N_WAKE - 1u]++;
     sh[t].state = JOIST_T_RUNNING;
-    sh[t].is_call = 0;
     sh[t].deadline = JOIST_FOREVER;
     sh[t].result = r;
 }
@@ -167,13 +165,11 @@ static void sh_mint_reply(uint32_t server, uint32_t c)
 {
     sh[c].call_seq++;
     sh[c].state = JOIST_T_BLOCKED_REPLY;
-    sh[c].is_call = 0;
     sh[server].reply_to = c + 1u;
     sh[server].reply_seq = sh[c].call_seq;
 }
 
-static joist_err sh_send(uint32_t t, uint32_t slot, const struct joist_msg *m, uint64_t timeout,
-                         int is_call)
+static joist_err sh_call(uint32_t t, uint32_t slot, const struct joist_msg *m, uint64_t timeout)
 {
     uint32_t o;
     joist_badge b;
@@ -181,33 +177,25 @@ static joist_err sh_send(uint32_t t, uint32_t slot, const struct joist_msg *m, u
     if (e != JOIST_OK) {
         return e;
     }
-    if (is_call && timeout == 0) {
+    if (timeout == 0) {
         return JOIST_E_TIMEOUT;
     }
     e = sh_lookup(t, slot, JOIST_R_SEND, &o, &b);
     if (e != JOIST_OK) {
         return e;
     }
+    sh[t].deadline = sh_deadline(timeout);
     if (shq_kind[o] == JOIST_Q_RECEIVERS) {
         uint32_t r = shq_pop(o);
         sh[r].msg = *m;
         sh[r].badge = b;
         sh_wake(r, JOIST_OK);
-        if (is_call) {
-            sh[t].deadline = sh_deadline(timeout);
-            sh_mint_reply(r, t);
-            return JOIST_BLOCKED;
-        }
-        return JOIST_OK;
-    }
-    if (timeout == 0) {
-        return JOIST_E_TIMEOUT;
+        sh_mint_reply(r, t);
+        return JOIST_BLOCKED;
     }
     sh[t].msg = *m;
     sh[t].badge = b;
-    sh[t].is_call = (uint8_t)(is_call != 0);
     sh[t].state = JOIST_T_BLOCKED_SEND;
-    sh[t].deadline = sh_deadline(timeout);
     shq_push(o, JOIST_Q_SENDERS, t);
     return JOIST_BLOCKED;
 }
@@ -232,11 +220,7 @@ static joist_err sh_recv(uint32_t t, uint32_t slot, uint64_t timeout)
         sh[t].msg = sh[s].msg;
         sh[t].badge = sh[s].badge;
         sh[t].result = JOIST_OK;
-        if (sh[s].is_call) {
-            sh_mint_reply(t, s);
-        } else {
-            sh_wake(s, JOIST_OK);
-        }
+        sh_mint_reply(t, s);
         return JOIST_OK;
     }
     if (timeout == 0) {
@@ -474,8 +458,7 @@ static int compare(void)
         }
         if (r->cs != s->cs || r->ep != s->ep || r->deadline != s->deadline ||
             r->result != s->result || r->reply_to != s->reply_to || r->reply_seq != s->reply_seq ||
-            r->badge != s->badge || r->is_call != s->is_call ||
-            memcmp(&r->msg, &s->msg, sizeof r->msg) != 0) {
+            r->badge != s->badge || memcmp(&r->msg, &s->msg, sizeof r->msg) != 0) {
             (void)snprintf(why, sizeof why,
                            "thread %u: cs %u/%u ep %u/%u result %s/%s reply %u.%u/%u.%u "
                            "badge %" PRIu64 "/%" PRIu64 " msg %" PRIu64 "/%" PRIu64,
@@ -542,7 +525,6 @@ static void ensure_endpoint(uint32_t cs, uint32_t e)
 }
 
 enum {
-    OP_SEND,
     OP_CALL,
     OP_RECV,
     OP_REPLY,
@@ -556,7 +538,7 @@ enum {
     OP_COUNT
 };
 static const char *const op_name[OP_COUNT] = {
-    "send",      "call",       "recv",       "reply",      "reply_recv", "tick",
+    "call",      "recv",       "reply",      "reply_recv", "tick",
     "th_create", "th_destroy", "cap_delete", "reply_save", "reply_saved"};
 #define N_RES 16u
 static unsigned long coverage[OP_COUNT][N_RES];
@@ -623,13 +605,9 @@ static int run_seed(uint64_t seed, unsigned long steps)
         joist_err got;
         joist_err want;
 
-        if (roll < 16) {
-            op = OP_SEND;
-            want = sh_send(t, slot, &m, timeout, 0);
-            got = joist_send(&k, t, slot, &m, timeout);
-        } else if (roll < 32) {
+        if (roll < 32) {
             op = OP_CALL;
-            want = sh_send(t, slot, &m, timeout, 1);
+            want = sh_call(t, slot, &m, timeout);
             got = joist_call(&k, t, slot, &m, timeout);
         } else if (roll < 50) {
             op = OP_RECV;
