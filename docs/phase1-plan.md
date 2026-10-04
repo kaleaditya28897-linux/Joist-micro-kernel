@@ -102,16 +102,22 @@ In place on the workstation (Void Linux, clang 21.1.8), verified 2026-10-01:
 clang with all four sanitizer runtimes and libFuzzer, `clang-format` (the
 style is `/.clang-format`), Java 11 (enough for the TLA+ tools).
 
-**Missing, and needed before the step that uses it:**
+**Installed 2026-10-04**, per user, under `~/.local` (no root needed):
+
+| Tool | Version | Source, SHA-256 of the download | For |
+|---|---|---|---|
+| TLA+ tools (`tla2tools.jar`, run as `tlc`) | v1.7.4 (TLC2 2.19) | github.com/tlaplus/tlaplus release v1.7.4, `936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88` | work item 8 |
+| CBMC | 6.11.0 | github.com/diffblue/cbmc release `ubuntu-24.04-cbmc-6.11.0-Linux.deb`, `b3721aa541038384d7801ea3aeabbcddc3e8845ac8f1cbff637cf8dec7481ac8`, extracted to `~/.local/opt/cbmc-6.11.0` | §8.1 bounded model checking |
+
+`~/.local/bin/tlc` is a two-line wrapper: `java -cp tla2tools.jar tlc2.TLC`.
+
+**Still missing; they need root** (`sudo xbps-install -S clang-tools-extra
+clang-analyzer lld llvm`, the meta packages matching clang 21):
 
 | Tool | For |
 |---|---|
 | `clang-tidy`, `scan-build` | §8.1 static analysis on every commit |
-| CBMC | §8.1 bounded model checking of capability-space invariants |
-| TLA+ tools (`tla2tools.jar`) | the optional TLA+ model |
 | `ld.lld`, `llvm-ar`, `llvm-objdump` | §13 toolchain; not needed by the host model, needed from Phase 2 |
-
-These are workstation packages, to be installed by the project owner.
 
 ## Progress
 
@@ -497,3 +503,47 @@ all listed, all reached (`docs/phase1-data/item7/abi-coverage.csv`).
 **Phase 1's exit criterion** (plan §11: invariants proven or property-tested;
 the API written down as `docs/abi.md`) is met for the model's scope, with the
 open items listed at the end of `docs/abi.md`. Item 8 (TLA+) is optional.
+
+### Work item 8: TLA+ model of IPC racing a preemptible destruction (2026-10-04)
+
+Optional in plan §11; done at the project owner's request when Phase 1 was
+accepted. `model/tla/IpcDelete.tla`, checked with TLC (`make tla`).
+
+**What it models.** The host model runs every operation atomically. The
+kernel won't: a task's destruction cascades, so 0003 makes it preemptible,
+and on SMP other CPUs run in the meantime. The spec takes the model's
+semantics for one server task (an endpoint, a reply object, one server
+thread) and splits its destruction into the model's own steps
+(`joist__space_destroy`): mark the task dead, destroy its thread, then delete
+its slots **one per step**. Between any two steps, client threads in another
+task call the endpoint (with deferred replies), time out, and pass
+capabilities into the server's space. TLC checks every interleaving against:
+
+- **I6**: every waiting caller is named by exactly one live reply
+  capability (the server thread's or the reply object's);
+- **I10**, safety: nobody is queued on a dead endpoint; liveness: once
+  destruction starts, it finishes and every client ends up running, under
+  fairness for the destruction steps only;
+- **I1**: when destruction ends, the space holds nothing.
+
+**Found: a dying space must refuse capabilities.** With capability transfer
+allowed until the space is fully destroyed (`IpcDelete_unsafe.cfg`), TLC
+finds an 8-step trace: the sweep deletes slots 1 and 2, a client passes a
+capability into slot 2, the sweep finishes, and the capability is left in a
+dead space (I1). With transfers refused from the moment the task is marked
+dead (`RefuseIntoDying`), every property holds. This becomes a rule for
+capability transfer in `docs/abi.md` (Open, items 1 and 2). The host model
+can't show it, because its destruction is atomic.
+
+| Check | Result |
+|---|---|
+| `IpcDelete.cfg` (2 clients, 2 calls each, 3 slots) | no error; 1 460 distinct states, depth 14, invariants and liveness |
+| `IpcDelete_large.cfg` (3 clients, 3 calls each, 4 slots) | no error; 143 000 distinct states, depth 25 |
+| `IpcDelete_unsafe.cfg` (transfers into a dying space allowed) | `SpaceEmptied` violated, 8-step trace, as intended |
+| `make tla-mutate` (`tla/mutate_tla.py`) | 8 of 8 injected bugs caught: a dying server stranding its caller, endpoint death not waking callers, a freed bound reply object stranding its caller, `reply_save` copying, `Recv` while holding a reply capability, a timed-out caller left queued, a destroyed space accepting capabilities, and destruction allowed to stall half-way, which only the liveness property can see |
+
+**Scope and limits.** One server task, one thread, one endpoint and one
+reply object; bounded calls. The spec mirrors the model's semantics, written
+independently; it doesn't check the C code. Thread spawning into the dying
+task isn't modelled: the model refuses it once the task object is dead
+(`E_GONE`), which is why marking dead comes first.

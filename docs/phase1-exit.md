@@ -1,7 +1,8 @@
 # Phase 1 exit
 
-**Status: proposed, 2026-10-03.** Phase 1 (§11, *Semantic model on the host*)
-closes when the project owner accepts this record. It checks each exit
+**Status: accepted by the project owner, 2026-10-04**, with the optional TLA+
+model to be done as well (work item 8, below). Phase 1 (§11, *Semantic model
+on the host*) is closed. It checks each exit
 criterion and activity against its evidence and lists what carries forward.
 Every number cited is in `docs/phase1-data/`, with provenance in that
 directory's README; the work itself is in `docs/phase1-plan.md`, *Progress*.
@@ -25,7 +26,7 @@ Nothing is *proven*: the invariants are property-tested, which §11 accepts.
 | libFuzzer over the model | done, with a seed corpus recorded from the property test and `make fuzz-sanity` | work item 5 |
 | Settle 0001's five parameters | done: amendment accepted 2026-10-03 (4 registers + 4 KiB IPC buffer; 64-bit server-chosen badges; 64-bit notification word; two-level capability table; no bare `Send`) | `decisions/0001`, work item 6 |
 | `docs/abi.md` | done | work item 7 |
-| Optional TLA+ model of IPC and capability deletion | **not done**: the TLA+ tools aren't installed on the workstation. Optional in §11 | carried forward |
+| Optional TLA+ model of IPC and capability deletion | done 2026-10-04, after acceptance, at the owner's request: IPC racing a preemptible destruction; all properties hold given one new rule (a dying space refuses capabilities), which TLC found | work item 8, `model/tla/` |
 
 ## Found by the model, beyond the plan
 
@@ -57,11 +58,9 @@ Open, in the order they block work (`docs/abi.md`, *Open*):
     work list as its continuation.
 - **Phase 3:** revoke and 0011's batched capability copy, not yet in the
   model; thread state (0010) and fault IPC (0009), outside the model's scope.
-- **§8.1 tooling, missing on the workstation** (`phase1-plan.md`,
-  *Tooling*): `clang-tidy` and `scan-build` (static analysis on every
-  commit), CBMC (bounded model checking of the capability space), the TLA+
-  tools, and `ld.lld`/`llvm-*` (needed from Phase 2). For the project owner
-  to install.
+- **§8.1 tooling** (`phase1-plan.md`, *Tooling*): the TLA+ tools and CBMC
+  are installed (2026-10-04, user-local). `clang-tidy`, `scan-build` and
+  `ld.lld`/`llvm-*` need root: one `xbps-install` for the project owner.
 
 Phase 0's carry-overs for Phases 4–10 are unchanged (`docs/phase0-exit.md`).
 

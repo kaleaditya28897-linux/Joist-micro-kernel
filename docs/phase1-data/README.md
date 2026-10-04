@@ -127,3 +127,21 @@ test reaches: `listed` (in the doc), `unit` (asserted by a unit test),
 is the item 7 `make check` log; the unit evidence is the test sources at this
 commit, which add `cap_read_errors` (`make check` afterwards: 77 tests, six
 builds, all pass).
+
+## Work item 8 (2026-10-04): `item8/`
+
+TLC (tla2tools.jar v1.7.4, TLC2 2.19, sha256 `936a2620…050e88`; OpenJDK
+11.0.25) on `model/tla/IpcDelete.tla` at this commit (sha256
+`a0eb12eb5b37fc6124be89521e58778a9bb7d7960344d7da4d79069dbf21a4b7`), run from
+`model/` with 4 workers.
+
+| File | Command | SHA-256 |
+|---|---|---|
+| `tlc-safe.log` | `make tla` (first run: `IpcDelete.cfg`) | `aee4579bc1de6238aced2001a506777e4f87a0a498cfb962b5523d8695c5be55` |
+| `tlc-large.log` | `make tla` (`IpcDelete_large.cfg`) | `d8c7e65b71efcfbcfd7754f5a966f6a15589f6f8e74cf0c2a1dc05124b074f76` |
+| `tlc-unsafe.log` | `make tla` (`IpcDelete_unsafe.cfg`; must fail) | `2289e8c54ef222efa0a963d9943f770bf55fed738bdee1f12db2eda25c5c00b1` |
+| `tlc-mutate.log` | `make tla-mutate` | `7c77a589479d264f68874ba87a1ca414686146cf7ba900adfce4d6ea01eb6993` |
+
+`tlc-unsafe.log` holds the counterexample: the full state at each of its 8
+steps. In the others, "Model checking completed. No error has been found."
+and the state counts are TLC's own summary lines.

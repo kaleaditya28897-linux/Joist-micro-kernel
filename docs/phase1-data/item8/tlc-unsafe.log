@@ -1,0 +1,116 @@
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 84 and seed 7452882413431341813 with 4 workers on 4 cores with 3499MB heap and 64MB offheap memory [pid: 9890] (Linux 6.18.55_1 amd64, Void 11.0.25 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /path/to/joist/model/tla/IpcDelete.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Sequences.tla
+Parsing file /tmp/FiniteSets.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module IpcDelete
+Starting... (2026-10-04 14:21:06)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-04 14:21:06.
+Error: Invariant SpaceEmptied is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "alive"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 1
+/\ srv = "run"
+/\ slots = <<"E", "R", "empty">>
+/\ rObj = <<>>
+/\ epAlive = TRUE
+
+State 2: <StartDestroy line 166, col 5 to line 168, col 75 of module IpcDelete>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "threads"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 1
+/\ srv = "run"
+/\ slots = <<"E", "R", "empty">>
+/\ rObj = <<>>
+/\ epAlive = TRUE
+
+State 3: <DestroyThread line 173, col 5 to line 178, col 58 of module IpcDelete>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "sweep"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 1
+/\ srv = "dead"
+/\ slots = <<"E", "R", "empty">>
+/\ rObj = <<>>
+/\ epAlive = TRUE
+
+State 4: <SweepStep line 184, col 5 to line 202, col 39 of module IpcDelete>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "sweep"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 2
+/\ srv = "dead"
+/\ slots = <<"empty", "R", "empty">>
+/\ rObj = <<>>
+/\ epAlive = FALSE
+
+State 5: <Grant line 117, col 5 to line 123, col 75 of module IpcDelete>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "sweep"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 2
+/\ srv = "dead"
+/\ slots = <<"G", "R", "empty">>
+/\ rObj = <<>>
+/\ epAlive = FALSE
+
+State 6: <SweepStep line 184, col 5 to line 202, col 39 of module IpcDelete>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "sweep"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 3
+/\ srv = "dead"
+/\ slots = <<"G", "empty", "empty">>
+/\ rObj = <<>>
+/\ epAlive = FALSE
+
+State 7: <SweepStep line 184, col 5 to line 202, col 39 of module IpcDelete>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "sweep"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 4
+/\ srv = "dead"
+/\ slots = <<"G", "empty", "empty">>
+/\ rObj = <<>>
+/\ epAlive = FALSE
+
+State 8: <SweepStep line 184, col 5 to line 202, col 39 of module IpcDelete>
+/\ st = (c1 :> "run" @@ c2 :> "run")
+/\ sReply = <<>>
+/\ q = <<>>
+/\ phase = "done"
+/\ calls = (c1 :> 0 @@ c2 :> 0)
+/\ sweep = 4
+/\ srv = "dead"
+/\ slots = <<"G", "empty", "empty">>
+/\ rObj = <<>>
+/\ epAlive = FALSE
+
+2510 states generated, 798 distinct states found, 265 states left on queue.
+The depth of the complete state graph search is 9.
+The average outdegree of the complete state graph is 2 (minimum is 0, the maximum 5 and the 95th percentile is 3).
+Finished in 01s at (2026-10-04 14:21:06)

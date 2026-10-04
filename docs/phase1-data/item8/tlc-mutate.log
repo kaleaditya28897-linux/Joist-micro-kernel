@@ -1,0 +1,9 @@
+python3 tla/mutate_tla.py "tlc"
+caught   server death strands its caller (I10): Invariant I6 is violated.
+caught   endpoint death leaves callers asleep (I10): Invariant QueueSound is violated.
+caught   deleting a bound reply object strands its caller (I10): Invariant I6 is violated.
+caught   reply_save copies instead of moving (I6): Invariant I6 is violated.
+caught   Recv allowed while holding a reply capability (I6): Invariant I6 is violated.
+caught   a timed-out caller stays queued (I10): Invariant QueueSound is violated.
+caught   destruction may stall half-way (I10 liveness: only NoStrandedClient sees it): Temporal properties were violated.
+caught   a destroyed space accepts capabilities (I1): Invariant SpaceEmptied is violated.

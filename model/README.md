@@ -5,7 +5,7 @@ notifications, lifetime notifications) as a C17 library, tested on the host
 under every sanitizer. Scope, invariants (I1–I10) and order of work:
 `docs/phase1-plan.md`.
 
-**State:** Phase 1 work items 1–6 are implemented and tested: capability
+**State:** Phase 1 is closed (`docs/phase1-exit.md`). Work items 1–6 are implemented and tested: capability
 spaces and quotas, endpoints and synchronous IPC with deferred replies,
 notifications and lifetime events with queued no-senders, tasks and threads
 with task destruction, and a whole-model property test and libFuzzer harness
@@ -22,6 +22,8 @@ make sanity     # prove each sanitizer is live: a seeded bug must be caught
 make mutate     # prove the property tests catch each bug in test/mutations.txt
 make fuzz       # libFuzzer over the whole model (FUZZ_TIME=seconds, default 60)
 make fuzz-sanity  # prove the fuzzer crashes on a set of injected bugs
+make tla        # TLC on tla/IpcDelete.tla: IPC racing a preemptible destruction
+make tla-mutate # prove the TLA+ properties catch each injected bug
 make format     # clang-format in place (style: ../.clang-format)
 ```
 
@@ -46,6 +48,7 @@ the sanitizer's.
 | `fuzz/make_seeds.c` | writes the seed corpus: property-test sequences in the fuzz input encoding |
 | `test/mutations.txt`, `test/mutate.sh` | injected bugs the tests must catch |
 | `test/fuzz-sanity.sh` | injected bugs the fuzzer must crash on |
+| `tla/` | TLA+ model of IPC racing a preemptible task destruction (needs `tlc`, see `docs/phase1-plan.md`, *Tooling*) |
 
 Property tests take `JOIST_PROP_SEEDS`, `JOIST_PROP_STEPS` and, to replay a
 reported failure, `JOIST_PROP_SEED`.

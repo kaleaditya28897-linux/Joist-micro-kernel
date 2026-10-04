@@ -1,0 +1,29 @@
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 21 and seed -80859141568797642 with 4 workers on 4 cores with 3499MB heap and 64MB offheap memory [pid: 9750] (Linux 6.18.55_1 amd64, Void 11.0.25 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /path/to/joist/model/tla/IpcDelete.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Sequences.tla
+Parsing file /tmp/FiniteSets.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module IpcDelete
+Starting... (2026-10-04 14:20:52)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-04 14:20:52.
+Checking temporal properties for the current state space with 46227 total distinct states at (2026-10-04 14:20:55)
+Finished checking temporal properties in 01s at 2026-10-04 14:20:56
+Progress(14) at 2026-10-04 14:20:56: 201,980 states generated (201,980 s/min), 46,227 distinct states found (46,227 ds/min), 13,326 states left on queue.
+Progress(25) at 2026-10-04 14:21:00: 823,961 states generated, 143,000 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 143000 total distinct states at (2026-10-04 14:21:00)
+Finished checking temporal properties in 04s at 2026-10-04 14:21:04
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 5.3E-9
+  based on the actual fingerprints:  val = 3.9E-10
+823961 states generated, 143000 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 25.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 7 and the 95th percentile is 3).
+Finished in 13s at (2026-10-04 14:21:04)

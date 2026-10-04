@@ -210,12 +210,19 @@ freed; every remaining capability to the endpoint then fails with `E_GONE`.
 
 1. **Capability transfer in messages.** How a `Call` or reply carries
    capabilities (count, rights masking, what happens on failure). The model
-   uses an internal stand-in.
+   uses an internal stand-in. **Settled rule** (TLA+, work item 8): a
+   transfer into a space whose task is being destroyed fails, from the
+   moment the task is marked dead.
 2. **Preemptible cascades (I9, 0003).** Destroying a task or deleting a last
    capability may cascade; the work is bounded by the tables (measured ~30×
    the largest non-cascading operation) but not per operation. The kernel's
    version must be preemptible, with the model's work list as its
-   continuation.
+   continuation. The TLA+ model (`model/tla/IpcDelete.tla`, work item 8)
+   checks the model's order under preemption (mark the task dead, destroy
+   its threads, then delete one slot per step) against IPC running on other
+   CPUs: I6, I10 (including liveness) and I1 hold, **provided** a dying space
+   accepts no new capabilities. Without that rule a capability passed in
+   after the sweep has gone past its slot leaks, which TLC shows in 8 steps.
 3. **Task cycles.** Tasks holding each other's task capabilities outlive their
    last outside capability (`docs/phase1-plan.md`, work item 5). Options:
    creators keep a capability (seL4's rule), or parents may destroy

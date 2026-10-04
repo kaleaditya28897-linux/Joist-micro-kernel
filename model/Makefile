@@ -12,6 +12,8 @@
 #   make mutate     prove the property tests catch each bug in test/mutations.txt
 #   make fuzz       libFuzzer over the whole model (FUZZ_TIME seconds, default 60)
 #   make fuzz-sanity prove the fuzzer finds injected bugs (FUZZ_SANITY list)
+#   make tla        TLC on tla/IpcDelete.tla: IPC racing preemptible destruction
+#   make tla-mutate prove the TLA+ properties catch each bug in tla/mutate_tla.py
 #   make format     clang-format the model's sources in place
 #   make clean
 
@@ -50,7 +52,7 @@ SAN_tsan  := -fsanitize=thread
 SAN_small := -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u \
              -DJOIST_MAX_DEADNAMES=4u -fsanitize=address,undefined -fsanitize-trap=undefined
 
-.PHONY: all test check sanity mutate fuzz fuzz-sanity format clean $(SANITIZERS)
+.PHONY: all test check sanity mutate fuzz fuzz-sanity tla tla-mutate format clean $(SANITIZERS)
 
 all: test
 
@@ -118,6 +120,26 @@ FUZZ_SANITY_TIME ?= 300
 FUZZ_BLIND_TIME  ?= 120
 fuzz-sanity: $(BUILD)/fuzz-seeds/stamp
 	@sh test/fuzz-sanity.sh "$(CC)" $(FUZZ_SANITY_TIME) '$(FUZZ_SANITY)' $(FUZZ_BLIND_TIME)
+
+# Work item 8: the TLA+ model of IPC racing a preemptible task destruction.
+# The two safe configurations must pass; the unsafe one (capabilities may be
+# passed into a dying space) must fail on SpaceEmptied, the leak it shows.
+# TLC is tla2tools.jar's tlc2.TLC; TLC names the command that runs it.
+TLC ?= tlc
+TLA_META = $(BUILD)/tla
+tla:
+	@mkdir -p $(TLA_META)
+	cd tla && $(TLC) -workers auto -metadir ../$(TLA_META)/safe -config IpcDelete.cfg IpcDelete.tla \
+	    > ../$(TLA_META)/safe.log 2>&1 && grep -q "No error has been found" ../$(TLA_META)/safe.log
+	cd tla && $(TLC) -workers auto -metadir ../$(TLA_META)/large -config IpcDelete_large.cfg IpcDelete.tla \
+	    > ../$(TLA_META)/large.log 2>&1 && grep -q "No error has been found" ../$(TLA_META)/large.log
+	cd tla && ! $(TLC) -workers auto -metadir ../$(TLA_META)/unsafe -config IpcDelete_unsafe.cfg IpcDelete.tla \
+	    > ../$(TLA_META)/unsafe.log 2>&1; grep -q "Invariant SpaceEmptied is violated" ../$(TLA_META)/unsafe.log
+	@for c in safe large; do printf "tla: %-5s " $$c; grep "distinct states found" $(TLA_META)/$$c.log | tail -1; done
+	@echo "tla: safe and large configurations hold; the unsafe one leaks, as expected"
+
+tla-mutate:
+	python3 tla/mutate_tla.py "$(TLC)"
 
 format:
 	clang-format --style=file:../.clang-format -i $(SRC) $(TESTS) $(RUNNER) $(EXEC) \
