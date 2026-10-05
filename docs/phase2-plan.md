@@ -365,3 +365,41 @@ qemu-test: booted (bios), the root task ran and exited 0     (and uefi)
 Not runtime-tested: the `sysret` guard itself (it needs a `syscall` at the
 very top of the user half, where the stack lives) and the double-fault path.
 Both are candidates for step 7's fuzzer and step 8.
+
+### Step 7: system-call fuzzing (2026-10-05): **second half of the exit criterion**
+
+`user/sysfuzz` is a root task making system calls from a seeded generator:
+random call numbers (never `exit` until the end), pointers from interesting
+classes (null, its own code and data, its stack, the kernel image, the direct
+map, non-canonical, the top of the user half, low memory, random 64-bit),
+random lengths (zero, small, page-crossing, past the 4 KiB limit, huge), and
+**every other general register loaded with a random value** through a small
+assembly routine (`fuzz_call.S`). After each call every register but `rax`
+(the result) and `rcx`/`r11` (clobbered by `syscall`) must be unchanged, and
+the result must be one of the defined outcomes, exactly the predicted one
+where the arguments decide it (kernel-half and non-canonical pointers refused,
+over-long lengths refused, zero lengths writing nothing, unknown calls
+refused). Classes that may be valid get 0–2-byte lengths, so valid writes
+print a few bytes rather than pages; large valid copies are covered
+byte-exact by the host tests.
+
+| Run | Result |
+|---|---|
+| Self-test (`make selftest`), default seed, 1 000 000 calls | survives; 181 877 writes, 497 210 refused, 93 808 unknown calls; every call returned, registers preserved |
+| `make fuzz-kernel SEEDS="11 12 13" CALLS=10000000` | 30 000 000 calls, all three seeds survive, about 1 000 timer interrupts each mid-fuzzing (`docs/phase2-data/step7/`) |
+| Planted: `r10` not restored by the entry stub | **first run: not caught.** The C handler happened not to touch `r10`, so the user's value survived. The kernel now **zeroes every caller-saved register after the handler** and before restoring the user's: a forgotten restore returns 0, never a kernel value, and the fuzzer then reports "register 8 changed on call 0" |
+| Planted: `copy_from_user`'s user-half and user-bit checks removed | caught: "unexpected result on call 35" (a kernel pointer read) |
+
+**The `sysret` hazard, now runtime-tested.** The stack moved just below the
+image (`[0x3f8000, 0x400000)`), so a program may use the user half up to its
+top. `user/sysrethole` puts `syscall` in the last two bytes of the user half,
+so its return address is `0x800000000000`. The kernel refuses it ("syscall
+returning to non-canonical 0x0000800000000000", verdict 3). With the guard
+removed, the run instead ends with a `#GP` attributed to the task at
+`0x800000000000`, QEMU status 9, so the self-test fails. (QEMU delivers that
+`#GP` after the switch to ring 3, as AMD CPUs do; on Intel CPUs it is taken in
+ring 0 on the user's stack, which is the exploitable form. QEMU can't show
+that form, but it does distinguish guard from no guard.)
+
+`make check`: 25 host tests in five builds, five sources freestanding, both
+boots, and 12 self-tests (adds `sysfuzz` and `sysrethole`).

@@ -5,8 +5,8 @@
  * made later in a new top-level slot would not propagate; Phase 2 makes none
  * after this, and Phase 3's address-space code takes over.) Its segments come
  * from elf_validate's description, each page in its own fresh frame with the
- * segment's permissions plus user access; its stack is USER_STACK_PAGES
- * below USER_STACK_TOP. System calls arrive through syscall.S. */
+ * segment's permissions plus user access; its stack is the USER_STACK_PAGES
+ * pages just below the image. System calls arrive through syscall.S. */
 #include "user.h"
 
 #include "apic.h"
@@ -17,8 +17,11 @@
 #include "serial.h"
 #include "syscall.h"
 
+/* The stack sits just below the image, so the image may use the user half up
+ * to its very top (step 7 places code at the top to test the sysret guard). */
 #define USER_LO          0x400000ull
-#define USER_STACK_TOP   0x00007ffffffff000ull
+#define USER_TOP_        0x0000800000000000ull
+#define USER_STACK_TOP   USER_LO
 #define USER_STACK_PAGES 8u
 
 #define MSR_EFER           0xc0000080u
@@ -144,8 +147,7 @@ const char *user_run_root(struct frame_alloc *fa, uint64_t hhdm, const uint8_t *
                           uint64_t size)
 {
     struct elf_image im;
-    if (elf_validate(image, size, USER_LO, USER_STACK_TOP - USER_STACK_PAGES * VM_PAGE, &im) !=
-        KERR_OK) {
+    if (elf_validate(image, size, USER_LO, USER_TOP_, &im) != KERR_OK) {
         return "the root task image was refused by the ELF validator";
     }
     fctx = (struct frames_ctx){.fa = fa, .hhdm = hhdm};

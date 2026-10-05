@@ -11,6 +11,7 @@
 #                   (FIRMWARE=bios, the default, or uefi)
 #   make boot-test  qemu-test under both
 #   make selftest   boot builds that fault on purpose (#UD, #PF, int3)
+#   make fuzz-kernel  the system-call fuzzer as root task (SEEDS, CALLS)
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
 #   make fuzz-syscall  libFuzzer on the system-call dispatcher
@@ -45,7 +46,7 @@ SAN_tsan  := -fsanitize=thread
 STAMP := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest fuzz-kernel mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
 all: test
 
 define variant
@@ -103,10 +104,13 @@ kernel: $(BUILD)/joist.elf
 LIMINE_DIR ?= /usr/share/limine
 # The root task: Phase 2's user programs (../user). ROOT_TASK picks which.
 ROOT_TASK ?= hello
-ROOT_ELF := ../user/build/$(ROOT_TASK).elf
+# USER_BUILD and UEXTRA pass through to ../user (a seeded fuzzer build).
+USER_BUILD ?= build
+UEXTRA ?=
+ROOT_ELF := ../user/$(USER_BUILD)/$(ROOT_TASK).elf
 .PHONY: $(ROOT_ELF)
 $(ROOT_ELF):
-	$(MAKE) -s -C ../user build/$(ROOT_TASK).elf
+	$(MAKE) -s -C ../user BUILD=$(USER_BUILD) UEXTRA="$(UEXTRA)" $(USER_BUILD)/$(ROOT_TASK).elf
 
 $(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf $(ROOT_ELF)
 	rm -rf $(BUILD)/iso && mkdir -p $(BUILD)/iso/boot/limine $(BUILD)/iso/EFI/BOOT
@@ -145,6 +149,22 @@ qemu-test: $(BUILD)/joist.iso
 boot-test: $(BUILD)/joist.iso
 	@$(MAKE) -s qemu-test FIRMWARE=bios
 	@$(MAKE) -s qemu-test FIRMWARE=uefi
+
+# The system-call fuzzer (step 7) as the root task, once per seed: CALLS
+# calls each; the kernel must survive and the task must exit 0.
+SEEDS ?= 1 2 3
+CALLS ?= 10000000
+fuzz-kernel:
+	@for seed in $(SEEDS); do \
+	    b=$(BUILD)/fuzz-kernel-$$seed; \
+	    $(MAKE) -s BUILD=$$b ROOT_TASK=sysfuzz USER_BUILD=build/fuzz-$$seed \
+	        UEXTRA="-DSYSFUZZ_SEED=$$seed -DSYSFUZZ_CALLS=$(CALLS)" $$b/joist.iso >/dev/null || exit 1; \
+	    timeout 3600 $(QEMU) -M q35 -m 256M -cdrom $$b/joist.iso -display none -no-reboot \
+	        -serial file:$$b/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04; st=$$?; \
+	    line=$$(tr -d '.' < $$b/serial.log | grep -a -m1 "sysfuzz: done\|FAILED\|EXCEPTION\|PANIC"); \
+	    echo "fuzz-kernel seed $$seed: QEMU status $$st: $$line"; \
+	    [ $$st -eq 1 ] || exit 1; \
+	done
 
 # Test builds that fault on purpose: each must be reported correctly.
 selftest:

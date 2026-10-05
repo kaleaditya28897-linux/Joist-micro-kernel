@@ -1,0 +1,3 @@
+sysfuzz: seed 12, 10000000 calls
+sysfuzz: done: 1816070 writes, 4978208 refused, 938600 unknown calls; every call returned, registers preserved
+joist: root task exited with code 0 (timer ticks so far: 1048)

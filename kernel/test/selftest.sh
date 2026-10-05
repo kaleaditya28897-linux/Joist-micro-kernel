@@ -20,9 +20,9 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     st=$?
     ok=1
     [ "$st" -eq "$want" ] || ok=0
-    for p in "$@"; do grep -q -- "$p" $b/serial.log || ok=0; done
+    for p in "$@"; do grep -a -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -m1 -E 'EXCEPTION|#BP|root task (fault|exited)|refused' $b/serial.log | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|#BP|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -40,4 +40,9 @@ run badptr 1 "badptr: refused as expected" "root task exited with code 0"
 run ud 9 "root task fault: #UD invalid opcode at 0x0000000000400004"
 run rowrite 9 "root task fault: #PF page fault at" "address 0x0000000000401000"
 run spin 1 "spin: done" "root task exited with code 0"
+# Step 7: the system-call fuzzer, default seed, 1 000 000 calls.
+run sysfuzz 1 "sysfuzz: done" "registers preserved" "root task exited with code 0"
+# The sysret hazard: a syscall in the last two bytes of the user half must be
+# refused (status 7: code 3), not sysret to 0x800000000000.
+run sysrethole 7 "syscall returning to non-canonical 0x0000800000000000"
 exit $fail

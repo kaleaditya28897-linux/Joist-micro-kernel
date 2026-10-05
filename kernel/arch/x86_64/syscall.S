@@ -39,6 +39,18 @@ syscall_entry:
     movq %rsp, %rdi           /* the frame */
     cld                       /* 16 pushes from an aligned top: still aligned for the call */
     call syscall_handler      /* result in rax */
+    /* Scrub every caller-saved register the C code may have used before the
+     * user's are restored: a restore missed by mistake then hands back 0,
+     * never a kernel value (and the fuzzer, which loads random values, sees
+     * it). */
+    xorl %ecx, %ecx
+    xorl %edx, %edx
+    xorl %esi, %esi
+    xorl %edi, %edi
+    xorl %r8d, %r8d
+    xorl %r9d, %r9d
+    xorl %r10d, %r10d
+    xorl %r11d, %r11d
     popq %r15
     popq %r14
     popq %r13
