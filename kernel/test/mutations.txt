@@ -18,3 +18,9 @@ elf-user-range-wrap @@ elf/elf.c @@ if (vaddr < user_lo || vaddr > user_hi || me
 elf-entry-anywhere @@ elf/elf.c @@ if (out->nsegments == 0 || !entry_ok) { @@ if (out->nsegments == 0 || !(entry_ok || 1)) {
 elf-dynamic-allowed @@ elf/elf.c @@ if (type == PT_DYNAMIC || type == PT_INTERP || type == PT_TLS) { @@ if (type == PT_TLS) {
 elf-congruence @@ elf/elf.c @@ vaddr % PAGE != offset % PAGE) { @@ 0) {
+vm-wx-allowed @@ mem/vm.c @@ (perms & VM_W && perms & VM_X) || @@ (perms & VM_W && perms & VM_X && 0) ||
+vm-remap-allowed @@ mem/vm.c @@ return KERR_STATE; /* already mapped, or a table where a large page would go */ @@ (void)0;
+vm-nx-dropped @@ mem/vm.c @@ ((perms & VM_X) ? 0 : PTE_NX) | @@ 0 |
+vm-noncanonical @@ mem/vm.c @@ return top == 0 || top == 0x1ffffu; @@ return top != top + 1u;
+vm-large-in-table @@ mem/vm.c @@ return KERR_STATE; /* a large page covers this range */ @@ break;
+vm-user-leak @@ mem/vm.c @@ ((perms & VM_USER) ? PTE_U : 0) @@ PTE_U

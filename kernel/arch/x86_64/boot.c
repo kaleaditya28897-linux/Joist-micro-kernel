@@ -8,6 +8,7 @@
 #include "cpu.h"
 #include "frame.h"
 #include "io.h"
+#include "paging.h"
 #include "joist/kprint.h"
 #include "serial.h"
 
@@ -124,6 +125,13 @@ static void frames_selfcheck(uint64_t hhdm)
     }
 }
 
+#if defined(JOIST_SELFTEST) && JOIST_SELFTEST == 4
+static const char selftest_rodata[] = "read-only";
+#endif
+#if defined(JOIST_SELFTEST) && JOIST_SELFTEST == 5
+static uint8_t selftest_code[16];
+#endif
+
 void kmain(void);
 
 void kmain(void)
@@ -173,6 +181,15 @@ void kmain(void)
     kputs(" covered (");
     kputu(frames.nfree * FRAME_SIZE / (1024u * 1024u));
     kputs(" MiB)\n");
+    const char *perr =
+        paging_init(&frames, mm, hhdm_req.response->offset, kaddr_req.response->virtual_base,
+                    kaddr_req.response->physical_base);
+    if (perr != NULL) {
+        panic(perr);
+    }
+    kputs("joist: page tables: the kernel's own, loaded (");
+    kputu(frames.nfree);
+    kputs(" frames free after)\n");
     kputs("joist: modules: ");
     kputu(module_req.response != NULL ? module_req.response->module_count : 0);
     kputs("\n");
@@ -186,6 +203,13 @@ void kmain(void)
 #elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 3
     kputs("joist: selftest: int3\n");
     __asm__ volatile("int3");
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 4
+    kputs("joist: selftest: write to read-only data\n");
+    *(volatile char *)(uintptr_t)selftest_rodata = 'x';
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 5
+    kputs("joist: selftest: execute data\n");
+    selftest_code[0] = 0xc3; /* ret */
+    ((void (*)(void))(uintptr_t)selftest_code)();
 #endif
     kputs("joist: ok\n");
     kernel_finish(0);

@@ -275,3 +275,31 @@ at both ends of each through the direct map, returns them, and requires the
 free count to come back exactly. Observed: BIOS 65 131 frames free of 65 266
 covered (254 MiB); UEFI 53 085 of 57 421 (207 MiB). The difference is the gaps
 between ranges and the bitmaps' own frames.
+
+### Step 4: the kernel's own page tables (2026-10-05)
+
+- `kernel/mem/vm.[ch]` (host-testable): builds and walks four-level page
+  tables through two callbacks (get a zeroed frame; physical address to
+  pointer), never touching the CPU. Enforced on every mapping: canonical,
+  aligned to the page size used (4 KiB or 2 MiB), within 52-bit physical
+  addresses, in one half of the address space, W^X, never mapping a page twice
+  or a 4 KiB page under a large one (or the reverse). A refused call maps
+  nothing. Intermediate tables are created present, writable and user so the
+  leaf decides (x86 ANDs W and U and ORs NX down the walk); `vm_translate`
+  applies the same rule in software.
+- `kernel/arch/x86_64/paging.c`: the kernel's tables, from boot frames: the
+  image mapped segment by segment with its linked permissions (linker
+  symbols mark the boundaries), and a direct map of RAM only (usable,
+  bootloader-reclaimable, ACPI, kernel and modules; not reserved regions,
+  which may be devices), with 2 MiB pages where aligned and 4 KiB at the
+  edges, rounded inwards. Then EFER.NXE (before the tables go live: otherwise
+  the NX bit is a reserved bit), CR0.WP, CR4.PGE, and CR3. The tables cost 8
+  frames under BIOS and 17 under UEFI.
+
+| Check | Result |
+|---|---|
+| Unit tests (`kernel/test/test_vm.c`) | 5: mapping and translating with each permission; large pages, including 4 KiB under a lone large page; every refused mapping (W^X, misaligned, empty, bad page size, non-canonical, running off the lower half, past 52 bits, wrapping, remapping); a refused call maps nothing; running out of frames |
+| Property test | 200 seeds × 60 random mappings in a small window (collisions frequent, some misaligned, some W+X) against a shadow of every page; after each step every page in the window translates exactly as the shadow says. About 3 500 accepted, 8 500 refused |
+| Self-tests | 4: a write to read-only data faults with error `0x3` (present, write); 5: a call into data faults with `0x11` (present, instruction fetch). With 1–3 from step 2, all five pass |
+| `make mutate` | 24 of 24 (6 new: W^X, remapping, NX dropped, canonical check, large-page check, the user bit leaking). The large-page mutation first survived: the test hit another present large page by coincidence; a lone large page now isolates it |
+| `make check` | 19 tests in five builds; three sources freestanding; BIOS and UEFI boots; five self-tests |

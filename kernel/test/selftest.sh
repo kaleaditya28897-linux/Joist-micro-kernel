@@ -1,6 +1,6 @@
 #!/bin/sh
 # selftest.sh - boot test builds of the kernel that misbehave on purpose and
-# check it reports each case correctly (Phase 2 step 2). Each variant is
+# check it reports each case correctly (Phase 2 steps 2 and 4). Each variant is
 # built with -DJOIST_SELFTEST=N in its own build directory and booted under
 # BIOS; QEMU's exit status is (kernel code << 1) | 1.
 # usage: test/selftest.sh   (from kernel/)
@@ -25,4 +25,8 @@ run() { # N EXPECTED_STATUS "grep pattern"...
 run 1 5 "EXCEPTION 6 (#UD invalid opcode)" "rip 0xffffffff8"
 run 2 5 "EXCEPTION 14 (#PF page fault)" "cr2 0xffff900000000000"
 run 3 1 "#BP breakpoint at 0xffffffff8" "joist: ok"
+# Step 4: the kernel's own page tables enforce W^X. Error codes: 0x3 = present
+# page, write; 0x11 = present page, instruction fetch.
+run 4 5 "EXCEPTION 14 (#PF page fault)" "error 0x0000000000000003"
+run 5 5 "EXCEPTION 14 (#PF page fault)" "error 0x0000000000000011"
 exit $fail

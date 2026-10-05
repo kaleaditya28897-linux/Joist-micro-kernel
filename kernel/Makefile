@@ -25,7 +25,7 @@ WARN := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototyp
 INC  := -Iinclude -Imem -Ielf
 
 # Kernel sources that also build for the host. Grows as Phase 2 adds them.
-KSRC  := mem/frame.c elf/elf.c
+KSRC  := mem/frame.c mem/vm.c elf/elf.c
 TESTS := $(wildcard test/test_*.c)
 RUNNER := test/harness.c
 BUILD := build
@@ -72,6 +72,7 @@ freestanding:
 # ---- the kernel image (Phase 2 step 1) ----
 # Everything that goes into the image. KSRC (host-testable) is a subset.
 IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c arch/x86_64/gdt.c arch/x86_64/idt.c \
+           arch/x86_64/paging.c \
            lib/kprint.c lib/string.c $(KSRC)
 IMG_ASM := arch/x86_64/isr.S
 IMG_INC := $(INC) -Iarch/x86_64
