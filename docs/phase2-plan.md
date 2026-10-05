@@ -140,4 +140,29 @@ Void's `limine` is 12.9.1 and `qemu-system-amd64` 11.1.1.
 
 ## Progress
 
-*(none yet)*
+### Step 3: the frame allocator, host side (2026-10-05)
+
+Done ahead of steps 1–2, which need the toolchain (`ld.lld`, QEMU, Limine)
+and decision 0015. `kernel/mem/frame.[ch]`, built and tested from `kernel/`
+(`make check`).
+
+- **Two bitmaps**, one bit per frame each: `taken` (not available now) and
+  `fixed` (never available: gaps between usable ranges, reservations such as
+  the kernel image, the tail past the last frame). With one bitmap, freeing a
+  frame that was never handed out (the kernel image, a gap) would have been
+  indistinguishable from freeing an allocated one; now it is refused
+  (`KERR_STATE`), as is a double free.
+- **The bootloader's memory map is checked, not trusted**: unsorted,
+  overlapping, empty or address-wrapping ranges make `frame_init` refuse the
+  whole map; ranges are trimmed inwards to whole frames.
+- **Bounded** by the bitmaps' size, fixed at boot by the machine's memory.
+  No allocation: the storage is the caller's.
+- **Compiles freestanding** for `x86_64-unknown-none-elf` with §13's flags
+  (`make freestanding`; objects only until `ld.lld` is installed).
+
+| Check | Result |
+|---|---|
+| Unit tests (`kernel/test/test_frame.c`) | 6: malformed maps (unsorted, overlapping, empty, wrapping after a valid range, no whole frame, bad storage), inward trimming, gaps never handed out or freed, `frame_put` errors, permanent reservations, a 64 MiB map allocated to exhaustion |
+| Property test | 500 seeds × 2 000 steps of gets and puts (including misaligned, out-of-range, double and gap frees) against a shadow of every frame's state; every result reached: about 440 000 gets, 58 000 out-of-memory, 390 000 puts, 64 000 / 33 000 / 14 000 refused as misaligned / out of range / not taken |
+| `make check` | plain, ASan, UBSan, MSan, TSan; freestanding compile |
+| `make mutate` (`kernel/test/mutations.txt`) | 10 of 10 caught. The first run found a test gap (a wrapping range alone was refused for another reason, so the wrap check was never tested) and a mutation that wasn't a bug (picking a different free frame); both fixed |

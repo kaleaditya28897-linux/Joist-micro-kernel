@@ -1,0 +1,12 @@
+# Injected bugs the host tests must catch: name @@ file @@ find @@ replace
+# (first occurrence; see test/mutate.sh). Phase 2, docs/phase2-plan.md.
+overlap-accepted @@ mem/frame.c @@ if (i != 0 && b < prev_end) { @@ if (i != 0 && b < prev_end && 0) {
+wrap-accepted @@ mem/frame.c @@ if (l == 0 || b > UINT64_MAX - l) { @@ if (l == 0) {
+trim-outwards @@ mem/frame.c @@ uint64_t f0 = up(b); @@ uint64_t f0 = down(b);
+storage-unchecked @@ mem/frame.c @@ if (need == 0 || storage_bytes < need) { @@ if (need == 0 || storage_bytes < need - need) {
+gap-freeable @@ mem/frame.c @@ if (!bit(fa->taken, i) || bit(fa->fixed, i)) { @@ if (!bit(fa->taken, i)) {
+double-free @@ mem/frame.c @@ if (!bit(fa->taken, i) || bit(fa->fixed, i)) { @@ if (bit(fa->fixed, i)) {
+reserve-not-fixed @@ mem/frame.c @@ set_bit(fa->fixed, f - lo); @@ (void)lo;
+get-not-marked @@ mem/frame.c @@ set_bit(fa->taken, i); @@ (void)0;
+put-not-cleared @@ mem/frame.c @@ clear_bit(fa->taken, i); @@ (void)i;
+put-range-off-by-one @@ mem/frame.c @@ if (f < fa->base_pfn || f - fa->base_pfn >= fa->nframes) { @@ if (f < fa->base_pfn || f - fa->base_pfn > fa->nframes) {
