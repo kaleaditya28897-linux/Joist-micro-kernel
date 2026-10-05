@@ -1,7 +1,7 @@
 # 0015 — Boot protocol: Limine
 
 Date: 2026-10-05
-Status: proposed
+Status: accepted (2026-10-05)
 Covers: §5.8 ("Boot via Multiboot2 (GRUB) or Limine"), Phase 2's first step.
 Blocks: Phase 2 (kernel bootstrap).
 
@@ -39,7 +39,7 @@ moving back later is a matter of an entry stub, not a redesign).
 **C — Both from the start.** Two entry paths to test from day one, for a
 benefit (GRUB compatibility) nobody needs until Phase 8 boots a real Hurd.
 
-## Decision (proposed)
+## Decision
 
 **B: Limine**, native protocol, for Phase 2 onwards. Multiboot2 is
 reconsidered, as an extra entry stub, only if a target can't run Limine.

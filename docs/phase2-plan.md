@@ -51,7 +51,7 @@ One CPU. SMP (0003) starts in Phase 3, once there is something to share.
 
 ## Choices this plan makes
 
-1. **Boot: Limine's native protocol** (decision 0015, proposed). The kernel
+1. **Boot: Limine's native protocol** (decision 0015, accepted 2026-10-05). The kernel
    starts in long mode, higher half, with a direct map of physical memory;
    requests for the memory map, modules, RSDP and framebuffer are C structures.
    Limine's 0BSD protocol header is copied into the tree.
