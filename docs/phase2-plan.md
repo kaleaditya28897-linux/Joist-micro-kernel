@@ -189,11 +189,12 @@ executable (W^X), with the entry point in an executable segment. Refused:
 | `make mutate` | 18 of 18 caught (10 allocator, 8 validator). One validator mutation first survived: a test meant to catch headers running past the file failed for another reason; a dedicated test now isolates it |
 | `make check` | 13 tests under plain, ASan, UBSan, MSan, TSan; both kernel sources compile freestanding |
 
-### Step 1: build and boot skeleton (2026-10-05): written, linked, **not yet booted**
+### Step 1: build and boot skeleton (2026-10-05)
 
-Decision 0015 accepted (Limine). The skeleton is written and links, but
-QEMU, Limine and `xorriso` aren't installed yet, so it has not booted: the
-`iso` and `qemu-test` targets are untested.
+Decision 0015 accepted (Limine). **Boots under BIOS and UEFI** in QEMU
+11.1.1 with Limine 12.9.2, linked with LLD 21.1.8 (tools installed
+2026-10-05: `lld llvm qemu-system-amd64 qemu-firmware xorriso limine gdb
+clang-tools-extra clang-analyzer`).
 
 - `kernel/include/limine/limine.h`: Limine's protocol header, 0BSD, vendored
   from `limine-bootloader/limine-protocol` commit `3a0526b7`, sha256
@@ -210,8 +211,21 @@ QEMU, Limine and `xorriso` aren't installed yet, so it has not booted: the
 - `serial.c` (16550 on COM1, polled), `io.h` (port I/O: the only inline
   assembly), `lib/kprint.c`, `lib/string.c` (the memory functions a
   freestanding Clang build may call).
-- `make kernel` links `build/joist.elf` with `ld.lld` (§13); checked for now
-  with `LD=ld` (GNU ld 2.44): entry `kmain`, four load segments as above, the
-  start marker and base revision tag at the top of the image, no SSE/AVX
-  instructions. `make iso` and `make qemu-test` are written, waiting for the
-  tools.
+- `make kernel` links `build/joist.elf` with `ld.lld` (§13): entry `kmain`,
+  four load segments as above, the start marker and base revision tag at the
+  top of the image, no SSE/AVX instructions. `make iso` builds a hybrid
+  BIOS/UEFI ISO; `make qemu-test [FIRMWARE=uefi]` boots it headless.
+
+First boot, serial log (BIOS / UEFI):
+
+```
+joist: boot
+joist: memory: 254 MiB usable in 3 ranges, 20 map entries      (UEFI: 207 MiB, 7 ranges, 31 entries)
+joist: kernel at 0xffffffff80000000 (physical 0x000000000ff34000), direct map at 0xffff800000000000
+joist: modules: 0
+joist: ok
+```
+
+The test can fail: a scratch build that panics instead of printing `ok`
+makes QEMU exit with status 3 and `qemu-test` report FAILED. `make check`
+now boots under both firmwares after the host tests.

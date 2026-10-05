@@ -7,7 +7,9 @@
 #                   with the §13 flags (objects only: linking needs ld.lld)
 #   make kernel     link the kernel image, build/joist.elf (LD, default ld.lld)
 #   make iso        a bootable ISO with Limine, build/joist.iso (BIOS and UEFI)
-#   make qemu-test  boot it headless in QEMU and check the serial log (BIOS)
+#   make qemu-test  boot it headless in QEMU and check the serial log
+#                   (FIRMWARE=bios, the default, or uefi)
+#   make boot-test  qemu-test under both
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
 #   make format     clang-format in place
@@ -41,7 +43,7 @@ SAN_tsan  := -fsanitize=thread
 STAMP := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding kernel iso qemu-test mutate fuzz-elf format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test boot-test mutate fuzz-elf format clean $(SANITIZERS)
 all: test
 
 define variant
@@ -106,17 +108,27 @@ iso: $(BUILD)/joist.iso
 # kernel's verdict into QEMU's exit status ((code << 1) | 1, so 1 = success).
 QEMU ?= qemu-system-x86_64
 QEMU_TIMEOUT ?= 30
+# FIRMWARE=bios (default) or uefi (QEMU's EDK2 build).
+FIRMWARE ?= bios
+UEFI_CODE ?= /usr/share/qemu/edk2-x86_64-code.fd
+FW_bios :=
+FW_uefi := -drive if=pflash,format=raw,readonly=on,file=$(UEFI_CODE)
 qemu-test: $(BUILD)/joist.iso
 	@rm -f $(BUILD)/serial.log
-	@timeout $(QEMU_TIMEOUT) $(QEMU) -M q35 -m 256M -cdrom $< -display none -no-reboot \
+	@timeout $(QEMU_TIMEOUT) $(QEMU) -M q35 -m 256M $(FW_$(FIRMWARE)) -cdrom $< -display none -no-reboot \
 	    -serial file:$(BUILD)/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04; \
 	    st=$$?; cat $(BUILD)/serial.log; \
 	    if [ $$st -eq 1 ] && grep -q "joist: ok" $(BUILD)/serial.log; then \
-	        echo "qemu-test: booted, kernel reported ok"; \
-	    else echo "qemu-test: FAILED (QEMU status $$st)"; exit 1; fi
+	        echo "qemu-test: booted ($(FIRMWARE)), kernel reported ok"; \
+	    else echo "qemu-test: FAILED ($(FIRMWARE), QEMU status $$st)"; exit 1; fi
 
-check: test $(SANITIZERS) freestanding
-	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding"
+# Boot under both firmwares.
+boot-test: $(BUILD)/joist.iso
+	@$(MAKE) -s qemu-test FIRMWARE=bios
+	@$(MAKE) -s qemu-test FIRMWARE=uefi
+
+check: test $(SANITIZERS) freestanding boot-test
+	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding; the kernel boots under BIOS and UEFI"
 
 mutate:
 	@sh test/mutate.sh "$(CC)"
