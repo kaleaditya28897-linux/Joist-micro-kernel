@@ -452,7 +452,11 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
             if (ob->word != 0 || ob->recv_caps != 0) {
                 VIOLATION("task/thread object %u carries endpoint or notification state", o);
             }
-        } else if (ob->word != 0 || ob->recv_caps != 0 || ob->dead) {
+        } else if (ob->word != 0 || ob->recv_caps != 0 || ob->dead || ob->target != 0 ||
+                   ob->rseq != 0 || ob->donor != 0 || ob->ns_notif != 0 || ob->ns_bits != 0 ||
+                   ob->ns_first != 0 || ob->ns_last != 0 || ob->qkind != JOIST_Q_NONE ||
+                   ob->qhead != 0 || ob->qtail != 0) {
+            /* A free object is all zero: nothing survives into its next use. */
             VIOLATION("free object %u carries state", o);
         }
         if (ob->ns_notif != 0 &&

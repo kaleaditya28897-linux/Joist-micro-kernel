@@ -58,8 +58,11 @@ Open, in the order they block work (`docs/abi.md`, *Open*):
     work list as its continuation.
 - **Phase 3:** revoke and 0011's batched capability copy, not yet in the
   model; thread state (0010) and fault IPC (0009), outside the model's scope.
+- **CBMC preservation proofs for `cap_delete` and `task_destroy`**: out of
+  the workstation's memory (the other five operations are proven; work
+  item 8). A bigger machine, or a cascade-free stub of the drain, would do.
 - **§8.1 tooling** (`phase1-plan.md`, *Tooling*): the TLA+ tools and CBMC
-  are installed (2026-10-04, user-local). `clang-tidy`, `scan-build` and
+  are installed (2026-10-04, user-local), and CBMC is in use (`make cbmc`). `clang-tidy`, `scan-build` and
   `ld.lld`/`llvm-*` need root: one `xbps-install` for the project owner.
 
 Phase 0's carry-overs for Phases 4–10 are unchanged (`docs/phase0-exit.md`).

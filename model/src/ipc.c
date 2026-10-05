@@ -487,6 +487,13 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
             r->reply_to != 0) {
             VIOLATION("I10: thread %u waits while holding a reply capability", t);
         }
+        /* A caller blocks, so it can never receive its own call (CBMC). */
+        if (r->reply_to == t + 1u) {
+            VIOLATION("I6: thread %u holds a reply capability naming itself", t);
+        }
+        if (r->reply_to > JOIST_MAX_THREADS) {
+            VIOLATION("I6: thread %u holds a reply capability naming thread %u", t, r->reply_to);
+        }
         if (r->state == JOIST_T_BLOCKED_REPLY) {
             /* I6/I10: exactly one valid reply capability names a waiting caller,
              * or it could wait forever with nobody able to answer. */

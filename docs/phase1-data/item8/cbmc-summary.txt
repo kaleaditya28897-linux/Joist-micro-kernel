@@ -1,0 +1,28 @@
+CBMC preservation proofs (model/cbmc/harness_cspace.c, mode JOIST_CBMC_INDUCTIVE)
+CBMC 6.11.0 (cbmc-6.11.0), workstation, Void Linux, 4 cores, 15 GB.
+Command per operation: model/cbmc/run.sh OUTDIR OP   (make cbmc runs 0 1 2 4 5)
+Sizes: JOIST_MAX_OBJECTS=3 JOIST_MAX_CSPACES=2 JOIST_CSPACE_SLOTS=2
+       JOIST_MAX_THREADS=1 JOIST_MAX_BADGE_ACCTS=1 JOIST_MAX_DEADNAMES=1
+Flags: --unwind 4 --unwinding-assertions --bounds-check --pointer-check
+       --signed-overflow-check --undefined-shift-check --trace
+
+op 0 obj_create    ** 0 of 4061 failed (1 iterations)  VERIFICATION SUCCESSFUL
+op 1 cap_derive    ** 0 of 4061 failed (1 iterations)  VERIFICATION SUCCESSFUL
+op 2 cap_mint      ** 0 of 4061 failed (1 iterations)  VERIFICATION SUCCESSFUL  579 s
+op 4 cap grant     ** 0 of 4061 failed (1 iterations)  VERIFICATION SUCCESSFUL  405 s
+op 5 task_create   ** 0 of 4061 failed (1 iterations)  VERIFICATION SUCCESSFUL  198 s
+
+Ops 0 and 1 ran 2026-10-04 (on the final source; the run was then cut off),
+ops 2, 4, 5 on 2026-10-05T06:43Z. All five logs are byte-identical (the list of
+4061 properties, each SUCCESS; the operation only selects a branch):
+sha256 1b8c33def11a2d417b5227fcb96c6f6986e13057be48ec9e0b9341d8e0c224c5
+Harness sha256 70bf955e55e69beff3e4f5b51903ff47dfbb7d13a72aeda5682b2441946d99cf
+run.sh  sha256 f895723fcfdcc966eaea55660926805860f1e5c6e2ebefafdfbfd46528b96373
+
+Not verified: op 3 cap_delete and op 6 task_destroy (they can cascade).
+Attempts, all inconclusive, none a counterexample:
+  sizes above, 7 ops 3 at a time    machine out of memory (op 3 alone > 8.6 GB)
+  OBJECTS=2, --unwind 3, ulimit 6 GB "SAT checker ran out of memory"
+  + split by slot type (empty slot) "Solver ran out of memory during propositional reduction"
+    with --sat-solver cadical        same
+  + --paths lifo                    no path finished in 900 s

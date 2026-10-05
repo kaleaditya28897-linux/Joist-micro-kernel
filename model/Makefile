@@ -14,6 +14,7 @@
 #   make fuzz-sanity prove the fuzzer finds injected bugs (FUZZ_SANITY list)
 #   make tla        TLC on tla/IpcDelete.tla: IPC racing preemptible destruction
 #   make tla-mutate prove the TLA+ properties catch each bug in tla/mutate_tla.py
+#   make cbmc       CBMC preservation proofs for the capability and task operations
 #   make format     clang-format the model's sources in place
 #   make clean
 
@@ -52,7 +53,7 @@ SAN_tsan  := -fsanitize=thread
 SAN_small := -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u \
              -DJOIST_MAX_DEADNAMES=4u -fsanitize=address,undefined -fsanitize-trap=undefined
 
-.PHONY: all test check sanity mutate fuzz fuzz-sanity tla tla-mutate format clean $(SANITIZERS)
+.PHONY: all test check sanity mutate fuzz fuzz-sanity tla tla-mutate cbmc format clean $(SANITIZERS)
 
 all: test
 
@@ -141,9 +142,27 @@ tla:
 tla-mutate:
 	python3 tla/mutate_tla.py "$(TLC)"
 
+# CBMC (§8.1): for each capability and task operation, from any state the
+# invariant check accepts, the operation keeps every invariant (and every
+# array access, pointer and shift is checked on the way). Operation numbers
+# are those of cbmc/harness_cspace.c; CBMC_JOBS run at once (each needs up
+# to ~5 GB). Operations 3 (delete) and 6 (task destroy) can cascade; their
+# formulas exhaust 15 GB even at smaller sizes, split by slot type, with
+# CaDiCaL, or path by path, so they are left to the property tests, the
+# fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8).
+CBMC_OPS  ?= 0 1 2 4 5
+CBMC_JOBS ?= 2
+cbmc:
+	@mkdir -p $(BUILD)/cbmc
+	@printf "%s\n" $(CBMC_OPS) | xargs -P$(CBMC_JOBS) -I{} sh cbmc/run.sh $(BUILD)/cbmc {} \
+	    | sort | tee $(BUILD)/cbmc/summary.txt
+	@n=$$(grep -c "VERIFICATION SUCCESSFUL" $(BUILD)/cbmc/summary.txt); \
+	    test $$n -eq $(words $(CBMC_OPS)) && echo "cbmc: all $$n operations verified" || \
+	    { echo "cbmc: $$n of $(words $(CBMC_OPS)) verified"; exit 1; }
+
 format:
 	clang-format --style=file:../.clang-format -i $(SRC) $(TESTS) $(RUNNER) $(EXEC) \
-	    fuzz/*.c $(wildcard include/joist/*.h src/*.h test/*.h)
+	    fuzz/*.c cbmc/*.c $(wildcard include/joist/*.h src/*.h test/*.h)
 
 clean:
 	rm -rf $(BUILD)

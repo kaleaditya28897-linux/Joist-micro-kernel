@@ -547,3 +547,35 @@ reply object; bounded calls. The spec mirrors the model's semantics, written
 independently; it doesn't check the C code. Thread spawning into the dying
 task isn't modelled: the model refuses it once the task object is dead
 (`E_GONE`), which is why marking dead comes first.
+
+**CBMC on the capability space (§8.1).** `model/cbmc/harness_cspace.c`,
+`make cbmc`. A **preservation proof** per operation: CBMC starts from *any*
+kernel state that `joist_check_invariants` accepts, applies one operation with
+arbitrary arguments (out-of-range ones included), and must show every
+invariant still holds, I8 directly, and every array access, pointer and shift
+in bounds; unwinding assertions turn a too-small loop bound into a failure.
+Table sizes are tiny (3 objects, 2 spaces of 2 slots, 1 thread), but within
+them this covers every state, not samples.
+
+It found three real defects before passing, all fixed:
+
+1. **The invariant checker read out of bounds on a corrupt state.**
+   `joist__check_task` used `task_obj`, `root` and a thread's `obj` as indexes
+   without range checks. Reachable states never trigger it; a checker that
+   crashes on the corruption it exists to report is still wrong.
+2. **`obj_create` reused a slot without clearing it.** Freeing an object
+   clears its fields, so reachable states were safe, but a reused slot could
+   carry a reply binding into a new reply object (two holders for one call,
+   I6). `obj_create` now zeroes the object first, and a new invariant says a
+   free object is all zero.
+3. **A missing invariant:** a thread holding a reply capability naming
+   itself. Impossible (a caller blocks), but the checker accepted it; now it
+   doesn't.
+
+| Operation | Result |
+|---|---|
+| `obj_create`, `cap_derive`, `cap_mint`, grant, `task_create` | verified: 4 061 properties each, 0 failed (3–10 min each) |
+| `cap_delete`, `task_destroy` | **not verified**: both can cascade, and the formula exhausts the workstation's 15 GB at every size, split and solver tried (`docs/phase1-data/item8/cbmc-summary.txt`). Covered instead by the property tests, the fuzzer and the TLA+ model of the cascade |
+
+After the fixes: `make check` 77 tests in six builds, `make mutate`
+43 of 43 caught.

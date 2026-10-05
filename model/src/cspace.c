@@ -129,6 +129,9 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
         JOIST_WORK(k);
         struct joist_object *o = &k->obj[i];
         if (o->type == JOIST_OBJ_NONE) {
+            /* Start from zero, not from whatever freeing left (CBMC: a reused
+             * slot must not carry a reply binding or a queue). */
+            memset(o, 0, sizeof *o);
             o->type = (uint8_t)type;
             o->refs = 1;
             o->donor = cs;

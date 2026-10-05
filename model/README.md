@@ -24,6 +24,7 @@ make fuzz       # libFuzzer over the whole model (FUZZ_TIME=seconds, default 60)
 make fuzz-sanity  # prove the fuzzer crashes on a set of injected bugs
 make tla        # TLC on tla/IpcDelete.tla: IPC racing a preemptible destruction
 make tla-mutate # prove the TLA+ properties catch each injected bug
+make cbmc       # CBMC preservation proofs for the capability and task operations
 make format     # clang-format in place (style: ../.clang-format)
 ```
 
@@ -48,6 +49,7 @@ the sanitizer's.
 | `fuzz/make_seeds.c` | writes the seed corpus: property-test sequences in the fuzz input encoding |
 | `test/mutations.txt`, `test/mutate.sh` | injected bugs the tests must catch |
 | `test/fuzz-sanity.sh` | injected bugs the fuzzer must crash on |
+| `cbmc/` | CBMC harness and runner: per-operation preservation proofs (needs `cbmc`) |
 | `tla/` | TLA+ model of IPC racing a preemptible task destruction (needs `tlc`, see `docs/phase1-plan.md`, *Tooling*) |
 
 Property tests take `JOIST_PROP_SEEDS`, `JOIST_PROP_STEPS` and, to replay a

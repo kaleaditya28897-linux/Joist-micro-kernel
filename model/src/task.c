@@ -342,14 +342,19 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
         if (st->task_obj == 0 && !st->fixture && k->root != s + 1u) {
             VIOLATION("I1: space %u is alive but no task object names it", s);
         }
-        if (st->task_obj != 0) {
+        /* Every index is range-checked before use: the checker must report a
+         * corrupt state, not read outside the tables (found by CBMC). */
+        if (st->task_obj > JOIST_MAX_OBJECTS) {
+            VIOLATION("I1: space %u names task object %u out of range", s, st->task_obj);
+        } else if (st->task_obj != 0) {
             const struct joist_object *o = &k->obj[st->task_obj - 1u];
             if (o->type != JOIST_OBJ_TASK || o->dead || o->target != s + 1u) {
                 VIOLATION("I1: space %u task object %u doesn't name it back", s, st->task_obj - 1u);
             }
         }
     }
-    if (k->root != 0 && (!k->cs[k->root - 1u].live || k->cs[k->root - 1u].parent != 0)) {
+    if (k->root > JOIST_MAX_CSPACES ||
+        (k->root != 0 && (!k->cs[k->root - 1u].live || k->cs[k->root - 1u].parent != 0))) {
         VIOLATION("0013: the root space is dead or has a parent");
     }
     if (sum != k->budget) {
@@ -386,7 +391,9 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
     }
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         const struct joist_thread_rec *r = &k->th[t];
-        if (r->state != JOIST_T_FREE && r->obj != 0) {
+        if (r->state != JOIST_T_FREE && r->obj > JOIST_MAX_OBJECTS) {
+            VIOLATION("I1: thread %u names object %u out of range", t, r->obj);
+        } else if (r->state != JOIST_T_FREE && r->obj != 0) {
             const struct joist_object *o = &k->obj[r->obj - 1u];
             if (o->type != JOIST_OBJ_THREAD || o->dead || o->target != t + 1u) {
                 VIOLATION("I1: thread %u object %u doesn't name it back", t, r->obj - 1u);
