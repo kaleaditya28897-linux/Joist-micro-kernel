@@ -11,7 +11,7 @@ This file turns that into concrete work, as `docs/phase1-plan.md` did for
 Phase 1. It is a plan, not a decision: where it chooses something the
 decisions don't, the choice is marked and can be changed without a journal
 entry until later phases build on it. The one choice big enough for the
-journal, the boot protocol, is proposed as decision 0015.
+journal, the boot protocol, is decision 0015 (accepted 2026-10-05).
 
 ## Scope
 
@@ -188,3 +188,30 @@ executable (W^X), with the entry point in an executable segment. Refused:
 | libFuzzer (`make fuzz-elf`) | the same promises on arbitrary input under ASan and UBSan, from a seed corpus of one valid image (`kernel/fuzz/elf-seeds/`): 47 million inputs in 2 minutes, no crash. With W^X removed, it finds the bug in under 800 000 inputs |
 | `make mutate` | 18 of 18 caught (10 allocator, 8 validator). One validator mutation first survived: a test meant to catch headers running past the file failed for another reason; a dedicated test now isolates it |
 | `make check` | 13 tests under plain, ASan, UBSan, MSan, TSan; both kernel sources compile freestanding |
+
+### Step 1: build and boot skeleton (2026-10-05): written, linked, **not yet booted**
+
+Decision 0015 accepted (Limine). The skeleton is written and links, but
+QEMU, Limine and `xorriso` aren't installed yet, so it has not booted: the
+`iso` and `qemu-test` targets are untested.
+
+- `kernel/include/limine/limine.h`: Limine's protocol header, 0BSD, vendored
+  from `limine-bootloader/limine-protocol` commit `3a0526b7`, sha256
+  `0aadf2633c85d8cb145344c968add158aeb1deb68af567d55ba8431c492b6d4c`.
+- `kernel/arch/x86_64/boot.c`: base revision 6 (0–5 are deprecated), the
+  memory-map, direct-map, kernel-address and module requests between the
+  start and end markers; `kmain` checks the revision was honoured and the
+  required requests answered, prints a banner and a memory-map summary on
+  COM1, and reports its verdict through QEMU's `isa-debug-exit` device.
+- `kernel/arch/x86_64/linker.ld`: kernel at `0xffffffff80000000`, one
+  segment per permission with explicit flags (requests R+W because Limine
+  writes the responses, code R+X, read-only data R, data and BSS R+W), so
+  W^X holds from the first instruction.
+- `serial.c` (16550 on COM1, polled), `io.h` (port I/O: the only inline
+  assembly), `lib/kprint.c`, `lib/string.c` (the memory functions a
+  freestanding Clang build may call).
+- `make kernel` links `build/joist.elf` with `ld.lld` (§13); checked for now
+  with `LD=ld` (GNU ld 2.44): entry `kmain`, four load segments as above, the
+  start marker and base revision tag at the top of the image, no SSE/AVX
+  instructions. `make iso` and `make qemu-test` are written, waiting for the
+  tools.

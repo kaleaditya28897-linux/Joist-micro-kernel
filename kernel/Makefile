@@ -5,6 +5,9 @@
 #                   freestanding compile of every kernel source
 #   make freestanding  compile every kernel source for x86_64-unknown-none-elf
 #                   with the §13 flags (objects only: linking needs ld.lld)
+#   make kernel     link the kernel image, build/joist.elf (LD, default ld.lld)
+#   make iso        a bootable ISO with Limine, build/joist.iso (BIOS and UEFI)
+#   make qemu-test  boot it headless in QEMU and check the serial log (BIOS)
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
 #   make format     clang-format in place
@@ -38,7 +41,7 @@ SAN_tsan  := -fsanitize=thread
 STAMP := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding mutate fuzz-elf format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test mutate fuzz-elf format clean $(SANITIZERS)
 all: test
 
 define variant
@@ -63,6 +66,55 @@ freestanding:
 	done
 	@echo "freestanding: $(words $(KSRC)) kernel source(s) compile for x86_64-unknown-none-elf"
 
+# ---- the kernel image (Phase 2 step 1) ----
+# Everything that goes into the image. KSRC (host-testable) is a subset.
+IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c lib/kprint.c lib/string.c $(KSRC)
+IMG_INC := $(INC) -Iarch/x86_64
+LD ?= ld.lld
+ifeq ($(origin LD),default)
+LD := ld.lld
+endif
+IMG_OBJ := $(patsubst %.c,$(BUILD)/kernel/%.o,$(IMG_SRC))
+
+$(BUILD)/kernel/%.o: %.c $(wildcard include/joist/*.h include/limine/*.h arch/x86_64/*.h mem/*.h elf/*.h)
+	@mkdir -p $(@D)
+	$(CC) $(KFLAGS) $(IMG_INC) -c $< -o $@
+
+$(BUILD)/joist.elf: $(IMG_OBJ) arch/x86_64/linker.ld
+	$(LD) -nostdlib -static -z max-page-size=0x1000 -z noexecstack -T arch/x86_64/linker.ld \
+	    $(IMG_OBJ) -o $@
+
+kernel: $(BUILD)/joist.elf
+
+# Limine's files, from the distribution package (Void: /usr/share/limine).
+LIMINE_DIR ?= /usr/share/limine
+$(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf
+	rm -rf $(BUILD)/iso && mkdir -p $(BUILD)/iso/boot/limine $(BUILD)/iso/EFI/BOOT
+	cp $(BUILD)/joist.elf $(BUILD)/iso/boot/joist.elf
+	cp ../boot/limine.conf $(LIMINE_DIR)/limine-bios.sys $(LIMINE_DIR)/limine-bios-cd.bin \
+	    $(LIMINE_DIR)/limine-uefi-cd.bin $(BUILD)/iso/boot/limine/
+	cp $(LIMINE_DIR)/BOOTX64.EFI $(BUILD)/iso/EFI/BOOT/
+	xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot \
+	    -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 \
+	    --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image \
+	    --protective-msdos-label $(BUILD)/iso -o $@ 2>/dev/null
+	limine bios-install $@ 2>/dev/null
+
+iso: $(BUILD)/joist.iso
+
+# Headless boot: serial to a file, QEMU's debug-exit device turns the
+# kernel's verdict into QEMU's exit status ((code << 1) | 1, so 1 = success).
+QEMU ?= qemu-system-x86_64
+QEMU_TIMEOUT ?= 30
+qemu-test: $(BUILD)/joist.iso
+	@rm -f $(BUILD)/serial.log
+	@timeout $(QEMU_TIMEOUT) $(QEMU) -M q35 -m 256M -cdrom $< -display none -no-reboot \
+	    -serial file:$(BUILD)/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04; \
+	    st=$$?; cat $(BUILD)/serial.log; \
+	    if [ $$st -eq 1 ] && grep -q "joist: ok" $(BUILD)/serial.log; then \
+	        echo "qemu-test: booted, kernel reported ok"; \
+	    else echo "qemu-test: FAILED (QEMU status $$st)"; exit 1; fi
+
 check: test $(SANITIZERS) freestanding
 	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding"
 
@@ -80,8 +132,8 @@ fuzz-elf: $(BUILD)/fuzz/fuzz-elf
 	    -print_final_stats=1 $(BUILD)/fuzz-elf-corpus fuzz/elf-seeds
 
 format:
-	clang-format --style=file:../.clang-format -i $(KSRC) $(TESTS) $(RUNNER) fuzz/*.c \
-	    $(wildcard include/joist/*.h mem/*.h elf/*.h test/*.h)
+	clang-format --style=file:../.clang-format -i $(IMG_SRC) $(TESTS) $(RUNNER) fuzz/*.c \
+	    $(wildcard include/joist/*.h arch/x86_64/*.h mem/*.h elf/*.h test/*.h)
 
 clean:
 	rm -rf $(BUILD)
