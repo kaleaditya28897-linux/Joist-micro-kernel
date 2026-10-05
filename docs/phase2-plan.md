@@ -264,3 +264,14 @@ now boots under both firmwares after the host tests.
 Not yet tested: the double-fault path (IST1). A reliable trigger needs a
 kernel stack overflow, which comes naturally once the kernel runs on its
 own stack (step 6).
+
+### Step 3, in the kernel (2026-10-05)
+
+`kmain` now sets up the frame allocator from Limine's memory map: the usable
+ranges (at most 128, or the boot panics), both bitmaps placed in the first
+usable range that holds them (through the direct map) and that storage
+reserved. A boot-time check takes 8 frames, writes and reads back a pattern
+at both ends of each through the direct map, returns them, and requires the
+free count to come back exactly. Observed: BIOS 65 131 frames free of 65 266
+covered (254 MiB); UEFI 53 085 of 57 421 (207 MiB). The difference is the gaps
+between ranges and the bitmaps' own frames.

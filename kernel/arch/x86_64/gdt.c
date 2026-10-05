@@ -38,7 +38,8 @@ static uint64_t gdt[7] = {
 void gdt_init(void)
 {
     tss.rsp[0] = (uint64_t)(uintptr_t)(kernel_stack + sizeof kernel_stack);
-    tss.ist[IST_DOUBLE_FAULT - 1u] = (uint64_t)(uintptr_t)(double_fault_stack + sizeof double_fault_stack);
+    tss.ist[IST_DOUBLE_FAULT - 1u] =
+        (uint64_t)(uintptr_t)(double_fault_stack + sizeof double_fault_stack);
     tss.iomap_base = (uint16_t)sizeof tss;
 
     /* The TSS descriptor: type 0x9 (available 64-bit TSS), present. */

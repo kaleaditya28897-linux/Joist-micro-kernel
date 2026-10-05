@@ -27,18 +27,38 @@ struct __attribute__((packed)) idtr {
 
 static struct idt_gate idt[256];
 
-static const char *const names[32] = {
-    "#DE divide error",       "#DB debug",           "NMI",
-    "#BP breakpoint",         "#OF overflow",        "#BR bound range",
-    "#UD invalid opcode",     "#NM no FPU",          "#DF double fault",
-    "coprocessor overrun",    "#TS invalid TSS",     "#NP segment not present",
-    "#SS stack fault",        "#GP general protection", "#PF page fault",
-    "reserved 15",            "#MF x87 error",       "#AC alignment check",
-    "#MC machine check",      "#XM SIMD error",      "#VE virtualisation",
-    "#CP control protection", "reserved 22",         "reserved 23",
-    "reserved 24",            "reserved 25",         "reserved 26",
-    "reserved 27",            "#HV hypervisor injection", "#VC VMM communication",
-    "#SX security",           "reserved 31"};
+static const char *const names[32] = {"#DE divide error",
+                                      "#DB debug",
+                                      "NMI",
+                                      "#BP breakpoint",
+                                      "#OF overflow",
+                                      "#BR bound range",
+                                      "#UD invalid opcode",
+                                      "#NM no FPU",
+                                      "#DF double fault",
+                                      "coprocessor overrun",
+                                      "#TS invalid TSS",
+                                      "#NP segment not present",
+                                      "#SS stack fault",
+                                      "#GP general protection",
+                                      "#PF page fault",
+                                      "reserved 15",
+                                      "#MF x87 error",
+                                      "#AC alignment check",
+                                      "#MC machine check",
+                                      "#XM SIMD error",
+                                      "#VE virtualisation",
+                                      "#CP control protection",
+                                      "reserved 22",
+                                      "reserved 23",
+                                      "reserved 24",
+                                      "reserved 25",
+                                      "reserved 26",
+                                      "reserved 27",
+                                      "#HV hypervisor injection",
+                                      "#VC VMM communication",
+                                      "#SX security",
+                                      "reserved 31"};
 
 void idt_init(void)
 {

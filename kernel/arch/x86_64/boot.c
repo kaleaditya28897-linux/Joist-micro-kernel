@@ -6,6 +6,7 @@
  * the requests below, which sit in their own section between Limine's start
  * and end markers; Limine fills in their response pointers before entry. */
 #include "cpu.h"
+#include "frame.h"
 #include "io.h"
 #include "joist/kprint.h"
 #include "serial.h"
@@ -43,12 +44,84 @@ __attribute__((noreturn)) void kernel_finish(uint8_t code)
     cpu_halt_forever();
 }
 
-static void panic(const char *why)
+static __attribute__((noreturn)) void panic(const char *why)
 {
     kputs("joist: PANIC: ");
     kputs(why);
     kputs("\n");
     kernel_finish(1);
+}
+
+/* The boot-time frame allocator (kernel/mem/frame.h), set up from Limine's
+ * memory map. */
+static struct frame_alloc frames;
+#define MAX_USABLE 128u
+
+/* Set up the frame allocator: collect the usable ranges, put both bitmaps
+ * in the first usable range big enough (through the direct map), reserve
+ * that storage. Panics rather than guessing if the map doesn't fit. */
+static void frames_init(const struct limine_memmap_response *mm, uint64_t hhdm)
+{
+    static struct frame_range usable[MAX_USABLE];
+    size_t n = 0;
+    for (uint64_t i = 0; i < mm->entry_count; i++) {
+        const struct limine_memmap_entry *e = mm->entries[i];
+        if (e->type != LIMINE_MEMMAP_USABLE) {
+            continue;
+        }
+        if (n == MAX_USABLE) {
+            panic("more usable memory ranges than the boot allocator takes");
+        }
+        usable[n++] = (struct frame_range){.base = e->base, .length = e->length};
+    }
+    size_t need = frame_bitmap_bytes(usable, n);
+    if (need == 0) {
+        panic("the memory map is malformed or has no usable memory");
+    }
+    uint64_t at = 0;
+    int found = 0;
+    for (size_t i = 0; i < n && !found; i++) {
+        uint64_t base = (usable[i].base + FRAME_SIZE - 1u) & ~(uint64_t)(FRAME_SIZE - 1u);
+        uint64_t end = usable[i].base + usable[i].length;
+        if (base < end && end - base >= need) {
+            at = base;
+            found = 1;
+        }
+    }
+    if (!found) {
+        panic("no usable range holds the frame bitmaps");
+    }
+    if (frame_init(&frames, usable, n, (void *)(uintptr_t)(hhdm + at), need) != KERR_OK) {
+        panic("frame_init refused the memory map");
+    }
+    frame_reserve(&frames, at, need);
+}
+
+/* Boot-time check: take a few frames, write and read them back through the
+ * direct map, give them back; the free count must return exactly. */
+static void frames_selfcheck(uint64_t hhdm)
+{
+    uint64_t before = frames.nfree;
+    uint64_t got[8];
+    for (unsigned i = 0; i < 8u; i++) {
+        if (frame_get(&frames, &got[i]) != KERR_OK) {
+            panic("frame_get failed with frames free");
+        }
+        volatile uint64_t *p = (volatile uint64_t *)(uintptr_t)(hhdm + got[i]);
+        p[0] = got[i] ^ 0x5a5a5a5a5a5a5a5aull;
+        p[511] = ~got[i];
+        if (p[0] != (got[i] ^ 0x5a5a5a5a5a5a5a5aull) || p[511] != ~got[i]) {
+            panic("a frame doesn't hold what was written to it");
+        }
+    }
+    for (unsigned i = 0; i < 8u; i++) {
+        if (frame_put(&frames, got[i]) != KERR_OK) {
+            panic("frame_put refused a frame it handed out");
+        }
+    }
+    if (frames.nfree != before) {
+        panic("the free count drifted");
+    }
 }
 
 void kmain(void);
@@ -91,6 +164,15 @@ void kmain(void)
     kputs("), direct map at ");
     kputx(hhdm_req.response->offset);
     kputs("\n");
+    frames_init(mm, hhdm_req.response->offset);
+    frames_selfcheck(hhdm_req.response->offset);
+    kputs("joist: frames: ");
+    kputu(frames.nfree);
+    kputs(" free of ");
+    kputu(frames.nframes);
+    kputs(" covered (");
+    kputu(frames.nfree * FRAME_SIZE / (1024u * 1024u));
+    kputs(" MiB)\n");
     kputs("joist: modules: ");
     kputu(module_req.response != NULL ? module_req.response->module_count : 0);
     kputs("\n");
