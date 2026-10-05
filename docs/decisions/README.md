@@ -23,6 +23,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0012 | Device interface → IRQ/IO/MMIO/DMA capabilities | accepted | Phase 10 |
 | 0013 | Privileged ports → boot-time delegation | accepted | Phase 2 |
 | 0014 | Mach features outside §6: futexes, yield, queue limits | accepted | Phase 3 (yield), Phase 7 (futexes) |
+| 0015 | Boot protocol: Limine | proposed | Phase 2 |
 
 **All entries were accepted on 2026-10-01** by the project owner, at the close
 of Phase 0 (`docs/phase0-exit.md`). The recommendations taken were: 0002 on
