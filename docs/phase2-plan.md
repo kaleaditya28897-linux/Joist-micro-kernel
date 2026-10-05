@@ -229,3 +229,38 @@ joist: ok
 The test can fail: a scratch build that panics instead of printing `ok`
 makes QEMU exit with status 3 and `qemu-test` report FAILED. `make check`
 now boots under both firmwares after the host tests.
+
+### Step 2: GDT, TSS, IDT, exception reporting (2026-10-05)
+
+- `kernel/arch/x86_64/gdt.c`: the kernel's own GDT (null, kernel code and
+  data, user data and code, TSS), laid out for `sysret` in step 6 (STAR's
+  base is the kernel data selector, so `sysret` loads user data at +8 and
+  user code at +16). The TSS gives ring changes the kernel stack (RSP0), the
+  double fault its own stack (IST1), and no I/O bitmap, so user mode can't
+  touch ports.
+- `kernel/arch/x86_64/isr.S`: 256 entry stubs, one per vector, generated
+  with a counted `.rept` (Clang's assembler limits macro recursion to 20
+  levels, which ruled out a recursive generator). Vectors without a CPU error
+  code push a zero, so every frame has one shape. The common path saves every
+  general register and calls the C dispatcher on a 16-byte-aligned stack.
+  No `swapgs` yet: nothing runs in user mode before step 6.
+- `kernel/arch/x86_64/idt.c`: interrupt gates for all vectors; an exception
+  in the kernel prints its name, error code, every register and, for a page
+  fault, CR2, then ends the run with a failure verdict. `#BP` returns, which
+  is what tests the `iretq` path.
+- **Self-tests** (`make selftest`, `kernel/test/selftest.sh`): builds with
+  `-DJOIST_SELFTEST=n` that misbehave on purpose, booted under BIOS. Each must
+  be reported correctly, with the right QEMU exit status:
+
+  | Build | Expected and observed |
+  |---|---|
+  | `ud2` | `EXCEPTION 6 (#UD invalid opcode)`, failure verdict |
+  | read of unmapped `0xffff900000000000` | `EXCEPTION 14 (#PF page fault)`, `cr2 0xffff900000000000`, error 0 (supervisor read of a non-present page), failure verdict |
+  | `int3` | `#BP breakpoint at 0xffffffff80001215, continuing`, then `joist: ok` |
+
+- `make check` now runs the host tests (five builds), the freestanding
+  compile, the boot under BIOS and UEFI, and the self-tests.
+
+Not yet tested: the double-fault path (IST1). A reliable trigger needs a
+kernel stack overflow, which comes naturally once the kernel runs on its
+own stack (step 6).

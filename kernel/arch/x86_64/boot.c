@@ -5,6 +5,7 @@
  * 6, x86-64 machine state). What the kernel needs from Limine it asks for with
  * the requests below, which sit in their own section between Limine's start
  * and end markers; Limine fills in their response pointers before entry. */
+#include "cpu.h"
 #include "io.h"
 #include "joist/kprint.h"
 #include "serial.h"
@@ -36,7 +37,7 @@ __attribute__((aligned(16))) uint8_t kernel_stack[16384];
 /* QEMU's isa-debug-exit device (iobase 0xf4): QEMU exits with status
  * (code << 1) | 1, so `make qemu-test` sees the kernel's verdict. On hardware
  * the port is unused and this just halts. */
-static __attribute__((noreturn)) void finish(uint8_t code)
+__attribute__((noreturn)) void kernel_finish(uint8_t code)
 {
     outb(0xf4, code);
     cpu_halt_forever();
@@ -47,7 +48,7 @@ static void panic(const char *why)
     kputs("joist: PANIC: ");
     kputs(why);
     kputs("\n");
-    finish(1);
+    kernel_finish(1);
 }
 
 void kmain(void);
@@ -56,6 +57,9 @@ void kmain(void)
 {
     serial_init();
     kputs("\njoist: boot\n");
+    gdt_init();
+    idt_init();
+    kputs("joist: gdt, tss, idt loaded\n");
     if (!LIMINE_BASE_REVISION_SUPPORTED(base_revision)) {
         panic("the bootloader doesn't support Limine base revision 6");
     }
@@ -91,6 +95,16 @@ void kmain(void)
     kputu(module_req.response != NULL ? module_req.response->module_count : 0);
     kputs("\n");
 
+#if defined(JOIST_SELFTEST) && JOIST_SELFTEST == 1
+    kputs("joist: selftest: ud2\n");
+    __asm__ volatile("ud2");
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 2
+    kputs("joist: selftest: page fault\n");
+    (void)*(volatile uint64_t *)0xffff900000000000ull;
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 3
+    kputs("joist: selftest: int3\n");
+    __asm__ volatile("int3");
+#endif
     kputs("joist: ok\n");
-    finish(0);
+    kernel_finish(0);
 }

@@ -10,6 +10,7 @@
 #   make qemu-test  boot it headless in QEMU and check the serial log
 #                   (FIRMWARE=bios, the default, or uefi)
 #   make boot-test  qemu-test under both
+#   make selftest   boot builds that fault on purpose (#UD, #PF, int3)
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
 #   make format     clang-format in place
@@ -43,7 +44,7 @@ SAN_tsan  := -fsanitize=thread
 STAMP := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding kernel iso qemu-test boot-test mutate fuzz-elf format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest mutate fuzz-elf format clean $(SANITIZERS)
 all: test
 
 define variant
@@ -70,17 +71,25 @@ freestanding:
 
 # ---- the kernel image (Phase 2 step 1) ----
 # Everything that goes into the image. KSRC (host-testable) is a subset.
-IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c lib/kprint.c lib/string.c $(KSRC)
+IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c arch/x86_64/gdt.c arch/x86_64/idt.c \
+           lib/kprint.c lib/string.c $(KSRC)
+IMG_ASM := arch/x86_64/isr.S
 IMG_INC := $(INC) -Iarch/x86_64
 LD ?= ld.lld
 ifeq ($(origin LD),default)
 LD := ld.lld
 endif
-IMG_OBJ := $(patsubst %.c,$(BUILD)/kernel/%.o,$(IMG_SRC))
+IMG_OBJ := $(patsubst %.c,$(BUILD)/kernel/%.o,$(IMG_SRC)) $(patsubst %.S,$(BUILD)/kernel/%.o,$(IMG_ASM))
+# Extra flags for a test build of the image (selftests), e.g. -DJOIST_SELFTEST=1.
+KEXTRA ?=
 
 $(BUILD)/kernel/%.o: %.c $(wildcard include/joist/*.h include/limine/*.h arch/x86_64/*.h mem/*.h elf/*.h)
 	@mkdir -p $(@D)
-	$(CC) $(KFLAGS) $(IMG_INC) -c $< -o $@
+	$(CC) $(KFLAGS) $(KEXTRA) $(IMG_INC) -c $< -o $@
+
+$(BUILD)/kernel/%.o: %.S
+	@mkdir -p $(@D)
+	$(CC) --target=x86_64-unknown-none-elf -c $< -o $@
 
 $(BUILD)/joist.elf: $(IMG_OBJ) arch/x86_64/linker.ld
 	$(LD) -nostdlib -static -z max-page-size=0x1000 -z noexecstack -T arch/x86_64/linker.ld \
@@ -127,8 +136,12 @@ boot-test: $(BUILD)/joist.iso
 	@$(MAKE) -s qemu-test FIRMWARE=bios
 	@$(MAKE) -s qemu-test FIRMWARE=uefi
 
-check: test $(SANITIZERS) freestanding boot-test
-	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding; the kernel boots under BIOS and UEFI"
+# Test builds that fault on purpose: each must be reported correctly.
+selftest:
+	@sh test/selftest.sh
+
+check: test $(SANITIZERS) freestanding boot-test selftest
+	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding; the kernel boots under BIOS and UEFI; selftests pass"
 
 mutate:
 	@sh test/mutate.sh "$(CC)"
