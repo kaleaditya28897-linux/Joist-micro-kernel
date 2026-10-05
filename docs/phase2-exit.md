@@ -1,7 +1,7 @@
 # Phase 2 exit
 
-**Status: proposed, 2026-10-05.** Phase 2 (§11, *Kernel bootstrap*) closes
-when the project owner accepts this record. The work, step by step, is in
+**Status: accepted by the project owner, 2026-10-05.** Phase 2 (§11, *Kernel bootstrap*) is
+closed. The work, step by step, is in
 `docs/phase2-plan.md`, *Progress*; data in `docs/phase2-data/`.
 
 ## Exit criterion
