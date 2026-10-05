@@ -23,10 +23,11 @@
 #define VM_LARGE 0x200000ull /* 2 MiB */
 
 /* Mapping permissions (not PTE bits: vm.c translates). Readable is implied. */
-#define VM_W      1u /* writable */
-#define VM_X      2u /* executable (otherwise the NX bit is set) */
-#define VM_USER   4u /* user-accessible */
-#define VM_GLOBAL 8u
+#define VM_W        1u /* writable */
+#define VM_X        2u /* executable (otherwise the NX bit is set) */
+#define VM_USER     4u /* user-accessible */
+#define VM_GLOBAL   8u
+#define VM_UNCACHED 16u /* device memory: cache disabled, write-through */
 
 struct vm_space {
     uint64_t root; /* physical address of the PML4 */

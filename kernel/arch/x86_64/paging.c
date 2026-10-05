@@ -122,3 +122,14 @@ const struct vm_space *paging_kernel_space(void)
 {
     return &kspace;
 }
+
+kerr paging_map_device(uint64_t va, uint64_t pa, uint64_t len)
+{
+    kerr k = vm_map(&kspace, va, pa, len, VM_PAGE, VM_W | VM_GLOBAL | VM_UNCACHED);
+    if (k == KERR_OK) {
+        for (uint64_t off = 0; off < len; off += VM_PAGE) {
+            __asm__ volatile("invlpg (%0)" : : "r"(va + off) : "memory");
+        }
+    }
+    return k;
+}

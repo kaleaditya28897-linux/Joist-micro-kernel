@@ -5,6 +5,7 @@
  * 6, x86-64 machine state). What the kernel needs from Limine it asks for with
  * the requests below, which sit in their own section between Limine's start
  * and end markers; Limine fills in their response pointers before entry. */
+#include "apic.h"
 #include "cpu.h"
 #include "frame.h"
 #include "io.h"
@@ -190,6 +191,27 @@ void kmain(void)
     kputs("joist: page tables: the kernel's own, loaded (");
     kputu(frames.nfree);
     kputs(" frames free after)\n");
+    const char *aerr = apic_init(hhdm_req.response->offset);
+    if (aerr != NULL) {
+        panic(aerr);
+    }
+    __asm__ volatile("sti");
+    /* Sleep until 20 ticks (200 ms) have arrived; the bound only matters if
+     * the timer never fires. */
+    for (uint32_t spin = 0; apic_ticks() < 20u && spin < 1000000u; spin++) {
+        __asm__ volatile("hlt");
+    }
+    __asm__ volatile("cli");
+    if (apic_ticks() < 20u) {
+        panic("the APIC timer didn't tick");
+    }
+    kputs("joist: timer: ");
+    kputu(apic_ticks());
+    kputs(" ticks at ");
+    kputu(APIC_TICK_HZ);
+    kputs(" Hz, ");
+    kputu(apic_counts_per_tick());
+    kputs(" LAPIC counts per tick\n");
     kputs("joist: modules: ");
     kputu(module_req.response != NULL ? module_req.response->module_count : 0);
     kputs("\n");

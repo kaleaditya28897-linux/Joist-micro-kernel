@@ -72,7 +72,7 @@ freestanding:
 # ---- the kernel image (Phase 2 step 1) ----
 # Everything that goes into the image. KSRC (host-testable) is a subset.
 IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c arch/x86_64/gdt.c arch/x86_64/idt.c \
-           arch/x86_64/paging.c \
+           arch/x86_64/paging.c arch/x86_64/apic.c \
            lib/kprint.c lib/string.c $(KSRC)
 IMG_ASM := arch/x86_64/isr.S
 IMG_INC := $(INC) -Iarch/x86_64

@@ -4,6 +4,8 @@
 #define PTE_P    (1ull << 0)
 #define PTE_W    (1ull << 1)
 #define PTE_U    (1ull << 2)
+#define PTE_PWT  (1ull << 3)
+#define PTE_PCD  (1ull << 4)
 #define PTE_PS   (1ull << 7) /* large page (in a PD entry: 2 MiB) */
 #define PTE_G    (1ull << 8)
 #define PTE_NX   (1ull << 63)
@@ -82,6 +84,7 @@ kerr vm_map(struct vm_space *s, uint64_t va, uint64_t pa, uint64_t len, uint64_t
     }
     uint64_t leaf = PTE_P | ((perms & VM_W) ? PTE_W : 0) | ((perms & VM_USER) ? PTE_U : 0) |
                     ((perms & VM_GLOBAL) ? PTE_G : 0) | ((perms & VM_X) ? 0 : PTE_NX) |
+                    ((perms & VM_UNCACHED) ? (PTE_PCD | PTE_PWT) : 0) |
                     (page_size == VM_LARGE ? PTE_PS : 0);
     unsigned level = page_size == VM_LARGE ? 1u : 0u;
     /* Check every page first, so a refused call changes no mappings (tables
@@ -125,7 +128,8 @@ kerr vm_translate(const struct vm_space *s, uint64_t va, uint64_t *pa, unsigned 
             uint64_t span = l == 0 ? VM_PAGE : VM_LARGE;
             *pa = (e & PTE_ADDR & ~(span - 1u)) | (va & (span - 1u));
             *perms = (w ? VM_W : 0u) | (x ? VM_X : 0u) | (u ? VM_USER : 0u) |
-                     ((e & PTE_G) ? VM_GLOBAL : 0u);
+                     ((e & PTE_G) ? VM_GLOBAL : 0u) |
+                     ((e & PTE_PCD) && (e & PTE_PWT) ? VM_UNCACHED : 0u);
             return KERR_OK;
         }
         if (e & PTE_PS) {

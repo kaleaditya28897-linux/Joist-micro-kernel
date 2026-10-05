@@ -5,6 +5,7 @@
  * failure verdict. The one exception is #BP (int3), a trap that returns,
  * which is how the interrupt-return path is tested. Exceptions from user mode
  * come with step 6; device interrupts with step 5. */
+#include "apic.h"
 #include "cpu.h"
 #include "joist/kprint.h"
 
@@ -116,6 +117,13 @@ void isr_dispatch(struct trap_frame *tf)
         kputx(tf->rip);
         kputs(", continuing\n");
         return; /* a trap: rip already points past int3 */
+    }
+    if (v == APIC_TIMER_VECTOR) {
+        apic_timer_interrupt();
+        return;
+    }
+    if (v == APIC_SPURIOUS_VECTOR) {
+        return; /* no EOI for a spurious interrupt */
     }
     if (v < 32u) {
         kputs("joist: EXCEPTION ");

@@ -303,3 +303,18 @@ between ranges and the bitmaps' own frames.
 | Self-tests | 4: a write to read-only data faults with error `0x3` (present, write); 5: a call into data faults with `0x11` (present, instruction fetch). With 1–3 from step 2, all five pass |
 | `make mutate` | 24 of 24 (6 new: W^X, remapping, NX dropped, canonical check, large-page check, the user bit leaking). The large-page mutation first survived: the test hit another present large page by coincidence; a lone large page now isolates it |
 | `make check` | 19 tests in five builds; three sources freestanding; BIOS and UEFI boots; five self-tests |
+
+### Step 5: the Local APIC timer (2026-10-05)
+
+`kernel/arch/x86_64/apic.c`. The legacy PIC is masked; the LAPIC's registers
+are mapped uncached (a new `VM_UNCACHED` permission in `vm.c`, cache-disable
+plus write-through, host-tested), since they are device memory the direct
+map leaves out. The timer is calibrated once against 10 ms of PIT channel 2
+(polled through the speaker gate, bounded so a missing PIT can't hang the
+boot), then runs periodic at 100 Hz on vector 32; the handler counts and
+sends EOI, and the spurious vector (0xff) is ignored without one. At boot the
+kernel sleeps (`hlt`) until 20 ticks have arrived.
+
+Calibration is accurate: QEMU's APIC timer runs at 1 GHz, so with a divide-by-16
+the exact count per 10 ms is 625 000; measured 624 505 (BIOS) and 624 677
+(UEFI), within 0.1%. Both boots, all five self-tests and the host tests pass.

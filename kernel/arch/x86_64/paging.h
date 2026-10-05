@@ -15,4 +15,8 @@ const char *paging_init(struct frame_alloc *fa, const struct limine_memmap_respo
 
 const struct vm_space *paging_kernel_space(void);
 
+/* Map device memory (uncached, writable, never executable) at va, after
+ * paging_init. Then flushes the TLB entries for it. */
+kerr paging_map_device(uint64_t va, uint64_t pa, uint64_t len);
+
 #endif /* JOIST_ARCH_PAGING_H */

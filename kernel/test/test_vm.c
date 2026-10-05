@@ -65,6 +65,11 @@ JT_TEST(vm_maps_and_translates)
     JT_CHECK(vm_translate(&s, KBASE + 0x7fff, &pa, &perms) == KERR_OK && pa == 0x207fff &&
              perms == (VM_W | VM_GLOBAL));
     JT_CHECK(vm_translate(&s, KBASE + 0x8000, &pa, &perms) == KERR_RANGE);
+    /* Device memory: uncached, and it reads back as such. */
+    JT_REQUIRE(vm_map(&s, KBASE + 0x10000, 0xfee00000, 0x1000, VM_PAGE, VM_W | VM_UNCACHED) ==
+               KERR_OK);
+    JT_CHECK(vm_translate(&s, KBASE + 0x10020, &pa, &perms) == KERR_OK && pa == 0xfee00020 &&
+             perms == (VM_W | VM_UNCACHED));
     JT_CHECK(vm_translate(&s, 0x1000, &pa, &perms) == KERR_RANGE);
     JT_CHECK(vm_translate(&s, 0x0000800000000000ull, &pa, &perms) ==
              KERR_RANGE); /* non-canonical */
@@ -173,7 +178,7 @@ JT_TEST(props_vm_matches_shadow)
             uint64_t npages = 1u + rng() % 4u;
             uint64_t va = KBASE + page * VM_PAGE;
             uint64_t pa = (rng() % 4096u) * VM_PAGE;
-            unsigned perms = (unsigned)(rng() % 16u);
+            unsigned perms = (unsigned)(rng() % 32u);
             if (rng() % 8u == 0) {
                 va += 8; /* misaligned now and then */
             }
