@@ -125,6 +125,20 @@ void isr_dispatch(struct trap_frame *tf)
     if (v == APIC_SPURIOUS_VECTOR) {
         return; /* no EOI for a spurious interrupt */
     }
+    if (v < 32u && (tf->cs & 3u) == 3u) {
+        /* From user mode: the root task's fault, not the kernel's. Phase 3
+         * turns this into a fault message to its handler (0009). */
+        kputs("joist: root task fault: ");
+        kputs(names[v]);
+        kputs(" at ");
+        kputx(tf->rip);
+        if (v == 14u) {
+            kputs(", address ");
+            kputx(read_cr2());
+        }
+        kputs("\n");
+        kernel_finish(4);
+    }
     if (v < 32u) {
         kputs("joist: EXCEPTION ");
         kputu(v);

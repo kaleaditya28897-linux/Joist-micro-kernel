@@ -24,3 +24,9 @@ vm-nx-dropped @@ mem/vm.c @@ ((perms & VM_X) ? 0 : PTE_NX) | @@ 0 |
 vm-noncanonical @@ mem/vm.c @@ return top == 0 || top == 0x1ffffu; @@ return top != top + 1u;
 vm-large-in-table @@ mem/vm.c @@ return KERR_STATE; /* a large page covers this range */ @@ break;
 vm-user-leak @@ mem/vm.c @@ ((perms & VM_USER) ? PTE_U : 0) @@ PTE_U
+uc-no-user-bit @@ sys/usercopy.c @@ if (vm_translate(task, uva, &pa, &perms) != KERR_OK || (perms & VM_USER) == 0) { @@ if (vm_translate(task, uva, &pa, &perms) != KERR_OK) {
+uc-no-half-check @@ sys/usercopy.c @@ if (uva >= USER_TOP || (uint64_t)len > USER_TOP - uva) { @@ if (0) {
+uc-page-overrun @@ sys/usercopy.c @@ size_t n = len < in_page ? len : (size_t)in_page; @@ size_t n = len + (size_t)(in_page * 0u);
+sys-len-unbounded @@ sys/syscall.c @@ if (a1 > DEBUG_WRITE_MAX) { @@ if (a1 > DEBUG_WRITE_MAX && 0) {
+sys-exit-ignored @@ sys/syscall.c @@ env->exited = 1; @@ (void)env;
+sys-unknown-ok @@ sys/syscall.c @@ return fail(SYS_E_NOSYS); @@ return 0;

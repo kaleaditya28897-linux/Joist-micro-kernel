@@ -13,6 +13,7 @@
 #   make selftest   boot builds that fault on purpose (#UD, #PF, int3)
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
+#   make fuzz-syscall  libFuzzer on the system-call dispatcher
 #   make format     clang-format in place
 #   make clean
 
@@ -22,10 +23,10 @@ endif
 
 WARN := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes \
         -Wmissing-prototypes -Wvla
-INC  := -Iinclude -Imem -Ielf
+INC  := -Iinclude -Imem -Ielf -Isys
 
 # Kernel sources that also build for the host. Grows as Phase 2 adds them.
-KSRC  := mem/frame.c mem/vm.c elf/elf.c
+KSRC  := mem/frame.c mem/vm.c elf/elf.c sys/usercopy.c sys/syscall.c
 TESTS := $(wildcard test/test_*.c)
 RUNNER := test/harness.c
 BUILD := build
@@ -44,11 +45,11 @@ SAN_tsan  := -fsanitize=thread
 STAMP := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest mutate fuzz-elf format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
 all: test
 
 define variant
-$(BUILD)/$(1)/run-tests: $(KSRC) $(TESTS) $(RUNNER) $(STAMP) $(wildcard include/joist/*.h mem/*.h elf/*.h test/*.h)
+$(BUILD)/$(1)/run-tests: $(KSRC) $(TESTS) $(RUNNER) $(STAMP) $(wildcard include/joist/*.h mem/*.h elf/*.h sys/*.h test/*.h)
 	@mkdir -p $$(@D)
 	$$(CC) -std=c17 -O1 -g -fno-omit-frame-pointer $$(WARN) $$(INC) -Itest $(2) \
 	    $$(KSRC) $$(TESTS) $$(RUNNER) -o $$@
@@ -72,9 +73,9 @@ freestanding:
 # ---- the kernel image (Phase 2 step 1) ----
 # Everything that goes into the image. KSRC (host-testable) is a subset.
 IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c arch/x86_64/gdt.c arch/x86_64/idt.c \
-           arch/x86_64/paging.c arch/x86_64/apic.c \
+           arch/x86_64/paging.c arch/x86_64/apic.c arch/x86_64/user.c \
            lib/kprint.c lib/string.c $(KSRC)
-IMG_ASM := arch/x86_64/isr.S
+IMG_ASM := arch/x86_64/isr.S arch/x86_64/syscall.S
 IMG_INC := $(INC) -Iarch/x86_64
 LD ?= ld.lld
 ifeq ($(origin LD),default)
@@ -100,9 +101,17 @@ kernel: $(BUILD)/joist.elf
 
 # Limine's files, from the distribution package (Void: /usr/share/limine).
 LIMINE_DIR ?= /usr/share/limine
-$(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf
+# The root task: Phase 2's user programs (../user). ROOT_TASK picks which.
+ROOT_TASK ?= hello
+ROOT_ELF := ../user/build/$(ROOT_TASK).elf
+.PHONY: $(ROOT_ELF)
+$(ROOT_ELF):
+	$(MAKE) -s -C ../user build/$(ROOT_TASK).elf
+
+$(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf $(ROOT_ELF)
 	rm -rf $(BUILD)/iso && mkdir -p $(BUILD)/iso/boot/limine $(BUILD)/iso/EFI/BOOT
 	cp $(BUILD)/joist.elf $(BUILD)/iso/boot/joist.elf
+	cp $(ROOT_ELF) $(BUILD)/iso/boot/hello.elf
 	cp ../boot/limine.conf $(LIMINE_DIR)/limine-bios.sys $(LIMINE_DIR)/limine-bios-cd.bin \
 	    $(LIMINE_DIR)/limine-uefi-cd.bin $(BUILD)/iso/boot/limine/
 	cp $(LIMINE_DIR)/BOOTX64.EFI $(BUILD)/iso/EFI/BOOT/
@@ -128,8 +137,8 @@ qemu-test: $(BUILD)/joist.iso
 	@timeout $(QEMU_TIMEOUT) $(QEMU) -M q35 -m 256M $(FW_$(FIRMWARE)) -cdrom $< -display none -no-reboot \
 	    -serial file:$(BUILD)/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04; \
 	    st=$$?; cat $(BUILD)/serial.log; \
-	    if [ $$st -eq 1 ] && grep -q "joist: ok" $(BUILD)/serial.log; then \
-	        echo "qemu-test: booted ($(FIRMWARE)), kernel reported ok"; \
+	    if [ $$st -eq 1 ] && grep -q "joist: root task exited with code 0" $(BUILD)/serial.log; then \
+	        echo "qemu-test: booted ($(FIRMWARE)), the root task ran and exited 0"; \
 	    else echo "qemu-test: FAILED ($(FIRMWARE), QEMU status $$st)"; exit 1; fi
 
 # Boot under both firmwares.
@@ -152,6 +161,15 @@ $(BUILD)/fuzz/fuzz-elf: elf/elf.c fuzz/fuzz_elf.c $(wildcard include/joist/*.h e
 	@mkdir -p $(@D) $(BUILD)/fuzz-elf-corpus
 	$(CC) -std=c17 -O1 -g $(WARN) $(INC) -Itest -fsanitize=fuzzer,address,undefined \
 	    -fsanitize-trap=undefined elf/elf.c fuzz/fuzz_elf.c -o $@
+
+$(BUILD)/fuzz/fuzz-syscall: mem/vm.c sys/usercopy.c sys/syscall.c fuzz/fuzz_syscall.c $(wildcard include/joist/*.h mem/*.h sys/*.h test/sys_world.h)
+	@mkdir -p $(@D) $(BUILD)/fuzz-syscall-corpus
+	$(CC) -std=c17 -O1 -g $(WARN) $(INC) -Itest -fsanitize=fuzzer,address,undefined \
+	    -fsanitize-trap=undefined mem/vm.c sys/usercopy.c sys/syscall.c fuzz/fuzz_syscall.c -o $@
+
+fuzz-syscall: $(BUILD)/fuzz/fuzz-syscall
+	./$< -max_total_time=$(FUZZ_TIME) -max_len=24 -artifact_prefix=$(BUILD)/ \
+	    -print_final_stats=1 $(BUILD)/fuzz-syscall-corpus
 
 fuzz-elf: $(BUILD)/fuzz/fuzz-elf
 	./$< -max_total_time=$(FUZZ_TIME) -max_len=8192 -artifact_prefix=$(BUILD)/ \

@@ -10,6 +10,7 @@
 #include "frame.h"
 #include "io.h"
 #include "paging.h"
+#include "user.h"
 #include "joist/kprint.h"
 #include "serial.h"
 
@@ -232,6 +233,16 @@ void kmain(void)
     kputs("joist: selftest: execute data\n");
     selftest_code[0] = 0xc3; /* ret */
     ((void (*)(void))(uintptr_t)selftest_code)();
+#endif
+    /* The root task: the first module (limine.conf loads hello.elf). Selftest
+     * builds stop before it; the normal boot ends when it exits. */
+#if !defined(JOIST_SELFTEST)
+    if (module_req.response == NULL || module_req.response->module_count == 0) {
+        panic("no root task module");
+    }
+    const struct limine_file *root = module_req.response->modules[0];
+    panic(user_run_root(&frames, hhdm_req.response->offset, (const uint8_t *)root->address,
+                        root->size));
 #endif
     kputs("joist: ok\n");
     kernel_finish(0);

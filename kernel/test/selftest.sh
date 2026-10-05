@@ -1,14 +1,19 @@
 #!/bin/sh
 # selftest.sh - boot test builds of the kernel that misbehave on purpose and
-# check it reports each case correctly (Phase 2 steps 2 and 4). Each variant is
+# check it reports each case correctly (Phase 2 steps 2, 4 and 6). Each variant is
 # built with -DJOIST_SELFTEST=N in its own build directory and booted under
 # BIOS; QEMU's exit status is (kernel code << 1) | 1.
 # usage: test/selftest.sh   (from kernel/)
 fail=0
-run() { # N EXPECTED_STATUS "grep pattern"...
+run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
+       #  build; N a name: the normal kernel with user/N as the root task)
     n=$1; want=$2; shift 2
     b=build/selftest-$n
-    make -s BUILD=$b KEXTRA=-DJOIST_SELFTEST=$n $b/joist.iso >/dev/null 2>&1 ||
+    case $n in
+    [0-9]*) args="KEXTRA=-DJOIST_SELFTEST=$n" ;;
+    *) args="ROOT_TASK=$n" ;;
+    esac
+    make -s BUILD=$b $args $b/joist.iso >/dev/null 2>&1 ||
         { echo "selftest $n: BUILD FAILED"; fail=1; return; }
     timeout 30 qemu-system-x86_64 -M q35 -m 256M -cdrom $b/joist.iso -display none -no-reboot \
         -serial file:$b/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04
@@ -17,7 +22,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -m1 -E 'EXCEPTION|#BP' $b/serial.log | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -m1 -E 'EXCEPTION|#BP|root task (fault|exited)|refused' $b/serial.log | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -29,4 +34,10 @@ run 3 1 "#BP breakpoint at 0xffffffff8" "joist: ok"
 # page, write; 0x11 = present page, instruction fetch.
 run 4 5 "EXCEPTION 14 (#PF page fault)" "error 0x0000000000000003"
 run 5 5 "EXCEPTION 14 (#PF page fault)" "error 0x0000000000000011"
+# Step 6: user mode. Root task exits with 0: status 1; root task fault: 9.
+run hello 1 "hello from user mode" "root task exited with code 0"
+run badptr 1 "badptr: refused as expected" "root task exited with code 0"
+run ud 9 "root task fault: #UD invalid opcode at 0x0000000000400004"
+run rowrite 9 "root task fault: #PF page fault at" "address 0x0000000000401000"
+run spin 1 "spin: done" "root task exited with code 0"
 exit $fail

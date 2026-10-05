@@ -318,3 +318,50 @@ kernel sleeps (`hlt`) until 20 ticks have arrived.
 Calibration is accurate: QEMU's APIC timer runs at 1 GHz, so with a divide-by-16
 the exact count per 10 ms is 625 000; measured 624 505 (BIOS) and 624 677
 (UEFI), within 0.1%. Both boots, all five self-tests and the host tests pass.
+
+### Step 6: user mode; "hello" runs (2026-10-05): **first half of the exit criterion**
+
+```
+joist: entering the root task at 0x0000000000400000
+hello from user mode
+joist: root task exited with code 0 (timer ticks so far: 21)
+qemu-test: booted (bios), the root task ran and exited 0     (and uefi)
+```
+
+- **6a, `kernel/sys/usercopy.[ch]`**, host-tested: `copy_from_user` never
+  dereferences a user pointer. It walks the task's page tables in software,
+  requires every byte in the user half and on a page mapped user-accessible,
+  and copies through the physical address (the direct map). A bad pointer is
+  an error code, never a kernel page fault, and on one CPU there is no window
+  between check and use.
+- **6b, `kernel/sys/syscall.[ch]`**, host-tested and fuzzed: Phase 2's two
+  debug calls, `debug_write(ptr, len)` (at most 4 KiB per call; the whole
+  message is checked and copied before any is written, so a bad pointer
+  writes nothing) and `exit(code)`. Numbers in `rax`, arguments in `rdi`, `rsi`,
+  results in `rax` as a count or a negated code: temporary, until Phase 3
+  brings in `docs/abi.md`.
+- **6c, `user/`**: static user programs linked at `0x400000`, one segment per
+  permission; `hello`, plus four self-test tasks.
+- **6d, the CPU side** (`arch/x86_64/user.c`, `syscall.S`): the root task's
+  address space shares the kernel half (PML4 entries 256–511 copied), its
+  segments are loaded page by page from `elf_validate`'s description into
+  fresh frames with their permissions plus user access, and it gets an
+  8-page stack. `syscall` via STAR/LSTAR/SFMASK (SFMASK clears IF, TF, DF,
+  AC); the entry `swapgs`es to a per-CPU block, saves the whole user register
+  state, and restores every register but `rax`, so no kernel value leaks. The
+  **`sysret` hazard** (a non-canonical return RIP faults in ring 0 on the
+  user's stack) is refused in C before returning. First entry with `iretq`
+  and every register zeroed. A fault in ring 3 is reported as the root
+  task's and ends the run (Phase 3: fault messages, 0009).
+
+| Check | Result |
+|---|---|
+| Unit and property tests | `test_usercopy.c` (3: across pages; every refusal: kernel-only page, running into one, unmapped, kernel half, crossing the top, wrapping; 100 000 random copies, about 27 000 succeeding byte-exact); `test_syscall.c` (3: both calls; every refusal writes nothing; 200 000 random calls checked against the simulated task) |
+| libFuzzer (`make fuzz-syscall`) | any call number and arguments against a simulated task: 36 million inputs, no inconsistency |
+| Self-tests in QEMU | `hello` exits 0; `badptr` (kernel pointer to `debug_write`) is refused with no output and exits 0; `ud` (ring 3 `ud2`) and `rowrite` (write to its own read-only data at `0x401000`) are reported as root-task faults; `spin` busy-loops in ring 3 through about 228 timer interrupts and exits 0, which exercises the TSS stack and `iretq` back to user mode |
+| `make mutate` | 30 of 30 (6 new: user bit ignored, user-half check dropped, page overrun, unbounded `debug_write`, `exit` ignored, unknown calls succeeding). The page-overrun mutant first didn't build; rewritten, it is caught |
+| `make check` | 25 host tests in five builds; five sources freestanding; BIOS and UEFI boots now require the root task to exit 0; ten self-tests |
+
+Not runtime-tested: the `sysret` guard itself (it needs a `syscall` at the
+very top of the user half, where the stack lives) and the double-fault path.
+Both are candidates for step 7's fuzzer and step 8.
