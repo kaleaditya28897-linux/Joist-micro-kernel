@@ -166,3 +166,25 @@ and decision 0015. `kernel/mem/frame.[ch]`, built and tested from `kernel/`
 | Property test | 500 seeds × 2 000 steps of gets and puts (including misaligned, out-of-range, double and gap frees) against a shadow of every frame's state; every result reached: about 440 000 gets, 58 000 out-of-memory, 390 000 puts, 64 000 / 33 000 / 14 000 refused as misaligned / out of range / not taken |
 | `make check` | plain, ASan, UBSan, MSan, TSan; freestanding compile |
 | `make mutate` (`kernel/test/mutations.txt`) | 10 of 10 caught. The first run found a test gap (a wrapping range alone was refused for another reason, so the wrap check was never tested) and a mutation that wasn't a bug (picking a different free frame); both fixed |
+
+### Step 6, host side: the ELF validator (2026-10-05)
+
+`kernel/elf/elf.[ch]`. The root task arrives as a boot module, untrusted
+bytes; `elf_validate` checks all of it before anything is mapped, and hands
+the loader a fixed-size description. Fields are read as little-endian bytes
+(no casts, so alignment is irrelevant), nothing outside the file is read,
+and the work is bounded by `ELF_MAX_PHDRS` (16).
+
+Accepted: a static x86_64 executable whose loadable segments lie in the user
+range, sorted and not sharing a page, offset and address congruent modulo
+4 KiB, file size no larger than memory size, never both writable and
+executable (W^X), with the entry point in an executable segment. Refused:
+`PT_DYNAMIC`, `PT_INTERP`, `PT_TLS`, and anything malformed or overflowing.
+
+| Check | Result |
+|---|---|
+| Unit tests (`kernel/test/test_elf.c`) | 5: a valid two-segment executable; every header rule; every segment rule (overflowing offsets and addresses, out of range, unsorted, sharing a page, W^X, empty); entry point and refused types; program headers running past the end (in an exact-sized heap buffer, so ASan sees any over-read) |
+| Property test | 200 000 corrupted images (bit flips, nasty field values, truncation): about 27 000 accepted, 173 000 refused, and every accepted one checked against everything `elf.h` promises by an independent checker (`test/elf_promises.h`) |
+| libFuzzer (`make fuzz-elf`) | the same promises on arbitrary input under ASan and UBSan, from a seed corpus of one valid image (`kernel/fuzz/elf-seeds/`): 47 million inputs in 2 minutes, no crash. With W^X removed, it finds the bug in under 800 000 inputs |
+| `make mutate` | 18 of 18 caught (10 allocator, 8 validator). One validator mutation first survived: a test meant to catch headers running past the file failed for another reason; a dedicated test now isolates it |
+| `make check` | 13 tests under plain, ASan, UBSan, MSan, TSan; both kernel sources compile freestanding |

@@ -10,3 +10,11 @@ reserve-not-fixed @@ mem/frame.c @@ set_bit(fa->fixed, f - lo); @@ (void)lo;
 get-not-marked @@ mem/frame.c @@ set_bit(fa->taken, i); @@ (void)0;
 put-not-cleared @@ mem/frame.c @@ clear_bit(fa->taken, i); @@ (void)i;
 put-range-off-by-one @@ mem/frame.c @@ if (f < fa->base_pfn || f - fa->base_pfn >= fa->nframes) { @@ if (f < fa->base_pfn || f - fa->base_pfn > fa->nframes) {
+elf-no-wx-check @@ elf/elf.c @@ if ((f & ELF_SEG_W) && (f & ELF_SEG_X)) { @@ if (0 && f) {
+elf-filesz-unbounded @@ elf/elf.c @@ !inside(offset, filesz, size) || @@ (offset > size) ||
+elf-phdrs-unbounded @@ elf/elf.c @@ !inside(phoff, (uint64_t)phnum * PHDR_SIZE, size)) { @@ phoff > size) {
+elf-overlap-allowed @@ elf/elf.c @@ if (out->nsegments != 0 && start < prev_end) { @@ if (out->nsegments != 0 && start < prev_end && 0) {
+elf-user-range-wrap @@ elf/elf.c @@ if (vaddr < user_lo || vaddr > user_hi || memsz > user_hi - vaddr) { @@ if (vaddr < user_lo || vaddr + memsz > user_hi) {
+elf-entry-anywhere @@ elf/elf.c @@ if (out->nsegments == 0 || !entry_ok) { @@ if (out->nsegments == 0 || !(entry_ok || 1)) {
+elf-dynamic-allowed @@ elf/elf.c @@ if (type == PT_DYNAMIC || type == PT_INTERP || type == PT_TLS) { @@ if (type == PT_TLS) {
+elf-congruence @@ elf/elf.c @@ vaddr % PAGE != offset % PAGE) { @@ 0) {
