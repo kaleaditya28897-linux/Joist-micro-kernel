@@ -1,6 +1,6 @@
 #!/bin/sh
 # selftest.sh - boot test builds of the kernel that misbehave on purpose and
-# check it reports each case correctly (Phase 2 steps 2, 4 and 6). Each variant is
+# check it reports each case correctly (Phase 2 steps 2, 4, 6, 7 and 8). Each variant is
 # built with -DJOIST_SELFTEST=N in its own build directory and booted under
 # BIOS; QEMU's exit status is (kernel code << 1) | 1.
 # usage: test/selftest.sh   (from kernel/)
@@ -9,11 +9,14 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
        #  build; N a name: the normal kernel with user/N as the root task)
     n=$1; want=$2; shift 2
     b=build/selftest-$n
+    ub="-fsanitize=undefined -fsanitize-trap=undefined"
     case $n in
-    [0-9]*) args="KEXTRA=-DJOIST_SELFTEST=$n" ;;
-    *) args="ROOT_TASK=$n" ;;
+    [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
+    ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
+    ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
+    *) kextra=""; root=$n ;;
     esac
-    make -s BUILD=$b $args $b/joist.iso >/dev/null 2>&1 ||
+    make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root $b/joist.iso >/dev/null 2>&1 ||
         { echo "selftest $n: BUILD FAILED"; fail=1; return; }
     timeout 30 qemu-system-x86_64 -M q35 -m 256M -cdrom $b/joist.iso -display none -no-reboot \
         -serial file:$b/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04
@@ -22,7 +25,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|#BP|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -45,4 +48,11 @@ run sysfuzz 1 "sysfuzz: done" "registers preserved" "root task exited with code 
 # The sysret hazard: a syscall in the last two bytes of the user half must be
 # refused (status 7: code 3), not sysret to 0x800000000000.
 run sysrethole 7 "syscall returning to non-canonical 0x0000800000000000"
+# Step 8: the double fault arrives on its own stack (IST1).
+run 7 5 "EXCEPTION 8 (#DF double fault)"
+# Step 8: the kernel's UBSan build (trap mode): a deliberate signed overflow is
+# named, and the normal root task and the fuzzer run clean under it.
+run ubsan-6 5 "UBSAN: signed add overflow (kind 0)"
+run ubsan-hello 1 "hello from user mode" "root task exited with code 0"
+run ubsan-sysfuzz 1 "sysfuzz: done" "registers preserved"
 exit $fail

@@ -403,3 +403,35 @@ that form, but it does distinguish guard from no guard.)
 
 `make check`: 25 host tests in five builds, five sources freestanding, both
 boots, and 12 self-tests (adds `sysfuzz` and `sysrethole`).
+
+### Step 8: static analysis, UBSan in the kernel, the double fault (2026-10-05)
+
+- **`clang-tidy`** with the checked-in `/.clang-tidy` (§13): CERT and
+  bugprone checks and the Clang analyzer, every warning an error, over all 14
+  kernel sources with the kernel's own flags (`make tidy`). The first run
+  found, and the commit fixes: `vm_map`'s second pass writing through an
+  entry pointer without checking `walk_create` succeeded (it can't fail
+  there, but now it is checked); linker symbols with reserved names
+  (`__text_start` and the like, now `joist_*`); a dead store; two implicit
+  widenings. Disabled, with the reasons in the file:
+  `bugprone-easily-swappable-parameters` (a design heuristic, not a defect
+  check) and the C++-only `cert-dcl51-cpp`.
+- **`scan-build`** over the kernel build (`make scan`): no bugs. Shown to be
+  live by a planted NULL dereference on a reachable path, which it reports.
+  (A first plant on a path no caller could reach was, correctly, not
+  reported: the analyzer examines `kputs` through its callers.)
+- **UBSan in the kernel**: a debug build with `-fsanitize=undefined
+  -fsanitize-trap=undefined` (70 checks compiled in). The `#UD` handler
+  recognises Clang's trap (`ud1l` with the check's kind encoded) and names
+  it. Self-test `ubsan-6` (a deliberate signed overflow) reports `UBSAN:
+  signed add overflow (kind 0)`; the normal root task and the million-call
+  fuzzer run clean under the UBSan kernel.
+- **The double fault**: self-test 7 pushes onto an unmapped stack. The page
+  fault can't be delivered on that stack, so it becomes a double fault,
+  which arrives on its own stack (IST1) and is reported with the faulting
+  stack pointer `0xffff900000000000` in the frame. Had IST not worked, the
+  CPU would have triple-faulted and QEMU would have reset silently.
+
+`make check` now runs: the host tests (25, five builds), the freestanding
+compile, `clang-tidy`, `scan-build`, the BIOS and UEFI boots, and 16
+self-tests. `make mutate`: 30 of 30.

@@ -12,6 +12,8 @@
 #   make boot-test  qemu-test under both
 #   make selftest   boot builds that fault on purpose (#UD, #PF, int3)
 #   make fuzz-kernel  the system-call fuzzer as root task (SEEDS, CALLS)
+#   make tidy       clang-tidy (../.clang-tidy: CERT, bugprone, analyzer) on the kernel
+#   make scan       scan-build (the Clang static analyzer) over the kernel build
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
 #   make fuzz-syscall  libFuzzer on the system-call dispatcher
@@ -46,7 +48,7 @@ SAN_tsan  := -fsanitize=thread
 STAMP := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest fuzz-kernel mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest fuzz-kernel tidy scan mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
 all: test
 
 define variant
@@ -170,8 +172,20 @@ fuzz-kernel:
 selftest:
 	@sh test/selftest.sh
 
-check: test $(SANITIZERS) freestanding boot-test selftest
-	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding; the kernel boots under BIOS and UEFI; selftests pass"
+# §8.1 static analysis, warnings as errors, with the kernel's own flags.
+tidy:
+	@for f in $(IMG_SRC); do \
+	    clang-tidy --quiet $$f -- $(KFLAGS) $(IMG_INC) || exit 1; \
+	done
+	@echo "tidy: $(words $(IMG_SRC)) kernel sources clean"
+
+scan:
+	@rm -rf $(BUILD)/scan $(BUILD)/scan-kernel
+	@scan-build --status-bugs -o $(BUILD)/scan --use-cc=$(CC) $(MAKE) -s BUILD=$(BUILD)/scan-kernel \
+	    $(BUILD)/scan-kernel/joist.elf | tail -1
+
+check: test $(SANITIZERS) freestanding tidy scan boot-test selftest
+	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding; clang-tidy and scan-build clean; the kernel boots under BIOS and UEFI; selftests pass"
 
 mutate:
 	@sh test/mutate.sh "$(CC)"

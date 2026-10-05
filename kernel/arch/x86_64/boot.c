@@ -161,7 +161,7 @@ void kmain(void)
         }
     }
     kputs("joist: memory: ");
-    kputu(usable / (1024u * 1024u));
+    kputu(usable / (1024ull * 1024ull));
     kputs(" MiB usable in ");
     kputu(ranges);
     kputs(" ranges, ");
@@ -181,7 +181,7 @@ void kmain(void)
     kputs(" free of ");
     kputu(frames.nframes);
     kputs(" covered (");
-    kputu(frames.nfree * FRAME_SIZE / (1024u * 1024u));
+    kputu(frames.nfree * FRAME_SIZE / (1024ull * 1024ull));
     kputs(" MiB)\n");
     const char *perr =
         paging_init(&frames, mm, hhdm_req.response->offset, kaddr_req.response->virtual_base,
@@ -229,6 +229,18 @@ void kmain(void)
 #elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 4
     kputs("joist: selftest: write to read-only data\n");
     *(volatile char *)(uintptr_t)selftest_rodata = 'x';
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 6
+    /* Only meaningful in the UBSan build (selftest.sh runs it there). */
+    kputs("joist: selftest: signed overflow\n");
+    volatile int64_t big = INT64_MAX;
+    volatile int64_t one = 1;
+    big = big + one;
+    (void)big;
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 7
+    /* A page fault that can't be delivered (the stack itself is unmapped)
+     * becomes a double fault, which must arrive on its own stack (IST1). */
+    kputs("joist: selftest: double fault\n");
+    __asm__ volatile("movq $0xffff900000000000, %%rsp\n\tpushq %%rax" : : : "memory");
 #elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 5
     kputs("joist: selftest: execute data\n");
     selftest_code[0] = 0xc3; /* ret */

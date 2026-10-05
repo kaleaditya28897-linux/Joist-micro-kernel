@@ -109,6 +109,49 @@ static void dump(const struct trap_frame *tf)
     kputs("\n");
 }
 
+/* UBSan in trap mode (the kernel's debug build, §8.1) turns a failed check
+ * into `ud1l` with the check's kind in the instruction: 67 0f b9, then ModRM
+ * 0x00 (kind 0) or 0x40 followed by the kind. The numbers are Clang's
+ * sanitizer-handler list (clang 21); the common ones are named. Returns the
+ * kind, or -1 if the instruction at rip isn't a UBSan trap. */
+static int ubsan_kind(uint64_t rip)
+{
+    const volatile uint8_t *p = (const volatile uint8_t *)(uintptr_t)rip;
+    if (p[0] != 0x67u || p[1] != 0x0fu || p[2] != 0xb9u) {
+        return -1;
+    }
+    if (p[3] == 0x00u) {
+        return 0;
+    }
+    return p[3] == 0x40u ? (int)p[4] : -1;
+}
+
+static const char *ubsan_name(int kind)
+{
+    switch (kind) {
+    case 0:
+        return "signed add overflow";
+    case 3:
+        return "division or remainder overflow";
+    case 12:
+        return "signed multiply overflow";
+    case 13:
+        return "negation overflow";
+    case 18:
+        return "index out of bounds";
+    case 19:
+        return "pointer overflow";
+    case 20:
+        return "shift out of bounds";
+    case 21:
+        return "signed subtract overflow";
+    case 22:
+        return "type mismatch (misaligned or null)";
+    default:
+        return "check";
+    }
+}
+
 void isr_dispatch(struct trap_frame *tf)
 {
     uint64_t v = tf->vector;
@@ -138,6 +181,17 @@ void isr_dispatch(struct trap_frame *tf)
         }
         kputs("\n");
         kernel_finish(4);
+    }
+    if (v == 6u && (tf->cs & 3u) == 0 && ubsan_kind(tf->rip) >= 0) {
+        int kind = ubsan_kind(tf->rip);
+        kputs("joist: UBSAN: ");
+        kputs(ubsan_name(kind));
+        kputs(" (kind ");
+        kputu((uint64_t)kind);
+        kputs(") at ");
+        kputx(tf->rip);
+        kputs("\n");
+        kernel_finish(2);
     }
     if (v < 32u) {
         kputs("joist: EXCEPTION ");

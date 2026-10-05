@@ -19,7 +19,7 @@ SECTIONS
 {
     . = 0xffffffff80000000;
 
-    __image_start = .;
+    joist_image_start = .;
     .limine_requests : {
         KEEP(*(.limine_requests_start))
         KEEP(*(.limine_requests))
@@ -27,20 +27,20 @@ SECTIONS
     } :limine_requests
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    __text_start = .;
+    joist_text_start = .;
     .text : { *(.text .text.*) } :text
-    __text_end = .;
+    joist_text_end = .;
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    __rodata_start = .;
+    joist_rodata_start = .;
     .rodata : { *(.rodata .rodata.*) } :rodata
-    __rodata_end = .;
+    joist_rodata_end = .;
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    __data_start = .;
+    joist_data_start = .;
     .data : { *(.data .data.*) } :data
     .bss : { *(.bss .bss.*) *(COMMON) } :data
-    __data_end = .;
+    joist_data_end = .;
 
     /DISCARD/ : { *(.eh_frame*) *(.note .note.*) *(.comment) }
 }

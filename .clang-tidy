@@ -1,0 +1,20 @@
+# clang-tidy for Joist (plan §8.1, §13): CERT and bugprone checks and the
+# Clang static analyzer, every warning an error. Run by `make tidy` in
+# kernel/ (and part of `make check`).
+#
+# Disabled, with reasons:
+# - bugprone-easily-swappable-parameters: a design heuristic, firing on any
+#   function with adjacent parameters of one type (vm_map(va, pa, len, ...)).
+#   Those parameters are named, documented and covered by tests that would
+#   catch a swap.
+# - cert-dcl51-cpp: C++-only (reserved identifiers in C++); cert-dcl37-c and
+#   bugprone-reserved-identifier cover C.
+Checks: >
+  -*,
+  cert-*,
+  bugprone-*,
+  clang-analyzer-*,
+  -bugprone-easily-swappable-parameters,
+  -cert-dcl51-cpp
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/kernel/.*'

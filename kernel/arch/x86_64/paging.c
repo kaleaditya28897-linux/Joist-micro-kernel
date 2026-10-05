@@ -10,8 +10,8 @@
 
 #include "joist/kprint.h"
 
-extern uint8_t __image_start[], __text_start[], __text_end[], __rodata_start[], __rodata_end[],
-    __data_start[], __data_end[];
+extern uint8_t joist_image_start[], joist_text_start[], joist_text_end[], joist_rodata_start[],
+    joist_rodata_end[], joist_data_start[], joist_data_end[];
 
 struct boot_frames {
     struct frame_alloc *fa;
@@ -51,7 +51,7 @@ static kerr map_direct(uint64_t hhdm, uint64_t base, uint64_t len)
         if (a % VM_LARGE == 0 && e - a >= VM_LARGE) {
             size = VM_LARGE;
         }
-        uint64_t n = size;
+        uint64_t n;
         if (size == VM_PAGE) { /* run of 4 KiB pages up to the next 2 MiB boundary */
             uint64_t next = (a + VM_LARGE) & ~(VM_LARGE - 1u);
             n = (next < e ? next : e) - a;
@@ -84,10 +84,10 @@ const char *paging_init(struct frame_alloc *fa, const struct limine_memmap_respo
     if (vm_create(&kspace, get_zeroed_frame, phys_to_ptr, &bf) != KERR_OK) {
         return "no frame for the PML4";
     }
-    if (map_image(kvirt, kphys, __image_start, __text_start, VM_W) != KERR_OK ||
-        map_image(kvirt, kphys, __text_start, __text_end, VM_X) != KERR_OK ||
-        map_image(kvirt, kphys, __rodata_start, __rodata_end, 0) != KERR_OK ||
-        map_image(kvirt, kphys, __data_start, __data_end, VM_W) != KERR_OK) {
+    if (map_image(kvirt, kphys, joist_image_start, joist_text_start, VM_W) != KERR_OK ||
+        map_image(kvirt, kphys, joist_text_start, joist_text_end, VM_X) != KERR_OK ||
+        map_image(kvirt, kphys, joist_rodata_start, joist_rodata_end, 0) != KERR_OK ||
+        map_image(kvirt, kphys, joist_data_start, joist_data_end, VM_W) != KERR_OK) {
         return "mapping the kernel image failed";
     }
     for (uint64_t i = 0; i < mm->entry_count; i++) {

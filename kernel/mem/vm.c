@@ -101,7 +101,11 @@ kerr vm_map(struct vm_space *s, uint64_t va, uint64_t pa, uint64_t len, uint64_t
     }
     for (uint64_t off = 0; off < len; off += page_size) {
         uint64_t *e;
-        (void)walk_create(s, va + off, level, &e); /* exists now */
+        /* The first pass created every table, so this can't fail; if it ever
+         * did, report it rather than write through an unset pointer. */
+        if (walk_create(s, va + off, level, &e) != KERR_OK) {
+            return KERR_STATE;
+        }
         *e = ((pa + off) & PTE_ADDR) | leaf;
     }
     return KERR_OK;
