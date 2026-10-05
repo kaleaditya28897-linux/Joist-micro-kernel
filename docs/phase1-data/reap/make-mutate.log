@@ -1,0 +1,48 @@
+caught I8 rights grow: seed 1 step 0: I8: space 0 slot 3 has rights 0xf beyond the type's 0xb (after delete -> OK)
+caught I1 refcount: seed 1 step 0: I1: space 0 slot 1 names freed object 0 (after delete -> OK)
+caught I3 refund: seed 1 step 120: I3: quota not conserved: live quota + charges = 12, budget 13 (after delete -> OK)
+caught I7 rebadge: seed 1 step 1117: mint returned OK, shadow predicted E_BADGE 
+caught I1 destroy leaks: seed 1 step 695: I1: dead space 3 still holds a capability in slot 17 (after space_destroy -> OK)
+caught I3 quota ignored: seed 1 step 106: I3: quota not conserved: live quota + charges = 4294967309, budget 13 (after obj_create -> OK
+caught I6 reply reusable: seed 1 step 415: I6: reply by thread 0 kept its capability or missed caller 2
+caught I10 server death: seed 13 step 1049: I6: caller 7 waits for a reply but 0 valid reply capabilities name it (after task_destroy -
+caught I10 endpoint death: seed 2 step 474: I5: dead endpoint 0 still has a queue (after delete -> OK)
+caught I7 badge dropped: seed 1 step 164 after call: thread 0: cs 0/0 ep 0/0 result OK/OK reply 2.2/2.2 badge 0/1 msg 45473551566797419
+caught timeout late: seed 1 step 97 after tick: thread 3: state 2/1 call_seq 0/0
+caught stale reply reuse: seed 41 step 1569: I6: caller 1 waits for a reply but 2 valid reply capabilities name it (after reply_recv -> 
+caught I10 recv w/ reply: seed 1 step 686: I10: thread 3 waits while holding a reply capability (after recv -> BLOCKED)
+caught I2 bits lost: seed 2 step 576: I2: signal of 0x1 to notification 1 was lost
+caught I2 delivered twice: seed 1 step 385 after wait: object 8: word 0x20/0x0 dead 0/0 bind 0/0
+caught I4 never fires: seed 1 step 377 after delete: object 8: word 0x0/0x20 dead 0/0 bind 0/0
+caught I4 fires early: seed 1 step 756: I4: space 2 slot 58: badged send capability has no account (after delete -> OK)
+caught I4 fires when dead: seed 1 step 249 after delete: thread 3: state 1/5
+caught I5 never dies: seed 1 step 0: I5: endpoint 0 dead=0 with 0 RECV capabilities (after delete -> OK)
+caught I5 deadname repeats: seed 2 step 474: I5: dead-name registration 1 names a dead or freed endpoint (after delete -> OK)
+caught dangling binding: seed 8 step 526: I4: object 0 no-senders binding 2 is not a live notification (after delete -> OK)
+caught I5 dead still usable: seed 1 step 9: I5: dead endpoint 0 still has a queue (after call -> BLOCKED)
+STALE  task-no-reparent: text not found in src/task.c
+caught task-quota-lost: seed 1 step 851: I3: quota not conserved: live quota + charges = 20, budget 21 (after space_destroy -> OK)
+caught task-charges-not-moved: seed 1 step 851: I3: space 0 charged 14 but donated 13 live objects (after space_destroy -> OK)
+caught task-not-marked-dead: seed 2 step 334: I1: live task object 4 doesn't name a live space naming it (after reap -> OK)
+caught task-no-cascade: seed 1 step 851: I1: space 4 is alive but no task object names it (after space_destroy -> OK)
+caught task-thread-cap-no-kill: seed 1 step 20 after delete: thread 2: live 1/0 cs 4/0 obj 0/0
+caught task-donation-off-by-one: seed 1 step 446: I3: quota not conserved: live quota + charges = 4294967316, budget 20 (after task_create -> O
+caught task-destroy-no-control: seed 1 step 28: task_destroy returned OK, shadow predicted E_RIGHTS 
+caught task-dead-not-gone: seed 2 step 553: I1: thread 5 is owned by dead space 4 (after spawn -> OK)
+caught task-no-drain: seed 2 step 157: I1: 1 task destructions left pending (after delete -> OK)
+caught task-root-destroyable: seed 1 step 129: 0013: the root space is dead or has a parent (after space_destroy -> OK)
+caught task-fixture-budget: seed 1 step 851: I3: quota not conserved: live quota + charges = 21, budget 22 (after space_destroy -> OK)
+caught task-thread-obj-not-dead: seed 2 step 157: I1: live thread object 5 doesn't name a live thread naming it (after delete -> OK)
+caught task-grant-no-rights: seed 1 step 38: grant returned OK, shadow predicted E_RIGHTS 
+caught ns-not-queued: seed 2 step 1763: I4: endpoint 19 no-senders queue ends at 1, last 0 (after space_destroy -> OK)
+caught ns-collect-repeats: seed 2 step 1841: I4: endpoint 19 no-senders queue is corrupt (after collect -> OK)
+caught ns-queue-kept-at-death: seed 2 step 730 after delete: endpoint 1: model no-senders queue longer
+caught ns-bind-no-bits: seed 1 step 240: I4: object 5 binding 2 with bits 0x0 (after bind -> OK)
+caught reply-saved-reusable: seed 1 step 496 after reply_saved: reply object 8: bound to 3.0, shadow 0.0
+caught reply-obj-freed-silent: seed 2 step 814: I6: caller 0 waits for a reply but 0 valid reply capabilities name it (after delete -> OK)
+caught reply-save-overwrites: seed 1 step 473: I6: caller 1 waits for a reply but 0 valid reply capabilities name it (after reply_save -> OK
+caught reap-no-ancestry: seed 1 step 29: 0013: the root space is dead or has a parent (after reap -> OK)
+caught descendant-includes-self: seed 1 step 274: descendant returned E_STATE, shadow predicted OK descendant: 0, shadow 1
+caught task-orphan-on-fixture-death: seed 1 step 695: I1: task 7 has no parent: no ancestor can reap it (after space_destroy -> OK)
+make: *** [Makefile:86: mutate] Error 1
+mutate exit 2

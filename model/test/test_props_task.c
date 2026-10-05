@@ -345,6 +345,55 @@ static joist_err sh_space_destroy(uint32_t cs)
     return JOIST_OK;
 }
 
+/* Parent authority (0004 amendment): written plainly, as the shadow is. */
+static int sh_is_descendant(uint32_t anc, uint32_t s)
+{
+    for (uint32_t p = sh_cs[s].parent, n = 0; p != 0 && n < JOIST_MAX_CSPACES;
+         p = sh_cs[p - 1u].parent, n++) {
+        if (p - 1u == anc) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static joist_err sh_reap(uint32_t cs, uint32_t target)
+{
+    joist_err e = sh_space_ok(cs);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (target >= JOIST_MAX_CSPACES) {
+        return JOIST_E_RANGE;
+    }
+    if (!sh_cs[target].live) {
+        return JOIST_E_DEAD;
+    }
+    if (!sh_is_descendant(cs, target)) {
+        return JOIST_E_RIGHTS;
+    }
+    sh_destroy(target);
+    return JOIST_OK;
+}
+
+static joist_err sh_descendant(uint32_t cs, uint32_t from, uint32_t *out)
+{
+    joist_err e = sh_space_ok(cs);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (from > JOIST_MAX_CSPACES) {
+        return JOIST_E_RANGE;
+    }
+    for (uint32_t s = from; s < JOIST_MAX_CSPACES; s++) {
+        if (sh_cs[s].live && sh_is_descendant(cs, s)) {
+            *out = s;
+            return JOIST_OK;
+        }
+    }
+    return JOIST_E_EMPTY;
+}
+
 static joist_err sh_delete(uint32_t cs, uint32_t slot)
 {
     joist_err e = sh_space_ok(cs);
@@ -519,11 +568,13 @@ enum {
     OP_DERIVE,
     OP_GRANT,
     OP_DELETE,
+    OP_REAP,
+    OP_DESCENDANT,
     OP_COUNT
 };
-static const char *const op_name[OP_COUNT] = {"task_create", "task_destroy",  "spawn",
-                                              "kill",        "space_destroy", "obj_create",
-                                              "derive",      "grant",         "delete"};
+static const char *const op_name[OP_COUNT] = {"task_create",   "task_destroy", "spawn",     "kill",
+                                              "space_destroy", "obj_create",   "derive",    "grant",
+                                              "delete",        "reap",         "descendant"};
 #define N_ERR 14u
 static unsigned long coverage[OP_COUNT][N_ERR];
 static unsigned long cascades; /* operations that destroyed more than one space */
@@ -566,7 +617,7 @@ static int run_seed(uint64_t seed, unsigned long steps)
     sh_cs[0].quota = budget;
 
     for (unsigned long step = 0; step < steps; step++) {
-        uint32_t roll = pick(100);
+        uint32_t roll = pick(110);
         uint32_t cs = pick_space();
         uint32_t before = spaces_live();
         int op;
@@ -658,11 +709,29 @@ static int run_seed(uint64_t seed, unsigned long steps)
             joist_rights mask = pick(4) == 0 ? (joist_rights)pick(16) : JOIST_R_ALL;
             want = sh_copy(cs, src, to, dst, mask, 1);
             got = joist__cap_grant(&k, cs, src, to, dst, mask);
-        } else {
+        } else if (roll < 100) {
             op = OP_DELETE;
             uint32_t slot = pick_slot(cs, JOIST_OBJ_NONE);
             want = sh_delete(cs, slot);
             got = joist_cap_delete(&k, cs, slot);
+        } else if (roll < 106) {
+            op = OP_REAP;
+            /* From the root half the time, so ancestry usually holds. */
+            uint32_t from = pick(2) == 0 ? 0 : cs;
+            uint32_t target = pick_space();
+            want = sh_reap(from, target);
+            got = joist_task_reap(&k, from, target);
+        } else {
+            op = OP_DESCENDANT;
+            uint32_t start = pick(JOIST_MAX_CSPACES + 2u);
+            joist_cspace mo = 0;
+            uint32_t so = 0;
+            want = sh_descendant(cs, start, &so);
+            got = joist_task_descendant(&k, cs, start, &mo);
+            if (got == JOIST_OK && want == JOIST_OK && mo != so) {
+                (void)snprintf(why, sizeof why, "descendant: %u, shadow %u", mo, so);
+                got = JOIST_E_STATE;
+            }
         }
 
         coverage[op][(unsigned)got < N_ERR ? (unsigned)got : N_ERR - 1u]++;

@@ -60,10 +60,14 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
     /* I3: hand everything this space still owns to its parent, and its
      * children too, so no quota is lost and the parent chain stays live. */
     uint32_t p = st->parent;
+    /* Children go to the grandparent. A parentless space (only test
+     * fixtures; every real task descends from the root) hands them to the
+     * root, so no task is ever left without an ancestor to reap it. */
+    uint32_t heir = p != 0 ? p : k->root;
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         JOIST_WORK(k);
         if (k->cs[c].live && k->cs[c].parent == s + 1u) {
-            k->cs[c].parent = p;
+            k->cs[c].parent = heir;
         }
     }
     if (p != 0) {
@@ -241,6 +245,65 @@ joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot
     return JOIST_OK;
 }
 
+/* Is space s a strict descendant of space anc (anc on s's parent chain)?
+ * Bounded by JOIST_MAX_CSPACES: parent chains are acyclic (an invariant),
+ * and the walk stops after that many steps regardless. */
+static int is_descendant(struct joist_kernel *k, uint32_t anc, uint32_t s)
+{
+    uint32_t p = k->cs[s].parent;
+    for (uint32_t steps = 0; p != 0 && steps < JOIST_MAX_CSPACES; steps++) {
+        JOIST_WORK(k);
+        if (p - 1u == anc) {
+            return 1;
+        }
+        p = k->cs[p - 1u].parent;
+    }
+    return 0;
+}
+
+joist_err joist_task_reap(struct joist_kernel *k, joist_cspace cs, joist_cspace target)
+{
+    joist_err e = space_live(k, cs);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (target >= JOIST_MAX_CSPACES) {
+        return JOIST_E_RANGE;
+    }
+    if (!k->cs[target].live) {
+        return JOIST_E_DEAD;
+    }
+    /* The authority is ancestry: the parent chain records who donated the
+     * task's memory (0004 amendment). The root and fixtures have no parent,
+     * so nobody reaps them, and nobody reaps itself. */
+    if (!is_descendant(k, cs, target)) {
+        return JOIST_E_RIGHTS;
+    }
+    joist__space_destroy(k, target);
+    joist__drain_pending(k);
+    return JOIST_OK;
+}
+
+joist_err joist_task_descendant(struct joist_kernel *k, joist_cspace cs, joist_cspace from,
+                                joist_cspace *out)
+{
+    joist_err e = space_live(k, cs);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (from > JOIST_MAX_CSPACES) {
+        return JOIST_E_RANGE;
+    }
+    for (uint32_t s = from; s < JOIST_MAX_CSPACES; s++) {
+        JOIST_WORK(k);
+        if (k->cs[s].live && is_descendant(k, cs, s)) {
+            *out = s;
+            return JOIST_OK;
+        }
+    }
+    return JOIST_E_EMPTY;
+}
+
 joist_err joist_thread_spawn(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
                              joist_slot dst, joist_thread *out)
 {
@@ -329,6 +392,12 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
         }
         sum += st->quota;
         /* The parent chain is live and acyclic. */
+        /* 0004 amendment: every task but the root has an ancestor who can
+         * reap it. (Fixtures, made by the test-only joist_cspace_create,
+         * have none, and before boot there is no root to descend from.) */
+        if (k->root != 0 && k->root != s + 1u && !st->fixture && st->parent == 0) {
+            VIOLATION("I1: task %u has no parent: no ancestor can reap it", s);
+        }
         uint32_t p = st->parent;
         uint32_t steps = 0;
         while (p != 0) {

@@ -52,6 +52,10 @@ Quota is conserved: the sum of every live task's unspent quota and every
 task's charges equals the budget boot gave the root. Destroying an object
 refunds its payer. Nothing is allocated when a call arrives or a client dies.
 
+**Task ids.** A task is also named by its id (its capability-space index),
+which `task_reap` and `task_descendant` take. An id carries no authority by
+itself: those two check ancestry.
+
 **Lifetime.** An object is freed with its last capability (I1). Two
 types also *die* before that, after which every use of a remaining capability
 fails with `E_GONE`:
@@ -103,8 +107,10 @@ derive.
 |---|---|---|---|---|
 | boot | budget | `E_STATE` if already booted | the root task holds the whole budget; it has no task object and can't be destroyed (0013) | O(1) |
 | `task_create` | donation, dst | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (dst), `E_OCCUPIED`, `E_NOMEM` (quota < donation + 1), `E_NOMEM` (space or object table) | a new task with quota = donation; the caller pays donation + 1 (the task object) and becomes its parent; a task capability in dst | table scans |
-| `task_destroy` | task slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` (already dead) | its threads die, its capabilities are deleted (cascading), its unspent quota, its live objects' charges and its children go to its parent (I1, I3) | cascade |
+| `task_destroy` | task slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` (already dead) | its threads die, its capabilities are deleted (cascading), its unspent quota, its live objects' charges and its children go to its parent (children of a parentless space go to the root, so every task keeps an ancestor) (I1, I3) | cascade |
 | `thread_spawn` | task slot, dst | `E_RANGE`/`E_DEAD` (space), then the task slot: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE`; then `E_RANGE` (dst), `E_OCCUPIED`, `E_NOMEM` (caller's quota), `E_NOMEM` (thread or object table) | a running thread in that task, paid by the caller; a thread capability in dst | table scans |
+| `task_reap` | task id | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (task id), `E_DEAD` (already destroyed), `E_RIGHTS` (not a strict descendant: itself, the root and fixtures never are) | as `task_destroy`, without a capability to the task: the caller's authority is ancestry (0004 amendment) | cascade |
+| `task_descendant` | from | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (from > the table size), `E_EMPTY` (none) | the first live strict descendant whose id is ≥ from | tasks² |
 | `thread_kill` | thread slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` | the thread dies: dequeued, and a caller it owed a reply wakes with `E_PEER` (I10) | O(1) |
 
 Deleting the last capability to a live thread kills it, as `thread_kill`.
@@ -223,10 +229,9 @@ freed; every remaining capability to the endpoint then fails with `E_GONE`.
    CPUs: I6, I10 (including liveness) and I1 hold, **provided** a dying space
    accepts no new capabilities. Without that rule a capability passed in
    after the sweep has gone past its slot leaks, which TLC shows in 8 steps.
-3. **Task cycles.** Tasks holding each other's task capabilities outlive their
-   last outside capability (`docs/phase1-plan.md`, work item 5). Options:
-   creators keep a capability (seL4's rule), or parents may destroy
-   descendants through the recorded parent chain.
+3. ~~**Task cycles.**~~ Settled 2026-10-05 (0004 amendment): tasks holding
+   each other's task capabilities outlive their last outside capability, and
+   any ancestor reclaims them with `task_reap`, found with `task_descendant`.
 4. **Revoke and the batched capability copy** (0003, 0011): not yet in the
    model.
 5. **Thread state** (register records, TLS base, 0010) and **fault IPC**

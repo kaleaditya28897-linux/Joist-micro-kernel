@@ -1,7 +1,7 @@
 # 0004 — Task and thread objects
 
 Date: 2026-09-23
-Status: accepted (2026-10-01)
+Status: accepted (2026-10-01); amended 2026-10-05 (parent authority over descendants, accepted)
 Covers: §6 rows *Task* and *Thread*.
 
 ## Context
@@ -83,3 +83,40 @@ Respects Reliability > Resilience > POSIX > Reuse > Performance. Option A is
 the most reusable — the Hurd would need almost no change — and loses because it
 puts policy naming inside the kernel, against §5.1. Reuse loses the tie, as the
 order requires.
+
+## Amendment, 2026-10-05: parent authority over descendants (accepted)
+
+**Problem, found by the Phase 1 model** (`docs/phase1-plan.md`, work item 5).
+A task is destroyed when its last task capability goes. Two tasks holding each
+other's task capabilities never lose their last one, so once every outside
+capability is gone they live on, holding their quota, with nobody able to
+name them. Reference counting can't collect a cycle; the whole-model test
+reaches this in about one sequence in ten.
+
+**Options.** (1) seL4's rule: whoever creates a task always keeps a
+capability to it. It needs nothing new, but it is a protocol rule nothing
+enforces. (2) Parent authority: the model already records each task's parent
+(the task that donated its memory, this decision's "memory comes from the
+creator"), so let any ancestor destroy a descendant without a capability.
+(3) A cycle collector, in the kernel or a privileged task: the most
+machinery, and an unbounded traversal (I9).
+
+**Decision: (2)**, by the project owner. Two operations:
+
+- **`task_reap(target)`**: destroy task `target`, exactly as `task_destroy`
+  would, if the caller is a strict ancestor of it (`E_RIGHTS` otherwise).
+- **`task_descendant(from)`**: the first live descendant whose id is at
+  least `from`, so an ancestor can find tasks it holds no capability to.
+
+A task is named here by its **task id** (its capability-space index). The id
+alone grants nothing: both operations check the parent chain. The root task
+is everyone's ancestor, so nothing that descends from it can be stranded.
+When a task dies its children are re-parented to its parent (Phase 1 model),
+and a space with no parent hands them to the root, so the chain to the root is
+never broken: every task but the root has an ancestor that can reap it.
+
+**Consequences.** `proc` (or any parent) can always reclaim what it started,
+which is also what POSIX expects of process trees. The cost is a second
+authority path besides capabilities, limited to destruction and to one's own
+descendants. Model: `joist_task_reap`, `joist_task_descendant`
+(`model/src/task.c`), unit, property (shadow) and mutation tested.

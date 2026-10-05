@@ -1,0 +1,17 @@
+clang -std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -Itest src/cspace.c src/ipc.c src/notify.c src/task.c test/exec.c fuzz/make_seeds.c -o build/fuzz/make-seeds
+./build/fuzz/make-seeds build/fuzz-seeds 32 1000
+caught   I1 refcount in 0s: fuzz_model: teardown: I1: freed object 0 has refs 4294967295
+         (from nothing: found in 0s)
+caught   I3 refund in 0s: fuzz_model: teardown: I3: quota not conserved: live quota + charges = 5, budget 8
+         (from nothing: found in 0s)
+caught   I6 reply reusable in 0s: fuzz_model: step 1119: I6: reply by thread 2 kept its capability or missed caller 1
+         (from nothing: found in 22s)
+caught   I2 bits lost in 1s: fuzz_model: step 4040: I2: signal of 0x2 to notification 1 was lost
+         (from nothing: found in 4s)
+caught   I5 never dies in 0s: fuzz_model: step 838: I5: endpoint 31 dead=0 with 0 RECV capabilities (after space_destroy -> OK)
+         (from nothing: found in 0s)
+caught   task-quota-lost in 0s: fuzz_model: step 71: I3: quota not conserved: live quota + charges = 62, budget 68 (after task_destr
+         (from nothing: found in 0s)
+caught   task-no-cascade in 0s: fuzz_model: step 71: I1: space 3 is alive but no task object names it (after task_destroy -> OK)
+         (from nothing: found in 6s)
+fuzz-sanity exit 0

@@ -31,6 +31,8 @@ OPS = {
     "boot": ("boot", []),
     "task_create": ("task_create", ["task_create"]),
     "task_destroy": ("task_destroy", ["task_destroy"]),
+    "task_reap": ("task_reap", ["reap"]),
+    "task_descendant": ("task_descendant", ["descendant"]),
     "thread_spawn": ("thread_spawn", ["spawn"]),
     "thread_kill": ("thread_kill", ["kill"]),
     "Call": ("call", ["call"]),

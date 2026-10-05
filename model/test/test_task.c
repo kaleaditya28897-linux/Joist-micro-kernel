@@ -343,11 +343,12 @@ JT_TEST(fixture_space_quota_leaves_budget)
     JT_CHECK(clean());
 }
 
-/* Characterises an open question (docs/phase1-plan.md, work item 5): two
- * tasks holding each other's task capabilities outlive their last outside
- * capability, because reference counting can't collect a cycle. Their quota
- * stays conserved but stranded until someone destroys them directly. */
-JT_TEST(task_cycle_outlives_outside_caps)
+/* Tasks holding each other's task capabilities outlive their last outside
+ * capability: reference counting can't collect a cycle (work item 5). Parent
+ * authority (0004 amendment) is what reclaims them: the root finds them with
+ * task_descendant, though it holds no capability to them, and reaps one; the
+ * other goes in the cascade. */
+JT_TEST(task_cycle_reaped_by_parent)
 {
     boot();
     JT_REQUIRE(joist_task_create(&k, root, 5, 0) == JOIST_OK);
@@ -358,10 +359,91 @@ JT_TEST(task_cycle_outlives_outside_caps)
     JT_REQUIRE(joist__cap_grant(&k, root, 0, b, 0, JOIST_R_ALL) == JOIST_OK);
     JT_CHECK(joist_cap_delete(&k, root, 0) == JOIST_OK);
     JT_CHECK(joist_cap_delete(&k, root, 1) == JOIST_OK);
-    JT_CHECK(k.cs[a].live && k.cs[b].live); /* the cycle survives */
-    JT_CHECK(k.cs[root].quota == 52);       /* 12 units stranded */
+    JT_CHECK(k.cs[a].live && k.cs[b].live); /* the cycle survives its last outside cap */
+    JT_CHECK(k.cs[root].quota == 52);       /* 12 units held by it */
     JT_CHECK(clean());
-    JT_CHECK(joist_cspace_destroy(&k, a) == JOIST_OK);
+    joist_cspace found = JOIST_MAX_CSPACES;
+    JT_REQUIRE(joist_task_descendant(&k, root, 0, &found) == JOIST_OK);
+    JT_CHECK(found == a || found == b);
+    JT_CHECK(joist_task_reap(&k, root, found) == JOIST_OK);
     JT_CHECK(!k.cs[a].live && !k.cs[b].live && k.cs[root].quota == 64 && k.objects_live == 0);
+    JT_CHECK(joist_task_descendant(&k, root, 0, &found) == JOIST_E_EMPTY);
+    JT_CHECK(clean());
+}
+
+JT_TEST(task_reap_needs_ancestry)
+{
+    boot();
+    JT_REQUIRE(joist_task_create(&k, root, 20, 0) == JOIST_OK);
+    joist_cspace a = space_of(root, 0);
+    JT_REQUIRE(joist_task_create(&k, a, 5, 0) == JOIST_OK);
+    joist_cspace a1 = space_of(a, 0);
+    JT_REQUIRE(joist_task_create(&k, root, 5, 1) == JOIST_OK);
+    joist_cspace b = space_of(root, 1);
+    joist_cspace f;
+    JT_REQUIRE(joist_cspace_create(&k, 2, &f) == JOIST_OK); /* a fixture */
+    /* Only ancestors: not a sibling, not a child's parent, not itself, not
+     * the root, not a fixture. */
+    JT_CHECK(joist_task_reap(&k, b, a1) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_task_reap(&k, a1, a) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_task_reap(&k, a, a) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_task_reap(&k, a, root) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_task_reap(&k, root, f) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_task_reap(&k, root, JOIST_MAX_CSPACES) == JOIST_E_RANGE);
+    JT_CHECK(joist_task_reap(&k, JOIST_MAX_CSPACES, a) == JOIST_E_RANGE);
+    JT_CHECK(clean());
+    /* A grandparent reaps a grandchild directly. */
+    JT_CHECK(joist_task_reap(&k, root, a1) == JOIST_OK);
+    JT_CHECK(!k.cs[a1].live && k.cs[a].live && k.cs[b].live);
+    JT_CHECK(joist_task_reap(&k, root, a1) == JOIST_E_DEAD);
+    /* Its capability in a now names a dead task (E_GONE), as after destroy. */
+    JT_CHECK(joist_task_destroy(&k, a, 0) == JOIST_E_GONE);
+    JT_CHECK(clean());
+}
+
+JT_TEST(task_descendant_enumerates)
+{
+    boot();
+    joist_cspace out = 0;
+    JT_CHECK(joist_task_descendant(&k, root, 0, &out) == JOIST_E_EMPTY);
+    JT_REQUIRE(joist_task_create(&k, root, 20, 0) == JOIST_OK);
+    joist_cspace a = space_of(root, 0);
+    JT_REQUIRE(joist_task_create(&k, a, 5, 0) == JOIST_OK);
+    joist_cspace a1 = space_of(a, 0);
+    /* The root sees both, in id order; a sees only its child. */
+    uint32_t seen = 0;
+    for (joist_cspace from = 0; joist_task_descendant(&k, root, from, &out) == JOIST_OK;
+         from = out + 1u) {
+        JT_CHECK(out == a || out == a1);
+        seen++;
+    }
+    JT_CHECK(seen == 2);
+    JT_CHECK(joist_task_descendant(&k, a, 0, &out) == JOIST_OK && out == a1);
+    JT_CHECK(joist_task_descendant(&k, a1, 0, &out) == JOIST_E_EMPTY);
+    JT_CHECK(joist_task_descendant(&k, root, JOIST_MAX_CSPACES, &out) == JOIST_E_EMPTY);
+    JT_CHECK(joist_task_descendant(&k, root, JOIST_MAX_CSPACES + 1u, &out) == JOIST_E_RANGE);
+    /* Reaping a also takes a1: a held a1's only task capability, so a1
+     * becomes unreachable and goes in the cascade. */
+    JT_CHECK(joist_task_reap(&k, root, a) == JOIST_OK);
+    JT_CHECK(!k.cs[a1].live);
+    JT_CHECK(clean());
+}
+
+/* A parentless space (a test fixture) hands its children to the root when
+ * it dies, so every task keeps an ancestor that can reap it (0004
+ * amendment; found by the small-capacity build, seed 85). */
+JT_TEST(fixture_children_go_to_root)
+{
+    boot();
+    joist_cspace f;
+    JT_REQUIRE(joist_cspace_create(&k, 10, &f) == JOIST_OK);
+    JT_REQUIRE(joist_task_create(&k, f, 3, 0) == JOIST_OK);
+    joist_cspace c = space_of(f, 0);
+    JT_REQUIRE(joist__cap_grant(&k, f, 0, root, 0, JOIST_R_ALL) == JOIST_OK);
+    JT_REQUIRE(joist_cspace_destroy(&k, f) == JOIST_OK);
+    JT_CHECK(k.cs[c].live && k.cs[c].parent == root + 1u);
+    JT_CHECK(clean());
+    JT_CHECK(joist_task_reap(&k, root, c) == JOIST_OK);
+    JT_CHECK(!k.cs[c].live);
     JT_CHECK(clean());
 }

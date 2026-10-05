@@ -36,6 +36,8 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_BIND] = "bind",
                                         [JX_DEADNAME] = "deadname",
                                         [JX_COLLECT] = "collect",
+                                        [JX_REAP] = "reap",
+                                        [JX_DESCENDANT] = "descendant",
                                         [JX_SAVE] = "reply_save",
                                         [JX_SAVED] = "reply_saved",
                                         [JX_TICK] = "tick"};
@@ -47,15 +49,15 @@ static const uint8_t weight[JX_OPS] = {
     [JX_TASK_DESTROY] = 2, [JX_SPAWN] = 5,         [JX_KILL] = 2,        [JX_TH_CREATE] = 2,
     [JX_TH_DESTROY] = 1,   [JX_CALL] = 11,         [JX_RECV] = 6,        [JX_REPLY] = 4,
     [JX_REPLY_RECV] = 4,   [JX_SIGNAL] = 5,        [JX_WAIT] = 5,        [JX_BIND] = 3,
-    [JX_DEADNAME] = 3,     [JX_COLLECT] = 3,       [JX_SAVE] = 3,        [JX_SAVED] = 3,
-    [JX_TICK] = 6};
+    [JX_DEADNAME] = 3,     [JX_COLLECT] = 3,       [JX_REAP] = 2,        [JX_DESCENDANT] = 2,
+    [JX_SAVE] = 3,         [JX_SAVED] = 3,         [JX_TICK] = 6};
 
 static uint64_t boot_budget;
 
 int jx_op_cascades(unsigned op)
 {
     return op == JX_SPACE_DESTROY || op == JX_DELETE || op == JX_TASK_DESTROY || op == JX_KILL ||
-           op == JX_TH_DESTROY;
+           op == JX_TH_DESTROY || op == JX_REAP;
 }
 
 static uint32_t ch(struct jx_source *src, uint32_t n)
@@ -264,6 +266,13 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_TASK_CREATE:
         return joist_task_create(k, cs, ch(src, 16) == 0 ? UINT32_MAX : ch(src, 10),
                                  pick_dst(k, src, cs));
+    case JX_REAP:
+        /* From the root half the time, so ancestry usually holds. */
+        return joist_task_reap(k, ch(src, 2) == 0 ? k->root - 1u : cs, pick_space(k, src));
+    case JX_DESCENDANT: {
+        joist_cspace out;
+        return joist_task_descendant(k, cs, ch(src, JOIST_MAX_CSPACES + 2u), &out);
+    }
     case JX_TASK_DESTROY:
         return joist_task_destroy(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK));
     case JX_SPAWN: {
@@ -434,8 +443,19 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
 int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned whylen)
 {
     uint32_t root = k->root - 1u;
+    joist_cspace d;
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
         if (k->cs[s].live && k->cs[s].fixture) {
+            /* A fixture has no parent, so its children would be left with
+             * none and nobody could reap them: reap them first. (Only test
+             * fixtures lack a parent; every real task descends from the
+             * root, which can't be destroyed.) */
+            while (joist_task_descendant(k, s, 0, &d) == JOIST_OK) {
+                if (joist_task_reap(k, s, d) != JOIST_OK) {
+                    (void)snprintf(why, whylen, "teardown: fixture %u could not reap %u", s, d);
+                    return 0;
+                }
+            }
             (void)joist_cspace_destroy(k, s);
         }
     }
@@ -444,10 +464,13 @@ int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned
             (void)joist_cap_delete(k, root, i);
         }
     }
-    for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
-        if (s != root && k->cs[s].live) {
-            st->cycles++;
-            (void)joist_cspace_destroy(k, s);
+    /* What is left lives only in cycles. Reclaim it as a parent would
+     * (0004 amendment): find it from the root, reap it. */
+    while (joist_task_descendant(k, root, 0, &d) == JOIST_OK) {
+        st->cycles++;
+        if (joist_task_reap(k, root, d) != JOIST_OK) {
+            (void)snprintf(why, whylen, "teardown: the root could not reap task %u", d);
+            return 0;
         }
     }
     /* I10: with every object gone, nothing can be blocked on one. The only
@@ -489,10 +512,11 @@ int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned
         spaces += k->cs[s].live != 0;
     }
     if (k->objects_live != 0 || accts != 0 || dns != 0 || spaces != 1 ||
-        k->cs[root].quota != boot_budget || k->budget != boot_budget) {
+        k->cs[root].quota != k->budget || k->budget < boot_budget) {
         (void)snprintf(why, whylen,
                        "I1/I3: teardown left %u objects, %u accounts, %u registrations, %u "
-                       "spaces; root quota %u, budget %llu, booted with %llu",
+                       "spaces; root quota %u, budget %llu (all of it must be back in the root; "
+                       "fixtures' donations to tasks reaped into it can add to the %llu booted)",
                        k->objects_live, accts, dns, spaces, k->cs[root].quota,
                        (unsigned long long)k->budget, (unsigned long long)boot_budget);
         return 0;

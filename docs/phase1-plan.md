@@ -579,3 +579,49 @@ It found three real defects before passing, all fixed:
 
 After the fixes: `make check` 77 tests in six builds, `make mutate`
 43 of 43 caught.
+
+### After the exit: parent authority over descendants (2026-10-05)
+
+The project owner settled the task-cycle question from work item 5 (tasks
+holding each other's task capabilities are never collected): **parents may
+destroy their descendants**. Recorded as an amendment to decision 0004.
+
+Model (`model/src/task.c`):
+
+- **`joist_task_reap(cs, target)`** destroys task `target` exactly as
+  `joist_task_destroy` would, if `cs` is a strict ancestor of it on the
+  recorded parent chain; `E_RIGHTS` otherwise (so never itself, the root, or
+  a fixture), `E_RANGE`/`E_DEAD` for a bad or destroyed target.
+- **`joist_task_descendant(cs, from, &out)`** finds the first live strict
+  descendant whose id is at least `from` (`E_EMPTY` when none), so an
+  ancestor can find a task it holds no capability to. Bounded by the table
+  size squared.
+
+The whole-model test's teardown no longer destroys cycles with the test-only
+`cspace_destroy`: it reaps them from the root, through the ABI. Doing that
+showed one more case, and the small-capacity build (seed 85) showed it can
+happen mid-run: a test fixture (`cspace_create`, no parent) destroyed while
+it has children left them parentless, so no ancestor could reap them, and a
+thread of one stayed blocked through teardown. Real tasks all descend from
+the root, which can't be destroyed, so only fixtures can do this, but the
+model now closes it for any state: **a parentless space's children go to
+the root** (the heir rule), and a new invariant says every task but the root
+and fixtures has a parent. The teardown also reaps a fixture's descendants
+before destroying it, and now checks that the whole budget is back in the
+root, which may exceed the boot budget by what fixtures donated to tasks that
+the root inherited.
+
+| Check | Result |
+|---|---|
+| Unit tests (`test_task.c`) | the cycle test now shows the root finding and reaping the cycle; new: ancestry rules (sibling, child's parent, itself, the root and a fixture refused; a grandparent reaps a grandchild; a reaped task's capabilities fail with `E_GONE`), and enumeration |
+| Property test (`test_props_task.c`) | the shadow reaps and enumerates independently (recursion, plain parent walks): about 4 900 reaps and 2 700 enumerations per run, every result code reached |
+| Whole-model test | `reap` (cascading, under the cascade bound) and `descendant` added to the executor; teardown reaps cycles from the root |
+| `make mutate` | 3 new mutations (reaping without the ancestry check, enumeration including the caller itself, the heir rule removed), all caught; the last only by the new invariant |
+| Unit test | `fixture_children_go_to_root` |
+
+Verification (`docs/phase1-data/reap/`): `make check` 80 tests in six builds;
+`make mutate` 45 caught and one stale ("task-no-reparent" targeted the line
+the heir rule changed), re-targeted and caught alone, so 46 of 46;
+`make fuzz-sanity` 7 of 7; the `docs/abi.md` cross-check, now with
+`task_reap` and `task_descendant`: 147 codes over 23 operations, all listed and
+all reached.

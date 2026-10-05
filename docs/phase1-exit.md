@@ -38,7 +38,8 @@ Nothing is *proven*: the invariants are property-tested, which §11 accepts.
   Now reply objects (0001 amendment, item 5).
 - **Task cycles aren't collected**: tasks holding each other's capabilities
   outlive their last outside capability, stranding their quota
-  (work item 5). **Open, for a decision** (below).
+  (work item 5). Settled 2026-10-05 by the owner: parents may destroy
+  descendants (0004 amendment; `task_reap`, `task_descendant`).
 - **The fuzzer needed help to find anything**: four changes before it caught
   the injected bugs, and a seed corpus before it caught them reliably
   (work item 5).
@@ -48,8 +49,6 @@ Nothing is *proven*: the invariants are property-tested, which §11 accepts.
 Open, in the order they block work (`docs/abi.md`, *Open*):
 
 - **Before Phase 3 builds on the ABI:**
-  - **Task cycles** (owner's decision): parents destroy descendants through
-    the recorded parent chain, or creators always keep a capability.
   - **Capability transfer in messages**: count, rights masking, failure
     behaviour. The model uses an internal stand-in.
   - **Preemptible cascades** (I9, 0003): a cascade is bounded by the tables

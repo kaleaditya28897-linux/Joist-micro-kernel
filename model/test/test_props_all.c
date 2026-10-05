@@ -94,7 +94,7 @@ JT_TEST(props_all_invariants_hold)
         }
     }
     fprintf(stderr,
-            "\n  %lu sequences, %lu steps, every teardown clean; %lu task cycles outlived "
-            "their last outside capability\n",
+            "\n  %lu sequences, %lu steps, every teardown clean; %lu tasks in cycles reaped "
+            "by the root\n",
             st.sequences, st.steps, st.cycles);
 }

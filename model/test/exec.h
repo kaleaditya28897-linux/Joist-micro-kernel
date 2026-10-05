@@ -40,6 +40,8 @@ enum {
     JX_BIND,
     JX_DEADNAME,
     JX_COLLECT,
+    JX_REAP,
+    JX_DESCENDANT,
     JX_SAVE,
     JX_SAVED,
     JX_TICK,
@@ -103,7 +105,8 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
  * Fixtures are destroyed and the root drops its capabilities, so every task
  * should go by cascade alone. Tasks that survive that hold each other's
  * capabilities in a cycle, which reference counting can't collect: they are
- * counted in st->cycles, then destroyed directly. Returns 1 if clean. */
+ * counted in st->cycles, then reaped from the root (0004 amendment).
+ * Returns 1 if clean. */
 int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned whylen);
 
 #endif /* JOIST_TEST_EXEC_H */

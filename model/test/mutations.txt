@@ -24,7 +24,7 @@ I5 never dies        @@ src/notify.c @@         endpoint_die(k, obj); @@        
 I5 deadname repeats  @@ src/notify.c @@             memset(d, 0, sizeof *d); @@             (void)d;
 dangling binding     @@ src/notify.c @@                 k->obj[i].ns_notif = 0; @@                 (void)i;
 I5 dead still usable @@ src/ipc.c @@     if (k->obj[c->obj - 1u].dead) { @@     if (0) {
-task-no-reparent @@ src/task.c @@ k->cs[c].parent = p; @@ k->cs[c].parent = 0;
+task-no-reparent @@ src/task.c @@ k->cs[c].parent = heir; @@ k->cs[c].parent = heir * 0u;
 task-quota-lost @@ src/task.c @@ ps->quota += st->quota; @@ ps->quota += 0;
 task-charges-not-moved @@ src/task.c @@ k->obj[o].donor = p - 1u; @@ k->obj[o].donor = s;
 task-not-marked-dead @@ src/task.c @@ k->obj[st->task_obj - 1u].dead = 1; @@ (void)0;
@@ -45,3 +45,6 @@ ns-bind-no-bits @@ src/notify.c @@ return JOIST_E_BADGE; /* the signal would car
 reply-saved-reusable @@ src/ipc.c @@ o->target = 0; /* consumed (I6) */ @@ (void)0;
 reply-obj-freed-silent @@ src/notify.c @@ joist__reply_obj_freed(k, obj); @@ (void)obj;
 reply-save-overwrites @@ src/ipc.c @@ return JOIST_E_OCCUPIED; @@ (void)0;
+reap-no-ancestry @@ src/task.c @@ if (!is_descendant(k, cs, target)) { @@ if (0) {
+descendant-includes-self @@ src/task.c @@ if (k->cs[s].live && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && (s == cs || is_descendant(k, cs, s))) {
+task-orphan-on-fixture-death @@ src/task.c @@ uint32_t heir = p != 0 ? p : k->root; @@ uint32_t heir = p;

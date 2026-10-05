@@ -366,6 +366,23 @@ joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t do
  * its parent (I3). The task object stays, dead, until its capabilities go. */
 joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
 
+/* Parent authority (0004 amendment, 2026-10-05). A task may destroy any task
+ * it is an ancestor of, by task id (its space index), without a capability
+ * to it: the parent chain records who donated its memory. This is what
+ * reclaims tasks that hold each other's capabilities in a cycle, which
+ * reference counting can't. Destroys exactly as joist_task_destroy.
+ * JOIST_E_RANGE (target out of range), JOIST_E_DEAD (already destroyed),
+ * JOIST_E_RIGHTS (not a strict descendant: itself, the root and fixtures
+ * never are). */
+joist_err joist_task_reap(struct joist_kernel *k, joist_cspace cs, joist_cspace target);
+
+/* The first live strict descendant of cs whose id is >= from, in *out, or
+ * JOIST_E_EMPTY if there is none: how an ancestor finds a task it holds no
+ * capability to. from may be JOIST_MAX_CSPACES (then always E_EMPTY).
+ * Bounded by JOIST_MAX_CSPACES squared. */
+joist_err joist_task_descendant(struct joist_kernel *k, joist_cspace cs, joist_cspace from,
+                                joist_cspace *out);
+
 /* Create a running thread in the task named by task_slot (needs CONTROL),
  * charged to cs, with a thread capability with all rights in cs's slot dst.
  * The thread's index is written to *out. */

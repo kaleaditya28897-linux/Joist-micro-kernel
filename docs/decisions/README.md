@@ -12,7 +12,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0001 | Native IPC model | accepted; open items settled by the 2026-10-03 amendment | Phase 3 |
 | 0002 | Clang everywhere, pre-committed GCC fallback for glibc | accepted (Clang branch) | Phase 7 |
 | 0003 | SMP + no runtime allocation + bounded WCET | accepted | Phase 3 |
-| 0004 | Task and thread objects | accepted | — |
+| 0004 | Task and thread objects | accepted; amended 2026-10-05 (parent authority) | — |
 | 0005 | Port sets → badge demultiplexing | accepted | Phase 5 |
 | 0006 | Out-of-line memory → typed bulk transfer | accepted | Phase 5 |
 | 0007 | External memory objects → page-fault IPC | accepted | Phase 6 |

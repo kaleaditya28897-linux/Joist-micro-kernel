@@ -1,0 +1,439 @@
+./build/plain/run-tests
+  coverage space_create  OK=3114 E_NOMEM=188  [max work 16 of 1856]
+  coverage space_destroy OK=2523 E_RANGE=25 E_DEAD=217 E_STATE=598  [max work 1841 of 186368]
+  coverage obj_create    OK=14355 E_RANGE=393 E_OCCUPIED=1367 E_NOMEM=13213 E_TYPE=2323 E_DEAD=2159  [max work 74 of 1856]
+  coverage derive        OK=11260 E_RANGE=331 E_EMPTY=6557 E_OCCUPIED=750 E_DEAD=1306  [max work 9 of 1856]
+  coverage mint          OK=6820 E_RANGE=346 E_EMPTY=6364 E_OCCUPIED=822 E_RIGHTS=1440 E_BADGE=3107 E_DEAD=1254  [max work 86 of 1856]
+  coverage grant         OK=15638 E_RANGE=728 E_EMPTY=9886 E_OCCUPIED=855 E_RIGHTS=2342 E_DEAD=4056  [max work 10 of 1856]
+  coverage delete        OK=16170 E_RANGE=343 E_EMPTY=8533 E_DEAD=1642  [max work 1602 of 186368]
+  coverage task_create   OK=3206 E_RANGE=176 E_OCCUPIED=683 E_NOMEM=11598 E_DEAD=1045  [max work 79 of 1856]
+  coverage task_destroy  OK=486 E_RANGE=131 E_EMPTY=3859 E_RIGHTS=276 E_TYPE=316 E_DEAD=464 E_GONE=1089  [max work 2035 of 186368]
+  coverage spawn         OK=704 E_RANGE=301 E_EMPTY=9798 E_OCCUPIED=80 E_RIGHTS=663 E_NOMEM=552 E_TYPE=881 E_DEAD=1080 E_GONE=2869  [max work 85 of 1856]
+  coverage kill          OK=147 E_RANGE=130 E_EMPTY=4798 E_RIGHTS=82 E_TYPE=632 E_DEAD=419 E_GONE=539  [max work 0 of 186368]
+  coverage th_create     OK=6195 E_RANGE=42 E_NOMEM=2 E_DEAD=426  [max work 32 of 1856]
+  coverage th_destroy    OK=1104 E_RANGE=123 E_STATE=2198  [max work 0 of 186368]
+  coverage call          E_RANGE=397 E_EMPTY=9582 E_RIGHTS=1803 E_TYPE=1264 E_TIMEOUT=7579 E_GONE=584 E_STATE=6717 BLOCKED=8962  [max work 0 of 1856]
+  coverage recv          OK=1288 E_RANGE=234 E_EMPTY=7022 E_RIGHTS=1876 E_TYPE=907 E_TIMEOUT=1209 E_STATE=4199 BLOCKED=3365  [max work 0 of 1856]
+  coverage reply         OK=1224 E_RANGE=374 E_PEER=267 E_NOREPLY=1732 E_STATE=9912  [max work 0 of 1856]
+  coverage reply_recv    OK=563 E_RANGE=250 E_EMPTY=2981 E_RIGHTS=858 E_TYPE=435 E_TIMEOUT=579 E_STATE=6016 BLOCKED=1709  [max work 0 of 1856]
+  coverage signal        OK=1968 E_RANGE=187 E_EMPTY=5559 E_RIGHTS=1076 E_BADGE=4385 E_TYPE=721 E_STATE=3040  [max work 0 of 1856]
+  coverage wait          OK=763 E_RANGE=208 E_EMPTY=5358 E_RIGHTS=999 E_TYPE=662 E_TIMEOUT=1293 E_STATE=3491 BLOCKED=4004  [max work 0 of 1856]
+  coverage bind          OK=431 E_RANGE=174 E_EMPTY=5958 E_RIGHTS=1069 E_BADGE=1171 E_TYPE=562 E_DEAD=668  [max work 0 of 1856]
+  coverage deadname      OK=529 E_RANGE=190 E_EMPTY=6274 E_RIGHTS=301 E_BADGE=1442 E_TYPE=612 E_DEAD=625 E_GONE=27  [max work 12 of 1856]
+  coverage collect       OK=3163 E_RANGE=155 E_EMPTY=4916 E_RIGHTS=832 E_TYPE=366 E_DEAD=628  [max work 0 of 1856]
+  coverage reap          OK=867 E_RANGE=79 E_RIGHTS=5265 E_DEAD=586  [max work 2695 of 186368]
+  coverage descendant    OK=424 E_RANGE=422 E_EMPTY=5493 E_DEAD=450  [max work 27 of 1856]
+  coverage reply_save    OK=471 E_RANGE=209 E_EMPTY=1387 E_OCCUPIED=64 E_RIGHTS=287 E_TYPE=250 E_NOREPLY=1345 E_STATE=6145  [max work 0 of 1856]
+  coverage reply_saved   OK=99 E_RANGE=267 E_EMPTY=1449 E_RIGHTS=314 E_TYPE=234 E_PEER=100 E_NOREPLY=1718 E_STATE=6037  [max work 0 of 1856]
+  coverage tick          OK=20224  [max work 32 of 1856]
+  coverage wake-ups      OK=3713 E_TIMEOUT=10513 E_GONE=476 E_PEER=54
+  200 sequences, 400000 steps, every teardown clean; 2 tasks in cycles reaped by the root
+  coverage space_create  OK=12572 E_NOMEM=7353
+  coverage space_destroy OK=9580 E_RANGE=644 E_DEAD=1840
+  coverage obj_create    OK=59979 E_RANGE=7070 E_OCCUPIED=6175 E_NOMEM=6730 E_TYPE=4870 E_DEAD=14895
+  coverage derive        OK=49594 E_RANGE=9229 E_EMPTY=37114 E_OCCUPIED=6118 E_DEAD=17957
+  coverage mint          OK=10241 E_RANGE=3672 E_EMPTY=14918 E_OCCUPIED=2621 E_RIGHTS=5318 E_BADGE=4327 E_DEAD=7205
+  coverage delete        OK=47245 E_RANGE=6444 E_EMPTY=31449 E_DEAD=14840
+  coverage call        E_RANGE=999 E_EMPTY=25529 E_RIGHTS=12776 E_TYPE=13504 E_TIMEOUT=19409 E_GONE=3068 E_STATE=17644 BLOCKED=23210
+  coverage recv        OK=4173 E_RANGE=591 E_EMPTY=16053 E_RIGHTS=8184 E_TYPE=8306 E_TIMEOUT=2293 E_STATE=17151 BLOCKED=8984
+  coverage reply       OK=2421 E_RANGE=317 E_PEER=1285 E_NOREPLY=26522 E_STATE=5565
+  coverage reply_recv  OK=2572 E_RANGE=309 E_EMPTY=10104 E_RIGHTS=5195 E_TYPE=5246 E_TIMEOUT=1472 E_STATE=5560 BLOCKED=5864
+  coverage tick        OK=43546
+  coverage th_create   OK=17619 E_NOMEM=1679 E_DEAD=9770
+  coverage th_destroy  OK=11860 E_RANGE=570 E_STATE=5660
+  coverage cap_delete  OK=15450 E_EMPTY=2941
+  coverage reply_save  OK=2520 E_RANGE=132 E_EMPTY=1814 E_OCCUPIED=304 E_TYPE=1975 E_NOREPLY=8946 E_STATE=2634
+  coverage reply_saved OK=554 E_RANGE=153 E_EMPTY=1914 E_TYPE=1930 E_PEER=720 E_NOREPLY=10339 E_STATE=2664
+  coverage wake-ups    OK=10157 E_TIMEOUT=22203 E_GONE=858 E_PEER=1137
+  coverage create    OK=20555 E_OCCUPIED=11287
+  coverage mint      OK=14816 E_EMPTY=2085 E_OCCUPIED=19794 E_RIGHTS=14085 E_BADGE=5274
+  coverage derive    OK=24260 E_EMPTY=1459 E_OCCUPIED=14125
+  coverage delete    OK=57840 E_EMPTY=2244
+  coverage bind      OK=6838 E_EMPTY=913 E_RIGHTS=3229 E_BADGE=1687 E_TYPE=11575
+  coverage deadname  OK=528 E_EMPTY=3201 E_RIGHTS=1167 E_BADGE=1544 E_TYPE=21601 E_GONE=146
+  coverage signal    OK=4670 E_EMPTY=2463 E_RIGHTS=7631 E_BADGE=9058 E_TYPE=24543 E_STATE=15496
+  coverage wait      OK=1111 E_EMPTY=2382 E_RIGHTS=9780 E_TYPE=24242 E_TIMEOUT=3531 E_STATE=15516 BLOCKED=7361
+  coverage tick      OK=16043
+  coverage collect   OK=4541 E_EMPTY=579 E_RIGHTS=3070 E_TYPE=7730
+  coverage wake-ups   OK=1245 E_TIMEOUT=2424 E_GONE=3472
+  coverage events     no-senders fired=911 dead-names fired=324 endpoint deaths=9817 notifications freed=9811 no-senders collected=465
+  coverage task_create   OK=16294 E_RANGE=609 E_OCCUPIED=13677 E_NOMEM=15740 E_DEAD=4081
+  coverage task_destroy  OK=2981 E_RANGE=366 E_EMPTY=7205 E_RIGHTS=2848 E_TYPE=2259 E_DEAD=2297 E_GONE=10858
+  coverage spawn         OK=2468 E_RANGE=511 E_EMPTY=9035 E_OCCUPIED=1032 E_RIGHTS=3725 E_NOMEM=407 E_TYPE=2804 E_DEAD=2956 E_GONE=13448
+  coverage kill          OK=605 E_RANGE=357 E_EMPTY=6935 E_RIGHTS=1642 E_TYPE=3636 E_DEAD=1745 E_GONE=6926
+  coverage space_destroy OK=3311 E_RANGE=88 E_DEAD=844 E_STATE=6660
+  coverage obj_create    OK=25169 E_RANGE=745 E_OCCUPIED=13119 E_NOMEM=4936 E_TYPE=6188 E_DEAD=4432
+  coverage derive        OK=15968 E_RANGE=655 E_EMPTY=6857 E_OCCUPIED=9926 E_DEAD=2878
+  coverage grant         OK=22072 E_RANGE=1356 E_EMPTY=10083 E_OCCUPIED=10373 E_RIGHTS=5590 E_DEAD=9032
+  coverage delete        OK=47137 E_RANGE=843 E_EMPTY=12361 E_DEAD=5374
+  coverage reap          OK=4940 E_RANGE=248 E_RIGHTS=14082 E_DEAD=2583
+  coverage descendant    OK=2659 E_RANGE=890 E_EMPTY=9990 E_DEAD=1164
+  coverage cascades     1432 operations destroyed more than one task
+80 tests, 0 failed, 0 failed checks
+clang -std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -fsanitize=address src/cspace.c src/ipc.c src/notify.c src/task.c test/test_cspace.c test/test_harness.c test/test_ipc.c test/test_notify.c test/test_props_all.c test/test_props_cspace.c test/test_props_ipc.c test/test_props_notify.c test/test_props_task.c test/test_task.c test/harness.c test/exec.c -o build/asan/run-tests -lpthread
+./build/asan/run-tests
+  coverage space_create  OK=3114 E_NOMEM=188  [max work 16 of 1856]
+  coverage space_destroy OK=2523 E_RANGE=25 E_DEAD=217 E_STATE=598  [max work 1841 of 186368]
+  coverage obj_create    OK=14355 E_RANGE=393 E_OCCUPIED=1367 E_NOMEM=13213 E_TYPE=2323 E_DEAD=2159  [max work 74 of 1856]
+  coverage derive        OK=11260 E_RANGE=331 E_EMPTY=6557 E_OCCUPIED=750 E_DEAD=1306  [max work 9 of 1856]
+  coverage mint          OK=6820 E_RANGE=346 E_EMPTY=6364 E_OCCUPIED=822 E_RIGHTS=1440 E_BADGE=3107 E_DEAD=1254  [max work 86 of 1856]
+  coverage grant         OK=15638 E_RANGE=728 E_EMPTY=9886 E_OCCUPIED=855 E_RIGHTS=2342 E_DEAD=4056  [max work 10 of 1856]
+  coverage delete        OK=16170 E_RANGE=343 E_EMPTY=8533 E_DEAD=1642  [max work 1602 of 186368]
+  coverage task_create   OK=3206 E_RANGE=176 E_OCCUPIED=683 E_NOMEM=11598 E_DEAD=1045  [max work 79 of 1856]
+  coverage task_destroy  OK=486 E_RANGE=131 E_EMPTY=3859 E_RIGHTS=276 E_TYPE=316 E_DEAD=464 E_GONE=1089  [max work 2035 of 186368]
+  coverage spawn         OK=704 E_RANGE=301 E_EMPTY=9798 E_OCCUPIED=80 E_RIGHTS=663 E_NOMEM=552 E_TYPE=881 E_DEAD=1080 E_GONE=2869  [max work 85 of 1856]
+  coverage kill          OK=147 E_RANGE=130 E_EMPTY=4798 E_RIGHTS=82 E_TYPE=632 E_DEAD=419 E_GONE=539  [max work 0 of 186368]
+  coverage th_create     OK=6195 E_RANGE=42 E_NOMEM=2 E_DEAD=426  [max work 32 of 1856]
+  coverage th_destroy    OK=1104 E_RANGE=123 E_STATE=2198  [max work 0 of 186368]
+  coverage call          E_RANGE=397 E_EMPTY=9582 E_RIGHTS=1803 E_TYPE=1264 E_TIMEOUT=7579 E_GONE=584 E_STATE=6717 BLOCKED=8962  [max work 0 of 1856]
+  coverage recv          OK=1288 E_RANGE=234 E_EMPTY=7022 E_RIGHTS=1876 E_TYPE=907 E_TIMEOUT=1209 E_STATE=4199 BLOCKED=3365  [max work 0 of 1856]
+  coverage reply         OK=1224 E_RANGE=374 E_PEER=267 E_NOREPLY=1732 E_STATE=9912  [max work 0 of 1856]
+  coverage reply_recv    OK=563 E_RANGE=250 E_EMPTY=2981 E_RIGHTS=858 E_TYPE=435 E_TIMEOUT=579 E_STATE=6016 BLOCKED=1709  [max work 0 of 1856]
+  coverage signal        OK=1968 E_RANGE=187 E_EMPTY=5559 E_RIGHTS=1076 E_BADGE=4385 E_TYPE=721 E_STATE=3040  [max work 0 of 1856]
+  coverage wait          OK=763 E_RANGE=208 E_EMPTY=5358 E_RIGHTS=999 E_TYPE=662 E_TIMEOUT=1293 E_STATE=3491 BLOCKED=4004  [max work 0 of 1856]
+  coverage bind          OK=431 E_RANGE=174 E_EMPTY=5958 E_RIGHTS=1069 E_BADGE=1171 E_TYPE=562 E_DEAD=668  [max work 0 of 1856]
+  coverage deadname      OK=529 E_RANGE=190 E_EMPTY=6274 E_RIGHTS=301 E_BADGE=1442 E_TYPE=612 E_DEAD=625 E_GONE=27  [max work 12 of 1856]
+  coverage collect       OK=3163 E_RANGE=155 E_EMPTY=4916 E_RIGHTS=832 E_TYPE=366 E_DEAD=628  [max work 0 of 1856]
+  coverage reap          OK=867 E_RANGE=79 E_RIGHTS=5265 E_DEAD=586  [max work 2695 of 186368]
+  coverage descendant    OK=424 E_RANGE=422 E_EMPTY=5493 E_DEAD=450  [max work 27 of 1856]
+  coverage reply_save    OK=471 E_RANGE=209 E_EMPTY=1387 E_OCCUPIED=64 E_RIGHTS=287 E_TYPE=250 E_NOREPLY=1345 E_STATE=6145  [max work 0 of 1856]
+  coverage reply_saved   OK=99 E_RANGE=267 E_EMPTY=1449 E_RIGHTS=314 E_TYPE=234 E_PEER=100 E_NOREPLY=1718 E_STATE=6037  [max work 0 of 1856]
+  coverage tick          OK=20224  [max work 32 of 1856]
+  coverage wake-ups      OK=3713 E_TIMEOUT=10513 E_GONE=476 E_PEER=54
+  200 sequences, 400000 steps, every teardown clean; 2 tasks in cycles reaped by the root
+  coverage space_create  OK=12572 E_NOMEM=7353
+  coverage space_destroy OK=9580 E_RANGE=644 E_DEAD=1840
+  coverage obj_create    OK=59979 E_RANGE=7070 E_OCCUPIED=6175 E_NOMEM=6730 E_TYPE=4870 E_DEAD=14895
+  coverage derive        OK=49594 E_RANGE=9229 E_EMPTY=37114 E_OCCUPIED=6118 E_DEAD=17957
+  coverage mint          OK=10241 E_RANGE=3672 E_EMPTY=14918 E_OCCUPIED=2621 E_RIGHTS=5318 E_BADGE=4327 E_DEAD=7205
+  coverage delete        OK=47245 E_RANGE=6444 E_EMPTY=31449 E_DEAD=14840
+  coverage call        E_RANGE=999 E_EMPTY=25529 E_RIGHTS=12776 E_TYPE=13504 E_TIMEOUT=19409 E_GONE=3068 E_STATE=17644 BLOCKED=23210
+  coverage recv        OK=4173 E_RANGE=591 E_EMPTY=16053 E_RIGHTS=8184 E_TYPE=8306 E_TIMEOUT=2293 E_STATE=17151 BLOCKED=8984
+  coverage reply       OK=2421 E_RANGE=317 E_PEER=1285 E_NOREPLY=26522 E_STATE=5565
+  coverage reply_recv  OK=2572 E_RANGE=309 E_EMPTY=10104 E_RIGHTS=5195 E_TYPE=5246 E_TIMEOUT=1472 E_STATE=5560 BLOCKED=5864
+  coverage tick        OK=43546
+  coverage th_create   OK=17619 E_NOMEM=1679 E_DEAD=9770
+  coverage th_destroy  OK=11860 E_RANGE=570 E_STATE=5660
+  coverage cap_delete  OK=15450 E_EMPTY=2941
+  coverage reply_save  OK=2520 E_RANGE=132 E_EMPTY=1814 E_OCCUPIED=304 E_TYPE=1975 E_NOREPLY=8946 E_STATE=2634
+  coverage reply_saved OK=554 E_RANGE=153 E_EMPTY=1914 E_TYPE=1930 E_PEER=720 E_NOREPLY=10339 E_STATE=2664
+  coverage wake-ups    OK=10157 E_TIMEOUT=22203 E_GONE=858 E_PEER=1137
+  coverage create    OK=20555 E_OCCUPIED=11287
+  coverage mint      OK=14816 E_EMPTY=2085 E_OCCUPIED=19794 E_RIGHTS=14085 E_BADGE=5274
+  coverage derive    OK=24260 E_EMPTY=1459 E_OCCUPIED=14125
+  coverage delete    OK=57840 E_EMPTY=2244
+  coverage bind      OK=6838 E_EMPTY=913 E_RIGHTS=3229 E_BADGE=1687 E_TYPE=11575
+  coverage deadname  OK=528 E_EMPTY=3201 E_RIGHTS=1167 E_BADGE=1544 E_TYPE=21601 E_GONE=146
+  coverage signal    OK=4670 E_EMPTY=2463 E_RIGHTS=7631 E_BADGE=9058 E_TYPE=24543 E_STATE=15496
+  coverage wait      OK=1111 E_EMPTY=2382 E_RIGHTS=9780 E_TYPE=24242 E_TIMEOUT=3531 E_STATE=15516 BLOCKED=7361
+  coverage tick      OK=16043
+  coverage collect   OK=4541 E_EMPTY=579 E_RIGHTS=3070 E_TYPE=7730
+  coverage wake-ups   OK=1245 E_TIMEOUT=2424 E_GONE=3472
+  coverage events     no-senders fired=911 dead-names fired=324 endpoint deaths=9817 notifications freed=9811 no-senders collected=465
+  coverage task_create   OK=16294 E_RANGE=609 E_OCCUPIED=13677 E_NOMEM=15740 E_DEAD=4081
+  coverage task_destroy  OK=2981 E_RANGE=366 E_EMPTY=7205 E_RIGHTS=2848 E_TYPE=2259 E_DEAD=2297 E_GONE=10858
+  coverage spawn         OK=2468 E_RANGE=511 E_EMPTY=9035 E_OCCUPIED=1032 E_RIGHTS=3725 E_NOMEM=407 E_TYPE=2804 E_DEAD=2956 E_GONE=13448
+  coverage kill          OK=605 E_RANGE=357 E_EMPTY=6935 E_RIGHTS=1642 E_TYPE=3636 E_DEAD=1745 E_GONE=6926
+  coverage space_destroy OK=3311 E_RANGE=88 E_DEAD=844 E_STATE=6660
+  coverage obj_create    OK=25169 E_RANGE=745 E_OCCUPIED=13119 E_NOMEM=4936 E_TYPE=6188 E_DEAD=4432
+  coverage derive        OK=15968 E_RANGE=655 E_EMPTY=6857 E_OCCUPIED=9926 E_DEAD=2878
+  coverage grant         OK=22072 E_RANGE=1356 E_EMPTY=10083 E_OCCUPIED=10373 E_RIGHTS=5590 E_DEAD=9032
+  coverage delete        OK=47137 E_RANGE=843 E_EMPTY=12361 E_DEAD=5374
+  coverage reap          OK=4940 E_RANGE=248 E_RIGHTS=14082 E_DEAD=2583
+  coverage descendant    OK=2659 E_RANGE=890 E_EMPTY=9990 E_DEAD=1164
+  coverage cascades     1432 operations destroyed more than one task
+80 tests, 0 failed, 0 failed checks
+clang -std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -fsanitize=undefined -fsanitize-trap=undefined src/cspace.c src/ipc.c src/notify.c src/task.c test/test_cspace.c test/test_harness.c test/test_ipc.c test/test_notify.c test/test_props_all.c test/test_props_cspace.c test/test_props_ipc.c test/test_props_notify.c test/test_props_task.c test/test_task.c test/harness.c test/exec.c -o build/ubsan/run-tests -lpthread
+./build/ubsan/run-tests
+  coverage space_create  OK=3114 E_NOMEM=188  [max work 16 of 1856]
+  coverage space_destroy OK=2523 E_RANGE=25 E_DEAD=217 E_STATE=598  [max work 1841 of 186368]
+  coverage obj_create    OK=14355 E_RANGE=393 E_OCCUPIED=1367 E_NOMEM=13213 E_TYPE=2323 E_DEAD=2159  [max work 74 of 1856]
+  coverage derive        OK=11260 E_RANGE=331 E_EMPTY=6557 E_OCCUPIED=750 E_DEAD=1306  [max work 9 of 1856]
+  coverage mint          OK=6820 E_RANGE=346 E_EMPTY=6364 E_OCCUPIED=822 E_RIGHTS=1440 E_BADGE=3107 E_DEAD=1254  [max work 86 of 1856]
+  coverage grant         OK=15638 E_RANGE=728 E_EMPTY=9886 E_OCCUPIED=855 E_RIGHTS=2342 E_DEAD=4056  [max work 10 of 1856]
+  coverage delete        OK=16170 E_RANGE=343 E_EMPTY=8533 E_DEAD=1642  [max work 1602 of 186368]
+  coverage task_create   OK=3206 E_RANGE=176 E_OCCUPIED=683 E_NOMEM=11598 E_DEAD=1045  [max work 79 of 1856]
+  coverage task_destroy  OK=486 E_RANGE=131 E_EMPTY=3859 E_RIGHTS=276 E_TYPE=316 E_DEAD=464 E_GONE=1089  [max work 2035 of 186368]
+  coverage spawn         OK=704 E_RANGE=301 E_EMPTY=9798 E_OCCUPIED=80 E_RIGHTS=663 E_NOMEM=552 E_TYPE=881 E_DEAD=1080 E_GONE=2869  [max work 85 of 1856]
+  coverage kill          OK=147 E_RANGE=130 E_EMPTY=4798 E_RIGHTS=82 E_TYPE=632 E_DEAD=419 E_GONE=539  [max work 0 of 186368]
+  coverage th_create     OK=6195 E_RANGE=42 E_NOMEM=2 E_DEAD=426  [max work 32 of 1856]
+  coverage th_destroy    OK=1104 E_RANGE=123 E_STATE=2198  [max work 0 of 186368]
+  coverage call          E_RANGE=397 E_EMPTY=9582 E_RIGHTS=1803 E_TYPE=1264 E_TIMEOUT=7579 E_GONE=584 E_STATE=6717 BLOCKED=8962  [max work 0 of 1856]
+  coverage recv          OK=1288 E_RANGE=234 E_EMPTY=7022 E_RIGHTS=1876 E_TYPE=907 E_TIMEOUT=1209 E_STATE=4199 BLOCKED=3365  [max work 0 of 1856]
+  coverage reply         OK=1224 E_RANGE=374 E_PEER=267 E_NOREPLY=1732 E_STATE=9912  [max work 0 of 1856]
+  coverage reply_recv    OK=563 E_RANGE=250 E_EMPTY=2981 E_RIGHTS=858 E_TYPE=435 E_TIMEOUT=579 E_STATE=6016 BLOCKED=1709  [max work 0 of 1856]
+  coverage signal        OK=1968 E_RANGE=187 E_EMPTY=5559 E_RIGHTS=1076 E_BADGE=4385 E_TYPE=721 E_STATE=3040  [max work 0 of 1856]
+  coverage wait          OK=763 E_RANGE=208 E_EMPTY=5358 E_RIGHTS=999 E_TYPE=662 E_TIMEOUT=1293 E_STATE=3491 BLOCKED=4004  [max work 0 of 1856]
+  coverage bind          OK=431 E_RANGE=174 E_EMPTY=5958 E_RIGHTS=1069 E_BADGE=1171 E_TYPE=562 E_DEAD=668  [max work 0 of 1856]
+  coverage deadname      OK=529 E_RANGE=190 E_EMPTY=6274 E_RIGHTS=301 E_BADGE=1442 E_TYPE=612 E_DEAD=625 E_GONE=27  [max work 12 of 1856]
+  coverage collect       OK=3163 E_RANGE=155 E_EMPTY=4916 E_RIGHTS=832 E_TYPE=366 E_DEAD=628  [max work 0 of 1856]
+  coverage reap          OK=867 E_RANGE=79 E_RIGHTS=5265 E_DEAD=586  [max work 2695 of 186368]
+  coverage descendant    OK=424 E_RANGE=422 E_EMPTY=5493 E_DEAD=450  [max work 27 of 1856]
+  coverage reply_save    OK=471 E_RANGE=209 E_EMPTY=1387 E_OCCUPIED=64 E_RIGHTS=287 E_TYPE=250 E_NOREPLY=1345 E_STATE=6145  [max work 0 of 1856]
+  coverage reply_saved   OK=99 E_RANGE=267 E_EMPTY=1449 E_RIGHTS=314 E_TYPE=234 E_PEER=100 E_NOREPLY=1718 E_STATE=6037  [max work 0 of 1856]
+  coverage tick          OK=20224  [max work 32 of 1856]
+  coverage wake-ups      OK=3713 E_TIMEOUT=10513 E_GONE=476 E_PEER=54
+  200 sequences, 400000 steps, every teardown clean; 2 tasks in cycles reaped by the root
+  coverage space_create  OK=12572 E_NOMEM=7353
+  coverage space_destroy OK=9580 E_RANGE=644 E_DEAD=1840
+  coverage obj_create    OK=59979 E_RANGE=7070 E_OCCUPIED=6175 E_NOMEM=6730 E_TYPE=4870 E_DEAD=14895
+  coverage derive        OK=49594 E_RANGE=9229 E_EMPTY=37114 E_OCCUPIED=6118 E_DEAD=17957
+  coverage mint          OK=10241 E_RANGE=3672 E_EMPTY=14918 E_OCCUPIED=2621 E_RIGHTS=5318 E_BADGE=4327 E_DEAD=7205
+  coverage delete        OK=47245 E_RANGE=6444 E_EMPTY=31449 E_DEAD=14840
+  coverage call        E_RANGE=999 E_EMPTY=25529 E_RIGHTS=12776 E_TYPE=13504 E_TIMEOUT=19409 E_GONE=3068 E_STATE=17644 BLOCKED=23210
+  coverage recv        OK=4173 E_RANGE=591 E_EMPTY=16053 E_RIGHTS=8184 E_TYPE=8306 E_TIMEOUT=2293 E_STATE=17151 BLOCKED=8984
+  coverage reply       OK=2421 E_RANGE=317 E_PEER=1285 E_NOREPLY=26522 E_STATE=5565
+  coverage reply_recv  OK=2572 E_RANGE=309 E_EMPTY=10104 E_RIGHTS=5195 E_TYPE=5246 E_TIMEOUT=1472 E_STATE=5560 BLOCKED=5864
+  coverage tick        OK=43546
+  coverage th_create   OK=17619 E_NOMEM=1679 E_DEAD=9770
+  coverage th_destroy  OK=11860 E_RANGE=570 E_STATE=5660
+  coverage cap_delete  OK=15450 E_EMPTY=2941
+  coverage reply_save  OK=2520 E_RANGE=132 E_EMPTY=1814 E_OCCUPIED=304 E_TYPE=1975 E_NOREPLY=8946 E_STATE=2634
+  coverage reply_saved OK=554 E_RANGE=153 E_EMPTY=1914 E_TYPE=1930 E_PEER=720 E_NOREPLY=10339 E_STATE=2664
+  coverage wake-ups    OK=10157 E_TIMEOUT=22203 E_GONE=858 E_PEER=1137
+  coverage create    OK=20555 E_OCCUPIED=11287
+  coverage mint      OK=14816 E_EMPTY=2085 E_OCCUPIED=19794 E_RIGHTS=14085 E_BADGE=5274
+  coverage derive    OK=24260 E_EMPTY=1459 E_OCCUPIED=14125
+  coverage delete    OK=57840 E_EMPTY=2244
+  coverage bind      OK=6838 E_EMPTY=913 E_RIGHTS=3229 E_BADGE=1687 E_TYPE=11575
+  coverage deadname  OK=528 E_EMPTY=3201 E_RIGHTS=1167 E_BADGE=1544 E_TYPE=21601 E_GONE=146
+  coverage signal    OK=4670 E_EMPTY=2463 E_RIGHTS=7631 E_BADGE=9058 E_TYPE=24543 E_STATE=15496
+  coverage wait      OK=1111 E_EMPTY=2382 E_RIGHTS=9780 E_TYPE=24242 E_TIMEOUT=3531 E_STATE=15516 BLOCKED=7361
+  coverage tick      OK=16043
+  coverage collect   OK=4541 E_EMPTY=579 E_RIGHTS=3070 E_TYPE=7730
+  coverage wake-ups   OK=1245 E_TIMEOUT=2424 E_GONE=3472
+  coverage events     no-senders fired=911 dead-names fired=324 endpoint deaths=9817 notifications freed=9811 no-senders collected=465
+  coverage task_create   OK=16294 E_RANGE=609 E_OCCUPIED=13677 E_NOMEM=15740 E_DEAD=4081
+  coverage task_destroy  OK=2981 E_RANGE=366 E_EMPTY=7205 E_RIGHTS=2848 E_TYPE=2259 E_DEAD=2297 E_GONE=10858
+  coverage spawn         OK=2468 E_RANGE=511 E_EMPTY=9035 E_OCCUPIED=1032 E_RIGHTS=3725 E_NOMEM=407 E_TYPE=2804 E_DEAD=2956 E_GONE=13448
+  coverage kill          OK=605 E_RANGE=357 E_EMPTY=6935 E_RIGHTS=1642 E_TYPE=3636 E_DEAD=1745 E_GONE=6926
+  coverage space_destroy OK=3311 E_RANGE=88 E_DEAD=844 E_STATE=6660
+  coverage obj_create    OK=25169 E_RANGE=745 E_OCCUPIED=13119 E_NOMEM=4936 E_TYPE=6188 E_DEAD=4432
+  coverage derive        OK=15968 E_RANGE=655 E_EMPTY=6857 E_OCCUPIED=9926 E_DEAD=2878
+  coverage grant         OK=22072 E_RANGE=1356 E_EMPTY=10083 E_OCCUPIED=10373 E_RIGHTS=5590 E_DEAD=9032
+  coverage delete        OK=47137 E_RANGE=843 E_EMPTY=12361 E_DEAD=5374
+  coverage reap          OK=4940 E_RANGE=248 E_RIGHTS=14082 E_DEAD=2583
+  coverage descendant    OK=2659 E_RANGE=890 E_EMPTY=9990 E_DEAD=1164
+  coverage cascades     1432 operations destroyed more than one task
+80 tests, 0 failed, 0 failed checks
+clang -std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -fsanitize=memory -fsanitize-memory-track-origins src/cspace.c src/ipc.c src/notify.c src/task.c test/test_cspace.c test/test_harness.c test/test_ipc.c test/test_notify.c test/test_props_all.c test/test_props_cspace.c test/test_props_ipc.c test/test_props_notify.c test/test_props_task.c test/test_task.c test/harness.c test/exec.c -o build/msan/run-tests -lpthread
+./build/msan/run-tests
+  coverage space_create  OK=3114 E_NOMEM=188  [max work 16 of 1856]
+  coverage space_destroy OK=2523 E_RANGE=25 E_DEAD=217 E_STATE=598  [max work 1841 of 186368]
+  coverage obj_create    OK=14355 E_RANGE=393 E_OCCUPIED=1367 E_NOMEM=13213 E_TYPE=2323 E_DEAD=2159  [max work 74 of 1856]
+  coverage derive        OK=11260 E_RANGE=331 E_EMPTY=6557 E_OCCUPIED=750 E_DEAD=1306  [max work 9 of 1856]
+  coverage mint          OK=6820 E_RANGE=346 E_EMPTY=6364 E_OCCUPIED=822 E_RIGHTS=1440 E_BADGE=3107 E_DEAD=1254  [max work 86 of 1856]
+  coverage grant         OK=15638 E_RANGE=728 E_EMPTY=9886 E_OCCUPIED=855 E_RIGHTS=2342 E_DEAD=4056  [max work 10 of 1856]
+  coverage delete        OK=16170 E_RANGE=343 E_EMPTY=8533 E_DEAD=1642  [max work 1602 of 186368]
+  coverage task_create   OK=3206 E_RANGE=176 E_OCCUPIED=683 E_NOMEM=11598 E_DEAD=1045  [max work 79 of 1856]
+  coverage task_destroy  OK=486 E_RANGE=131 E_EMPTY=3859 E_RIGHTS=276 E_TYPE=316 E_DEAD=464 E_GONE=1089  [max work 2035 of 186368]
+  coverage spawn         OK=704 E_RANGE=301 E_EMPTY=9798 E_OCCUPIED=80 E_RIGHTS=663 E_NOMEM=552 E_TYPE=881 E_DEAD=1080 E_GONE=2869  [max work 85 of 1856]
+  coverage kill          OK=147 E_RANGE=130 E_EMPTY=4798 E_RIGHTS=82 E_TYPE=632 E_DEAD=419 E_GONE=539  [max work 0 of 186368]
+  coverage th_create     OK=6195 E_RANGE=42 E_NOMEM=2 E_DEAD=426  [max work 32 of 1856]
+  coverage th_destroy    OK=1104 E_RANGE=123 E_STATE=2198  [max work 0 of 186368]
+  coverage call          E_RANGE=397 E_EMPTY=9582 E_RIGHTS=1803 E_TYPE=1264 E_TIMEOUT=7579 E_GONE=584 E_STATE=6717 BLOCKED=8962  [max work 0 of 1856]
+  coverage recv          OK=1288 E_RANGE=234 E_EMPTY=7022 E_RIGHTS=1876 E_TYPE=907 E_TIMEOUT=1209 E_STATE=4199 BLOCKED=3365  [max work 0 of 1856]
+  coverage reply         OK=1224 E_RANGE=374 E_PEER=267 E_NOREPLY=1732 E_STATE=9912  [max work 0 of 1856]
+  coverage reply_recv    OK=563 E_RANGE=250 E_EMPTY=2981 E_RIGHTS=858 E_TYPE=435 E_TIMEOUT=579 E_STATE=6016 BLOCKED=1709  [max work 0 of 1856]
+  coverage signal        OK=1968 E_RANGE=187 E_EMPTY=5559 E_RIGHTS=1076 E_BADGE=4385 E_TYPE=721 E_STATE=3040  [max work 0 of 1856]
+  coverage wait          OK=763 E_RANGE=208 E_EMPTY=5358 E_RIGHTS=999 E_TYPE=662 E_TIMEOUT=1293 E_STATE=3491 BLOCKED=4004  [max work 0 of 1856]
+  coverage bind          OK=431 E_RANGE=174 E_EMPTY=5958 E_RIGHTS=1069 E_BADGE=1171 E_TYPE=562 E_DEAD=668  [max work 0 of 1856]
+  coverage deadname      OK=529 E_RANGE=190 E_EMPTY=6274 E_RIGHTS=301 E_BADGE=1442 E_TYPE=612 E_DEAD=625 E_GONE=27  [max work 12 of 1856]
+  coverage collect       OK=3163 E_RANGE=155 E_EMPTY=4916 E_RIGHTS=832 E_TYPE=366 E_DEAD=628  [max work 0 of 1856]
+  coverage reap          OK=867 E_RANGE=79 E_RIGHTS=5265 E_DEAD=586  [max work 2695 of 186368]
+  coverage descendant    OK=424 E_RANGE=422 E_EMPTY=5493 E_DEAD=450  [max work 27 of 1856]
+  coverage reply_save    OK=471 E_RANGE=209 E_EMPTY=1387 E_OCCUPIED=64 E_RIGHTS=287 E_TYPE=250 E_NOREPLY=1345 E_STATE=6145  [max work 0 of 1856]
+  coverage reply_saved   OK=99 E_RANGE=267 E_EMPTY=1449 E_RIGHTS=314 E_TYPE=234 E_PEER=100 E_NOREPLY=1718 E_STATE=6037  [max work 0 of 1856]
+  coverage tick          OK=20224  [max work 32 of 1856]
+  coverage wake-ups      OK=3713 E_TIMEOUT=10513 E_GONE=476 E_PEER=54
+  200 sequences, 400000 steps, every teardown clean; 2 tasks in cycles reaped by the root
+  coverage space_create  OK=12572 E_NOMEM=7353
+  coverage space_destroy OK=9580 E_RANGE=644 E_DEAD=1840
+  coverage obj_create    OK=59979 E_RANGE=7070 E_OCCUPIED=6175 E_NOMEM=6730 E_TYPE=4870 E_DEAD=14895
+  coverage derive        OK=49594 E_RANGE=9229 E_EMPTY=37114 E_OCCUPIED=6118 E_DEAD=17957
+  coverage mint          OK=10241 E_RANGE=3672 E_EMPTY=14918 E_OCCUPIED=2621 E_RIGHTS=5318 E_BADGE=4327 E_DEAD=7205
+  coverage delete        OK=47245 E_RANGE=6444 E_EMPTY=31449 E_DEAD=14840
+  coverage call        E_RANGE=999 E_EMPTY=25529 E_RIGHTS=12776 E_TYPE=13504 E_TIMEOUT=19409 E_GONE=3068 E_STATE=17644 BLOCKED=23210
+  coverage recv        OK=4173 E_RANGE=591 E_EMPTY=16053 E_RIGHTS=8184 E_TYPE=8306 E_TIMEOUT=2293 E_STATE=17151 BLOCKED=8984
+  coverage reply       OK=2421 E_RANGE=317 E_PEER=1285 E_NOREPLY=26522 E_STATE=5565
+  coverage reply_recv  OK=2572 E_RANGE=309 E_EMPTY=10104 E_RIGHTS=5195 E_TYPE=5246 E_TIMEOUT=1472 E_STATE=5560 BLOCKED=5864
+  coverage tick        OK=43546
+  coverage th_create   OK=17619 E_NOMEM=1679 E_DEAD=9770
+  coverage th_destroy  OK=11860 E_RANGE=570 E_STATE=5660
+  coverage cap_delete  OK=15450 E_EMPTY=2941
+  coverage reply_save  OK=2520 E_RANGE=132 E_EMPTY=1814 E_OCCUPIED=304 E_TYPE=1975 E_NOREPLY=8946 E_STATE=2634
+  coverage reply_saved OK=554 E_RANGE=153 E_EMPTY=1914 E_TYPE=1930 E_PEER=720 E_NOREPLY=10339 E_STATE=2664
+  coverage wake-ups    OK=10157 E_TIMEOUT=22203 E_GONE=858 E_PEER=1137
+  coverage create    OK=20555 E_OCCUPIED=11287
+  coverage mint      OK=14816 E_EMPTY=2085 E_OCCUPIED=19794 E_RIGHTS=14085 E_BADGE=5274
+  coverage derive    OK=24260 E_EMPTY=1459 E_OCCUPIED=14125
+  coverage delete    OK=57840 E_EMPTY=2244
+  coverage bind      OK=6838 E_EMPTY=913 E_RIGHTS=3229 E_BADGE=1687 E_TYPE=11575
+  coverage deadname  OK=528 E_EMPTY=3201 E_RIGHTS=1167 E_BADGE=1544 E_TYPE=21601 E_GONE=146
+  coverage signal    OK=4670 E_EMPTY=2463 E_RIGHTS=7631 E_BADGE=9058 E_TYPE=24543 E_STATE=15496
+  coverage wait      OK=1111 E_EMPTY=2382 E_RIGHTS=9780 E_TYPE=24242 E_TIMEOUT=3531 E_STATE=15516 BLOCKED=7361
+  coverage tick      OK=16043
+  coverage collect   OK=4541 E_EMPTY=579 E_RIGHTS=3070 E_TYPE=7730
+  coverage wake-ups   OK=1245 E_TIMEOUT=2424 E_GONE=3472
+  coverage events     no-senders fired=911 dead-names fired=324 endpoint deaths=9817 notifications freed=9811 no-senders collected=465
+  coverage task_create   OK=16294 E_RANGE=609 E_OCCUPIED=13677 E_NOMEM=15740 E_DEAD=4081
+  coverage task_destroy  OK=2981 E_RANGE=366 E_EMPTY=7205 E_RIGHTS=2848 E_TYPE=2259 E_DEAD=2297 E_GONE=10858
+  coverage spawn         OK=2468 E_RANGE=511 E_EMPTY=9035 E_OCCUPIED=1032 E_RIGHTS=3725 E_NOMEM=407 E_TYPE=2804 E_DEAD=2956 E_GONE=13448
+  coverage kill          OK=605 E_RANGE=357 E_EMPTY=6935 E_RIGHTS=1642 E_TYPE=3636 E_DEAD=1745 E_GONE=6926
+  coverage space_destroy OK=3311 E_RANGE=88 E_DEAD=844 E_STATE=6660
+  coverage obj_create    OK=25169 E_RANGE=745 E_OCCUPIED=13119 E_NOMEM=4936 E_TYPE=6188 E_DEAD=4432
+  coverage derive        OK=15968 E_RANGE=655 E_EMPTY=6857 E_OCCUPIED=9926 E_DEAD=2878
+  coverage grant         OK=22072 E_RANGE=1356 E_EMPTY=10083 E_OCCUPIED=10373 E_RIGHTS=5590 E_DEAD=9032
+  coverage delete        OK=47137 E_RANGE=843 E_EMPTY=12361 E_DEAD=5374
+  coverage reap          OK=4940 E_RANGE=248 E_RIGHTS=14082 E_DEAD=2583
+  coverage descendant    OK=2659 E_RANGE=890 E_EMPTY=9990 E_DEAD=1164
+  coverage cascades     1432 operations destroyed more than one task
+80 tests, 0 failed, 0 failed checks
+clang -std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -fsanitize=thread src/cspace.c src/ipc.c src/notify.c src/task.c test/test_cspace.c test/test_harness.c test/test_ipc.c test/test_notify.c test/test_props_all.c test/test_props_cspace.c test/test_props_ipc.c test/test_props_notify.c test/test_props_task.c test/test_task.c test/harness.c test/exec.c -o build/tsan/run-tests -lpthread
+./build/tsan/run-tests
+  coverage space_create  OK=3114 E_NOMEM=188  [max work 16 of 1856]
+  coverage space_destroy OK=2523 E_RANGE=25 E_DEAD=217 E_STATE=598  [max work 1841 of 186368]
+  coverage obj_create    OK=14355 E_RANGE=393 E_OCCUPIED=1367 E_NOMEM=13213 E_TYPE=2323 E_DEAD=2159  [max work 74 of 1856]
+  coverage derive        OK=11260 E_RANGE=331 E_EMPTY=6557 E_OCCUPIED=750 E_DEAD=1306  [max work 9 of 1856]
+  coverage mint          OK=6820 E_RANGE=346 E_EMPTY=6364 E_OCCUPIED=822 E_RIGHTS=1440 E_BADGE=3107 E_DEAD=1254  [max work 86 of 1856]
+  coverage grant         OK=15638 E_RANGE=728 E_EMPTY=9886 E_OCCUPIED=855 E_RIGHTS=2342 E_DEAD=4056  [max work 10 of 1856]
+  coverage delete        OK=16170 E_RANGE=343 E_EMPTY=8533 E_DEAD=1642  [max work 1602 of 186368]
+  coverage task_create   OK=3206 E_RANGE=176 E_OCCUPIED=683 E_NOMEM=11598 E_DEAD=1045  [max work 79 of 1856]
+  coverage task_destroy  OK=486 E_RANGE=131 E_EMPTY=3859 E_RIGHTS=276 E_TYPE=316 E_DEAD=464 E_GONE=1089  [max work 2035 of 186368]
+  coverage spawn         OK=704 E_RANGE=301 E_EMPTY=9798 E_OCCUPIED=80 E_RIGHTS=663 E_NOMEM=552 E_TYPE=881 E_DEAD=1080 E_GONE=2869  [max work 85 of 1856]
+  coverage kill          OK=147 E_RANGE=130 E_EMPTY=4798 E_RIGHTS=82 E_TYPE=632 E_DEAD=419 E_GONE=539  [max work 0 of 186368]
+  coverage th_create     OK=6195 E_RANGE=42 E_NOMEM=2 E_DEAD=426  [max work 32 of 1856]
+  coverage th_destroy    OK=1104 E_RANGE=123 E_STATE=2198  [max work 0 of 186368]
+  coverage call          E_RANGE=397 E_EMPTY=9582 E_RIGHTS=1803 E_TYPE=1264 E_TIMEOUT=7579 E_GONE=584 E_STATE=6717 BLOCKED=8962  [max work 0 of 1856]
+  coverage recv          OK=1288 E_RANGE=234 E_EMPTY=7022 E_RIGHTS=1876 E_TYPE=907 E_TIMEOUT=1209 E_STATE=4199 BLOCKED=3365  [max work 0 of 1856]
+  coverage reply         OK=1224 E_RANGE=374 E_PEER=267 E_NOREPLY=1732 E_STATE=9912  [max work 0 of 1856]
+  coverage reply_recv    OK=563 E_RANGE=250 E_EMPTY=2981 E_RIGHTS=858 E_TYPE=435 E_TIMEOUT=579 E_STATE=6016 BLOCKED=1709  [max work 0 of 1856]
+  coverage signal        OK=1968 E_RANGE=187 E_EMPTY=5559 E_RIGHTS=1076 E_BADGE=4385 E_TYPE=721 E_STATE=3040  [max work 0 of 1856]
+  coverage wait          OK=763 E_RANGE=208 E_EMPTY=5358 E_RIGHTS=999 E_TYPE=662 E_TIMEOUT=1293 E_STATE=3491 BLOCKED=4004  [max work 0 of 1856]
+  coverage bind          OK=431 E_RANGE=174 E_EMPTY=5958 E_RIGHTS=1069 E_BADGE=1171 E_TYPE=562 E_DEAD=668  [max work 0 of 1856]
+  coverage deadname      OK=529 E_RANGE=190 E_EMPTY=6274 E_RIGHTS=301 E_BADGE=1442 E_TYPE=612 E_DEAD=625 E_GONE=27  [max work 12 of 1856]
+  coverage collect       OK=3163 E_RANGE=155 E_EMPTY=4916 E_RIGHTS=832 E_TYPE=366 E_DEAD=628  [max work 0 of 1856]
+  coverage reap          OK=867 E_RANGE=79 E_RIGHTS=5265 E_DEAD=586  [max work 2695 of 186368]
+  coverage descendant    OK=424 E_RANGE=422 E_EMPTY=5493 E_DEAD=450  [max work 27 of 1856]
+  coverage reply_save    OK=471 E_RANGE=209 E_EMPTY=1387 E_OCCUPIED=64 E_RIGHTS=287 E_TYPE=250 E_NOREPLY=1345 E_STATE=6145  [max work 0 of 1856]
+  coverage reply_saved   OK=99 E_RANGE=267 E_EMPTY=1449 E_RIGHTS=314 E_TYPE=234 E_PEER=100 E_NOREPLY=1718 E_STATE=6037  [max work 0 of 1856]
+  coverage tick          OK=20224  [max work 32 of 1856]
+  coverage wake-ups      OK=3713 E_TIMEOUT=10513 E_GONE=476 E_PEER=54
+  200 sequences, 400000 steps, every teardown clean; 2 tasks in cycles reaped by the root
+  coverage space_create  OK=12572 E_NOMEM=7353
+  coverage space_destroy OK=9580 E_RANGE=644 E_DEAD=1840
+  coverage obj_create    OK=59979 E_RANGE=7070 E_OCCUPIED=6175 E_NOMEM=6730 E_TYPE=4870 E_DEAD=14895
+  coverage derive        OK=49594 E_RANGE=9229 E_EMPTY=37114 E_OCCUPIED=6118 E_DEAD=17957
+  coverage mint          OK=10241 E_RANGE=3672 E_EMPTY=14918 E_OCCUPIED=2621 E_RIGHTS=5318 E_BADGE=4327 E_DEAD=7205
+  coverage delete        OK=47245 E_RANGE=6444 E_EMPTY=31449 E_DEAD=14840
+  coverage call        E_RANGE=999 E_EMPTY=25529 E_RIGHTS=12776 E_TYPE=13504 E_TIMEOUT=19409 E_GONE=3068 E_STATE=17644 BLOCKED=23210
+  coverage recv        OK=4173 E_RANGE=591 E_EMPTY=16053 E_RIGHTS=8184 E_TYPE=8306 E_TIMEOUT=2293 E_STATE=17151 BLOCKED=8984
+  coverage reply       OK=2421 E_RANGE=317 E_PEER=1285 E_NOREPLY=26522 E_STATE=5565
+  coverage reply_recv  OK=2572 E_RANGE=309 E_EMPTY=10104 E_RIGHTS=5195 E_TYPE=5246 E_TIMEOUT=1472 E_STATE=5560 BLOCKED=5864
+  coverage tick        OK=43546
+  coverage th_create   OK=17619 E_NOMEM=1679 E_DEAD=9770
+  coverage th_destroy  OK=11860 E_RANGE=570 E_STATE=5660
+  coverage cap_delete  OK=15450 E_EMPTY=2941
+  coverage reply_save  OK=2520 E_RANGE=132 E_EMPTY=1814 E_OCCUPIED=304 E_TYPE=1975 E_NOREPLY=8946 E_STATE=2634
+  coverage reply_saved OK=554 E_RANGE=153 E_EMPTY=1914 E_TYPE=1930 E_PEER=720 E_NOREPLY=10339 E_STATE=2664
+  coverage wake-ups    OK=10157 E_TIMEOUT=22203 E_GONE=858 E_PEER=1137
+  coverage create    OK=20555 E_OCCUPIED=11287
+  coverage mint      OK=14816 E_EMPTY=2085 E_OCCUPIED=19794 E_RIGHTS=14085 E_BADGE=5274
+  coverage derive    OK=24260 E_EMPTY=1459 E_OCCUPIED=14125
+  coverage delete    OK=57840 E_EMPTY=2244
+  coverage bind      OK=6838 E_EMPTY=913 E_RIGHTS=3229 E_BADGE=1687 E_TYPE=11575
+  coverage deadname  OK=528 E_EMPTY=3201 E_RIGHTS=1167 E_BADGE=1544 E_TYPE=21601 E_GONE=146
+  coverage signal    OK=4670 E_EMPTY=2463 E_RIGHTS=7631 E_BADGE=9058 E_TYPE=24543 E_STATE=15496
+  coverage wait      OK=1111 E_EMPTY=2382 E_RIGHTS=9780 E_TYPE=24242 E_TIMEOUT=3531 E_STATE=15516 BLOCKED=7361
+  coverage tick      OK=16043
+  coverage collect   OK=4541 E_EMPTY=579 E_RIGHTS=3070 E_TYPE=7730
+  coverage wake-ups   OK=1245 E_TIMEOUT=2424 E_GONE=3472
+  coverage events     no-senders fired=911 dead-names fired=324 endpoint deaths=9817 notifications freed=9811 no-senders collected=465
+  coverage task_create   OK=16294 E_RANGE=609 E_OCCUPIED=13677 E_NOMEM=15740 E_DEAD=4081
+  coverage task_destroy  OK=2981 E_RANGE=366 E_EMPTY=7205 E_RIGHTS=2848 E_TYPE=2259 E_DEAD=2297 E_GONE=10858
+  coverage spawn         OK=2468 E_RANGE=511 E_EMPTY=9035 E_OCCUPIED=1032 E_RIGHTS=3725 E_NOMEM=407 E_TYPE=2804 E_DEAD=2956 E_GONE=13448
+  coverage kill          OK=605 E_RANGE=357 E_EMPTY=6935 E_RIGHTS=1642 E_TYPE=3636 E_DEAD=1745 E_GONE=6926
+  coverage space_destroy OK=3311 E_RANGE=88 E_DEAD=844 E_STATE=6660
+  coverage obj_create    OK=25169 E_RANGE=745 E_OCCUPIED=13119 E_NOMEM=4936 E_TYPE=6188 E_DEAD=4432
+  coverage derive        OK=15968 E_RANGE=655 E_EMPTY=6857 E_OCCUPIED=9926 E_DEAD=2878
+  coverage grant         OK=22072 E_RANGE=1356 E_EMPTY=10083 E_OCCUPIED=10373 E_RIGHTS=5590 E_DEAD=9032
+  coverage delete        OK=47137 E_RANGE=843 E_EMPTY=12361 E_DEAD=5374
+  coverage reap          OK=4940 E_RANGE=248 E_RIGHTS=14082 E_DEAD=2583
+  coverage descendant    OK=2659 E_RANGE=890 E_EMPTY=9990 E_DEAD=1164
+  coverage cascades     1432 operations destroyed more than one task
+80 tests, 0 failed, 0 failed checks
+clang -std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u -DJOIST_MAX_DEADNAMES=4u -fsanitize=address,undefined -fsanitize-trap=undefined src/cspace.c src/ipc.c src/notify.c src/task.c test/test_cspace.c test/test_harness.c test/test_ipc.c test/test_notify.c test/test_props_all.c test/test_props_cspace.c test/test_props_ipc.c test/test_props_notify.c test/test_props_task.c test/test_task.c test/harness.c test/exec.c -o build/small/run-tests -lpthread
+./build/small/run-tests
+  coverage space_create  OK=3199 E_NOMEM=77  [max work 16 of 512]
+  coverage space_destroy OK=2461 E_RANGE=32 E_DEAD=225 E_STATE=656  [max work 399 of 8064]
+  coverage obj_create    OK=9509 E_RANGE=397 E_OCCUPIED=1132 E_NOMEM=18107 E_TYPE=2268 E_DEAD=2304  [max work 32 of 512]
+  coverage derive        OK=10870 E_RANGE=328 E_EMPTY=7150 E_OCCUPIED=714 E_DEAD=1384  [max work 4 of 512]
+  coverage mint          OK=5874 E_RANGE=333 E_EMPTY=6922 E_OCCUPIED=664 E_RIGHTS=1601 E_NOMEM=195 E_BADGE=3212 E_DEAD=1404  [max work 12 of 512]
+  coverage grant         OK=14421 E_RANGE=805 E_EMPTY=10735 E_OCCUPIED=681 E_RIGHTS=2580 E_DEAD=4347  [max work 4 of 512]
+  coverage delete        OK=15288 E_RANGE=357 E_EMPTY=9322 E_DEAD=1793  [max work 400 of 8064]
+  coverage task_create   OK=2435 E_RANGE=158 E_OCCUPIED=639 E_NOMEM=12403 E_DEAD=1145  [max work 48 of 512]
+  coverage task_destroy  OK=404 E_RANGE=127 E_EMPTY=3900 E_RIGHTS=208 E_TYPE=314 E_DEAD=453 E_GONE=1148  [max work 321 of 8064]
+  coverage spawn         OK=363 E_RANGE=308 E_EMPTY=10177 E_OCCUPIED=73 E_RIGHTS=557 E_NOMEM=598 E_TYPE=866 E_DEAD=1169 E_GONE=2845  [max work 40 of 512]
+  coverage kill          OK=79 E_RANGE=136 E_EMPTY=4859 E_RIGHTS=72 E_TYPE=629 E_DEAD=456 E_GONE=532  [max work 0 of 8064]
+  coverage th_create     OK=4574 E_RANGE=48 E_NOMEM=1555 E_DEAD=480  [max work 8 of 512]
+  coverage th_destroy    OK=2289 E_RANGE=361 E_STATE=783  [max work 0 of 8064]
+  coverage call          E_RANGE=1272 E_EMPTY=11262 E_RIGHTS=1503 E_TYPE=1120 E_TIMEOUT=7145 E_GONE=473 E_STATE=7630 BLOCKED=6449  [max work 0 of 512]
+  coverage recv          OK=790 E_RANGE=794 E_EMPTY=7972 E_RIGHTS=1553 E_TYPE=779 E_TIMEOUT=796 E_STATE=4806 BLOCKED=2531  [max work 0 of 512]
+  coverage reply         OK=714 E_RANGE=1381 E_PEER=192 E_NOREPLY=3289 E_STATE=7889  [max work 0 of 512]
+  coverage reply_recv    OK=418 E_RANGE=933 E_EMPTY=3752 E_RIGHTS=762 E_TYPE=404 E_TIMEOUT=493 E_STATE=5176 BLOCKED=1409  [max work 0 of 512]
+  coverage signal        OK=1785 E_RANGE=604 E_EMPTY=6185 E_RIGHTS=1032 E_BADGE=3365 E_TYPE=531 E_STATE=3488  [max work 0 of 512]
+  coverage wait          OK=744 E_RANGE=600 E_EMPTY=5942 E_RIGHTS=1114 E_TYPE=533 E_TIMEOUT=965 E_STATE=4038 BLOCKED=2854  [max work 0 of 512]
+  coverage bind          OK=459 E_RANGE=180 E_EMPTY=6052 E_RIGHTS=1023 E_BADGE=979 E_TYPE=507 E_DEAD=749  [max work 0 of 512]
+  coverage deadname      OK=540 E_RANGE=167 E_EMPTY=6427 E_RIGHTS=310 E_NOMEM=51 E_BADGE=1193 E_TYPE=617 E_DEAD=668 E_GONE=37  [max work 4 of 512]
+  coverage collect       OK=2915 E_RANGE=147 E_EMPTY=5184 E_RIGHTS=798 E_TYPE=365 E_DEAD=672  [max work 0 of 512]
+  coverage reap          OK=703 E_RANGE=71 E_RIGHTS=5313 E_DEAD=656  [max work 479 of 8064]
+  coverage descendant    OK=269 E_RANGE=392 E_EMPTY=5643 E_DEAD=483  [max work 24 of 512]
+  coverage reply_save    OK=295 E_RANGE=930 E_EMPTY=1941 E_OCCUPIED=38 E_RIGHTS=356 E_TYPE=237 E_NOREPLY=1441 E_STATE=4981  [max work 0 of 512]
+  coverage reply_saved   OK=63 E_RANGE=937 E_EMPTY=1968 E_RIGHTS=308 E_TYPE=230 E_PEER=81 E_NOREPLY=1621 E_STATE=4986  [max work 0 of 512]
+  coverage tick          OK=20060  [max work 8 of 512]
+  coverage wake-ups      OK=2437 E_TIMEOUT=7558 E_GONE=357 E_PEER=73
+  200 sequences, 400000 steps, every teardown clean; 2 tasks in cycles reaped by the root
+  coverage space_create  OK=12553 E_NOMEM=7421
+  coverage space_destroy OK=9553 E_RANGE=674 E_DEAD=1813
+  coverage obj_create    OK=38084 E_RANGE=7111 E_OCCUPIED=4302 E_NOMEM=30519 E_TYPE=4851 E_DEAD=14850
+  coverage derive        OK=44050 E_RANGE=9250 E_EMPTY=44365 E_OCCUPIED=4414 E_DEAD=17843
+  coverage mint          OK=8156 E_RANGE=3692 E_EMPTY=17806 E_OCCUPIED=1805 E_RIGHTS=5674 E_NOMEM=82 E_BADGE=3804 E_DEAD=7124
+  coverage delete        OK=40697 E_RANGE=6538 E_EMPTY=38134 E_DEAD=14835
+  coverage call        E_RANGE=4668 E_EMPTY=23933 E_RIGHTS=11210 E_TYPE=11589 E_TIMEOUT=16543 E_GONE=2024 E_STATE=28476 BLOCKED=17900
+  coverage recv        OK=2658 E_RANGE=2750 E_EMPTY=15215 E_RIGHTS=5525 E_TYPE=7382 E_TIMEOUT=2289 E_STATE=20781 BLOCKED=9043
+  coverage reply       OK=2004 E_RANGE=1495 E_PEER=572 E_NOREPLY=23073 E_STATE=8823
+  coverage reply_recv  OK=1621 E_RANGE=1478 E_EMPTY=9324 E_RIGHTS=3341 E_TYPE=4552 E_TIMEOUT=1484 E_STATE=8757 BLOCKED=5737
+  coverage tick        OK=43804
+  coverage th_create   OK=13747 E_NOMEM=5520 E_DEAD=9794
+  coverage th_destroy  OK=12456 E_RANGE=1994 E_STATE=3609
+  coverage cap_delete  OK=15076 E_EMPTY=3131
+  coverage reply_save  OK=1519 E_RANGE=658 E_EMPTY=1680 E_OCCUPIED=124 E_TYPE=1556 E_NOREPLY=8413 E_STATE=4456
+  coverage reply_saved OK=275 E_RANGE=701 E_EMPTY=1693 E_TYPE=1531 E_PEER=458 E_NOREPLY=9211 E_STATE=4347
+  coverage wake-ups    OK=7685 E_TIMEOUT=16384 E_GONE=521 E_PEER=864
+  coverage create    OK=20582 E_OCCUPIED=11242
+  coverage mint      OK=14750 E_EMPTY=2106 E_OCCUPIED=19748 E_RIGHTS=14068 E_NOMEM=57 E_BADGE=5290
+  coverage derive    OK=24272 E_EMPTY=1479 E_OCCUPIED=14087
+  coverage delete    OK=57824 E_EMPTY=2269
+  coverage bind      OK=6823 E_EMPTY=920 E_RIGHTS=3235 E_BADGE=1704 E_TYPE=11542
+  coverage deadname  OK=521 E_EMPTY=3221 E_RIGHTS=1172 E_NOMEM=2 E_BADGE=1536 E_TYPE=21584 E_GONE=147
+  coverage signal    OK=4673 E_EMPTY=2493 E_RIGHTS=7665 E_BADGE=9068 E_TYPE=24503 E_STATE=15492
+  coverage wait      OK=1117 E_EMPTY=2425 E_RIGHTS=9844 E_TYPE=24166 E_TIMEOUT=3525 E_STATE=15504 BLOCKED=7358
+  coverage tick      OK=16072
+  coverage collect   OK=4538 E_EMPTY=583 E_RIGHTS=3039 E_TYPE=7754
+  coverage wake-ups   OK=1249 E_TIMEOUT=2425 E_GONE=3466
+  coverage events     no-senders fired=908 dead-names fired=325 endpoint deaths=9837 notifications freed=9820 no-senders collected=464
+  coverage task_create   OK=10526 E_RANGE=545 E_OCCUPIED=9372 E_NOMEM=25418 E_DEAD=4785
+  coverage task_destroy  OK=2292 E_RANGE=354 E_EMPTY=5320 E_RIGHTS=4663 E_TYPE=2368 E_DEAD=2695 E_GONE=11286
+  coverage spawn         OK=1328 E_RANGE=456 E_EMPTY=6690 E_OCCUPIED=463 E_RIGHTS=5912 E_NOMEM=1122 E_TYPE=2877 E_DEAD=3410 E_GONE=14152
+  coverage kill          OK=398 E_RANGE=293 E_EMPTY=5084 E_RIGHTS=2554 E_TYPE=4888 E_DEAD=2009 E_GONE=6509
+  coverage space_destroy OK=2076 E_RANGE=89 E_DEAD=933 E_STATE=7898
+  coverage obj_create    OK=13387 E_RANGE=647 E_OCCUPIED=9031 E_NOMEM=20447 E_TYPE=6154 E_DEAD=5025
+  coverage derive        OK=20100 E_RANGE=611 E_EMPTY=5579 E_OCCUPIED=6635 E_DEAD=3331
+  coverage grant         OK=23759 E_RANGE=1250 E_EMPTY=8376 E_OCCUPIED=6558 E_RIGHTS=8184 E_DEAD=10253
+  coverage delete        OK=48422 E_RANGE=770 E_EMPTY=10241 E_DEAD=6055
+  coverage reap          OK=3288 E_RANGE=239 E_RIGHTS=15341 E_DEAD=2939
+  coverage descendant    OK=2033 E_RANGE=871 E_EMPTY=10322 E_DEAD=1387
+  coverage cascades     488 operations destroyed more than one task
+80 tests, 0 failed, 0 failed checks
+check: all tests passed under plain, asan ubsan msan tsan small
+check exit 0
