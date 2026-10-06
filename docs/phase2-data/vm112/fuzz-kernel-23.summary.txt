@@ -1,0 +1,5 @@
+joist: cpus: 4 found, bsp lapic id 0; 1 in use, the rest parked until SMP bring-up
+sysfuzz: seed 23, 100000000 calls
+sysfuzz: done: 18174017 writes, 49789304 refused, 9374108 unknown calls; every call returned, registers preserved
+joist: root task exited with code 0 (timer ticks so far: 18272)
+joist: finish code 0

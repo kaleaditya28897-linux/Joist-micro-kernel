@@ -31,6 +31,13 @@ REQ static volatile struct limine_executable_address_request kaddr_req = {
     .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID, .revision = 0};
 REQ static volatile struct limine_module_request module_req = {.id = LIMINE_MODULE_REQUEST_ID,
                                                                .revision = 0};
+/* The other CPUs. Limine starts them and parks each in its own code (in
+ * bootloader-reclaimable memory, which the frame allocator never takes),
+ * waiting for a goto_address. Until SMP bring-up (Phase 3, decision 0016)
+ * they stay parked; the kernel only counts them, and says so (0003). */
+REQ static volatile struct limine_mp_request mp_req = {.id = LIMINE_MP_REQUEST_ID,
+                                                       .revision = 0,
+                                                       .flags = 0};
 __attribute__((used, section(".limine_requests_end"))) static volatile uint64_t req_end[2] =
     LIMINE_REQUESTS_END_MARKER;
 
@@ -39,10 +46,15 @@ __attribute__((used, section(".limine_requests_end"))) static volatile uint64_t 
 __attribute__((aligned(16))) uint8_t kernel_stack[16384];
 
 /* QEMU's isa-debug-exit device (iobase 0xf4): QEMU exits with status
- * (code << 1) | 1, so `make qemu-test` sees the kernel's verdict. On hardware
- * the port is unused and this just halts. */
+ * (code << 1) | 1, so `make qemu-test` sees the kernel's verdict. The code is
+ * also printed, for runs where QEMU's exit status can't be seen (a Proxmox
+ * VM, tools/pve/boot.sh). On hardware the port is unused and this just
+ * halts. */
 __attribute__((noreturn)) void kernel_finish(uint8_t code)
 {
+    kputs("joist: finish code ");
+    kputu(code);
+    kputs("\n");
     outb(0xf4, code);
     cpu_halt_forever();
 }
@@ -216,6 +228,15 @@ void kmain(void)
     kputs("joist: modules: ");
     kputu(module_req.response != NULL ? module_req.response->module_count : 0);
     kputs("\n");
+    if (mp_req.response != NULL) {
+        kputs("joist: cpus: ");
+        kputu(mp_req.response->cpu_count);
+        kputs(" found, bsp lapic id ");
+        kputu(mp_req.response->bsp_lapic_id);
+        kputs("; 1 in use, the rest parked until SMP bring-up\n");
+    } else {
+        kputs("joist: cpus: no MP response; 1 in use\n");
+    }
 
 #if defined(JOIST_SELFTEST) && JOIST_SELFTEST == 1
     kputs("joist: selftest: ud2\n");

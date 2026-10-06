@@ -58,6 +58,12 @@ closed. The work, step by step, is in
   `debug_write` buffer are boot-time and single-CPU; the timer only counts;
   `-fstack-protector-strong` (§13, "once the basics work") is not on yet.
 - **Real hardware** (§5.8 target 2): untested; everything here ran in QEMU.
+  *Later status (2026-10-06): the kernel was also tested on a real Intel CPU
+  through KVM, on pvehome's VM 112: boot under SeaBIOS and OVMF, all 16
+  self-tests, 3 × 100 million fuzzer calls, and the `sysret` hazard in its
+  Intel form (a ring-0 `#GP` on the user's stack with the guard removed;
+  refused with it). Still a VM, so bare metal remains open
+  (`docs/phase2-data/README.md`, *VM 112*).*
 
 ## The kernel at exit
 

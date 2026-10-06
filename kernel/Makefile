@@ -12,6 +12,8 @@
 #   make boot-test  qemu-test under both
 #   make selftest   boot builds that fault on purpose (#UD, #PF, int3)
 #   make fuzz-kernel  the system-call fuzzer as root task (SEEDS, CALLS)
+#   PVE=1 make selftest | fuzz-kernel | pve-test   the same on the Proxmox test VM
+#                   (../tools/pve/boot.sh, docs/testbed.md)
 #   make tidy       clang-tidy (../.clang-tidy: CERT, bugprone, analyzer) on the kernel
 #   make scan       scan-build (the Clang static analyzer) over the kernel build
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
@@ -48,7 +50,7 @@ SAN_tsan  := -fsanitize=thread
 STAMP := $(BUILD)/sources.list
 $(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding kernel iso qemu-test boot-test selftest fuzz-kernel tidy scan mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test boot-test pve-test selftest fuzz-kernel tidy scan mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
 all: test
 
 define variant
@@ -147,6 +149,15 @@ qemu-test: $(BUILD)/joist.iso
 	        echo "qemu-test: booted ($(FIRMWARE)), the root task ran and exited 0"; \
 	    else echo "qemu-test: FAILED ($(FIRMWARE), QEMU status $$st)"; exit 1; fi
 
+# Boot the normal kernel on the Proxmox test VM (VM 112), both firmwares.
+pve-test: $(BUILD)/joist.iso
+	@for fw in bios uefi; do \
+	    ../tools/pve/boot.sh $< $$fw 120 $(BUILD)/pve-$$fw.log; st=$$?; \
+	    if [ $$st -eq 1 ] && grep -a -q "root task exited with code 0" $(BUILD)/pve-$$fw.log; then \
+	        echo "pve-test: booted ($$fw) on VM 112, the root task ran and exited 0"; \
+	    else echo "pve-test: FAILED ($$fw, status $$st)"; cat $(BUILD)/pve-$$fw.log; exit 1; fi; \
+	done
+
 # Boot under both firmwares.
 boot-test: $(BUILD)/joist.iso
 	@$(MAKE) -s qemu-test FIRMWARE=bios
@@ -161,8 +172,9 @@ fuzz-kernel:
 	    b=$(BUILD)/fuzz-kernel-$$seed; \
 	    $(MAKE) -s BUILD=$$b ROOT_TASK=sysfuzz USER_BUILD=build/fuzz-$$seed \
 	        UEXTRA="-DSYSFUZZ_SEED=$$seed -DSYSFUZZ_CALLS=$(CALLS)" $$b/joist.iso >/dev/null || exit 1; \
-	    timeout 3600 $(QEMU) -M q35 -m 256M -cdrom $$b/joist.iso -display none -no-reboot \
-	        -serial file:$$b/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04; st=$$?; \
+	    if [ -n "$(PVE)" ]; then ../tools/pve/boot.sh $$b/joist.iso bios 3600 $$b/serial.log; st=$$?; \
+	    else timeout 3600 $(QEMU) -M q35 -m 256M -cdrom $$b/joist.iso -display none -no-reboot \
+	        -serial file:$$b/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04; st=$$?; fi; \
 	    line=$$(tr -d '.' < $$b/serial.log | grep -a -m1 "sysfuzz: done\|FAILED\|EXCEPTION\|PANIC"); \
 	    echo "fuzz-kernel seed $$seed: QEMU status $$st: $$line"; \
 	    [ $$st -eq 1 ] || exit 1; \

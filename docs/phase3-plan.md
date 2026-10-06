@@ -14,8 +14,10 @@ choice big enough for the journal, how the kernel is made preemptible and
 safe on more than one CPU, is decision **0016** (accepted 2026-10-06).
 
 **Status: accepted by the project owner, 2026-10-06**, with decision 0016.
-No real-hardware machine has been named yet: the benchmarks are recorded in
-QEMU (KVM) until one is (*Risks*).
+No bare-metal machine has been named yet. Since 2026-10-06 every boot test
+also runs on pvehome's VM 112 (`docs/testbed.md`): a real Intel CPU through
+KVM, 4 vCPUs pinned to P-cores. It is where SMP is tested and the
+benchmarks are recorded, until bare metal is available (*Risks*).
 
 ## Inputs
 
@@ -177,7 +179,8 @@ What earlier phases hand to this one:
 8. **Fast path**, with the differential test, and **`ipcbench`**.
 9. **SMP** under 0016: start the other CPUs (Limine's MP request), per-CPU
    state, the kernel lock, IPIs for remote wake-up; every test again with
-   2 and 4 CPUs.
+   2 and 4 CPUs, locally (TCG, `-smp`) and on VM 112 (KVM, 4 pinned
+   vCPUs), where the CPUs really run in parallel.
 10. **Exit:** fault injection, the memory-growth test, benchmarks over 10
     runs, `-fstack-protector-strong`, the exit record.
 
@@ -185,12 +188,14 @@ What earlier phases hand to this one:
 
 - **Real hardware.** §11 asks for benchmarks on real hardware too. That needs
   an x86_64 machine that can boot from USB with a serial port or a debug
-  console. Until one is named, the QEMU numbers are the record, and the gap is
+  console. Until one is named, VM 112's numbers (real Intel CPU, KVM, pinned
+  P-cores) are the record, alongside local TCG, and the gap to bare metal is
   stated in the exit record.
 - **The fast path is where microkernels hide bugs.** Hence the differential
   test, and the slow path stays the reference.
 - **Line count.** The model's core is ~2 000 lines; with the scheduler, fault
   IPC, address spaces and SMP, Phase 3 may end near 7 000 of the 15 000-line
   tripwire. Counted at every step.
-- **Benchmark noise in QEMU** (TCG without KVM is slow and jittery). Measured
-  under KVM where available, recorded with which one was used.
+- **Benchmark noise in QEMU** (TCG without KVM is slow and jittery). The
+  record is VM 112 under KVM, pinned to P-cores; each result names the
+  machine it came from.

@@ -1,6 +1,35 @@
-# GNU/Hurd testbeds
+# Testbeds
 
-The project runs one live testbed on **pvehome**, with a second now retired.
+The project runs two live VMs on **pvehome**: VM 111, the Debian GNU/Hurd
+testbed for measurements, and VM 112, which boots the Joist kernel itself. A
+third, VM 110, is retired.
+
+## VM 112: the Joist kernel test VM
+
+Created 2026-10-06. It boots Joist ISOs under Proxmox's own QEMU, on a real
+Intel CPU through KVM, so tests run there on the hardware's behaviour rather
+than QEMU's emulation (TCG), which is what the local tests use.
+
+| | |
+|---|---|
+| Proxmox VMID | **112**, name `joist-kernel` |
+| Host CPU | Intel Core i5-14400: 6 P-cores (host CPUs 0–11, two threads each) and 4 E-cores (12–15) |
+| VM | q35, `cpu host`, **4 cores pinned to host CPUs 2, 4, 6, 8** (four distinct P-cores; none on an E-core, host CPU 0 left to Proxmox), 256 MB, no disk, no network, `onboot 0` |
+| Firmware | set per run: SeaBIOS or OVMF (no EFI disk, so no Secure Boot keys) |
+| Extra QEMU arguments | `-chardev file,id=joistlog,path=/root/joist-test/serial.log -device isa-serial,chardev=joistlog -device isa-debug-exit,iobase=0xf4,iosize=0x04 -no-reboot` |
+
+**How it's driven:** `tools/pve/boot.sh ISO bios|uefi TIMEOUT LOG` copies the
+ISO to `local:iso/joist-test-112.iso`, sets the firmware, starts the VM under
+a lock (`/root/joist-test/lock`, one run at a time), waits for it to stop,
+and fetches the serial log. Proxmox doesn't pass on QEMU's exit status, so
+the kernel prints `joist: finish code N` and the script rebuilds the status
+from it, as `isa-debug-exit` would give it. `make pve-test`, `PVE=1 make
+selftest` and `PVE=1 make fuzz-kernel` (in `kernel/`) use it.
+
+The pinning is for the benchmarks (Phase 3): with a hybrid CPU, a vCPU that
+migrates between a P-core and an E-core would make IPC timings bimodal.
+
+# GNU/Hurd testbeds
 
 | | VM 111 — `joist-hurd-amd64` | VM 110 — `joist-hurd` |
 |---|---|---|

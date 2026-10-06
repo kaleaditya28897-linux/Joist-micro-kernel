@@ -4,7 +4,17 @@
 # built with -DJOIST_SELFTEST=N in its own build directory and booted under
 # BIOS; QEMU's exit status is (kernel code << 1) | 1.
 # usage: test/selftest.sh   (from kernel/)
+#        PVE=1 test/selftest.sh   boot each on the Proxmox test VM instead
+#                                 (../tools/pve/boot.sh, docs/testbed.md)
 fail=0
+boot() { # ISO LOG: boot it, return QEMU's exit status
+    if [ -n "${PVE:-}" ]; then
+        ../tools/pve/boot.sh "$1" bios 60 "$2"
+    else
+        timeout 30 qemu-system-x86_64 -M q35 -m 256M -cdrom "$1" -display none -no-reboot \
+            -serial file:"$2" -device isa-debug-exit,iobase=0xf4,iosize=0x04
+    fi
+}
 run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
        #  build; N a name: the normal kernel with user/N as the root task)
     n=$1; want=$2; shift 2
@@ -18,8 +28,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     esac
     make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root $b/joist.iso >/dev/null 2>&1 ||
         { echo "selftest $n: BUILD FAILED"; fail=1; return; }
-    timeout 30 qemu-system-x86_64 -M q35 -m 256M -cdrom $b/joist.iso -display none -no-reboot \
-        -serial file:$b/serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04
+    boot $b/joist.iso $b/serial.log
     st=$?
     ok=1
     [ "$st" -eq "$want" ] || ok=0
