@@ -1,7 +1,7 @@
 # 0016 — Kernel concurrency: one lock, interrupts off, preemption points
 
 Date: 2026-10-06
-Status: proposed
+Status: accepted (2026-10-06)
 Covers: §5.6 (SMP from the design stage), §5.1 (bounded WCET), 0003 (lock
 order, retire slots), `docs/abi.md` open item 2 (preemptible cascades).
 Blocks: Phase 3 (step 4 onwards, `docs/phase3-plan.md`).

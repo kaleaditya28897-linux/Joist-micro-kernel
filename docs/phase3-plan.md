@@ -11,9 +11,11 @@ This file turns that into concrete work, as `docs/phase2-plan.md` did for
 Phase 2. It is a plan, not a decision: choices marked *(changeable)* can be
 changed without a journal entry until later phases build on them. The one
 choice big enough for the journal, how the kernel is made preemptible and
-safe on more than one CPU, is decision **0016** (proposed).
+safe on more than one CPU, is decision **0016** (accepted 2026-10-06).
 
-**Status: proposed, 2026-10-06.** Not started.
+**Status: accepted by the project owner, 2026-10-06**, with decision 0016.
+No real-hardware machine has been named yet: the benchmarks are recorded in
+QEMU (KVM) until one is (*Risks*).
 
 ## Inputs
 
@@ -158,7 +160,7 @@ What earlier phases hand to this one:
 
 ## Order of work
 
-1. **Decision 0016**, and this plan, accepted.
+1. ~~**Decision 0016**, and this plan, accepted.~~ Done 2026-10-06.
 2. **One object layer:** move `model/src` to `kernel/core/`; `model/` builds
    against it; it compiles freestanding. Nothing changes in behaviour.
 3. **The model grows** (host only): capability transfer, the two-level
