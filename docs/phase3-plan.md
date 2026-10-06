@@ -235,3 +235,51 @@ copies the right trees (caught in 0 s). In `kernel/`, `make check`: 9
 sources freestanding, 18 clean under `clang-tidy`, `scan-build` clean, boots
 and self-tests as before. No behaviour changed.
 
+### Step 3, part 1: the two-level capability table (2026-10-06)
+
+The table of the 0001 amendment (item 4), in `kernel/core/` and its
+tests. A space has a root of `JOIST_CNODE_ROOT` entries naming leaves of
+`JOIST_CNODE_LEAF` slots (kernel: 64 × 128 = 8 192 slots). Leaf 0 is the
+space's own `slot[]` array, so every space has it and nothing about slots
+0–127 changed; leaves 1 and up come from a fixed pool (`JOIST_MAX_LEAVES`),
+added by `joist_cspace_grow` and removed, empty only, by
+`joist_cspace_shrink`, each one quota unit (I3), counted in the space's
+`charged` like an object. A slot in an absent leaf is `E_RANGE`, so no
+lookup allocates, which is what capability transfer (next) needs. Every
+access in the core now goes through `joist__slot` (O(1)); walks over a
+space go leaf by leaf, skipping absent ones. Task destruction empties every
+leaf, then frees the leaves into the space's quota, which goes to the
+parent as before. The invariant checker checks the table itself: every pool
+leaf in use is named by exactly the space and index it records, only live
+spaces have leaves, and charges include leaves.
+
+Tests: the host build uses 2 leaves of 64 (`model/Makefile`), so the 80
+existing tests run unchanged in leaf 0, and new ones exercise leaf 1:
+`test/test_cnode.c` (7 unit tests: absent leaves, grow/use/shrink, errors,
+quota and pool exhaustion, destruction returning leaves, reachability
+through a capability held only in leaf 1, and the checker catching broken
+leaves); the whole-model executor gained `grow` and `shrink` and picks
+slots across the whole table. Six mutations added. CBMC now runs with two
+1-slot leaves, so slot 1 is in a pool leaf in every proof, and proves grow
+and shrink (operations 7 and 8).
+
+**CBMC found an overflow** in the first proof of `shrink`: a fixture space
+whose quota was `UINT32_MAX` held a leaf, and the refund wrapped the 32-bit
+quota to 0, losing a unit from the conservation sum (I3). In the kernel the
+total is the boot budget, itself 32 bits, so it can't happen there; but
+fixtures (`joist_cspace_create`) each added their quota to a 64-bit budget
+unchecked, so with fixtures any refund could wrap, including the one in
+`cap_delete`, whose CBMC proof is out of memory and so never saw it. Fixed
+at the source: `joist_cspace_create` refuses a quota that would take the
+budget past `UINT32_MAX`, and the invariant checker now requires the budget
+to fit 32 bits, so every quota, a share of it, does too. A unit test and a
+mutation (`budget-unbounded`) cover it; the `shrink` proof then passes.
+One existing mutation (`I1 destroy leaks`) had to be re-aimed at the new
+leaf-by-leaf destruction loop, since its old target text was gone.
+
+Checked (2026-10-06): `make check` in `model/`, 88 tests under all six
+builds; `make mutate`, 53 of 53 caught (7 new); `make cbmc`, all 7
+operations verified with the two-leaf sizes (op0 261 s, op1 186 s, op2
+304 s, op4 230 s, op5 111 s, grow 74 s, shrink 93 s); `make check` in
+`kernel/`, all passing.
+

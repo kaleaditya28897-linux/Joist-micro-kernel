@@ -122,7 +122,7 @@ static void sh_signal(uint32_t o, uint64_t bits)
 static uint32_t count_caps(uint32_t o)
 {
     uint32_t n = 0;
-    for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+    for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
         n += (uint32_t)(k.cs[cs].slot[i].obj == o + 1u);
     }
     return n;
@@ -131,7 +131,7 @@ static uint32_t count_caps(uint32_t o)
 static uint32_t count_recv(uint32_t o)
 {
     uint32_t n = 0;
-    for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+    for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
         const struct joist_cap *c = &k.cs[cs].slot[i];
         n += (uint32_t)(c->obj == o + 1u && (c->rights & JOIST_R_RECV) != 0);
     }
@@ -141,7 +141,7 @@ static uint32_t count_recv(uint32_t o)
 static uint32_t count_send(uint32_t o, joist_badge b)
 {
     uint32_t n = 0;
-    for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+    for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
         const struct joist_cap *c = &k.cs[cs].slot[i];
         n += (uint32_t)(c->obj == o + 1u && c->badge == b && b != 0 &&
                         (c->rights & JOIST_R_SEND) != 0);
@@ -209,7 +209,7 @@ static void sh_after_delete(const struct joist_cap *gone)
 
 static joist_err sh_note_lookup(uint32_t slot, joist_rights need, uint32_t *o, joist_badge *b)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    if (slot >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     const struct joist_cap *c = &k.cs[cs].slot[slot];
@@ -283,7 +283,7 @@ static joist_err sh_do_wait(uint32_t t, uint32_t slot, uint64_t timeout)
 
 static joist_err sh_ep_cap(uint32_t slot, const struct joist_cap **out)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    if (slot >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     const struct joist_cap *c = &k.cs[cs].slot[slot];

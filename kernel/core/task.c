@@ -48,10 +48,23 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
     /* Threads before capabilities: they may hold reply capabilities whose
      * callers must wake. */
     joist__threads_destroy_owned(k, s);
-    for (joist_slot i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+    /* Leaf by leaf, skipping absent ones; then the emptied leaves go back to
+     * the pool, their units to this space's quota, which goes to the parent
+     * below with the rest. */
+    for (uint32_t l = 0; l < JOIST_CNODE_ROOT; l++) {
         JOIST_WORK(k);
-        if (st->slot[i].obj != 0) {
-            joist__cap_delete_slot(k, s, i); /* may queue unreachable tasks */
+        if (joist__leaf_slots_c(k, s, l) == NULL) {
+            continue;
+        }
+        for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
+            JOIST_WORK(k);
+            joist_slot slot = l * JOIST_CNODE_LEAF + i;
+            if (joist__slot_c(k, s, slot)->obj != 0) {
+                joist__cap_delete_slot(k, s, slot); /* may queue unreachable tasks */
+            }
+        }
+        if (l != 0) {
+            joist__leaf_free(k, s, l);
         }
     }
     /* I3: hand everything this space still owns to its parent, and its
@@ -155,12 +168,12 @@ static void install(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uin
     k->cs[cs].quota--;
     k->cs[cs].charged++;
     k->objects_live++;
-    k->cs[cs].slot[dst] =
-        (struct joist_cap){.obj = obj + 1u,
-                           .type = (uint8_t)type,
-                           .rights = (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT),
-                           .badge = 0};
-    joist__cap_added(k, &k->cs[cs].slot[dst]);
+    struct joist_cap *d = joist__slot(k, cs, dst); /* checked by the callers */
+    *d = (struct joist_cap){.obj = obj + 1u,
+                            .type = (uint8_t)type,
+                            .rights = (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT),
+                            .badge = 0};
+    joist__cap_added(k, d);
 }
 
 joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t donation,
@@ -172,10 +185,11 @@ joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t do
     if (e != JOIST_OK) {
         return e;
     }
-    if (dst >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *d = joist__slot_c(k, cs, dst);
+    if (d == NULL) {
         return JOIST_E_RANGE;
     }
-    if (k->cs[cs].slot[dst].obj != 0) {
+    if (d->obj != 0) {
         return JOIST_E_OCCUPIED;
     }
     /* The creator pays the donation plus one for the task object (0004). */
@@ -207,10 +221,10 @@ joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t do
 static joist_err control_cap(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,
                              joist_obj_type type, uint32_t *obj)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *c = joist__slot_c(k, cs, slot);
+    if (c == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *c = &k->cs[cs].slot[slot];
     if (c->obj == 0) {
         return JOIST_E_EMPTY;
     }
@@ -314,10 +328,11 @@ joist_err joist_thread_spawn(struct joist_kernel *k, joist_cspace cs, joist_slot
     if (e != JOIST_OK) {
         return e;
     }
-    if (dst >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *d = joist__slot_c(k, cs, dst);
+    if (d == NULL) {
         return JOIST_E_RANGE;
     }
-    if (k->cs[cs].slot[dst].obj != 0) {
+    if (d->obj != 0) {
         return JOIST_E_OCCUPIED;
     }
     if (k->cs[cs].quota == 0) {
@@ -426,6 +441,13 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
     if (sum != k->budget) {
         VIOLATION("I3: quota not conserved: live quota + charges = %llu, budget %llu",
                   (unsigned long long)sum, (unsigned long long)k->budget);
+    }
+    /* The budget fits the 32-bit quota counters, so no space's quota or
+     * charges, each a share of it, can wrap on a refund (CBMC found a
+     * fixture-fed wrap in cspace_shrink when this was missing). */
+    if (k->budget > UINT32_MAX) {
+        VIOLATION("I3: budget %llu exceeds the 32-bit quota counters",
+                  (unsigned long long)k->budget);
     }
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
         const struct joist_object *ob = &k->obj[o];

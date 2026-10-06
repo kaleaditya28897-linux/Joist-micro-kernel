@@ -31,7 +31,11 @@ CSTD     := -std=c17
 WARN     := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow \
             -Wstrict-prototypes -Wmissing-prototypes -Wvla
 CORE     := ../kernel/core
-CPPFLAGS := -I../kernel/include -I$(CORE) -D_POSIX_C_SOURCE=200809L
+# Table sizes for the host tests: two leaves of 64 slots, so leaf 0 (built
+# into each space) holds every slot the older tests use, and growing,
+# shrinking and absent leaves are exercised too. The kernel's are in core.h.
+CNODE    := -DJOIST_CNODE_ROOT=2u -DJOIST_CNODE_LEAF=64u -DJOIST_MAX_LEAVES=8u
+CPPFLAGS := -I../kernel/include -I$(CORE) $(CNODE) -D_POSIX_C_SOURCE=200809L
 OPT      ?= -O1 -g -fno-omit-frame-pointer
 
 SRC      := $(wildcard $(CORE)/*.c)
@@ -54,7 +58,7 @@ SAN_tsan  := -fsanitize=thread
 # Tiny capacities, so every table-exhaustion path (objects, threads, no-senders
 # accounts, dead-name registrations) is hit constantly; with ASan and UBSan.
 SAN_small := -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u \
-             -DJOIST_MAX_DEADNAMES=4u -fsanitize=address,undefined -fsanitize-trap=undefined
+             -DJOIST_MAX_DEADNAMES=4u -UJOIST_MAX_LEAVES -DJOIST_MAX_LEAVES=2u -fsanitize=address,undefined -fsanitize-trap=undefined
 
 .PHONY: all test check sanity mutate fuzz fuzz-sanity tla tla-mutate cbmc format clean $(SANITIZERS)
 
@@ -148,12 +152,12 @@ tla-mutate:
 # CBMC (§8.1): for each capability and task operation, from any state the
 # invariant check accepts, the operation keeps every invariant (and every
 # array access, pointer and shift is checked on the way). Operation numbers
-# are those of cbmc/harness_cspace.c; CBMC_JOBS run at once (each needs up
+# are those of cbmc/harness_cspace.c (7, 8: grow, shrink); CBMC_JOBS run at once (each needs up
 # to ~5 GB). Operations 3 (delete) and 6 (task destroy) can cascade; their
 # formulas exhaust 15 GB even at smaller sizes, split by slot type, with
 # CaDiCaL, or path by path, so they are left to the property tests, the
 # fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8).
-CBMC_OPS  ?= 0 1 2 4 5
+CBMC_OPS  ?= 0 1 2 4 5 7 8
 CBMC_JOBS ?= 2
 cbmc:
 	@mkdir -p $(BUILD)/cbmc

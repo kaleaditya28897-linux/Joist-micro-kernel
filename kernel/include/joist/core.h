@@ -25,9 +25,24 @@
 #ifndef JOIST_MAX_CSPACES
 #define JOIST_MAX_CSPACES 16u
 #endif
-#ifndef JOIST_CSPACE_SLOTS
-#define JOIST_CSPACE_SLOTS 64u
+/* The capability table is two-level (0001 amendment, item 4): a root of
+ * JOIST_CNODE_ROOT entries, each naming a leaf of JOIST_CNODE_LEAF slots.
+ * Slot s lives in leaf s / JOIST_CNODE_LEAF. Leaf 0 is part of the space
+ * itself (its slot[] array), so every space has it; the others come from a
+ * fixed pool of JOIST_MAX_LEAVES, added with joist_cspace_grow and charged
+ * to the space's quota like an object. A slot in a leaf that isn't there is
+ * out of range (JOIST_E_RANGE), exactly like one past the end: lookups never
+ * allocate. Lookup is O(1). */
+#ifndef JOIST_CNODE_LEAF
+#define JOIST_CNODE_LEAF 128u
 #endif
+#ifndef JOIST_CNODE_ROOT
+#define JOIST_CNODE_ROOT 64u
+#endif
+#ifndef JOIST_MAX_LEAVES
+#define JOIST_MAX_LEAVES 64u
+#endif
+#define JOIST_CSPACE_SLOTS (JOIST_CNODE_ROOT * JOIST_CNODE_LEAF)
 #ifndef JOIST_MAX_THREADS
 #define JOIST_MAX_THREADS 32u
 #endif
@@ -209,7 +224,18 @@ struct joist_cspace_state {
                           0 for the root and for fixtures */
     uint32_t task_obj; /* the task object naming this space, plus one; 0 if none */
     uint8_t fixture;   /* made by joist_cspace_create: nameless by design */
-    struct joist_cap slot[JOIST_CSPACE_SLOTS];
+    /* Leaf 0: slots 0 .. JOIST_CNODE_LEAF - 1. */
+    struct joist_cap slot[JOIST_CNODE_LEAF];
+    /* The other leaves: leaf[i] is the pool index plus one of leaf i, 0 if
+     * absent. leaf[0] is unused (leaf 0 is slot[] above). */
+    uint32_t leaf[JOIST_CNODE_ROOT];
+};
+
+/* A leaf of the capability table, from the pool (k->leaf). */
+struct joist_leaf {
+    uint32_t owner; /* the space using it, plus one; 0 = free */
+    uint32_t index; /* which leaf of that space it is (1 .. JOIST_CNODE_ROOT - 1) */
+    struct joist_cap slot[JOIST_CNODE_LEAF];
 };
 
 struct joist_kernel {
@@ -218,6 +244,7 @@ struct joist_kernel {
     struct joist_thread_rec th[JOIST_MAX_THREADS];
     struct joist_badge_acct acct[JOIST_MAX_BADGE_ACCTS];
     struct joist_deadname dn[JOIST_MAX_DEADNAMES];
+    struct joist_leaf leaf[JOIST_MAX_LEAVES];
     uint32_t objects_live;
     uint64_t now; /* model time: advanced only by joist_tick */
     /* Quota conservation (I3): every unit of quota entered through joist_boot
@@ -239,12 +266,25 @@ void joist_init(struct joist_kernel *k);
 
 /* Create a capability space with an object quota, from nothing (the quota
  * is added to the budget). A test fixture: real spaces are tasks, created by
- * joist_task_create from donated quota. */
+ * joist_task_create from donated quota. JOIST_E_NOMEM if the budget would
+ * pass UINT32_MAX: every quota is a share of the budget, held in 32 bits. */
 joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspace *out);
 
 /* Delete every capability in the space, then mark it dead (I1 end to end).
- * Bounded by JOIST_CSPACE_SLOTS. */
+ * Bounded by the space's leaves times JOIST_CNODE_LEAF. */
 joist_err joist_cspace_destroy(struct joist_kernel *k, joist_cspace cs);
+
+/* Add leaf `index` (1 .. JOIST_CNODE_ROOT - 1) to cs's capability table, so
+ * slots index * JOIST_CNODE_LEAF .. + JOIST_CNODE_LEAF - 1 exist. Charged to
+ * cs's quota (one unit) and taken from the leaf pool. JOIST_E_RANGE (index
+ * 0 or past the root), JOIST_E_OCCUPIED (already there), JOIST_E_NOMEM
+ * (quota or pool), JOIST_E_DEAD. Bounded by JOIST_MAX_LEAVES. */
+joist_err joist_cspace_grow(struct joist_kernel *k, joist_cspace cs, uint32_t index);
+
+/* Remove leaf `index` from cs's table, refunding its unit. It must be empty
+ * (JOIST_E_STATE otherwise): a leaf is never removed with capabilities in it.
+ * JOIST_E_RANGE (index 0, past the root, or not there), JOIST_E_DEAD. O(leaf). */
+joist_err joist_cspace_shrink(struct joist_kernel *k, joist_cspace cs, uint32_t index);
 
 /* Create an object of the given type, charged to cs's quota, and put a
  * capability with all rights into slot dst. */

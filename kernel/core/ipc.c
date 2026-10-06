@@ -85,11 +85,10 @@ uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj)
 static joist_err ep_lookup(const struct joist_kernel *k, joist_thread t, joist_slot slot,
                            joist_rights need, uint32_t *obj, joist_badge *badge)
 {
-    const struct joist_cspace_state *s = &k->cs[k->th[t].cs];
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *c = joist__slot_c(k, k->th[t].cs, slot);
+    if (c == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *c = &s->slot[slot];
     if (c->obj == 0) {
         return JOIST_E_EMPTY;
     }
@@ -300,10 +299,10 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
 static joist_err reply_obj(const struct joist_kernel *k, joist_thread t, joist_slot slot,
                            uint32_t *obj)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *c = joist__slot_c(k, k->th[t].cs, slot);
+    if (c == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *c = &k->cs[k->th[t].cs].slot[slot];
     if (c->obj == 0) {
         return JOIST_E_EMPTY;
     }

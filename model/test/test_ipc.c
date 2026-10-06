@@ -109,7 +109,7 @@ JT_TEST(ipc_rights_and_types)
     JT_CHECK(joist_recv(&k, srv, EP_SEND, JOIST_FOREVER) == JOIST_E_RIGHTS);
     JT_CHECK(joist_call(&k, cli, NOTE, &m, JOIST_FOREVER) == JOIST_E_TYPE);
     JT_CHECK(joist_call(&k, cli, 40, &m, JOIST_FOREVER) == JOIST_E_EMPTY);
-    JT_CHECK(joist_call(&k, cli, JOIST_CSPACE_SLOTS, &m, JOIST_FOREVER) == JOIST_E_RANGE);
+    JT_CHECK(joist_call(&k, cli, JOIST_CNODE_LEAF, &m, JOIST_FOREVER) == JOIST_E_RANGE);
     JT_CHECK(joist_call(&k, JOIST_MAX_THREADS, EP_SEND, &m, JOIST_FOREVER) == JOIST_E_RANGE);
     JT_CHECK(clean());
 }
@@ -356,7 +356,7 @@ JT_TEST(ipc_deferred_reply_errors)
     JT_CHECK(joist_reply_saved(&k, srv, RPL1, &m) == JOIST_E_NOREPLY);
     JT_CHECK(joist_reply_save(&k, srv, EP) == JOIST_E_TYPE);
     JT_CHECK(joist_reply_save(&k, srv, 20) == JOIST_E_EMPTY);
-    JT_CHECK(joist_reply_save(&k, srv, JOIST_CSPACE_SLOTS) == JOIST_E_RANGE);
+    JT_CHECK(joist_reply_save(&k, srv, JOIST_CNODE_LEAF) == JOIST_E_RANGE);
     JT_CHECK(joist_reply_save(&k, JOIST_MAX_THREADS, RPL1) == JOIST_E_RANGE);
     JT_REQUIRE(joist_cap_derive(&k, srv_cs, RPL1, 12, JOIST_R_GRANT) == JOIST_OK);
     JT_CHECK(joist_reply_saved(&k, srv, 12, &m) == JOIST_E_RIGHTS);

@@ -6,7 +6,7 @@ I8 rights grow     @@ ../kernel/core/cspace.c @@ to.rights = (joist_rights)(from
 I1 refcount        @@ ../kernel/core/cspace.c @@     k->obj[from->obj - 1u].refs++; @@     /* mutated */
 I3 refund          @@ ../kernel/core/cspace.c @@             donor->quota++; @@             /* mutated */;
 I7 rebadge         @@ ../kernel/core/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ if (badge == 0) {
-I1 destroy leaks   @@ ../kernel/core/task.c @@ joist__cap_delete_slot(k, s, i); /* may queue unreachable tasks */ @@ (void)i;
+I1 destroy leaks   @@ ../kernel/core/task.c @@ joist__cap_delete_slot(k, s, slot); /* may queue unreachable tasks */ @@ (void)slot;
 I3 quota ignored   @@ ../kernel/core/cspace.c @@     if (s->quota == 0) { @@     if (0) {
 I6 reply reusable    @@ ../kernel/core/ipc.c @@ me->reply_to = 0; /* consumed, whatever happens next (I6) */ @@ /* mutated */
 I10 server death     @@ ../kernel/core/ipc.c @@ joist__wake(k, c, JOIST_E_PEER); @@ (void)c;
@@ -48,3 +48,11 @@ reply-save-overwrites @@ ../kernel/core/ipc.c @@ return JOIST_E_OCCUPIED; @@ (vo
 reap-no-ancestry @@ ../kernel/core/task.c @@ if (!is_descendant(k, cs, target)) { @@ if (0) {
 descendant-includes-self @@ ../kernel/core/task.c @@ if (k->cs[s].live && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && (s == cs || is_descendant(k, cs, s))) {
 task-orphan-on-fixture-death @@ ../kernel/core/task.c @@ uint32_t heir = p != 0 ? p : k->root; @@ uint32_t heir = p;
+# The two-level capability table (Phase 3 step 3).
+leaf-grow-uncharged @@ ../kernel/core/cspace.c @@ s->charged++; /* I3: a leaf is paid for like an object */ @@ (void)0;
+leaf-free-no-refund @@ ../kernel/core/cspace.c @@     s->quota++; @@     (void)0;
+leaf-shrink-nonempty @@ ../kernel/core/cspace.c @@ return JOIST_E_STATE; @@ break;
+leaf-lookup-aliases-leaf0 @@ ../kernel/core/cspace.c @@ return k->leaf[s->leaf[l] - 1u].slot; @@ return s->slot;
+leaf-destroy-leaks-leaves @@ ../kernel/core/task.c @@ joist__leaf_free(k, s, l); @@ (void)l;
+leaf-destroy-only-leaf0 @@ ../kernel/core/task.c @@ for (uint32_t l = 0; l < JOIST_CNODE_ROOT; l++) { @@ for (uint32_t l = 0; l < 1u; l++) {
+budget-unbounded @@ ../kernel/core/cspace.c @@ if (k->budget > UINT32_MAX || (uint64_t)quota > UINT32_MAX - k->budget) { @@ if (0) {

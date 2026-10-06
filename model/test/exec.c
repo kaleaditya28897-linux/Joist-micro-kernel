@@ -40,6 +40,8 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_DESCENDANT] = "descendant",
                                         [JX_SAVE] = "reply_save",
                                         [JX_SAVED] = "reply_saved",
+                                        [JX_GROW] = "grow",
+                                        [JX_SHRINK] = "shrink",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -50,7 +52,8 @@ static const uint8_t weight[JX_OPS] = {
     [JX_TH_DESTROY] = 1,   [JX_CALL] = 11,         [JX_RECV] = 6,        [JX_REPLY] = 4,
     [JX_REPLY_RECV] = 4,   [JX_SIGNAL] = 5,        [JX_WAIT] = 5,        [JX_BIND] = 3,
     [JX_DEADNAME] = 3,     [JX_COLLECT] = 3,       [JX_REAP] = 2,        [JX_DESCENDANT] = 2,
-    [JX_SAVE] = 3,         [JX_SAVED] = 3,         [JX_TICK] = 6};
+    [JX_SAVE] = 3,         [JX_SAVED] = 3,         [JX_GROW] = 2,        [JX_SHRINK] = 2,
+    [JX_TICK] = 6};
 
 static uint64_t boot_budget;
 
@@ -105,7 +108,10 @@ struct slot_want {
 static int slot_ok(const struct joist_kernel *k, uint32_t i, const void *arg)
 {
     const struct slot_want *w = arg;
-    const struct joist_cap *c = &k->cs[w->cs].slot[i];
+    const struct joist_cap *c = joist__slot_c(k, w->cs, i);
+    if (c == NULL) {
+        return 0; /* its leaf is absent: neither free nor occupied */
+    }
     if (w->free) {
         return c->obj == 0;
     }
@@ -253,11 +259,14 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
                       : op == JX_MINT ? joist_cap_mint(k, cs, s, d, mask, pick_badge(src))
                                       : joist__cap_grant(k, cs, s, to, d, mask);
         /* I8, directly: the copy never has a right its source lacks. */
-        if (e == JOIST_OK &&
-            (k->cs[to].slot[d].rights & (joist_rights)~k->cs[cs].slot[s].rights) != 0) {
-            (void)snprintf(why, whylen, "I8: %s grew rights 0x%x -> 0x%x", jx_op_name[op],
-                           k->cs[cs].slot[s].rights, k->cs[to].slot[d].rights);
-            *bad = 1;
+        if (e == JOIST_OK) {
+            const struct joist_cap *sc = joist__slot_c(k, cs, s);
+            const struct joist_cap *dc = joist__slot_c(k, to, d);
+            if ((dc->rights & (joist_rights)~sc->rights) != 0) {
+                (void)snprintf(why, whylen, "I8: %s grew rights 0x%x -> 0x%x", jx_op_name[op],
+                               sc->rights, dc->rights);
+                *bad = 1;
+            }
         }
         return e;
     }
@@ -308,8 +317,10 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_WAIT: {
         uint32_t t = pick_thread(k, src, 0);
         uint32_t n = pick_slot(k, src, thread_space(k, t), JOIST_OBJ_NOTIFICATION);
-        if (t < JOIST_MAX_THREADS && n < JOIST_CSPACE_SLOTS && k->th[t].state != JOIST_T_FREE) {
-            const struct joist_cap *c = &k->cs[k->th[t].cs].slot[n];
+        const struct joist_cap *c = t < JOIST_MAX_THREADS && k->th[t].state != JOIST_T_FREE
+                                        ? joist__slot_c(k, k->th[t].cs, n)
+                                        : NULL;
+        if (c != NULL) {
             ls->obj = c->obj != 0 ? c->obj - 1u : 0;
             ls->bits = c->badge;
             ls->word = c->obj != 0 ? k->obj[c->obj - 1u].word : 0;
@@ -330,8 +341,10 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         if (op == JX_SAVE) {
             return joist_reply_save(k, t, r);
         }
-        if (t < JOIST_MAX_THREADS && r < JOIST_CSPACE_SLOTS && k->th[t].state != JOIST_T_FREE) {
-            const struct joist_cap *c = &k->cs[k->th[t].cs].slot[r];
+        const struct joist_cap *c = t < JOIST_MAX_THREADS && k->th[t].state != JOIST_T_FREE
+                                        ? joist__slot_c(k, k->th[t].cs, r)
+                                        : NULL;
+        if (c != NULL) {
             if (c->obj != 0 && c->type == JOIST_OBJ_REPLY) {
                 ls->caller = k->obj[c->obj - 1u].target;
             }
@@ -342,6 +355,14 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_COLLECT: {
         joist_badge b;
         return joist_nosenders_next(k, cs, pick_slot(k, src, cs, JOIST_OBJ_ENDPOINT), &b);
+    }
+    case JX_GROW:
+    case JX_SHRINK: {
+        /* A real leaf index (1 .. root - 1) 3 times in 4; else any, 0 and
+         * one past the end included. */
+        uint32_t l = JOIST_CNODE_ROOT > 1u && ch(src, 4) != 0 ? 1u + ch(src, JOIST_CNODE_ROOT - 1u)
+                                                                : ch(src, JOIST_CNODE_ROOT + 1u);
+        return op == JX_GROW ? joist_cspace_grow(k, cs, l) : joist_cspace_shrink(k, cs, l);
     }
     default:
         joist_tick(k, 1u + ch(src, 6));
@@ -460,9 +481,14 @@ int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned
         }
     }
     for (joist_slot i = 0; i < JOIST_CSPACE_SLOTS; i++) {
-        if (k->cs[root].slot[i].obj != 0) {
+        const struct joist_cap *c = joist__slot_c(k, root, i);
+        if (c != NULL && c->obj != 0) {
             (void)joist_cap_delete(k, root, i);
         }
+    }
+    /* The root's own extra leaves, now empty, go back too (one unit each). */
+    for (uint32_t l = 1; l < JOIST_CNODE_ROOT; l++) {
+        (void)joist_cspace_shrink(k, root, l);
     }
     /* What is left lives only in cycles. Reclaim it as a parent would
      * (0004 amendment): find it from the root, reap it. */

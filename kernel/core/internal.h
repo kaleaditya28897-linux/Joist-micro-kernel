@@ -27,6 +27,21 @@ void joist__fmt_bare(char *msg, unsigned msglen, const char *fmt);
  * invariant checks don't count; they aren't operations. */
 #define JOIST_WORK(k) ((k)->work++)
 
+/* The capability in slot of space cs, or NULL if the slot is out of range
+ * or its leaf is absent (both are JOIST_E_RANGE to callers). cs must be a
+ * valid space index. O(1). */
+struct joist_cap *joist__slot(struct joist_kernel *k, uint32_t cs, joist_slot slot);
+const struct joist_cap *joist__slot_c(const struct joist_kernel *k, uint32_t cs, joist_slot slot);
+/* The JOIST_CNODE_LEAF slots of leaf l of space cs, or NULL if absent: how
+ * every walk over a space's capabilities goes (leaf by leaf, skipping absent
+ * ones). l < JOIST_CNODE_ROOT. */
+struct joist_cap *joist__leaf_slots(struct joist_kernel *k, uint32_t cs, uint32_t l);
+const struct joist_cap *joist__leaf_slots_c(const struct joist_kernel *k, uint32_t cs, uint32_t l);
+
+/* Free present, empty leaf `index` (not 0) of space cs, refunding its unit
+ * to the space's quota (cspace.c). */
+void joist__leaf_free(struct joist_kernel *k, uint32_t cs, uint32_t index);
+
 /* Every capability creation and deletion goes through these two hooks, so
  * the per-endpoint RECV count (endpoint death, I5) and the per-badge send
  * accounting (no-senders, I4) can't drift from the capability tables. A

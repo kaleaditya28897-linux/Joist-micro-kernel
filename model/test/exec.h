@@ -44,6 +44,8 @@ enum {
     JX_DESCENDANT,
     JX_SAVE,
     JX_SAVED,
+    JX_GROW,
+    JX_SHRINK,
     JX_TICK,
     JX_OPS
 };
@@ -70,13 +72,14 @@ extern const char *const jx_op_name[JX_OPS];
  * a fixed cost. The gap between the two bounds is the open preemptible-revoke
  * question (0003). */
 #define JX_SWEEP                                                                                   \
-    ((uint64_t)JOIST_MAX_OBJECTS + JOIST_MAX_THREADS + JOIST_MAX_CSPACES + JOIST_CSPACE_SLOTS +    \
-     JOIST_MAX_BADGE_ACCTS + JOIST_MAX_DEADNAMES)
+    ((uint64_t)JOIST_MAX_OBJECTS + JOIST_MAX_THREADS + JOIST_MAX_CSPACES + JOIST_CSPACE_SLOTS +  \
+     JOIST_MAX_BADGE_ACCTS + JOIST_MAX_DEADNAMES + JOIST_MAX_LEAVES)
 #define JX_WORK_SIMPLE (4u * JX_SWEEP)
-/* Destroying one space: its slots, the children and objects it hands on, its
- * threads, and the work list. */
+/* Destroying one space: its root entries and slots, the children and objects
+ * it hands on, its threads, and the work list. */
 #define JX_PER_SPACE                                                                               \
-    ((uint64_t)JOIST_CSPACE_SLOTS + 2u * JOIST_MAX_CSPACES + JOIST_MAX_OBJECTS + JOIST_MAX_THREADS)
+    ((uint64_t)JOIST_CNODE_ROOT + JOIST_CSPACE_SLOTS + 2u * JOIST_MAX_CSPACES + JOIST_MAX_OBJECTS + \
+     JOIST_MAX_THREADS)
 /* Freeing one object: its waiters, bindings to it, its registrations. */
 #define JX_PER_FREE                                                                                \
     ((uint64_t)JOIST_MAX_THREADS + JOIST_MAX_OBJECTS + 3u * JOIST_MAX_DEADNAMES +                  \

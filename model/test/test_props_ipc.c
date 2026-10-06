@@ -70,7 +70,7 @@ static int sh_recv_caps(uint32_t o)
 {
     int n = 0;
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
-        for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+        for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
             const struct joist_cap *cap = &k.cs[c].slot[i];
             if (cap->obj == o + 1u && (cap->rights & JOIST_R_RECV) != 0) {
                 n++;
@@ -140,7 +140,7 @@ static joist_err sh_running(uint32_t t)
 static joist_err sh_lookup(uint32_t t, uint32_t slot, joist_rights need, uint32_t *obj,
                            joist_badge *badge)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    if (slot >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     const struct joist_cap *c = &k.cs[sh[t].cs].slot[slot];
@@ -256,7 +256,7 @@ static joist_err sh_reply(uint32_t t, const struct joist_msg *m)
 
 static joist_err sh_reply_obj(uint32_t t, uint32_t slot, uint32_t *o)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    if (slot >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     const struct joist_cap *c = &k.cs[sh[t].cs].slot[slot];
@@ -645,9 +645,9 @@ static int run_seed(uint64_t seed, unsigned long steps)
         } else if (roll < 97) {
             op = OP_CAP_DELETE;
             uint32_t cs = pick(N_SPACES);
-            want = k.cs[cs].slot[slot < JOIST_CSPACE_SLOTS ? slot : 0].obj != 0 ? JOIST_OK
+            want = k.cs[cs].slot[slot < JOIST_CNODE_LEAF ? slot : 0].obj != 0 ? JOIST_OK
                                                                                 : JOIST_E_EMPTY;
-            if (slot >= JOIST_CSPACE_SLOTS) {
+            if (slot >= JOIST_CNODE_LEAF) {
                 want = JOIST_E_RANGE;
             }
             got = joist_cap_delete(&k, cs, slot);

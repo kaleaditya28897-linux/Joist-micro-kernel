@@ -154,7 +154,7 @@ JT_TEST(nosenders_next_errors)
     JT_CHECK(joist_nosenders_next(&k, cs, EP_C1, &got) == JOIST_E_RIGHTS); /* owner only */
     JT_CHECK(joist_nosenders_next(&k, cs, NOTE, &got) == JOIST_E_TYPE);
     JT_CHECK(joist_nosenders_next(&k, cs, EP_C2, &got) == JOIST_E_EMPTY);
-    JT_CHECK(joist_nosenders_next(&k, cs, JOIST_CSPACE_SLOTS, &got) == JOIST_E_RANGE);
+    JT_CHECK(joist_nosenders_next(&k, cs, JOIST_CNODE_LEAF, &got) == JOIST_E_RANGE);
     JT_CHECK(joist_nosenders_next(&k, JOIST_MAX_CSPACES, EP, &got) == JOIST_E_RANGE);
     /* A binding must carry bits. */
     JT_CHECK(joist_bind_nosenders(&k, cs, EP, NOTE) == JOIST_E_BADGE);
@@ -223,7 +223,7 @@ JT_TEST(accounting_full_fails_only_mint)
     while (last == JOIST_OK && nsp < JOIST_MAX_CSPACES) {
         JT_REQUIRE(joist_cspace_create(&k, 1, &sp[nsp]) == JOIST_OK);
         JT_REQUIRE(joist_obj_create(&k, sp[nsp], JOIST_OBJ_ENDPOINT, 0) == JOIST_OK);
-        for (next = 1; next < JOIST_CSPACE_SLOTS; next++) {
+        for (next = 1; next < JOIST_CNODE_LEAF; next++) {
             last = joist_cap_mint(&k, sp[nsp], 0, next, JOIST_R_SEND, (joist_badge)(minted + 1u));
             if (last != JOIST_OK) {
                 break;

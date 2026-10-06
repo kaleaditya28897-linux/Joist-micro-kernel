@@ -21,10 +21,13 @@ are given as `joist_*` so every statement can be checked against the code.
 - **Who acts.** Every operation is made by a thread, and acts in the
   capability space of that thread's task. The model passes the space (`cs`)
   or thread (`t`) explicitly; the kernel takes both from the caller.
-- **Capability addresses** are slot numbers in the caller's space. Phase 1
-  settled the representation (0001 item 4): a two-level table, up to 65 536
-  slots, O(1) lookup. The model uses a flat array of 64; nothing depends on
-  the difference.
+- **Capability addresses** are slot numbers in the caller's space, in a
+  two-level table (0001 item 4; built in Phase 3 step 3): a root of 64
+  entries, each naming a leaf of 128 slots, so slot `s` is entry
+  `s / 128`, position `s % 128`; up to 8 192 slots, O(1) lookup. Leaf 0 is
+  part of every space; the others are added with `cspace_grow`. **A slot in
+  an absent leaf is `E_RANGE`**, exactly as one past the end: no lookup ever
+  allocates. (The host model's tests use 2 leaves of 64, `model/Makefile`.)
 - **Results.** Every operation returns one result code (below). Checks run in
   the order each table lists, and the first failure is returned **with no
   effect at all**: a failed operation changes nothing (tested by the
@@ -99,7 +102,13 @@ in a badge, typically its per-client record's address or index.
 | `cap_derive` | src, dst, mask | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (src or dst), `E_EMPTY`, `E_OCCUPIED` | dst = src with rights ∩ mask; same badge (I8) | O(1) |
 | `cap_mint` | src, dst, mask, badge | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (src or dst), `E_EMPTY`, `E_OCCUPIED`, `E_RIGHTS` (src lacks GRANT), `E_BADGE` (src already badged, or badge 0), `E_NOMEM` (no-senders account table full) | as derive, with the badge set (I7); allocates the badge's no-senders account if it is the first sender with it | one account scan |
 | `cap_delete` | slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY` | the capability goes; may fire no-senders, kill an endpoint, free the object, destroy an unreachable task (cascade) | cascade |
-| `cap_read` | slot | `E_RANGE` (space or slot), `E_DEAD`, `E_EMPTY` (the empty slot is still returned) | returns type, rights and badge (inspection) | O(1) |
+| `cap_read` | slot | `E_RANGE` (space or slot past the end), `E_DEAD`, `E_RANGE` (slot in an absent leaf), `E_EMPTY` (the empty slot is still returned) | returns type, rights and badge (inspection) | O(1) |
+| `cspace_grow` | leaf index | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (index 0, which is built in, or past the root), `E_OCCUPIED` (already there), `E_NOMEM` (quota, then the leaf pool) | adds the leaf, empty; paid by the caller like an object (one unit, I3) | one pool scan |
+| `cspace_shrink` | leaf index | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (index 0, past the root, or absent), `E_STATE` (the leaf still holds a capability) | removes the leaf, refunding its unit; a leaf is never removed with capabilities in it | one leaf |
+
+A space's leaves die with it: task destruction deletes the capabilities in
+every leaf, then returns the leaves to the pool and their units to the
+parent with the rest of its quota.
 
 Passing capabilities between tasks is **open** (capability transfer in
 messages; see the end). The model's tests use an internal stand-in,

@@ -53,7 +53,7 @@ struct sh_space {
     uint32_t charged;
     uint32_t parent; /* space + 1, 0 for none */
     uint32_t task;   /* task object + 1, 0 for none */
-    struct sh_cap slot[JOIST_CSPACE_SLOTS];
+    struct sh_cap slot[JOIST_CNODE_LEAF];
 };
 
 struct sh_obj {
@@ -81,7 +81,7 @@ static uint32_t sh_refs(uint32_t obj)
 {
     uint32_t n = 0;
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
-        for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+        for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
             if (sh_cs[c].slot[i].present && sh_cs[c].slot[i].obj == obj) {
                 n++;
             }
@@ -149,7 +149,7 @@ static void sh_destroy(uint32_t s)
             sh_kill_thread(t);
         }
     }
-    for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+    for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
         if (sp->slot[i].present) {
             sh_remove_cap(s, i);
         }
@@ -187,7 +187,7 @@ static joist_err sh_space_ok(uint32_t cs)
 
 static joist_err sh_slot_free(uint32_t cs, uint32_t dst)
 {
-    if (dst >= JOIST_CSPACE_SLOTS) {
+    if (dst >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     return sh_cs[cs].slot[dst].present ? JOIST_E_OCCUPIED : JOIST_OK;
@@ -195,7 +195,7 @@ static joist_err sh_slot_free(uint32_t cs, uint32_t dst)
 
 static joist_err sh_control(uint32_t cs, uint32_t slot, uint8_t type)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    if (slot >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     const struct sh_cap *c = &sh_cs[cs].slot[slot];
@@ -241,7 +241,7 @@ static joist_err sh_obj_create_rc(uint32_t cs, uint8_t type, uint32_t dst)
     if (e != JOIST_OK) {
         return e;
     }
-    if (dst >= JOIST_CSPACE_SLOTS) {
+    if (dst >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     if (type != JOIST_OBJ_ENDPOINT && type != JOIST_OBJ_NOTIFICATION) {
@@ -400,7 +400,7 @@ static joist_err sh_delete(uint32_t cs, uint32_t slot)
     if (e != JOIST_OK) {
         return e;
     }
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    if (slot >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     if (!sh_cs[cs].slot[slot].present) {
@@ -420,7 +420,7 @@ static joist_err sh_copy(uint32_t from, uint32_t src, uint32_t to, uint32_t dst,
     if (e != JOIST_OK) {
         return e;
     }
-    if (src >= JOIST_CSPACE_SLOTS || dst >= JOIST_CSPACE_SLOTS) {
+    if (src >= JOIST_CNODE_LEAF || dst >= JOIST_CNODE_LEAF) {
         return JOIST_E_RANGE;
     }
     const struct sh_cap *c = &sh_cs[from].slot[src];
@@ -461,31 +461,31 @@ static uint32_t pick_space(void)
 static uint32_t pick_slot(uint32_t cs, uint8_t type)
 {
     if (cs < JOIST_MAX_CSPACES && pick(4) != 0) {
-        uint32_t start = pick(JOIST_CSPACE_SLOTS);
-        for (uint32_t n = 0; n < JOIST_CSPACE_SLOTS; n++) {
-            uint32_t i = (start + n) % JOIST_CSPACE_SLOTS;
+        uint32_t start = pick(JOIST_CNODE_LEAF);
+        for (uint32_t n = 0; n < JOIST_CNODE_LEAF; n++) {
+            uint32_t i = (start + n) % JOIST_CNODE_LEAF;
             const struct sh_cap *c = &sh_cs[cs].slot[i];
             if (c->present && (type == JOIST_OBJ_NONE || c->type == type)) {
                 return i;
             }
         }
     }
-    return pick(JOIST_CSPACE_SLOTS + 1u);
+    return pick(JOIST_CNODE_LEAF + 1u);
 }
 
 /* A free slot 3 times in 4 when there is one. */
 static uint32_t pick_dst(uint32_t cs)
 {
     if (cs < JOIST_MAX_CSPACES && pick(4) != 0) {
-        uint32_t start = pick(JOIST_CSPACE_SLOTS);
-        for (uint32_t n = 0; n < JOIST_CSPACE_SLOTS; n++) {
-            uint32_t i = (start + n) % JOIST_CSPACE_SLOTS;
+        uint32_t start = pick(JOIST_CNODE_LEAF);
+        for (uint32_t n = 0; n < JOIST_CNODE_LEAF; n++) {
+            uint32_t i = (start + n) % JOIST_CNODE_LEAF;
             if (!sh_cs[cs].slot[i].present) {
                 return i;
             }
         }
     }
-    return pick(JOIST_CSPACE_SLOTS + 1u);
+    return pick(JOIST_CNODE_LEAF + 1u);
 }
 
 /* ---- comparison ---- */
@@ -513,7 +513,7 @@ static int compare_all(void)
                            r->parent, s->parent, r->task_obj, s->task);
             return 0;
         }
-        for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+        for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
             const struct joist_cap *rc = &r->slot[i];
             const struct sh_cap *sc = &s->slot[i];
             if ((rc->obj != 0) != (sc->present != 0) ||

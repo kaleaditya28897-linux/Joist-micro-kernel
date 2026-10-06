@@ -62,7 +62,7 @@ int main(void)
 #ifdef JOIST_CBMC_OP
         uint32_t op = JOIST_CBMC_OP;
 #else
-        uint32_t op = any(6);
+        uint32_t op = any(8);
 #endif
         uint32_t cs = any(JOIST_MAX_CSPACES);
         uint32_t to = any(JOIST_MAX_CSPACES);
@@ -77,13 +77,11 @@ int main(void)
          * a (JOIST_OBJ_NONE also covers out-of-range and empty slots), so
          * each piece is a smaller problem; together the pieces cover every
          * case. */
+        const struct joist_cap *sa = cs < JOIST_MAX_CSPACES ? joist__slot_c(&k, cs, a) : NULL;
         if (JOIST_CBMC_SLOT_TYPE == JOIST_OBJ_NONE) {
-            __CPROVER_assume(cs >= JOIST_MAX_CSPACES || a >= JOIST_CSPACE_SLOTS ||
-                             k.cs[cs].slot[a].obj == 0);
+            __CPROVER_assume(sa == NULL || sa->obj == 0);
         } else {
-            __CPROVER_assume(cs < JOIST_MAX_CSPACES && a < JOIST_CSPACE_SLOTS &&
-                             k.cs[cs].slot[a].obj != 0 &&
-                             k.cs[cs].slot[a].type == JOIST_CBMC_SLOT_TYPE);
+            __CPROVER_assume(sa != NULL && sa->obj != 0 && sa->type == JOIST_CBMC_SLOT_TYPE);
         }
 #endif
 
@@ -106,6 +104,12 @@ int main(void)
         case 5:
             e = joist_task_create(&k, cs, any(3), b);
             break;
+        case 7:
+            e = joist_cspace_grow(&k, cs, any(JOIST_CNODE_ROOT));
+            break;
+        case 8:
+            e = joist_cspace_shrink(&k, cs, any(JOIST_CNODE_ROOT));
+            break;
         default:
             e = joist_task_destroy(&k, cs, a);
             break;
@@ -116,8 +120,10 @@ int main(void)
 #endif
         if (e == JOIST_OK && (op == 1 || op == 2 || op == 4)) {
             uint32_t dst = op == 4 ? to : cs;
-            __CPROVER_assert((k.cs[dst].slot[b].rights & (joist_rights)~k.cs[cs].slot[a].rights) ==
-                                 0,
+            const struct joist_cap *s = joist__slot_c(&k, cs, a);
+            const struct joist_cap *d = joist__slot_c(&k, dst, b);
+            __CPROVER_assert(s != NULL && d != NULL &&
+                                 (d->rights & (joist_rights)~s->rights) == 0,
                              "I8: rights never grow");
         }
     }

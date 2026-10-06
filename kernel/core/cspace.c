@@ -2,7 +2,8 @@
  * work item 1; invariants I1, I3, I7, I8).
  *
  * Every operation here touches a fixed number of slots and objects, except
- * joist_cspace_destroy, which is bounded by JOIST_CSPACE_SLOTS (I9). */
+ * joist_cspace_destroy, which is bounded by the space's slots (I9), and
+ * joist_cspace_grow, by the leaf pool. */
 #include "internal.h"
 
 /* Full rights an object of each type is created with. */
@@ -43,6 +44,9 @@ static joist_err get_space(struct joist_kernel *k, joist_cspace cs, struct joist
 
 joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspace *out)
 {
+    if (k->budget > UINT32_MAX || (uint64_t)quota > UINT32_MAX - k->budget) {
+        return JOIST_E_NOMEM; /* the budget must fit the quota counters (I3) */
+    }
     for (uint32_t i = 0; i < JOIST_MAX_CSPACES; i++) {
         JOIST_WORK(k);
         struct joist_cspace_state *s = &k->cs[i];
@@ -94,9 +98,114 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
     }
 }
 
-static joist_err slot_check(joist_slot slot)
+/* ---- the two-level capability table ---- */
+
+const struct joist_cap *joist__leaf_slots_c(const struct joist_kernel *k, uint32_t cs, uint32_t l)
 {
-    return slot < JOIST_CSPACE_SLOTS ? JOIST_OK : JOIST_E_RANGE;
+    const struct joist_cspace_state *s = &k->cs[cs];
+    if (l == 0) {
+        return s->slot;
+    }
+    if (l >= JOIST_CNODE_ROOT || s->leaf[l] == 0 || s->leaf[l] > JOIST_MAX_LEAVES) {
+        return NULL;
+    }
+    return k->leaf[s->leaf[l] - 1u].slot;
+}
+
+struct joist_cap *joist__leaf_slots(struct joist_kernel *k, uint32_t cs, uint32_t l)
+{
+    struct joist_cspace_state *s = &k->cs[cs];
+    if (l == 0) {
+        return s->slot;
+    }
+    if (l >= JOIST_CNODE_ROOT || s->leaf[l] == 0 || s->leaf[l] > JOIST_MAX_LEAVES) {
+        return NULL;
+    }
+    return k->leaf[s->leaf[l] - 1u].slot;
+}
+
+const struct joist_cap *joist__slot_c(const struct joist_kernel *k, uint32_t cs, joist_slot slot)
+{
+    if (slot >= JOIST_CSPACE_SLOTS) {
+        return NULL;
+    }
+    const struct joist_cap *leaf = joist__leaf_slots_c(k, cs, slot / JOIST_CNODE_LEAF);
+    return leaf != NULL ? &leaf[slot % JOIST_CNODE_LEAF] : NULL;
+}
+
+struct joist_cap *joist__slot(struct joist_kernel *k, uint32_t cs, joist_slot slot)
+{
+    if (slot >= JOIST_CSPACE_SLOTS) {
+        return NULL;
+    }
+    struct joist_cap *leaf = joist__leaf_slots(k, cs, slot / JOIST_CNODE_LEAF);
+    return leaf != NULL ? &leaf[slot % JOIST_CNODE_LEAF] : NULL;
+}
+
+joist_err joist_cspace_grow(struct joist_kernel *k, joist_cspace cs, uint32_t index)
+{
+    struct joist_cspace_state *s;
+    joist_err e = get_space(k, cs, &s);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (index == 0 || index >= JOIST_CNODE_ROOT) {
+        return JOIST_E_RANGE;
+    }
+    if (s->leaf[index] != 0) {
+        return JOIST_E_OCCUPIED;
+    }
+    if (s->quota == 0) {
+        return JOIST_E_NOMEM;
+    }
+    for (uint32_t i = 0; i < JOIST_MAX_LEAVES; i++) {
+        JOIST_WORK(k);
+        struct joist_leaf *l = &k->leaf[i];
+        if (l->owner == 0) {
+            memset(l, 0, sizeof *l);
+            l->owner = cs + 1u;
+            l->index = index;
+            s->leaf[index] = i + 1u;
+            s->quota--;
+            s->charged++; /* I3: a leaf is paid for like an object */
+            return JOIST_OK;
+        }
+    }
+    return JOIST_E_NOMEM;
+}
+
+/* Free leaf `index` of space cs (present and empty) and refund its unit to
+ * the space's quota. Used by shrink and by space destruction. */
+void joist__leaf_free(struct joist_kernel *k, uint32_t cs, uint32_t index)
+{
+    struct joist_cspace_state *s = &k->cs[cs];
+    struct joist_leaf *l = &k->leaf[s->leaf[index] - 1u];
+    l->owner = 0;
+    l->index = 0;
+    s->leaf[index] = 0;
+    s->charged--;
+    s->quota++;
+}
+
+joist_err joist_cspace_shrink(struct joist_kernel *k, joist_cspace cs, uint32_t index)
+{
+    struct joist_cspace_state *s;
+    joist_err e = get_space(k, cs, &s);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (index == 0 || index >= JOIST_CNODE_ROOT || s->leaf[index] == 0) {
+        return JOIST_E_RANGE;
+    }
+    const struct joist_cap *slots = joist__leaf_slots_c(k, cs, index);
+    for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
+        JOIST_WORK(k);
+        if (slots[i].obj != 0) {
+            return JOIST_E_STATE;
+        }
+    }
+    joist__leaf_free(k, cs, index);
+    return JOIST_OK;
 }
 
 joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_type type,
@@ -107,14 +216,15 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
     if (e != JOIST_OK) {
         return e;
     }
-    if (slot_check(dst) != JOIST_OK) {
+    struct joist_cap *d = joist__slot(k, cs, dst);
+    if (d == NULL) {
         return JOIST_E_RANGE;
     }
     /* Tasks and threads have their own constructors (task.c). */
     if (full_rights(type) == 0 || type == JOIST_OBJ_TASK || type == JOIST_OBJ_THREAD) {
         return JOIST_E_TYPE;
     }
-    if (s->slot[dst].obj != 0) {
+    if (d->obj != 0) {
         return JOIST_E_OCCUPIED;
     }
     if (s->quota == 0) {
@@ -135,9 +245,9 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
             s->quota--;
             s->charged++;
             k->objects_live++;
-            s->slot[dst] = (struct joist_cap){
+            *d = (struct joist_cap){
                 .obj = i + 1u, .type = (uint8_t)type, .rights = full_rights(type), .badge = 0};
-            joist__cap_added(k, &s->slot[dst]);
+            joist__cap_added(k, d);
             return JOIST_OK;
         }
     }
@@ -153,14 +263,16 @@ static joist_err copy_cap(struct joist_kernel *k, joist_cspace cs, joist_slot sr
     if (e != JOIST_OK) {
         return e;
     }
-    if (slot_check(src) != JOIST_OK || slot_check(dst) != JOIST_OK) {
+    (void)s;
+    const struct joist_cap *from = joist__slot(k, cs, src);
+    struct joist_cap *d = joist__slot(k, cs, dst);
+    if (from == NULL || d == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *from = &s->slot[src];
     if (from->obj == 0) {
         return JOIST_E_EMPTY;
     }
-    if (s->slot[dst].obj != 0) {
+    if (d->obj != 0) {
         return JOIST_E_OCCUPIED;
     }
     if (set_badge) {
@@ -186,8 +298,8 @@ static joist_err copy_cap(struct joist_kernel *k, joist_cspace cs, joist_slot sr
         }
     }
     k->obj[from->obj - 1u].refs++;
-    s->slot[dst] = to;
-    joist__cap_added(k, &s->slot[dst]);
+    *d = to;
+    joist__cap_added(k, d);
     return JOIST_OK;
 }
 
@@ -215,31 +327,37 @@ joist_err joist__cap_grant(struct joist_kernel *k, joist_cspace from, joist_slot
     if (e != JOIST_OK) {
         return e;
     }
-    if (slot_check(src) != JOIST_OK || slot_check(dst) != JOIST_OK) {
+    (void)fs;
+    (void)ts;
+    const struct joist_cap *c = joist__slot(k, from, src);
+    struct joist_cap *d = joist__slot(k, to, dst);
+    if (c == NULL || d == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *c = &fs->slot[src];
     if (c->obj == 0) {
         return JOIST_E_EMPTY;
     }
     if ((c->rights & JOIST_R_GRANT) == 0) {
         return JOIST_E_RIGHTS;
     }
-    if (ts->slot[dst].obj != 0) {
+    if (d->obj != 0) {
         return JOIST_E_OCCUPIED;
     }
     /* Same object and badge, so any no-senders account already exists. */
     struct joist_cap copy = *c;
     copy.rights = (joist_rights)(c->rights & mask); /* I8 */
     k->obj[c->obj - 1u].refs++;
-    ts->slot[dst] = copy;
-    joist__cap_added(k, &ts->slot[dst]);
+    *d = copy;
+    joist__cap_added(k, d);
     return JOIST_OK;
 }
 
 void joist__cap_delete_slot(struct joist_kernel *k, uint32_t s, joist_slot slot)
 {
-    struct joist_cap *c = &k->cs[s].slot[slot];
+    struct joist_cap *c = joist__slot(k, s, slot);
+    if (c == NULL || c->obj == 0) {
+        return; /* callers check first; nothing to delete */
+    }
     struct joist_cap gone = *c;
     memset(c, 0, sizeof *c);
     joist__cap_removed(k, &gone); /* may fire no-senders or kill the endpoint */
@@ -253,10 +371,12 @@ joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot s
     if (e != JOIST_OK) {
         return e;
     }
-    if (slot_check(slot) != JOIST_OK) {
+    (void)s;
+    const struct joist_cap *c = joist__slot(k, cs, slot);
+    if (c == NULL) {
         return JOIST_E_RANGE;
     }
-    if (s->slot[slot].obj == 0) {
+    if (c->obj == 0) {
         return JOIST_E_EMPTY;
     }
     joist__cap_delete_slot(k, cs, slot);
@@ -282,13 +402,17 @@ joist_err joist_cspace_destroy(struct joist_kernel *k, joist_cspace cs)
 joist_err joist_cap_read(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,
                          struct joist_cap *out)
 {
-    if (cs >= JOIST_MAX_CSPACES || slot_check(slot) != JOIST_OK) {
+    if (cs >= JOIST_MAX_CSPACES || slot >= JOIST_CSPACE_SLOTS) {
         return JOIST_E_RANGE;
     }
     if (!k->cs[cs].live) {
         return JOIST_E_DEAD;
     }
-    *out = k->cs[cs].slot[slot];
+    const struct joist_cap *c = joist__slot_c(k, cs, slot);
+    if (c == NULL) {
+        return JOIST_E_RANGE;
+    }
+    *out = *c;
     return out->obj != 0 ? JOIST_OK : JOIST_E_EMPTY;
 }
 
@@ -309,11 +433,54 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
         }                                                                                          \
     } while (0)
 
+    /* The table's own structure: every pool leaf in use is named by exactly
+     * the space and index it records, and only live spaces have leaves. */
+    for (uint32_t i = 0; i < JOIST_MAX_LEAVES; i++) {
+        const struct joist_leaf *l = &k->leaf[i];
+        if (l->owner == 0) {
+            for (uint32_t j = 0; j < JOIST_CNODE_LEAF; j++) {
+                if (l->slot[j].obj != 0) {
+                    VIOLATION("I1: free leaf %u holds a capability in slot %u", i, j);
+                    break;
+                }
+            }
+            continue;
+        }
+        if (l->owner > JOIST_MAX_CSPACES || l->index == 0 || l->index >= JOIST_CNODE_ROOT) {
+            VIOLATION("I3: leaf %u owner %u index %u out of range", i, l->owner, l->index);
+            continue;
+        }
+        if (k->cs[l->owner - 1u].leaf[l->index] != i + 1u) {
+            VIOLATION("I3: leaf %u claims space %u index %u, which names %u", i, l->owner - 1u,
+                      l->index, k->cs[l->owner - 1u].leaf[l->index]);
+        }
+        if (!k->cs[l->owner - 1u].live) {
+            VIOLATION("I3: dead space %u still has leaf %u", l->owner - 1u, i);
+        }
+        charged_seen[l->owner - 1u]++;
+    }
+    for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
+        const struct joist_cspace_state *s = &k->cs[c];
+        if (s->leaf[0] != 0) {
+            VIOLATION("I3: space %u root entry 0 is %u, not the built-in leaf", c, s->leaf[0]);
+        }
+        for (uint32_t l = 1; l < JOIST_CNODE_ROOT; l++) {
+            uint32_t n = s->leaf[l];
+            if (n != 0 && (n > JOIST_MAX_LEAVES || k->leaf[n - 1u].owner != c + 1u ||
+                           k->leaf[n - 1u].index != l)) {
+                VIOLATION("I3: space %u root entry %u names leaf %u, not its own", c, l, n);
+            }
+        }
+    }
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         const struct joist_cspace_state *s = &k->cs[c];
         for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
-            const struct joist_cap *cap = &s->slot[i];
-            if (cap->obj == 0) {
+            if (i % JOIST_CNODE_LEAF == 0 && joist__leaf_slots_c(k, c, i / JOIST_CNODE_LEAF) == NULL) {
+                i += JOIST_CNODE_LEAF - 1u; /* absent leaf: skip it */
+                continue;
+            }
+            const struct joist_cap *cap = joist__slot_c(k, c, i);
+            if (cap == NULL || cap->obj == 0) {
                 continue;
             }
             if (!s->live) {
@@ -367,8 +534,8 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     }
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         if (k->cs[c].charged != charged_seen[c]) {
-            VIOLATION("I3: space %u charged %u but donated %u live objects", c, k->cs[c].charged,
-                      charged_seen[c]);
+            VIOLATION("I3: space %u charged %u but pays for %u live objects and leaves", c,
+                      k->cs[c].charged, charged_seen[c]);
         }
     }
 #undef VIOLATION

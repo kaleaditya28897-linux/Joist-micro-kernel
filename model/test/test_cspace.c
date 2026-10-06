@@ -40,7 +40,7 @@ JT_TEST(obj_create_errors)
     joist_cspace a;
     JT_REQUIRE(joist_cspace_create(&k, 4, &a) == JOIST_OK);
     JT_CHECK(joist_obj_create(&k, a, JOIST_OBJ_NONE, 0) == JOIST_E_TYPE);
-    JT_CHECK(joist_obj_create(&k, a, JOIST_OBJ_ENDPOINT, JOIST_CSPACE_SLOTS) == JOIST_E_RANGE);
+    JT_CHECK(joist_obj_create(&k, a, JOIST_OBJ_ENDPOINT, JOIST_CNODE_LEAF) == JOIST_E_RANGE);
     JT_CHECK(joist_obj_create(&k, JOIST_MAX_CSPACES, JOIST_OBJ_ENDPOINT, 0) == JOIST_E_RANGE);
     JT_CHECK(joist_obj_create(&k, a, JOIST_OBJ_ENDPOINT, 0) == JOIST_OK);
     JT_CHECK(joist_obj_create(&k, a, JOIST_OBJ_ENDPOINT, 0) == JOIST_E_OCCUPIED);
@@ -75,7 +75,7 @@ JT_TEST(derive_errors)
     JT_REQUIRE(joist_obj_create(&k, a, JOIST_OBJ_ENDPOINT, 0) == JOIST_OK);
     JT_REQUIRE(joist_obj_create(&k, a, JOIST_OBJ_ENDPOINT, 1) == JOIST_E_NOMEM);
     JT_CHECK(joist_cap_derive(&k, a, 0, 0, JOIST_R_ALL) == JOIST_E_OCCUPIED);
-    JT_CHECK(joist_cap_derive(&k, a, 0, JOIST_CSPACE_SLOTS, JOIST_R_ALL) == JOIST_E_RANGE);
+    JT_CHECK(joist_cap_derive(&k, a, 0, JOIST_CNODE_LEAF, JOIST_R_ALL) == JOIST_E_RANGE);
     JT_CHECK(clean());
 }
 
@@ -157,8 +157,8 @@ JT_TEST(object_table_exhaustion_is_an_error)
     /* One space has fewer slots than the table has objects, so fill it across
      * spaces, each with quota to spare: the table is the limit, not quota. */
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES && last == JOIST_OK; s++) {
-        JT_REQUIRE(joist_cspace_create(&k, JOIST_CSPACE_SLOTS, &spaces[s]) == JOIST_OK);
-        for (joist_slot i = 0; i < JOIST_CSPACE_SLOTS; i++) {
+        JT_REQUIRE(joist_cspace_create(&k, JOIST_CNODE_LEAF, &spaces[s]) == JOIST_OK);
+        for (joist_slot i = 0; i < JOIST_CNODE_LEAF; i++) {
             last = joist_obj_create(&k, spaces[s], JOIST_OBJ_ENDPOINT, i);
             if (last != JOIST_OK) {
                 break;
@@ -166,7 +166,7 @@ JT_TEST(object_table_exhaustion_is_an_error)
             made++;
         }
     }
-    JT_REQUIRE(JOIST_MAX_CSPACES * JOIST_CSPACE_SLOTS > JOIST_MAX_OBJECTS);
+    JT_REQUIRE(JOIST_MAX_CSPACES * JOIST_CNODE_LEAF > JOIST_MAX_OBJECTS);
     /* I3: exactly the table's capacity was created, then a clean error. */
     JT_CHECK(made == JOIST_MAX_OBJECTS);
     JT_CHECK(last == JOIST_E_NOMEM);
@@ -195,7 +195,7 @@ JT_TEST(cap_read_errors)
     struct joist_cap c;
     JT_REQUIRE(joist_cspace_create(&k, 1, &a) == JOIST_OK);
     JT_CHECK(joist_cap_read(&k, JOIST_MAX_CSPACES, 0, &c) == JOIST_E_RANGE);
-    JT_CHECK(joist_cap_read(&k, a, JOIST_CSPACE_SLOTS, &c) == JOIST_E_RANGE);
+    JT_CHECK(joist_cap_read(&k, a, JOIST_CNODE_LEAF, &c) == JOIST_E_RANGE);
     JT_CHECK(joist_cap_read(&k, a, 0, &c) == JOIST_E_EMPTY && c.obj == 0);
     JT_REQUIRE(joist_cspace_destroy(&k, a) == JOIST_OK);
     JT_CHECK(joist_cap_read(&k, a, 0, &c) == JOIST_E_DEAD);

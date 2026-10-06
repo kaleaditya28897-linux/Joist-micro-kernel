@@ -177,10 +177,10 @@ void joist__notify_signal(struct joist_kernel *k, uint32_t obj, uint64_t bits)
 static joist_err note_lookup(const struct joist_kernel *k, uint32_t cs, joist_slot slot,
                              joist_rights need, uint32_t *obj, joist_badge *badge)
 {
-    if (slot >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *c = joist__slot_c(k, cs, slot);
+    if (c == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *c = &k->cs[cs].slot[slot];
     if (c->obj == 0) {
         return JOIST_E_EMPTY;
     }
@@ -275,10 +275,10 @@ joist_err joist_bind_nosenders(struct joist_kernel *k, joist_cspace cs, joist_sl
     if (e != JOIST_OK) {
         return e;
     }
-    if (ep_slot >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *ec = joist__slot_c(k, cs, ep_slot);
+    if (ec == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *ec = &k->cs[cs].slot[ep_slot];
     if (ec->obj == 0) {
         return JOIST_E_EMPTY;
     }
@@ -307,10 +307,10 @@ joist_err joist_nosenders_next(struct joist_kernel *k, joist_cspace cs, joist_sl
     if (e != JOIST_OK) {
         return e;
     }
-    if (ep_slot >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *ec = joist__slot_c(k, cs, ep_slot);
+    if (ec == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *ec = &k->cs[cs].slot[ep_slot];
     if (ec->obj == 0) {
         return JOIST_E_EMPTY;
     }
@@ -343,10 +343,10 @@ joist_err joist_request_deadname(struct joist_kernel *k, joist_cspace cs, joist_
     if (e != JOIST_OK) {
         return e;
     }
-    if (ep_slot >= JOIST_CSPACE_SLOTS) {
+    const struct joist_cap *ec = joist__slot_c(k, cs, ep_slot);
+    if (ec == NULL) {
         return JOIST_E_RANGE;
     }
-    const struct joist_cap *ec = &k->cs[cs].slot[ep_slot];
     if (ec->obj == 0) {
         return JOIST_E_EMPTY;
     }
@@ -392,8 +392,8 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
 
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
-            const struct joist_cap *cap = &k->cs[c].slot[i];
-            if (cap->obj == 0 || cap->obj > JOIST_MAX_OBJECTS) {
+            const struct joist_cap *cap = joist__slot_c(k, c, i);
+            if (cap == NULL || cap->obj == 0 || cap->obj > JOIST_MAX_OBJECTS) {
                 continue;
             }
             if (cap->type == JOIST_OBJ_ENDPOINT && (cap->rights & JOIST_R_RECV) != 0) {
@@ -511,8 +511,9 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
         uint32_t n = 0;
         for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
             for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
-                const struct joist_cap *cap = &k->cs[c].slot[i];
-                if (cap->obj == a->obj && cap->badge == a->badge && counted_send(cap)) {
+                const struct joist_cap *cap = joist__slot_c(k, c, i);
+                if (cap != NULL && cap->obj == a->obj && cap->badge == a->badge &&
+                    counted_send(cap)) {
                     n++;
                 }
             }

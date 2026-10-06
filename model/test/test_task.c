@@ -63,7 +63,7 @@ JT_TEST(task_create_errors)
     boot();
     JT_CHECK(joist_task_create(&k, root, 64, 0) == JOIST_E_NOMEM); /* 64 + 1 > 64 */
     JT_CHECK(joist_task_create(&k, root, UINT32_MAX, 0) == JOIST_E_NOMEM);
-    JT_CHECK(joist_task_create(&k, root, 1, JOIST_CSPACE_SLOTS) == JOIST_E_RANGE);
+    JT_CHECK(joist_task_create(&k, root, 1, JOIST_CNODE_LEAF) == JOIST_E_RANGE);
     JT_CHECK(joist_task_create(&k, JOIST_MAX_CSPACES, 1, 0) == JOIST_E_RANGE);
     JT_CHECK(joist_task_create(&k, 5, 1, 0) == JOIST_E_DEAD);
     JT_CHECK(joist_task_create(&k, root, 63, 0) == JOIST_OK); /* exactly fits */
@@ -213,7 +213,7 @@ JT_TEST(grant_errors)
     JT_CHECK(joist__cap_grant(&k, root, 1, t, 0, JOIST_R_ALL) == JOIST_E_RIGHTS);
     JT_CHECK(joist__cap_grant(&k, root, 2, t, 0, JOIST_R_ALL) == JOIST_E_EMPTY);
     JT_CHECK(joist__cap_grant(&k, root, 0, 7, 0, JOIST_R_ALL) == JOIST_E_DEAD);
-    JT_CHECK(joist__cap_grant(&k, root, 0, t, JOIST_CSPACE_SLOTS, JOIST_R_ALL) == JOIST_E_RANGE);
+    JT_CHECK(joist__cap_grant(&k, root, 0, t, JOIST_CNODE_LEAF, JOIST_R_ALL) == JOIST_E_RANGE);
     JT_CHECK(joist__cap_grant(&k, root, 0, t, 0, JOIST_R_GRANT) == JOIST_OK);
     JT_CHECK(joist__cap_grant(&k, root, 0, t, 0, JOIST_R_ALL) == JOIST_E_OCCUPIED);
     /* I8: the copy has only what the mask allowed. */
@@ -230,7 +230,7 @@ JT_TEST(destroy_rights_and_type)
     JT_CHECK(joist_task_destroy(&k, root, 1) == JOIST_E_RIGHTS);
     JT_CHECK(joist_task_destroy(&k, root, 2) == JOIST_E_TYPE);
     JT_CHECK(joist_task_destroy(&k, root, 3) == JOIST_E_EMPTY);
-    JT_CHECK(joist_task_destroy(&k, root, JOIST_CSPACE_SLOTS) == JOIST_E_RANGE);
+    JT_CHECK(joist_task_destroy(&k, root, JOIST_CNODE_LEAF) == JOIST_E_RANGE);
     JT_CHECK(joist_thread_kill(&k, root, 0) == JOIST_E_TYPE);
     JT_CHECK(k.cs[space_of(root, 0)].live);
     JT_CHECK(clean());
@@ -262,7 +262,7 @@ JT_TEST(thread_spawn_errors)
     JT_REQUIRE(joist_task_create(&k, root, 0, 0) == JOIST_OK);
     JT_CHECK(joist_thread_spawn(&k, root, 1, 2, &th) == JOIST_E_EMPTY);
     JT_CHECK(joist_thread_spawn(&k, root, 0, 0, &th) == JOIST_E_OCCUPIED);
-    JT_CHECK(joist_thread_spawn(&k, root, 0, JOIST_CSPACE_SLOTS, &th) == JOIST_E_RANGE);
+    JT_CHECK(joist_thread_spawn(&k, root, 0, JOIST_CNODE_LEAF, &th) == JOIST_E_RANGE);
     /* The task has no quota of its own, but the spawner pays. */
     JT_CHECK(joist_thread_spawn(&k, root, 0, 1, &th) == JOIST_OK);
     JT_REQUIRE(joist_task_destroy(&k, root, 0) == JOIST_OK);
