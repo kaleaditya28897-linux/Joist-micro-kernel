@@ -62,7 +62,8 @@ Open, in the order they block work (`docs/abi.md`, *Open*):
   item 8). A bigger machine, or a cascade-free stub of the drain, would do.
 - **§8.1 tooling** (`phase1-plan.md`, *Tooling*): the TLA+ tools and CBMC
   are installed (2026-10-04, user-local), and CBMC is in use (`make cbmc`). `clang-tidy`, `scan-build` and
-  `ld.lld`/`llvm-*` need root: one `xbps-install` for the project owner.
+  `ld.lld`/`llvm-*` needed root. *Later status: installed 2026-10-05 and in
+  use from Phase 2 (`docs/phase2-plan.md`, *Tooling*).*
 
 Phase 0's carry-overs for Phases 4–10 are unchanged (`docs/phase0-exit.md`).
 

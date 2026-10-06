@@ -510,6 +510,13 @@ The riskiest phase in the plan, and the one most likely to overrun. It gets its 
 
 ## 12. Repository layout (proposal)
 
+*Status (2026-10-06): the tree so far follows this, with these differences.
+`kernel/` also has `elf/` (boot-module validation), `sys/` (system calls,
+`copy_from_user`), `lib/`, `include/`, `test/` and `fuzz/`; `cap/`, `ipc/`
+and `sched/` arrive in Phase 3. Added at the top level: `user/` (Phase 2's
+test programs), `boot/` (Limine configuration), `tools/` (the scripts behind
+each phase's data) and `mcp-server/` (the plan as query tools).*
+
 ```
 joist/
 ├── kernel/            # freestanding C kernel
@@ -615,6 +622,12 @@ Priority check: does this respect the order Reliability > Resilience > POSIX > R
 ---
 
 ## 17. Immediate next steps
+
+*Status (2026-10-06): these were Phase 0's steps. All were done and Phase 0
+closed on 2026-10-01 (`docs/phase0-exit.md`); Phases 1 and 2 are closed too
+(`docs/phase1-exit.md`, `docs/phase2-exit.md`). Phase 3 is next; its
+starting points are the carried-forward lists in those exit records. The
+list is kept as the record of how the project started.*
 
 1. Set up Debian GNU/Hurd x86_64 in QEMU and build Hurd + GNU Mach + glibc from source.
 2. Run `rpctrace` on boot, a shell session, and a package build; start `docs/mach-inventory.md`.

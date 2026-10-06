@@ -33,6 +33,11 @@ items (below). Under the journal's rules, a later change of mind is a new,
 superseding entry, not an edit. The Phase 1 host model is where several of
 these get their first real test.
 
+Later entries and changes, each accepted by the project owner: the
+amendment to 0001 that settles its five parameters (2026-10-03, Phase 1
+work item 6), the amendment to 0004 on parent authority over descendants
+(2026-10-05), and **0015** (2026-10-05, at the start of Phase 2).
+
 ## §6 coverage
 
 Phase 0's exit criterion requires a decision entry for every row of §6's

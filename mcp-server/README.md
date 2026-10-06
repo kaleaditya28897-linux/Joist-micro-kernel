@@ -14,7 +14,7 @@ tooling policy (§13 of the plan): Clang by default, GCC supported.
 | `list_sections` | – | Every Markdown heading in the plan. |
 | `get_section` | `key` (string) | Full text of a section by number (`"5.3"`), leading token (`"5"`), or heading substring (`"IPC"`). |
 | `get_phase` | `phase` (integer 0–13) | A roadmap phase and its exit criterion (§11). |
-| `list_decisions` | – | The design-journal decisions 0000–0003 and their status. |
+| `list_decisions` | – | Every design-journal decision and its status, read from `docs/decisions/README.md` at call time. |
 
 ## Build
 

@@ -10,6 +10,21 @@ int plan_load(plan_doc *doc, const char *path)
 {
     doc->text = NULL;
     doc->len = 0;
+    doc->dir = NULL;
+
+    /* The directory part of path ("." if none): where docs/ lives. */
+    const char *slash = strrchr(path, '/');
+    size_t dlen = slash == NULL ? 1U : (size_t)(slash - path);
+    doc->dir = malloc(dlen + 1U);
+    if (doc->dir == NULL) {
+        return -1;
+    }
+    if (slash == NULL) {
+        doc->dir[0] = '.';
+    } else {
+        memcpy(doc->dir, path, dlen);
+    }
+    doc->dir[dlen] = '\0';
 
     FILE *f = fopen(path, "rb");
     if (f == NULL) {
@@ -42,6 +57,8 @@ int plan_load(plan_doc *doc, const char *path)
 
 void plan_free(plan_doc *doc)
 {
+    free(doc->dir);
+    doc->dir = NULL;
     free(doc->text);
     doc->text = NULL;
     doc->len = 0;
@@ -204,20 +221,101 @@ char *plan_get_phase(const plan_doc *doc, int phase)
     return sec;
 }
 
+/* Append src to the growing buffer *buf (length *len, capacity *cap). */
+static int append(char **buf, size_t *len, size_t *cap, const char *src, size_t n)
+{
+    if (*len + n + 1U > *cap) {
+        size_t ncap = (*cap == 0U ? 1024U : *cap * 2U);
+        while (ncap < *len + n + 1U) {
+            ncap *= 2U;
+        }
+        char *nb = realloc(*buf, ncap);
+        if (nb == NULL) {
+            return -1;
+        }
+        *buf = nb;
+        *cap = ncap;
+    }
+    memcpy(*buf + *len, src, n);
+    *len += n;
+    (*buf)[*len] = '\0';
+    return 0;
+}
+
 char *plan_list_decisions(const plan_doc *doc)
 {
-    /* The plan enumerates decisions 0000-0003; report them with the status it
-     * records. This is a fixed, curated view rather than a scrape, so it stays
-     * stable even as prose around each decision changes. */
-    (void)doc;
-    return strdup(
-        "Design-journal decisions referenced by the plan (see \u00a715, \u00a717):\n"
-        "  0000 - Project name \"Joist\": settled (accepted).\n"
-        "  0001 - Native IPC model (sync + notifications, badge and lifetime\n"
-        "         semantics): required next; blocks Phase 3.\n"
-        "  0002 - Clang-vs-GCC for glibc, sized against a one-month budget\n"
-        "         (\u00a713): to be recorded from the Phase 0 measurement.\n"
-        "  0003 - SMP + no-runtime-allocation + bounded WCET taken together\n"
-        "         (\u00a75.6): must be settled before Phase 3 IPC work begins.\n"
-        "New decisions go in docs/decisions/NNNN-title.md using the \u00a715 template.");
+    char path[4096];
+    const char *dir = doc->dir != NULL ? doc->dir : ".";
+    (void)snprintf(path, sizeof path, "%s/docs/decisions/README.md", dir);
+    plan_doc idx;
+    if (plan_load(&idx, path) != 0) {
+        char msg[4200];
+        (void)snprintf(msg, sizeof msg,
+                       "The decision index could not be read at %s.\n"
+                       "New decisions go in docs/decisions/NNNN-title.md using the \u00a715 template.",
+                       path);
+        return strdup(msg);
+    }
+    /* The index table: rows "| NNNN | Title | Status | Blocks |" after the
+     * "## Index" heading, up to the next "## ". */
+    char *out = NULL;
+    size_t len = 0;
+    size_t cap = 0;
+    const char *head = "Design-journal decisions (from docs/decisions/README.md):\n";
+    if (append(&out, &len, &cap, head, strlen(head)) != 0) {
+        plan_free(&idx);
+        return NULL;
+    }
+    const char *p = strstr(idx.text, "\n## Index");
+    int rows = 0;
+    while (p != NULL && *p != '\0') {
+        const char *eol = strchr(p + 1, '\n');
+        const char *line = p + 1;
+        size_t n = eol != NULL ? (size_t)(eol - line) : strlen(line);
+        if (rows > 0 && n >= 3U && strncmp(line, "## ", 3U) == 0) {
+            break;
+        }
+        if (n > 7U && line[0] == '|' && line[1] == ' ' && isdigit((unsigned char)line[2]) &&
+            isdigit((unsigned char)line[5])) {
+            /* "| 0001 | Title | Status | Blocks |" -> "  0001 - Title: status (blocks)" */
+            char row[1024];
+            size_t m = n < sizeof row - 1U ? n : sizeof row - 1U;
+            memcpy(row, line, m);
+            row[m] = '\0';
+            char *cell[4] = {NULL, NULL, NULL, NULL};
+            int k = 0;
+            for (char *t = strtok(row, "|"); t != NULL && k < 4; t = strtok(NULL, "|")) {
+                while (*t == ' ') {
+                    t++;
+                }
+                char *e = t + strlen(t);
+                while (e > t && e[-1] == ' ') {
+                    *--e = '\0';
+                }
+                cell[k++] = t;
+            }
+            if (k >= 3) {
+                char item[1200];
+                (void)snprintf(item, sizeof item, "  %s - %s: %s%s%s%s\n", cell[0], cell[1],
+                               cell[2], (k == 4 && strcmp(cell[3], "\u2014") != 0) ? " (blocks " : "",
+                               (k == 4 && strcmp(cell[3], "\u2014") != 0) ? cell[3] : "",
+                               (k == 4 && strcmp(cell[3], "\u2014") != 0) ? ")" : "");
+                if (append(&out, &len, &cap, item, strlen(item)) != 0) {
+                    free(out);
+                    plan_free(&idx);
+                    return NULL;
+                }
+                rows++;
+            }
+        }
+        p = eol;
+    }
+    plan_free(&idx);
+    const char *tail = rows > 0 ? "New decisions go in docs/decisions/NNNN-title.md using the \u00a715 template."
+                                : "No index rows were found in docs/decisions/README.md.";
+    if (append(&out, &len, &cap, tail, strlen(tail)) != 0) {
+        free(out);
+        return NULL;
+    }
+    return out;
 }

@@ -39,6 +39,11 @@ Open items inside accepted decisions, in the order they block work:
   **notification bit-set width** (which 0005's `select` protocol and 0014's
   futexes both depend on), capability-space representation (with 0011's
   capability-copy loop), and whether a bare `Send` is needed.
+  *Later status: all five were settled in Phase 1 by the accepted amendment
+  to 0001 (2026-10-03; `docs/phase1-plan.md`, work item 6): 4 message
+  registers plus a 4 KiB IPC buffer, 64-bit badges, a 64-bit notification
+  word, a two-level capability table, no bare `Send`. 0011's capability copy
+  is still open, now carried by `docs/phase2-exit.md` to Phase 3.*
 - **Phase 4:** 0007's fault-reply read-ahead and 0008's delegated-range
   escape hatch, which glibc will be written against.
 - **Phase 5:** the `io_select` readiness-notification change in every server

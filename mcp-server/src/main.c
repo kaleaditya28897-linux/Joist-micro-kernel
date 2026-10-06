@@ -183,7 +183,7 @@ static cJSON *build_tools_array(void)
 
     cJSON_AddItemToArray(tools,
         make_tool("list_decisions",
-                  "List the design-journal decisions (0000-0003) and their status.",
+                  "List every design-journal decision and its status, from the journal's index.",
                   NULL, NULL));
 
     return tools;

@@ -8,6 +8,11 @@ blocking and bounds. The machine encoding (which register carries what, the
 system-call numbers) is fixed in Phase 3 within the limits of decision 0001's
 2026-10-03 amendment (4 message registers, a 4 KiB IPC buffer).
 
+*Status (2026-10-06): unchanged by Phase 2. The Phase 2 kernel exposes only
+two temporary debug calls, `debug_write` and `exit` (`kernel/sys/syscall.h`),
+which this ABI replaces in Phase 3 (`docs/phase2-exit.md`, *Carried
+forward*).*
+
 Invariant numbers I1–I10 refer to `docs/phase1-plan.md`. Model function names
 are given as `joist_*` so every statement can be checked against the code.
 

@@ -8,6 +8,7 @@
 typedef struct {
     char  *text;   /* NUL-terminated file contents. */
     size_t len;    /* Length in bytes, excluding the terminator. */
+    char  *dir;    /* The directory holding the plan (the repository root). */
 } plan_doc;
 
 /* Load the plan from path. Returns 0 on success, -1 on failure (errno set). */
@@ -31,8 +32,9 @@ char *plan_get_section(const plan_doc *doc, const char *key);
 /* The roadmap phase whose heading contains "Phase <n>". */
 char *plan_get_phase(const plan_doc *doc, int phase);
 
-/* The design-journal decisions mentioned in the plan (0000-0003), with the
- * status the plan records for each. */
+/* Every design-journal decision with its status, read at call time from the
+ * journal's own index (docs/decisions/README.md, next to the plan), so it is
+ * never stale. If the index can't be read, says where it looked. */
 char *plan_list_decisions(const plan_doc *doc);
 
 #endif /* JOIST_MCP_PLAN_H */

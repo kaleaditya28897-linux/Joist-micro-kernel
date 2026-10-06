@@ -5,23 +5,30 @@ aiming for QNX-level reliability and Minix 3-level resilience while staying POSI
 
 ## Repository state (read this first)
 
-**Phase 0 is closed (2026-10-01, `docs/phase0-exit.md`); Phase 1 is next.** There is no
-kernel source yet. What exists:
+**Phases 0, 1 and 2 are closed** (exit records `docs/phase0-exit.md`, `docs/phase1-exit.md`,
+`docs/phase2-exit.md`, accepted 2026-10-01, 2026-10-04 and 2026-10-05). **Phase 3 (IPC and
+capabilities in the real kernel) is next**; its inputs are the *Carried forward* lists in
+those records. What exists:
 
 - `joist-microkernel-plan.md`: the authoritative design document.
-- `docs/decisions/`: the design journal, **0000–0014 all accepted** (index in its README).
+- `docs/decisions/`: the design journal, **0000–0015 all accepted** (index in its README;
+  0001 and 0004 carry accepted amendments, 0015 chose Limine).
 - Phase 0 evidence: `docs/mach-inventory.md`, `docs/clang-inventory.md`,
-  `docs/client-recovery.md`, `docs/rpc-idempotency.md`, and `docs/phase0-data/`, where every
-  number lives with its provenance (commands, versions, SHA-256 of raw logs).
-- `docs/phase1-plan.md`: Phase 1 scope, invariants I1–I10, work order. `docs/abi.md` is the
-  Phase 1 exit deliverable (skeleton until the model settles the API).
-- `model/`: the Phase 1 host-model scaffold. `make check` runs every test under plain, ASan,
-  UBSan, MSan and TSan; `make sanity` proves each sanitizer is live.
-- `tools/phase0/`: the scripts and patches behind the Phase 0 data.
+  `docs/client-recovery.md`, `docs/rpc-idempotency.md`, `docs/phase0-data/`.
+- Phase 1: `docs/phase1-plan.md`, `docs/phase1-data/`, `docs/abi.md` (the native API as the
+  model settled it; Phase 3 fixes the binary ABI), and `model/`, the host-side semantic
+  model (invariants I1–I10, property tests, mutation, libFuzzer, TLA+ in `model/tla/`, CBMC
+  in `model/cbmc/`). See `model/README.md`.
+- Phase 2: `docs/phase2-plan.md`, `docs/phase2-data/`, and `kernel/`, the freestanding
+  x86_64 kernel booted by Limine (`boot/limine.conf`), with `user/`'s ring-3 test programs
+  as root task. See `kernel/README.md`, `user/README.md`. `make check` in `kernel/` runs
+  host tests under every sanitizer, `clang-tidy`, `scan-build`, BIOS and UEFI boots, and the
+  self-tests.
+- `tools/phase0/`, `tools/phase1/`: the scripts and patches behind each phase's data.
 - `docs/testbed.md`: the Debian GNU/Hurd x86_64 VM used for measurements.
 
 `joist-microkernel-plan.md` is the source of truth. Keep it internally consistent: section
-numbers (§N), the phase roadmap (§11), the decision list (0000–0014), and the cross-references
+numbers (§N), the phase roadmap (§11), the decision list (0000–0015), and the cross-references
 between them are load-bearing. If you change a design commitment, update every place it is
 referenced, not just the local paragraph.
 
@@ -46,10 +53,11 @@ These are decided, not open questions. Do not silently reopen them:
 
 - **Decision journal.** Non-trivial design decisions become `docs/decisions/NNNN-title.md`
   using the template in §15 (Context / Options / Decision / Consequences / Priority check).
-  0000–0014 are **accepted**. A change of mind is a new, superseding entry, never an edit;
+  0000–0015 are **accepted**. A change of mind is a new, superseding entry, never an edit;
   amendments record new evidence or settle a decision's listed open items. 0001's five open
-  parameters (message registers, badge width, notification width, capability-space
-  representation, bare `Send`) are settled in Phase 1 as amendments to 0001.
+  parameters were settled by its 2026-10-03 amendment: 4 × 64-bit message registers plus a
+  4 KiB IPC buffer, 64-bit server-chosen badges, a 64-bit notification word, a two-level
+  capability table, and no bare `Send` (deferred replies use reply objects).
 - **Measurements are auditable.** Data goes in `docs/phase0-data/` (or a later phase's
   equivalent) as CSV/TSV with the producing command, tool versions and raw-log checksums
   recorded in that directory's README. Numbers in documents are generated from or traceable
@@ -82,9 +90,9 @@ These are decided, not open questions. Do not silently reopen them:
   `sysdeps/mach` for `sysdeps/joist` while keeping `sysdeps/mach/hurd` edits minimal.
 
 The proposed tree and phase-by-phase roadmap (each phase has a hard exit criterion) are in
-§11–§12; follow the phase ordering and exit criteria when adding real code.
+§11–§12 (§12 carries a note on how the real tree differs); follow the phase ordering and exit criteria when adding real code.
 
-## Tooling the plan mandates (when code lands)
+## Tooling the plan mandates
 
 - **Compiler:** Clang/LLVM pinned to one major version for everything Joist owns; `ld.lld`,
   `llvm-objcopy`/`objdump`/`ar`. Decision 0002 is accepted on the **Clang branch**: glibc too
@@ -101,8 +109,10 @@ The proposed tree and phase-by-phase roadmap (each phase has a hard exit criteri
   libFuzzer + syzkaller-style syscall fuzzing; CBMC for capability/IPC invariants.
 - **Formatting/linting:** `/.clang-format` is checked in (4-space indent, Linux braces,
   braces everywhere, 100 columns; applied to new code, not retrofitted to `mcp-server/`).
-  A `clang-tidy` config is still to come: `clang-tidy` isn't installed on the workstation yet.
-- **Kernel debugging:** QEMU + GDB (`-s -S`), serial log as primary output.
+  `/.clang-tidy` is checked in (CERT, bugprone, analyzer) and runs in `kernel/`'s `make check`.
+- **Kernel debugging:** QEMU + GDB (`-s -S`), serial log as primary output. Installed:
+  clang/LLD 21.1.8, QEMU 11.1.1, Limine 12.9.2, xorriso, GDB, clang-tidy, scan-build (system);
+  TLA+ tools v1.7.4 and CBMC 6.11.0 (user-local, `~/.local`).
 
 When you introduce any of these, add the corresponding config/Makefile rather than running
 ad-hoc commands, so future sessions inherit a reproducible setup.

@@ -117,7 +117,8 @@ One CPU. SMP (0003) starts in Phase 3, once there is something to share.
 
 ## Tooling
 
-Needed, not installed (root): `ld.lld`, `llvm-objcopy`/`llvm-objdump`/
+**Installed 2026-10-05** (step 1; versions in `docs/phase2-exit.md`, *The
+kernel at exit*). Needed at the start of the phase: `ld.lld`, `llvm-objcopy`/`llvm-objdump`/
 `llvm-ar` (§13), QEMU for x86_64 with its UEFI firmware, `xorriso` (ISO),
 Limine, GDB, and the static analysers:
 
@@ -263,7 +264,7 @@ now boots under both firmwares after the host tests.
 
 Not yet tested: the double-fault path (IST1). A reliable trigger needs a
 kernel stack overflow, which comes naturally once the kernel runs on its
-own stack (step 6).
+own stack (step 6). *(Tested in step 8: self-test 7.)*
 
 ### Step 3, in the kernel (2026-10-05)
 

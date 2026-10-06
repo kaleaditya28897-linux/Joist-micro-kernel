@@ -111,8 +111,10 @@ style is `/.clang-format`), Java 11 (enough for the TLA+ tools).
 
 `~/.local/bin/tlc` is a two-line wrapper: `java -cp tla2tools.jar tlc2.TLC`.
 
-**Still missing; they need root** (`sudo xbps-install -S clang-tools-extra
-clang-analyzer lld llvm`, the meta packages matching clang 21):
+**Missing at the time; they needed root** (`sudo xbps-install -S clang-tools-extra
+clang-analyzer lld llvm`, the meta packages matching clang 21). *Installed
+2026-10-05 at the start of Phase 2 (`docs/phase2-plan.md`, *Tooling*), and in
+use there: `clang-tidy` and `scan-build` run in the kernel's `make check`.*
 
 | Tool | For |
 |---|---|
@@ -421,7 +423,7 @@ The result is an **amendment to decision 0001**, at the end of
 `docs/decisions/0001-native-ipc-model.md`, **accepted 2026-10-03** as
 written; on acceptance the model's bare `Send` was removed. In short:
 
-| 0001 item | Proposed | Evidence |
+| 0001 item | Settled (accepted 2026-10-03) | Evidence |
 |---|---|---|
 | 1. Message registers | 4 × 64-bit registers, plus a 4 KiB per-thread IPC buffer; bulk via 0006's grants | MIG payload sizes × traced call mix: 4 words fit 37–50% of calls, 16 words only 2 points more; 512 words fit 92–94% |
 | 2. Badges | 64 bits, server-chosen; no-senders delivered by a queue, not as bits | the model: ORing badges into the word loses them when two fire |

@@ -5,7 +5,9 @@ component uses it, and the planned mapping onto Joist's native API (§6).
 
 **Status (2026-09-23):** dynamic side collected (partial; see *Coverage*).
 Static cross-reference done by `grep`, not yet by reading every call site.
-Decisions not yet written. All numbers come from `docs/phase0-data/`; see its
+Decisions not yet written. *(Later status: Phase 0 closed 2026-10-01 with
+decisions 0001–0014 written and accepted; see `docs/phase0-exit.md`. The
+inventory itself is as it stood then.)* All numbers come from `docs/phase0-data/`; see its
 README for provenance and how to reproduce each one.
 
 ## Why this exists
