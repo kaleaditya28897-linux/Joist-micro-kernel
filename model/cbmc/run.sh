@@ -16,8 +16,8 @@ for arg in "$@"; do
     name="op$op"
     case $arg in *:*) split="-DJOIST_CBMC_SLOT_TYPE=${arg#*:}"; name="op$op-type${arg#*:}" ;; esac
     start=$(date +%s)
-    cbmc -I"$here/include" -I"$here/src" $SIZES -DJOIST_CBMC_INDUCTIVE -DJOIST_CBMC_STEPS=1 \
-        -DJOIST_CBMC_OP="$op" $split "$here/cbmc/harness_cspace.c" "$here"/src/*.c \
+    cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $SIZES -DJOIST_CBMC_INDUCTIVE -DJOIST_CBMC_STEPS=1 \
+        -DJOIST_CBMC_OP="$op" $split "$here/cbmc/harness_cspace.c" "$here"/../kernel/core/*.c \
         --unwind 4 --unwinding-assertions --bounds-check --pointer-check \
         --signed-overflow-check --undefined-shift-check --trace > "$out/$name.log" 2>&1
     echo "$name: $(( $(date +%s) - start ))s $(grep -E '^VERIFICATION|failed \(' "$out/$name.log" | tr '\n' ' ')"

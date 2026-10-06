@@ -15,7 +15,7 @@
  *   JOIST_PROP_SEED=S    run only seed S (replay a reported failure) */
 #include "harness.h"
 #include "internal.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 #include <inttypes.h>
 #include <stdlib.h>

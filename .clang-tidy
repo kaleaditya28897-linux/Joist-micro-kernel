@@ -9,12 +9,19 @@
 #   catch a swap.
 # - cert-dcl51-cpp: C++-only (reserved identifiers in C++); cert-dcl37-c and
 #   bugprone-reserved-identifier cover C.
+# - clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling:
+#   flags every memset/memcpy and asks for C11 Annex K's memset_s, which no
+#   freestanding kernel has (kernel/lib/string.c provides the plain ones).
+#   The kernel's calls clear or copy exactly sizeof the object named; the
+#   bounds themselves are checked by clang-analyzer-security.ArrayBound, the
+#   sanitizers and CBMC.
 Checks: >
   -*,
   cert-*,
   bugprone-*,
   clang-analyzer-*,
   -bugprone-easily-swappable-parameters,
-  -cert-dcl51-cpp
+  -cert-dcl51-cpp,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*/kernel/.*'

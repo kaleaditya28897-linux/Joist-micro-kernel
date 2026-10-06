@@ -1,5 +1,7 @@
 # Makefile for the Phase 1 host-side semantic model (plan §11 Phase 1, §8.1).
-# Plain Make, KISS (§13). The model is a C17 library plus a test runner.
+# Plain Make, KISS (§13). The model's code is the kernel's object layer,
+# ../kernel/core (moved there in Phase 3, step 2); this directory holds its
+# host test runner, fuzzer, CBMC harness and TLA+ model.
 #
 #   make            build and run the tests (plain build)
 #   make asan       ... under AddressSanitizer
@@ -28,10 +30,11 @@ endif
 CSTD     := -std=c17
 WARN     := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow \
             -Wstrict-prototypes -Wmissing-prototypes -Wvla
-CPPFLAGS := -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L
+CORE     := ../kernel/core
+CPPFLAGS := -I../kernel/include -I$(CORE) -D_POSIX_C_SOURCE=200809L
 OPT      ?= -O1 -g -fno-omit-frame-pointer
 
-SRC      := $(wildcard src/*.c)
+SRC      := $(wildcard $(CORE)/*.c)
 TESTS    := $(wildcard test/test_*.c)
 RUNNER   := test/harness.c
 EXEC     := test/exec.c
@@ -59,7 +62,7 @@ all: test
 
 # $(1): variant name, $(2): extra flags
 define variant
-$(BUILD)/$(1)/run-tests: $(SRC) $(TESTS) $(RUNNER) $(EXEC) $(STAMP) $(wildcard include/joist/*.h src/*.h test/*.h)
+$(BUILD)/$(1)/run-tests: $(SRC) $(TESTS) $(RUNNER) $(EXEC) $(STAMP) $(wildcard ../kernel/include/joist/core.h $(CORE)/*.h test/*.h)
 	@mkdir -p $$(@D)
 	$$(CC) $$(CSTD) $$(OPT) $$(WARN) $$(CPPFLAGS) $(2) $$(SRC) $$(TESTS) $$(RUNNER) $$(EXEC) -o $$@ -lpthread
 endef
@@ -89,7 +92,7 @@ mutate:
 # under ASan and UBSan. A crash leaves its input in build/ as crash-*; replay
 # it with ./build/fuzz/fuzz-model build/crash-<hash>.
 FUZZ_TIME ?= 60
-$(BUILD)/fuzz/fuzz-model: $(SRC) $(EXEC) fuzz/fuzz_model.c $(wildcard include/joist/*.h src/*.h test/*.h)
+$(BUILD)/fuzz/fuzz-model: $(SRC) $(EXEC) fuzz/fuzz_model.c $(wildcard ../kernel/include/joist/core.h $(CORE)/*.h test/*.h)
 	@mkdir -p $(@D) $(BUILD)/fuzz-corpus
 	$(CC) $(CSTD) $(OPT) $(WARN) $(CPPFLAGS) -Itest \
 	    -fsanitize=fuzzer,address,undefined -fsanitize-trap=undefined \
@@ -99,7 +102,7 @@ $(BUILD)/fuzz/fuzz-model: $(SRC) $(EXEC) fuzz/fuzz_model.c $(wildcard include/jo
 # fuzz input encoding (fuzz/make_seeds.c), FUZZ_SEED_STEPS steps each.
 FUZZ_SEEDS      ?= 32
 FUZZ_SEED_STEPS ?= 1000
-$(BUILD)/fuzz/make-seeds: $(SRC) $(EXEC) fuzz/make_seeds.c $(wildcard include/joist/*.h src/*.h test/*.h)
+$(BUILD)/fuzz/make-seeds: $(SRC) $(EXEC) fuzz/make_seeds.c $(wildcard ../kernel/include/joist/core.h $(CORE)/*.h test/*.h)
 	@mkdir -p $(@D)
 	$(CC) $(CSTD) $(OPT) $(WARN) $(CPPFLAGS) -Itest $(SRC) $(EXEC) fuzz/make_seeds.c -o $@
 
@@ -162,7 +165,7 @@ cbmc:
 
 format:
 	clang-format --style=file:../.clang-format -i $(SRC) $(TESTS) $(RUNNER) $(EXEC) \
-	    fuzz/*.c cbmc/*.c $(wildcard include/joist/*.h src/*.h test/*.h)
+	    fuzz/*.c cbmc/*.c $(wildcard ../kernel/include/joist/core.h $(CORE)/*.h test/*.h)
 
 clean:
 	rm -rf $(BUILD)

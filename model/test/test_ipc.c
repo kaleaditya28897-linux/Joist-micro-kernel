@@ -1,7 +1,7 @@
 /* test_ipc.c - unit tests for threads, endpoints and synchronous IPC (Phase 1
  * work item 2; invariants I6, I7, I10). */
 #include "harness.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 static struct joist_kernel k;
 static joist_cspace srv_cs, cli_cs;

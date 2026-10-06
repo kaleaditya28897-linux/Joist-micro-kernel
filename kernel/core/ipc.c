@@ -6,9 +6,6 @@
  * threads), which are bounded by JOIST_MAX_THREADS (I9). */
 #include "internal.h"
 
-#include <stdio.h>
-#include <string.h>
-
 uint64_t joist__deadline(const struct joist_kernel *k, uint64_t timeout)
 {
     if (timeout == JOIST_FOREVER || k->now > JOIST_FOREVER - timeout) {
@@ -51,10 +48,14 @@ void joist__q_push(struct joist_kernel *k, uint32_t obj, joist_queue_kind kind, 
     e->qtail = t + 1u;
 }
 
-static void q_remove(struct joist_kernel *k, uint32_t t)
+/* Remove thread t from the queue of object obj (an index), which must be the
+ * queue it is on. The caller names the object rather than this function
+ * reading it from the thread's ep field, so the index used is always one the
+ * caller has checked. */
+static void q_remove(struct joist_kernel *k, uint32_t t, uint32_t obj)
 {
     struct joist_thread_rec *r = &k->th[t];
-    struct joist_object *e = &k->obj[r->ep - 1u];
+    struct joist_object *e = &k->obj[obj];
     if (r->qprev != 0) {
         k->th[r->qprev - 1u].qnext = r->qnext;
     } else {
@@ -76,7 +77,7 @@ static void q_remove(struct joist_kernel *k, uint32_t t)
 uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj)
 {
     uint32_t t = k->obj[obj].qhead - 1u;
-    q_remove(k, t);
+    q_remove(k, t, obj);
     return t;
 }
 
@@ -153,9 +154,10 @@ joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t)
     if (r->state == JOIST_T_FREE) {
         return JOIST_E_STATE;
     }
-    if (r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
-        r->state == JOIST_T_BLOCKED_WAIT) {
-        q_remove(k, t);
+    if ((r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
+         r->state == JOIST_T_BLOCKED_WAIT) &&
+        r->ep != 0) {
+        q_remove(k, t, r->ep - 1u);
     }
     /* A server dying with a reply capability wakes its caller (I6, I10). */
     if (r->reply_to != 0) {
@@ -400,9 +402,10 @@ void joist_tick(struct joist_kernel *k, uint64_t dt)
             r->deadline == JOIST_FOREVER || r->deadline > k->now) {
             continue;
         }
-        if (r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
-            r->state == JOIST_T_BLOCKED_WAIT) {
-            q_remove(k, i);
+        if ((r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
+             r->state == JOIST_T_BLOCKED_WAIT) &&
+            r->ep != 0) {
+            q_remove(k, i, r->ep - 1u);
         }
         /* A caller timing out in BLOCKED_REPLY leaves the server's reply
          * capability stale; its Reply then returns JOIST_E_PEER. */
@@ -421,7 +424,7 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
         if (bad++ == 0 && msg_free && msg != NULL && msglen > 0) {                                 \
-            (void)snprintf(msg, msglen, __VA_ARGS__);                                              \
+            JOIST_FMT(msg, msglen, __VA_ARGS__);                                              \
         }                                                                                          \
     } while (0)
 

@@ -71,7 +71,7 @@ Phase 0's carry-overs for Phases 4–10 are unchanged (`docs/phase0-exit.md`).
 
 | | |
 |---|---|
-| Source | `model/src/`: 4 files, kernel rules (no `malloc`, no recursion, no VLAs, bounded loops) |
+| Source | `model/src/`: 4 files, kernel rules (no `malloc`, no recursion, no VLAs, bounded loops). *Later status: moved to `kernel/core/` in Phase 3 step 2 (2026-10-06), where the kernel compiles it; `model/` tests it there.* |
 | Tests | 77 tests (unit and property); `make check` runs each in six builds |
 | Mutations | 43 in `model/test/mutations.txt`, all caught |
 | Fuzzing | `make fuzz` from a 32-sequence seed corpus; longest run 15 minutes, 6.6 million steps, no crash |

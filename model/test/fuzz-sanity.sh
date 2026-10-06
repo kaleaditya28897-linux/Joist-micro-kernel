@@ -18,8 +18,9 @@ for want in "$@"; do
     file=$(echo "$line" | cut -d"$(printf '\037')" -f2 | tr -d ' ')
     from=$(echo "$line" | cut -d"$(printf '\037')" -f3 | sed 's/^ //; s/ $//')
     to=$(echo "$line" | cut -d"$(printf '\037')" -f4 | sed 's/^ //; s/ $//')
-    rm -rf "$work/t"; mkdir "$work/t"
-    (cd "$here" && tar --exclude=./build -cf - .) | (cd "$work/t" && tar -xf -)
+    rm -rf "$work/w"; mkdir -p "$work/w/model" "$work/w/kernel"; ln -sfn "$work/w/model" "$work/t"
+    (cd "$here" && tar --exclude=./build -cf - .) | (cd "$work/w/model" && tar -xf -)
+    cp -r "$here/../kernel/core" "$here/../kernel/include" "$work/w/kernel/"
     python3 - "$work/t/$file" "$from" "$to" <<'PY' || { echo "STALE    $want"; fail=1; continue; }
 import sys
 p, a, b = sys.argv[1:]

@@ -13,7 +13,7 @@
  * The run ends with a coverage line per operation, counting each result code,
  * so that a generator which never reaches an error path is visible. */
 #include "harness.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 #include <inttypes.h>
 #include <stdlib.h>

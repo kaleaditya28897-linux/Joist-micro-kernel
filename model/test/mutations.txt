@@ -2,49 +2,49 @@
 #   name @@ file @@ text to find @@ replacement   (`@@` because C code contains `|`)
 # Every mutation must make the property tests fail. One that survives means
 # the tests no longer check what this line says they check.
-I8 rights grow     @@ src/cspace.c @@ to.rights = (joist_rights)(from->rights & mask); @@ to.rights = mask;
-I1 refcount        @@ src/cspace.c @@     k->obj[from->obj - 1u].refs++; @@     /* mutated */
-I3 refund          @@ src/cspace.c @@             donor->quota++; @@             /* mutated */;
-I7 rebadge         @@ src/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ if (badge == 0) {
-I1 destroy leaks   @@ src/task.c @@ joist__cap_delete_slot(k, s, i); /* may queue unreachable tasks */ @@ (void)i;
-I3 quota ignored   @@ src/cspace.c @@     if (s->quota == 0) { @@     if (0) {
-I6 reply reusable    @@ src/ipc.c @@ me->reply_to = 0; /* consumed, whatever happens next (I6) */ @@ /* mutated */
-I10 server death     @@ src/ipc.c @@ joist__wake(k, c, JOIST_E_PEER); @@ (void)c;
-I10 endpoint death   @@ src/notify.c @@     joist__queue_wake_all(k, obj, JOIST_E_GONE); @@     /* mutated: first occurrence, in endpoint_die */
-I7 badge dropped     @@ src/ipc.c @@ k->th[r].badge = badge; @@ k->th[r].badge = 0;
-timeout late         @@ src/ipc.c @@ r->deadline == JOIST_FOREVER || r->deadline > k->now @@ r->deadline == JOIST_FOREVER || r->deadline >= k->now
-stale reply reuse    @@ src/ipc.c @@             r->call_seq = seq; @@             r->call_seq = seq * 0u;
-I10 recv w/ reply    @@ src/ipc.c @@     if (me->reply_to != 0) { @@     if (0) {
-I2 bits lost         @@ src/notify.c @@     n->word |= bits; @@     n->word = bits;
-I2 delivered twice   @@ src/notify.c @@         n->word = 0; /* bits clear only when returned (I2) */ @@         /* mutated */
-I4 never fires       @@ src/notify.c @@ joist__notify_signal(k, e->ns_notif - 1u, e->ns_bits); @@ (void)e->ns_bits;
-I4 fires early       @@ src/notify.c @@ if (a != NULL && --a->send_caps == 0) { @@ if (a != NULL && (--a->send_caps, 1)) {
-I4 fires when dead   @@ src/notify.c @@             if (!e->dead && e->ns_notif != 0) { @@             if (e->ns_notif != 0) {
-I5 never dies        @@ src/notify.c @@         endpoint_die(k, obj); @@         (void)endpoint_die;
-I5 deadname repeats  @@ src/notify.c @@             memset(d, 0, sizeof *d); @@             (void)d;
-dangling binding     @@ src/notify.c @@                 k->obj[i].ns_notif = 0; @@                 (void)i;
-I5 dead still usable @@ src/ipc.c @@     if (k->obj[c->obj - 1u].dead) { @@     if (0) {
-task-no-reparent @@ src/task.c @@ k->cs[c].parent = heir; @@ k->cs[c].parent = heir * 0u;
-task-quota-lost @@ src/task.c @@ ps->quota += st->quota; @@ ps->quota += 0;
-task-charges-not-moved @@ src/task.c @@ k->obj[o].donor = p - 1u; @@ k->obj[o].donor = s;
-task-not-marked-dead @@ src/task.c @@ k->obj[st->task_obj - 1u].dead = 1; @@ (void)0;
-task-no-cascade @@ src/task.c @@ pending_push(k, o->target - 1u); @@ if (o->dead) pending_push(k, o->target - 1u);
-task-thread-cap-no-kill @@ src/task.c @@ (void)joist_thread_destroy(k, t); @@ (void)t;
-task-donation-off-by-one @@ src/task.c @@ k->cs[cs].quota < donation + 1u @@ k->cs[cs].quota < donation
-task-destroy-no-control @@ src/task.c @@ if ((c->rights & JOIST_R_CONTROL) == 0) { @@ if (0) {
-task-dead-not-gone @@ src/task.c @@ if (k->obj[c->obj - 1u].dead) { @@ if (0) {
-task-no-drain @@ src/cspace.c @@ joist__drain_pending(k); @@ (void)0;
-task-root-destroyable @@ src/cspace.c @@ if (k->root == cs + 1u) { @@ if (0) {
-task-fixture-budget @@ src/cspace.c @@ k->budget--; @@ (void)0;
-task-thread-obj-not-dead @@ src/ipc.c @@ k->obj[r->obj - 1u].dead = 1; @@ (void)0;
-task-grant-no-rights @@ src/cspace.c @@ if ((c->rights & JOIST_R_GRANT) == 0) { @@ if (0) {
-ns-not-queued @@ src/notify.c @@ e->ns_last = idx; @@ (void)idx;
-ns-collect-repeats @@ src/notify.c @@ o->ns_first = a->next; @@ (void)a->next;
-ns-queue-kept-at-death @@ src/notify.c @@ e->ns_first = a->next; @@ break;
-ns-bind-no-bits @@ src/notify.c @@ return JOIST_E_BADGE; /* the signal would carry no bits */ @@ (void)0;
-reply-saved-reusable @@ src/ipc.c @@ o->target = 0; /* consumed (I6) */ @@ (void)0;
-reply-obj-freed-silent @@ src/notify.c @@ joist__reply_obj_freed(k, obj); @@ (void)obj;
-reply-save-overwrites @@ src/ipc.c @@ return JOIST_E_OCCUPIED; @@ (void)0;
-reap-no-ancestry @@ src/task.c @@ if (!is_descendant(k, cs, target)) { @@ if (0) {
-descendant-includes-self @@ src/task.c @@ if (k->cs[s].live && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && (s == cs || is_descendant(k, cs, s))) {
-task-orphan-on-fixture-death @@ src/task.c @@ uint32_t heir = p != 0 ? p : k->root; @@ uint32_t heir = p;
+I8 rights grow     @@ ../kernel/core/cspace.c @@ to.rights = (joist_rights)(from->rights & mask); @@ to.rights = mask;
+I1 refcount        @@ ../kernel/core/cspace.c @@     k->obj[from->obj - 1u].refs++; @@     /* mutated */
+I3 refund          @@ ../kernel/core/cspace.c @@             donor->quota++; @@             /* mutated */;
+I7 rebadge         @@ ../kernel/core/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ if (badge == 0) {
+I1 destroy leaks   @@ ../kernel/core/task.c @@ joist__cap_delete_slot(k, s, i); /* may queue unreachable tasks */ @@ (void)i;
+I3 quota ignored   @@ ../kernel/core/cspace.c @@     if (s->quota == 0) { @@     if (0) {
+I6 reply reusable    @@ ../kernel/core/ipc.c @@ me->reply_to = 0; /* consumed, whatever happens next (I6) */ @@ /* mutated */
+I10 server death     @@ ../kernel/core/ipc.c @@ joist__wake(k, c, JOIST_E_PEER); @@ (void)c;
+I10 endpoint death   @@ ../kernel/core/notify.c @@     joist__queue_wake_all(k, obj, JOIST_E_GONE); @@     /* mutated: first occurrence, in endpoint_die */
+I7 badge dropped     @@ ../kernel/core/ipc.c @@ k->th[r].badge = badge; @@ k->th[r].badge = 0;
+timeout late         @@ ../kernel/core/ipc.c @@ r->deadline == JOIST_FOREVER || r->deadline > k->now @@ r->deadline == JOIST_FOREVER || r->deadline >= k->now
+stale reply reuse    @@ ../kernel/core/ipc.c @@             r->call_seq = seq; @@             r->call_seq = seq * 0u;
+I10 recv w/ reply    @@ ../kernel/core/ipc.c @@     if (me->reply_to != 0) { @@     if (0) {
+I2 bits lost         @@ ../kernel/core/notify.c @@     n->word |= bits; @@     n->word = bits;
+I2 delivered twice   @@ ../kernel/core/notify.c @@         n->word = 0; /* bits clear only when returned (I2) */ @@         /* mutated */
+I4 never fires       @@ ../kernel/core/notify.c @@ joist__notify_signal(k, e->ns_notif - 1u, e->ns_bits); @@ (void)e->ns_bits;
+I4 fires early       @@ ../kernel/core/notify.c @@ if (a != NULL && --a->send_caps == 0) { @@ if (a != NULL && (--a->send_caps, 1)) {
+I4 fires when dead   @@ ../kernel/core/notify.c @@             if (!e->dead && e->ns_notif != 0) { @@             if (e->ns_notif != 0) {
+I5 never dies        @@ ../kernel/core/notify.c @@         endpoint_die(k, obj); @@         (void)endpoint_die;
+I5 deadname repeats  @@ ../kernel/core/notify.c @@             memset(d, 0, sizeof *d); @@             (void)d;
+dangling binding     @@ ../kernel/core/notify.c @@                 k->obj[i].ns_notif = 0; @@                 (void)i;
+I5 dead still usable @@ ../kernel/core/ipc.c @@     if (k->obj[c->obj - 1u].dead) { @@     if (0) {
+task-no-reparent @@ ../kernel/core/task.c @@ k->cs[c].parent = heir; @@ k->cs[c].parent = heir * 0u;
+task-quota-lost @@ ../kernel/core/task.c @@ ps->quota += st->quota; @@ ps->quota += 0;
+task-charges-not-moved @@ ../kernel/core/task.c @@ k->obj[o].donor = p - 1u; @@ k->obj[o].donor = s;
+task-not-marked-dead @@ ../kernel/core/task.c @@ k->obj[st->task_obj - 1u].dead = 1; @@ (void)0;
+task-no-cascade @@ ../kernel/core/task.c @@ pending_push(k, o->target - 1u); @@ if (o->dead) pending_push(k, o->target - 1u);
+task-thread-cap-no-kill @@ ../kernel/core/task.c @@ (void)joist_thread_destroy(k, t); @@ (void)t;
+task-donation-off-by-one @@ ../kernel/core/task.c @@ k->cs[cs].quota < donation + 1u @@ k->cs[cs].quota < donation
+task-destroy-no-control @@ ../kernel/core/task.c @@ if ((c->rights & JOIST_R_CONTROL) == 0) { @@ if (0) {
+task-dead-not-gone @@ ../kernel/core/task.c @@ if (k->obj[c->obj - 1u].dead) { @@ if (0) {
+task-no-drain @@ ../kernel/core/cspace.c @@ joist__drain_pending(k); @@ (void)0;
+task-root-destroyable @@ ../kernel/core/cspace.c @@ if (k->root == cs + 1u) { @@ if (0) {
+task-fixture-budget @@ ../kernel/core/cspace.c @@ k->budget--; @@ (void)0;
+task-thread-obj-not-dead @@ ../kernel/core/ipc.c @@ k->obj[r->obj - 1u].dead = 1; @@ (void)0;
+task-grant-no-rights @@ ../kernel/core/cspace.c @@ if ((c->rights & JOIST_R_GRANT) == 0) { @@ if (0) {
+ns-not-queued @@ ../kernel/core/notify.c @@ e->ns_last = idx; @@ (void)idx;
+ns-collect-repeats @@ ../kernel/core/notify.c @@ o->ns_first = a->next; @@ (void)a->next;
+ns-queue-kept-at-death @@ ../kernel/core/notify.c @@ e->ns_first = a->next; @@ break;
+ns-bind-no-bits @@ ../kernel/core/notify.c @@ return JOIST_E_BADGE; /* the signal would carry no bits */ @@ (void)0;
+reply-saved-reusable @@ ../kernel/core/ipc.c @@ o->target = 0; /* consumed (I6) */ @@ (void)0;
+reply-obj-freed-silent @@ ../kernel/core/notify.c @@ joist__reply_obj_freed(k, obj); @@ (void)obj;
+reply-save-overwrites @@ ../kernel/core/ipc.c @@ return JOIST_E_OCCUPIED; @@ (void)0;
+reap-no-ancestry @@ ../kernel/core/task.c @@ if (!is_descendant(k, cs, target)) { @@ if (0) {
+descendant-includes-self @@ ../kernel/core/task.c @@ if (k->cs[s].live && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && (s == cs || is_descendant(k, cs, s))) {
+task-orphan-on-fixture-death @@ ../kernel/core/task.c @@ uint32_t heir = p != 0 ? p : k->root; @@ uint32_t heir = p;

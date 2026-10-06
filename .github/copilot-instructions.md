@@ -17,7 +17,8 @@ those records. What exists:
   `docs/client-recovery.md`, `docs/rpc-idempotency.md`, `docs/phase0-data/`.
 - Phase 1: `docs/phase1-plan.md`, `docs/phase1-data/`, `docs/abi.md` (the native API as the
   model settled it; Phase 3 fixes the binary ABI), and `model/`, the host-side semantic
-  model (invariants I1–I10, property tests, mutation, libFuzzer, TLA+ in `model/tla/`, CBMC
+  model, whose code is now the kernel's object layer, `kernel/core/` (API
+  `kernel/include/joist/core.h`); `model/` keeps its test suite (invariants I1–I10, property tests, mutation, libFuzzer, TLA+ in `model/tla/`, CBMC
   in `model/cbmc/`). See `model/README.md`.
 - Phase 2: `docs/phase2-plan.md`, `docs/phase2-data/`, and `kernel/`, the freestanding
   x86_64 kernel booted by Limine (`boot/limine.conf`), with `user/`'s ring-3 test programs

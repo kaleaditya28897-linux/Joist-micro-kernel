@@ -15,7 +15,7 @@
  * Same environment variables as test_props_cspace.c (JOIST_PROP_SEEDS,
  * JOIST_PROP_STEPS, JOIST_PROP_SEED). */
 #include "harness.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 #include <inttypes.h>
 #include <stdlib.h>

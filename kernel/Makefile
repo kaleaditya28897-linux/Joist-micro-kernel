@@ -28,11 +28,14 @@ endif
 
 WARN := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes \
         -Wmissing-prototypes -Wvla
-INC  := -Iinclude -Imem -Ielf -Isys
+INC  := -Iinclude -Imem -Ielf -Isys -Icore
 
 # Kernel sources that also build for the host. Grows as Phase 2 adds them.
 KSRC  := mem/frame.c mem/vm.c elf/elf.c sys/usercopy.c sys/syscall.c
 TESTS := $(wildcard test/test_*.c)
+# The object layer (Phase 3 step 2: the Phase 1 model, moved here). Its tests,
+# fuzzer, mutations and CBMC proofs live in ../model and build against it.
+CORE_SRC := $(wildcard core/*.c)
 RUNNER := test/harness.c
 BUILD := build
 
@@ -70,16 +73,16 @@ $(SANITIZERS): %: $(BUILD)/%/run-tests
 
 freestanding:
 	@mkdir -p $(BUILD)/freestanding
-	@for f in $(KSRC); do \
+	@for f in $(KSRC) $(CORE_SRC); do \
 	    $(CC) $(KFLAGS) $(INC) -c $$f -o $(BUILD)/freestanding/$$(basename $$f .c).o || exit 1; \
 	done
-	@echo "freestanding: $(words $(KSRC)) kernel source(s) compile for x86_64-unknown-none-elf"
+	@echo "freestanding: $(words $(KSRC) $(CORE_SRC)) kernel source(s) compile for x86_64-unknown-none-elf"
 
 # ---- the kernel image (Phase 2 step 1) ----
 # Everything that goes into the image. KSRC (host-testable) is a subset.
 IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c arch/x86_64/gdt.c arch/x86_64/idt.c \
            arch/x86_64/paging.c arch/x86_64/apic.c arch/x86_64/user.c \
-           lib/kprint.c lib/string.c $(KSRC)
+           lib/kprint.c lib/string.c $(KSRC) $(CORE_SRC)
 IMG_ASM := arch/x86_64/isr.S arch/x86_64/syscall.S
 IMG_INC := $(INC) -Iarch/x86_64
 LD ?= ld.lld
@@ -90,7 +93,7 @@ IMG_OBJ := $(patsubst %.c,$(BUILD)/kernel/%.o,$(IMG_SRC)) $(patsubst %.S,$(BUILD
 # Extra flags for a test build of the image (selftests), e.g. -DJOIST_SELFTEST=1.
 KEXTRA ?=
 
-$(BUILD)/kernel/%.o: %.c $(wildcard include/joist/*.h include/limine/*.h arch/x86_64/*.h mem/*.h elf/*.h)
+$(BUILD)/kernel/%.o: %.c $(wildcard include/joist/*.h include/limine/*.h arch/x86_64/*.h mem/*.h elf/*.h core/*.h)
 	@mkdir -p $(@D)
 	$(CC) $(KFLAGS) $(KEXTRA) $(IMG_INC) -c $< -o $@
 

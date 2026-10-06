@@ -11,9 +11,6 @@
  * will have to make it preemptible. Recorded as open in docs/phase1-plan.md. */
 #include "internal.h"
 
-#include <stdio.h>
-#include <string.h>
-
 /* ---- the destruction work list ---- */
 
 static void pending_push(struct joist_kernel *k, uint32_t s)
@@ -373,7 +370,7 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
         if (bad++ == 0 && msg_free && msg != NULL && msglen > 0) {                                 \
-            (void)snprintf(msg, msglen, __VA_ARGS__);                                              \
+            JOIST_FMT(msg, msglen, __VA_ARGS__);                                              \
         }                                                                                          \
     } while (0)
 

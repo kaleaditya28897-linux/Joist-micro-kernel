@@ -5,22 +5,19 @@
  * joist_cspace_destroy, which is bounded by JOIST_CSPACE_SLOTS (I9). */
 #include "internal.h"
 
-#include <stdio.h>
-#include <string.h>
-
 /* Full rights an object of each type is created with. */
 static joist_rights full_rights(joist_obj_type t)
 {
     switch (t) {
     case JOIST_OBJ_ENDPOINT:
-        return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
     case JOIST_OBJ_NOTIFICATION:
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
     case JOIST_OBJ_TASK:
     case JOIST_OBJ_THREAD:
-        return (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT);
     case JOIST_OBJ_REPLY:
-        return (joist_rights)(JOIST_R_SEND | JOIST_R_GRANT); /* SEND: may reply */
+        /* CONTROL on tasks and threads; on a reply object, SEND: may reply.
+         * The same bit (JOIST_R_CONTROL is JOIST_R_SEND). */
+        return (joist_rights)(JOIST_R_SEND | JOIST_R_GRANT);
     case JOIST_OBJ_NONE:
     default:
         return 0;
@@ -308,7 +305,7 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
         if (bad++ == 0 && msg != NULL && msglen > 0) {                                             \
-            (void)snprintf(msg, msglen, __VA_ARGS__);                                              \
+            JOIST_FMT(msg, msglen, __VA_ARGS__);                                              \
         }                                                                                          \
     } while (0)
 
@@ -379,6 +376,21 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     unsigned note = joist__check_notify(k, msg, msglen, bad + ipc == 0);
     return bad + ipc + note + joist__check_task(k, msg, msglen, bad + ipc + note == 0);
 }
+
+#if !__STDC_HOSTED__
+/* Freestanding JOIST_FMT: copy the format text itself, bounded. */
+void joist__fmt_bare(char *msg, unsigned msglen, const char *fmt)
+{
+    if (msglen == 0) {
+        return;
+    }
+    unsigned i = 0;
+    for (; i + 1u < msglen && fmt[i] != '\0'; i++) {
+        msg[i] = fmt[i];
+    }
+    msg[i] = '\0';
+}
+#endif
 
 const char *joist_err_name(joist_err e)
 {

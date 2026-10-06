@@ -1,8 +1,26 @@
-/* internal.h - hooks between the model's source files. Not part of the API. */
-#ifndef JOIST_MODEL_INTERNAL_H
-#define JOIST_MODEL_INTERNAL_H
+/* internal.h - hooks between the core's source files. Not part of the API. */
+#ifndef JOIST_CORE_INTERNAL_H
+#define JOIST_CORE_INTERNAL_H
 
-#include "joist/model.h"
+#include "joist/core.h"
+
+#include <stddef.h>
+
+/* The core builds both on the host (model/'s tests) and freestanding in the
+ * kernel, which has no C library: kernel/lib/string.c provides memset. The
+ * invariant checkers' messages are formatted with snprintf on the host; in
+ * the kernel they keep the bare format text, which still names the
+ * invariant and is enough for a debug build that runs the checks. */
+#if __STDC_HOSTED__
+#include <stdio.h>
+#include <string.h>
+#define JOIST_FMT(msg, msglen, ...) ((void)snprintf((msg), (msglen), __VA_ARGS__))
+#else
+void *memset(void *dst, int c, size_t n);
+void joist__fmt_bare(char *msg, unsigned msglen, const char *fmt);
+#define JOIST_FMT(msg, msglen, ...) joist__fmt_bare((msg), (msglen), JOIST_FMT_FIRST(__VA_ARGS__, 0))
+#define JOIST_FMT_FIRST(first, ...) (first)
+#endif
 
 /* I9's host stand-in for WCET: every loop an operation runs counts one unit
  * of work per iteration, so a test can bound each operation's work. The
@@ -63,4 +81,4 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
 unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned msglen,
                              int msg_free);
 
-#endif /* JOIST_MODEL_INTERNAL_H */
+#endif /* JOIST_CORE_INTERNAL_H */

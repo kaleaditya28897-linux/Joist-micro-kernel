@@ -3,7 +3,7 @@
  * decisions 0004, 0010, 0013). */
 #include "harness.h"
 #include "internal.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 static struct joist_kernel k;
 static joist_cspace root;

@@ -1,16 +1,19 @@
-/* model.h - Joist host-side semantic model: public API (Phase 1).
+/* core.h - the kernel's object layer: public API.
  *
- * The model of the kernel's object model (plan §5.2, decisions 0001, 0003,
- * 0004). This header is the model's API, not yet the ABI: docs/abi.md is
- * written from it once Phase 1 settles it.
+ * Capabilities, endpoints, IPC, notifications, lifetime events, tasks and
+ * threads (plan §5.2, decisions 0001, 0003, 0004). Written as the Phase 1
+ * host model (model/) and moved into the kernel unchanged in Phase 3
+ * (docs/phase3-plan.md, step 2): kernel/core/ is the one source, compiled
+ * freestanding into the kernel and on the host for model/'s tests, fuzzer,
+ * CBMC proofs and mutations. docs/abi.md documents its semantics.
  *
  * Rules (model/README.md): no malloc, no recursion, no VLAs, fixed-width
  * types, bounded work per operation. All state lives in one caller-provided
- * struct joist_kernel with compile-time capacities; that struct stands in for
- * the memory donated at boot. Invariant numbers (I1...) refer to
+ * struct joist_kernel with compile-time capacities, placed by the kernel at
+ * boot (or by a test). Invariant numbers (I1...) refer to
  * docs/phase1-plan.md. */
-#ifndef JOIST_MODEL_H
-#define JOIST_MODEL_H
+#ifndef JOIST_CORE_H
+#define JOIST_CORE_H
 
 #include <stdint.h>
 
@@ -403,4 +406,4 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
 
 const char *joist_err_name(joist_err e);
 
-#endif /* JOIST_MODEL_H */
+#endif /* JOIST_CORE_H */

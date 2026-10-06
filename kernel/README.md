@@ -20,13 +20,15 @@ capabilities, IPC and more than one task come in Phase 3.
 | `mem/` | The frame allocator (`frame.c`) and page tables (`vm.c`); host-testable |
 | `elf/` | The ELF validator for boot modules; host-testable |
 | `sys/` | The system-call dispatcher and `copy_from_user` (a software page walk); host-testable |
+| `core/` | The object layer: capabilities, endpoints, IPC, notifications, lifetime events, tasks and threads (API: `include/joist/core.h`). The Phase 1 model, moved here in Phase 3; its tests, fuzzer, mutations, CBMC and TLA+ are in `../model` |
 | `lib/` | `kprint` and the string functions the freestanding build needs |
 | `include/` | `joist/` (kernel error codes, `kprint`) and Limine's 0BSD protocol header |
 | `test/` | Host unit and property tests, the mutation list, the boot self-test script |
 | `fuzz/` | libFuzzer harnesses for the ELF validator and the dispatcher |
 
-The sources in `mem/`, `elf/` and `sys/` compile both freestanding and on
-the host, so they are tested under every sanitizer (§8.1).
+The sources in `mem/`, `elf/`, `sys/` and `core/` compile both freestanding
+and on the host, so they are tested under every sanitizer (§8.1); `core/` by
+`make check` in `../model`.
 
 ## Build and test
 

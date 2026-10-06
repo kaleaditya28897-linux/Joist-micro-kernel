@@ -9,9 +9,6 @@
  * JOIST_E_NOMEM rather than blocking. */
 #include "internal.h"
 
-#include <stdio.h>
-#include <string.h>
-
 /* ---- accounting (no-senders) ---- */
 
 /* The live (not fired) account for (obj, b). A fired account for the same
@@ -389,7 +386,7 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
         if (bad++ == 0 && msg_free && msg != NULL && msglen > 0) {                                 \
-            (void)snprintf(msg, msglen, __VA_ARGS__);                                              \
+            JOIST_FMT(msg, msglen, __VA_ARGS__);                                              \
         }                                                                                          \
     } while (0)
 

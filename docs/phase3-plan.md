@@ -199,3 +199,39 @@ What earlier phases hand to this one:
 - **Benchmark noise in QEMU** (TCG without KVM is slow and jittery). The
   record is VM 112 under KVM, pinned to P-cores; each result names the
   machine it came from.
+
+## Progress
+
+### Step 2: one object layer (2026-10-06)
+
+`model/src/*.c` and `internal.h` moved to `kernel/core/` and
+`model/include/joist/model.h` to `kernel/include/joist/core.h` (with `git
+mv`, so their history follows). `model/` builds its tests, fuzzer, CBMC
+harness and mutations against `../kernel/core`; the mutation and
+fuzz-sanity scripts copy both trees into their scratch area.
+
+The core compiles freestanding with §13's flags; its only outside symbol is
+`memset`, which `kernel/lib/string.c` already provides. On the host,
+`internal.h` keeps `<string.h>` and `snprintf`; freestanding, it declares
+`memset` and replaces the invariant checkers' formatted messages with their
+bare format text (bounded copy), so a debug kernel can still run the checks.
+It is linked into the kernel image (unused so far), so `clang-tidy` and
+`scan-build` cover it in `make check`.
+
+`clang-tidy` on the core, its first run, found three things:
+
+| Finding | What it was | Done |
+|---|---|---|
+| `clang-analyzer-security.ArrayBound` in `q_remove` | the analyzer's path has a queued thread whose `ep` is 0, so `obj[ep - 1]` indexes out of bounds. The invariants exclude that state (`joist__check_ipc`), but the kernel shouldn't depend on an invariant for a memory access when the caller knows the answer | `q_remove` now takes the object index from its caller: `joist__q_pop` passes the object it pops from, the other two callers check `ep != 0` first |
+| `bugprone-branch-clone` ×2 in `full_rights` | endpoints and notifications return the same rights, and so do tasks, threads and reply objects (CONTROL is the SEND bit) | cases merged, with the reason in a comment |
+| `insecureAPI.DeprecatedOrUnsafeBufferHandling` ×21 | every `memset`, for want of Annex K's `memset_s`, which doesn't exist freestanding | check disabled in `/.clang-tidy`, reason recorded there |
+
+Checked after the move (2026-10-06): `make check` in `model/` (80 tests
+under plain, ASan, UBSan, MSan, TSan and the small build); `make mutate`,
+46 of 46 caught; `make cbmc`, all five operations verified (op0 188 s, op1
+112 s, op2 202 s, op4 181 s, op5 68 s); `make fuzz` for 60 s, clean;
+`make fuzz-sanity` with one mutation, to show the changed script still
+copies the right trees (caught in 0 s). In `kernel/`, `make check`: 9
+sources freestanding, 18 clean under `clang-tidy`, `scan-build` clean, boots
+and self-tests as before. No behaviour changed.
+

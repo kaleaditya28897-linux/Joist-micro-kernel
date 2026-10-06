@@ -15,7 +15,7 @@
  * their consequence for lifetime events. Same environment variables as the
  * other property tests. */
 #include "harness.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 #include <inttypes.h>
 #include <stdlib.h>

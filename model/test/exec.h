@@ -9,7 +9,7 @@
 #ifndef JOIST_TEST_EXEC_H
 #define JOIST_TEST_EXEC_H
 
-#include "joist/model.h"
+#include "joist/core.h"
 
 /* Where choices come from. next(ctx, n) returns a value in [0, n), n > 0. */
 struct jx_source {

@@ -22,7 +22,7 @@
  * --unwinding-assertions makes it fail if any loop needed more unwinding than
  * it was given, so a pass is a proof up to the bound. */
 #include "internal.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 #include <stddef.h>
 

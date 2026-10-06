@@ -38,8 +38,8 @@ the sanitizer's.
 
 | Path | What |
 |---|---|
-| `include/joist/` | the model's public API (becomes `docs/abi.md`) |
-| `src/` | the model; core code obeys the kernel rules below |
+| `../kernel/include/joist/core.h` | the model's public API (documented in `docs/abi.md`) |
+| `../kernel/core/` | the model's code, which is the kernel's object layer since Phase 3 step 2; it obeys the kernel rules below |
 | `test/harness.[ch]` | minimal in-tree test harness (`JT_TEST`, `JT_CHECK`, `JT_REQUIRE`) |
 | `test/test_*.c` | tests; picked up automatically |
 | `test/sanitizer-sanity.sh` | the sanitizer liveness check |
@@ -55,10 +55,12 @@ the sanitizer's.
 Property tests take `JOIST_PROP_SEEDS`, `JOIST_PROP_STEPS` and, to replay a
 reported failure, `JOIST_PROP_SEED`.
 
-## Rules for `src/`
+## Rules for `../kernel/core/`
 
-The model's core is meant to move into the kernel (plan §8.1), so it follows
-the kernel rules (§5.1, 0003), and the tests may not rely on it doing
+The model's core is the kernel's code (plan §8.1; moved in Phase 3 step 2),
+so it follows the kernel rules (§5.1, 0003), compiles freestanding (no C
+library: `internal.h` supplies `memset`'s declaration and a bare-text stand-in
+for the checkers' `snprintf`), and the tests may not rely on it doing
 otherwise:
 
 - no `malloc`/`free`: objects come from explicitly donated pools;

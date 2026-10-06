@@ -1,7 +1,7 @@
 /* test_cspace.c - unit tests for capability spaces, objects, derivation,
  * minting and deletion (Phase 1 work item 1; invariants I1, I3, I7, I8). */
 #include "harness.h"
-#include "joist/model.h"
+#include "joist/core.h"
 
 static struct joist_kernel k;
 
