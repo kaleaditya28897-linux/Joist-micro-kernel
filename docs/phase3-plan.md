@@ -283,3 +283,40 @@ operations verified with the two-leaf sizes (op0 261 s, op1 186 s, op2
 304 s, op4 230 s, op5 111 s, grow 74 s, shrink 93 s); `make check` in
 `kernel/`, all passing.
 
+### Step 3, part 2: capability transfer in messages (2026-10-06)
+
+Choice 7 of this plan, now in the model and closing `docs/abi.md`'s open
+item 1. `struct joist_msg` gained `ncaps` and, per position (2), a slot and
+a rights mask; a message initialised to zero carries none, so nothing else
+changed. A thread names its receiving slots with `joist_recv_slots` (the
+kernel will read them from the IPC buffer). Capabilities are checked at
+send (`Call`, `Reply`, `ReplyRecv`, `reply_saved`: in range, present,
+GRANT), so a bad message fails with no effect, keeping a reply capability
+or a reply object's binding. They are copied at delivery, through
+`joist__cap_grant` (live spaces, GRANT, empty destination, masked rights,
+badge and no-senders accounting), and anything that can't be placed then is
+skipped, never an error: the receiver's message says per position where
+each landed or `JOIST_SLOT_NONE`. A transfer never blocks, never allocates
+(an absent leaf is not grown), and never goes into a dead space (TLA+'s
+rule, which the kernel's preemptible destruction will keep with a dying
+flag).
+
+Tests: `test/test_xfer.c`, 11 unit tests (to a waiting and to a queued
+receiver, replies and deferred replies carrying capabilities back, send-time
+errors with no effect, positional skipping, a capability deleted while its
+Call waits, a server's own badged capability coming back and no-senders
+firing only after both copies go, transfer into grown and absent leaves,
+`recv_slots` errors, and no default to slot 0). The whole-model executor
+attaches capabilities to half of its Calls and replies and has a
+`recv_slots` operation; its full run must move and skip capabilities (1 735
+arrived, 966 skipped, every invariant checked after every step). Seven
+mutations, one per rule, all caught; `mutate.sh` gained `MUTATE_ONLY` to
+run a subset.
+
+Checked (2026-10-08): `make check` in `model/`, 99 tests under all six
+builds; `make mutate`, 60 of 60 caught; `make cbmc`, 7 of 7 verified (the
+grant operation, now also each delivery's copy, included); `make fuzz` for
+120 s, clean; `make check` in `kernel/`, passing. CBMC does not cover the
+delivery loop itself (the harness has no threads); it is two calls of the
+proven grant, and the unit tests, executor and mutations cover the rest.
+

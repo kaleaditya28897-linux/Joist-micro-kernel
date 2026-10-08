@@ -3,6 +3,7 @@
 # scratch copy of the tree (model/ and the kernel's core, which it tests), build, run the whole test suite, and require a
 # failure (property or unit test). The working tree is never modified.
 # usage: mutate.sh CC
+# MUTATE_ONLY=regex runs only the mutations whose names match (extended regex).
 CC=${1:-clang}
 here=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
@@ -11,6 +12,7 @@ fail=0
 grep -v '^#' "$here/test/mutations.txt" | grep -v '^[[:space:]]*$' | sed 's/ @@ /\x1f/g' | while IFS="$(printf '\037')" read -r name file from to; do
     name=$(echo "$name" | sed 's/[[:space:]]*$//'); file=$(echo "$file" | tr -d ' ')
     from=$(echo "$from" | sed 's/^ //; s/ $//'); to=$(echo "$to" | sed 's/^ //; s/ $//')
+    if [ -n "${MUTATE_ONLY:-}" ] && ! echo "$name" | grep -Eq "$MUTATE_ONLY"; then continue; fi
     rm -rf "$work/t"; mkdir -p "$work/t/kernel"; cp -r "$here" "$work/t/model"; rm -rf "$work/t/model/build"
     cp -r "$here/../kernel/core" "$here/../kernel/include" "$work/t/kernel/"
     if ! python3 - "$work/t/model/$file" "$from" "$to" <<'PY'

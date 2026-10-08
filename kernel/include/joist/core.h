@@ -190,8 +190,27 @@ typedef enum {
     JOIST_T_BLOCKED_WAIT   /* queued on a notification */
 } joist_thread_state;
 
+/* Capabilities one message can carry (Phase 3 step 3; docs/abi.md). */
+#ifndef JOIST_MSG_CAPS
+#define JOIST_MSG_CAPS 2u
+#endif
+/* "No capability arrived in this position" in a received message. */
+#define JOIST_SLOT_NONE UINT32_MAX
+
 struct joist_msg {
     uint64_t r[JOIST_MSG_REGS];
+    /* Capability transfer. Sending: ncaps (at most JOIST_MSG_CAPS)
+     * capabilities, named by slot in the sender's space, each needing GRANT
+     * and copied with its rights masked by mask[i] (I8). Received: ncaps is
+     * the number sent, and cap[i] the receiver's slot capability i landed
+     * in, or JOIST_SLOT_NONE if it didn't arrive (the receiver offered no
+     * slot for it, the slot was taken or absent, or the sender's capability
+     * was gone by delivery); positions past ncaps, and every mask, read 0.
+     * A transfer never blocks and never allocates beyond what the
+     * receiver's slots already provide. All zero: no capabilities. */
+    uint32_t ncaps;
+    joist_slot cap[JOIST_MSG_CAPS];
+    joist_rights mask[JOIST_MSG_CAPS];
 };
 
 typedef uint32_t joist_thread;
@@ -214,6 +233,11 @@ struct joist_thread_rec {
     uint32_t reply_to;
     uint32_t reply_seq;
     uint32_t obj; /* the thread object naming this thread, plus one; 0 for fixtures */
+    /* Where capabilities arriving in messages to this thread go: position i
+     * of a message lands in recv_slot[i], for i < nrecv (joist_recv_slots;
+     * in the kernel, the thread's IPC buffer). */
+    uint32_t nrecv;
+    joist_slot recv_slot[JOIST_MSG_CAPS];
 };
 
 struct joist_cspace_state {
@@ -326,6 +350,15 @@ joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t);
 joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot ep,
                      const struct joist_msg *m, uint64_t timeout);
 joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot ep, uint64_t timeout);
+
+/* Name the slots in t's space that capabilities arriving in messages to t go
+ * to: position i of a message into slots[i], for i < n (0 <= n <=
+ * JOIST_MSG_CAPS; 0: accept none). Kept until changed. The slots are only
+ * checked at delivery, where a bad or occupied one just means that
+ * capability doesn't arrive. JOIST_E_RANGE (thread, or n too big),
+ * JOIST_E_STATE (not running). O(1). */
+joist_err joist_recv_slots(struct joist_kernel *k, joist_thread t, const joist_slot *slots,
+                           uint32_t n);
 joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist_msg *m);
 /* Reply if a reply capability is held (a caller that stopped waiting is not
  * an error here), then Recv. */

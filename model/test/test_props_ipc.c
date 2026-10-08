@@ -596,7 +596,7 @@ static int run_seed(uint64_t seed, unsigned long steps)
             }
         }
         uint32_t slot = pick(N_EP * SLOTS_PER_EP + 2u); /* includes empty slots */
-        struct joist_msg m = {{0}};
+        struct joist_msg m = {0};
         m.r[0] = rng();
         m.r[JOIST_MSG_REGS - 1u] = step;
         uint64_t timeout = pick_timeout();

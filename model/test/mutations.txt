@@ -56,3 +56,11 @@ leaf-lookup-aliases-leaf0 @@ ../kernel/core/cspace.c @@ return k->leaf[s->leaf[l
 leaf-destroy-leaks-leaves @@ ../kernel/core/task.c @@ joist__leaf_free(k, s, l); @@ (void)l;
 leaf-destroy-only-leaf0 @@ ../kernel/core/task.c @@ for (uint32_t l = 0; l < JOIST_CNODE_ROOT; l++) { @@ for (uint32_t l = 0; l < 1u; l++) {
 budget-unbounded @@ ../kernel/core/cspace.c @@ if (k->budget > UINT32_MAX || (uint64_t)quota > UINT32_MAX - k->budget) { @@ if (0) {
+# Capability transfer in messages (Phase 3 step 3).
+xfer-no-grant-check @@ ../kernel/core/ipc.c @@ if ((c->rights & JOIST_R_GRANT) == 0) { @@ if (0) {
+xfer-ncaps-unbounded @@ ../kernel/core/ipc.c @@ if (m->ncaps > JOIST_MSG_CAPS) { @@ if (0) {
+xfer-mask-ignored @@ ../kernel/core/ipc.c @@ r->recv_slot[i], m->mask[i]) @@ r->recv_slot[i], JOIST_R_ALL)
+xfer-position-collapse @@ ../kernel/core/ipc.c @@ out.cap[i] = r->recv_slot[i]; @@ out.cap[i] = r->recv_slot[0];
+xfer-bad-reply-consumes @@ ../kernel/core/ipc.c @@ return e; /* the reply capability is kept: nothing changed */ @@ (void)0;
+xfer-ignores-nrecv @@ ../kernel/core/ipc.c @@ if (i >= r->nrecv) { @@ if (0) {
+xfer-wrong-source-space @@ ../kernel/core/ipc.c @@ deliver(k, k->th[s].cs, t, &k->th[s].msg); @@ deliver(k, me->cs, t, &k->th[s].msg);

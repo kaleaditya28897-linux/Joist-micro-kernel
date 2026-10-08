@@ -46,6 +46,7 @@ enum {
     JX_SAVED,
     JX_GROW,
     JX_SHRINK,
+    JX_RECV_SLOTS,
     JX_TICK,
     JX_OPS
 };
@@ -56,6 +57,8 @@ struct jx_stats {
     unsigned long result[JX_OPS][JX_RESULTS];
     uint64_t max_work[JX_OPS]; /* I9: the most work one call of the operation took */
     unsigned long wakeups[JX_RESULTS];
+    unsigned long caps_moved;   /* capabilities that arrived in a message */
+    unsigned long caps_skipped; /* sent, but not placed (no slot, taken, gone) */
     unsigned long sequences;
     unsigned long cycles; /* tasks left alive at teardown only by holding each other */
     unsigned long steps;

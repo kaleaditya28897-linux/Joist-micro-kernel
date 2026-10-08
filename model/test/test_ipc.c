@@ -21,7 +21,7 @@ static int clean(void)
 
 static struct joist_msg mk(uint64_t v)
 {
-    struct joist_msg m = {{0}};
+    struct joist_msg m = {0};
     m.r[0] = v;
     return m;
 }

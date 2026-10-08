@@ -250,7 +250,7 @@ JT_TEST(accounting_full_fails_only_mint)
 JT_TEST(endpoint_dies_with_its_last_receiver)
 {
     setup();
-    struct joist_msg m = {{0}};
+    struct joist_msg m = {0};
     JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
     JT_REQUIRE(joist_cap_derive(&k, cs, EP, EP_RECV, JOIST_R_RECV) == JOIST_OK);
     JT_CHECK(joist_call(&k, a, EP_C1, &m, JOIST_FOREVER) == JOIST_BLOCKED);

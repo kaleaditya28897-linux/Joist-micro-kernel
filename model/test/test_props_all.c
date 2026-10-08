@@ -97,4 +97,10 @@ JT_TEST(props_all_invariants_hold)
             "\n  %lu sequences, %lu steps, every teardown clean; %lu tasks in cycles reaped "
             "by the root\n",
             st.sequences, st.steps, st.cycles);
+    fprintf(stderr, "  coverage transfer      %lu capabilities arrived, %lu skipped\n",
+            st.caps_moved, st.caps_skipped);
+    if (one == NULL || *one == '\0') {
+        /* The full run must actually move capabilities and skip some. */
+        JT_CHECK(st.caps_moved > 100 && st.caps_skipped > 100);
+    }
 }

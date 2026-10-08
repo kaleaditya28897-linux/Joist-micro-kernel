@@ -110,10 +110,9 @@ A space's leaves die with it: task destruction deletes the capabilities in
 every leaf, then returns the leaves to the pool and their units to the
 parent with the rest of its quota.
 
-Passing capabilities between tasks is **open** (capability transfer in
-messages; see the end). The model's tests use an internal stand-in,
-`joist__cap_grant`, which needs GRANT on the source and masks rights like
-derive.
+Capabilities pass between tasks **in messages** (*Capability transfer*,
+under IPC). `joist__cap_grant`, the stand-in the model's tests used before,
+is now what a delivery uses for each capability.
 
 ## Tasks and threads (0004, 0010, 0013)
 
@@ -138,12 +137,13 @@ single-use (**I6**) and, until saved, belongs to the receiving thread.
 
 | Operation | Arguments | Results, in check order | Blocks? | Effect |
 |---|---|---|---|---|
-| `Call` | endpoint slot, message, timeout | `E_RANGE`/`E_STATE` (thread), `E_TIMEOUT` (timeout 0: a Call always waits), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_GONE` (endpoint dead) | always: `BLOCKED` | rendezvous with the first queued receiver, or queue (FIFO); then wait for the reply. Wakes with `OK` and the reply, `E_TIMEOUT` (the timeout covers the whole call), `E_GONE` (endpoint died while queued), or `E_PEER` (the reply capability was destroyed unused) |
+| `Call` | endpoint slot, message, timeout | `E_RANGE`/`E_STATE` (thread), `E_TIMEOUT` (timeout 0: a Call always waits), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_GONE` (endpoint dead), then the message's capabilities (*Capability transfer*) | always: `BLOCKED` | rendezvous with the first queued receiver, or queue (FIFO); then wait for the reply. Wakes with `OK` and the reply, `E_TIMEOUT` (the timeout covers the whole call), `E_GONE` (endpoint died while queued), or `E_PEER` (the reply capability was destroyed unused) |
 | `Recv` | endpoint slot, timeout | `E_RANGE`/`E_STATE` (thread), `E_STATE` (holding an unused reply capability: save or answer it first), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV); `E_TIMEOUT` if timeout 0 and no caller, otherwise `BLOCKED`. Never `E_GONE` on return: holding RECV keeps the endpoint alive | if no caller queued | the first queued caller's message and badge, and its reply capability |
-| `Reply` | message | `E_RANGE`/`E_STATE` (thread), `E_NOREPLY` (none held), `E_PEER` (the caller stopped waiting; the capability is consumed anyway) | no | the caller wakes with `OK` and the message |
-| `ReplyRecv` | message, endpoint slot, timeout | `E_RANGE`/`E_STATE` (thread); a held reply capability is used as by `Reply`, its result ignored (a stale caller is not an error here); then as `Recv`: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV), `E_TIMEOUT` if timeout 0 and no caller, otherwise `BLOCKED` | as `Recv` | the server loop's fast path |
+| `Reply` | message | `E_RANGE`/`E_STATE` (thread), `E_NOREPLY` (none held), the message's capabilities (the reply capability is kept), `E_PEER` (the caller stopped waiting; the capability is consumed anyway) | no | the caller wakes with `OK` and the message |
+| `ReplyRecv` | message, endpoint slot, timeout | `E_RANGE`/`E_STATE` (thread); if a reply capability is held, the message's capabilities (nothing done on failure), then it is used as by `Reply`, its result ignored (a stale caller is not an error here); then as `Recv`: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (RECV), `E_TIMEOUT` if timeout 0 and no caller, otherwise `BLOCKED` | as `Recv` | the server loop's fast path |
 | `reply_save` | reply-object slot | `E_RANGE`/`E_STATE` (thread), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (none held), `E_OCCUPIED` (object already bound) | no | the thread's reply capability moves into the object; the thread may `Recv` again |
-| `reply_saved` | reply-object slot, message | `E_RANGE`/`E_STATE` (thread), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (object unbound), `E_PEER` (caller stopped waiting; consumed anyway) | no | as `Reply`, from any thread of a task holding the object |
+| `recv_slots` | up to 2 slots | `E_RANGE`/`E_STATE` (thread), `E_RANGE` (more than 2) | no | where capabilities arriving in this thread's messages go, position by position, until changed (in the kernel: the IPC buffer) |
+| `reply_saved` | reply-object slot, message | `E_RANGE`/`E_STATE` (thread), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (object unbound), the message's capabilities (the object stays bound), `E_PEER` (caller stopped waiting; consumed anyway) | no | as `Reply`, from any thread of a task holding the object |
 
 All IPC operations are O(1): queues are linked through thread records.
 
@@ -158,6 +158,24 @@ the thread that saved into it.
 through the per-thread IPC buffer, which the kernel copies thread to thread;
 bulk data uses 0006's shared-memory grants (0001 amendment, item 1). The
 model carries the 4 registers.
+
+**Capability transfer** (Phase 3 step 3; closes open item 1). A message
+names up to **2** capabilities in the sender's space, each with a rights
+mask. *At send* (`Call`, `Reply`, `ReplyRecv`, `reply_saved`) each must be
+in range (`E_RANGE`, also for more than 2), present (`E_EMPTY`) and hold
+GRANT (`E_RIGHTS`); a failure fails the whole operation with no effect, so a
+reply capability stays held and a reply object stays bound. *At delivery*
+(when the message reaches the receiver, which for a queued `Call` is when it
+is received) capability *i* is copied into the receiver's `recv_slots[i]`
+with its rights masked (**I8**), keeping its badge (so it counts as a
+sender for no-senders, **I4**). If that can't be done (the receiver offered
+no slot for position *i*, the slot is absent or occupied, the sender's
+capability is gone or lost GRANT since the send, or the receiving space is
+dead, **TLA+'s rule**) that capability is skipped, never an error: the
+transfer never blocks, never fails a message the sender was told was fine,
+and never allocates (an absent leaf is not grown). The receiver's message
+says, position by position, where each capability landed, or
+`JOIST_SLOT_NONE`. Bounded: two copies.
 
 **I10, blocking always ends.** A thread blocked in `Call` or `Recv` wakes on
 rendezvous, on its deadline, or when its endpoint dies or is freed (`E_GONE`).
@@ -226,13 +244,14 @@ freed; every remaining capability to the endpoint then fails with `E_GONE`.
 | `E_STATE` | 13 | the thread isn't running, or holds an unused reply capability |
 | `BLOCKED` | 14 | not an error: the thread sleeps until woken |
 
-## Open, before Phase 3 builds on this
+## Open, before Phase 3 builds on this (as of Phase 1; status updated through Phase 3)
 
-1. **Capability transfer in messages.** How a `Call` or reply carries
-   capabilities (count, rights masking, what happens on failure). The model
-   uses an internal stand-in. **Settled rule** (TLA+, work item 8): a
-   transfer into a space whose task is being destroyed fails, from the
-   moment the task is marked dead.
+1. ~~**Capability transfer in messages.**~~ Settled in Phase 3 step 3
+   (*Capability transfer*, under IPC), with TLA+'s rule (work item 8): a
+   transfer into a space whose task is being destroyed does not happen, from
+   the moment the task is marked dead. In the model's atomic destruction that
+   is "the space is dead"; the kernel's preemptible destruction (item 2)
+   must keep it with a dying flag.
 2. **Preemptible cascades (I9, 0003).** Destroying a task or deleting a last
    capability may cascade; the work is bounded by the tables (measured ~30×
    the largest non-cascading operation) but not per operation. The kernel's

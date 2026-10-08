@@ -42,6 +42,7 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_SAVED] = "reply_saved",
                                         [JX_GROW] = "grow",
                                         [JX_SHRINK] = "shrink",
+                                        [JX_RECV_SLOTS] = "recv_slots",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -53,6 +54,7 @@ static const uint8_t weight[JX_OPS] = {
     [JX_REPLY_RECV] = 4,   [JX_SIGNAL] = 5,        [JX_WAIT] = 5,        [JX_BIND] = 3,
     [JX_DEADNAME] = 3,     [JX_COLLECT] = 3,       [JX_REAP] = 2,        [JX_DESCENDANT] = 2,
     [JX_SAVE] = 3,         [JX_SAVED] = 3,         [JX_GROW] = 2,        [JX_SHRINK] = 2,
+    [JX_RECV_SLOTS] = 3,
     [JX_TICK] = 6};
 
 static uint64_t boot_budget;
@@ -164,6 +166,22 @@ static uint32_t thread_space(const struct joist_kernel *k, uint32_t t)
                                                                      : JOIST_MAX_CSPACES;
 }
 
+/* Half the time, attach capabilities from space cs to m: 0 to
+ * JOIST_MSG_CAPS + 1 of them (one too many now and then), mostly occupied
+ * slots, all rights or a random mask (capability transfer, Phase 3). */
+static void pick_caps(const struct joist_kernel *k, struct jx_source *src, struct joist_msg *m,
+                      uint32_t cs)
+{
+    if (ch(src, 2) == 0) {
+        return;
+    }
+    m->ncaps = ch(src, JOIST_MSG_CAPS + 2u);
+    for (uint32_t i = 0; i < JOIST_MSG_CAPS; i++) {
+        m->cap[i] = pick_slot(k, src, cs, JOIST_OBJ_NONE);
+        m->mask[i] = ch(src, 3) == 0 ? (joist_rights)ch(src, 16) : JOIST_R_ALL;
+    }
+}
+
 static uint64_t pick_timeout(struct jx_source *src)
 {
     switch (ch(src, 4)) {
@@ -231,7 +249,7 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
                        unsigned long step, struct last *ls, int *bad, char *why, unsigned whylen)
 {
     uint32_t cs = pick_space(k, src);
-    struct joist_msg m = {{0}};
+    struct joist_msg m = {0};
     m.r[0] = step;
     switch (op) {
     case JX_SPACE_CREATE: {
@@ -302,15 +320,20 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         uint32_t t = pick_thread(k, src, 0);
         uint32_t ep = pick_slot(k, src, thread_space(k, t), JOIST_OBJ_ENDPOINT);
         uint64_t to = pick_timeout(src);
+        if (op == JX_CALL) {
+            pick_caps(k, src, &m, thread_space(k, t));
+        }
         return op == JX_CALL ? joist_call(k, t, ep, &m, to) : joist_recv(k, t, ep, to);
     }
     case JX_REPLY:
         ls->t = pick_thread(k, src, 1);
         ls->caller = ls->t < JOIST_MAX_THREADS ? k->th[ls->t].reply_to : 0;
+        pick_caps(k, src, &m, thread_space(k, ls->t));
         return joist_reply(k, ls->t, &m);
     case JX_REPLY_RECV: {
         uint32_t t = pick_thread(k, src, ch(src, 2) != 0);
         uint32_t ep = pick_slot(k, src, thread_space(k, t), JOIST_OBJ_ENDPOINT);
+        pick_caps(k, src, &m, thread_space(k, t));
         return joist_reply_recv(k, t, &m, ep, pick_timeout(src));
     }
     case JX_SIGNAL:
@@ -350,11 +373,20 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
             }
         }
         ls->t = t;
+        pick_caps(k, src, &m, thread_space(k, t));
         return joist_reply_saved(k, t, r, &m);
     }
     case JX_COLLECT: {
         joist_badge b;
         return joist_nosenders_next(k, cs, pick_slot(k, src, cs, JOIST_OBJ_ENDPOINT), &b);
+    }
+    case JX_RECV_SLOTS: {
+        uint32_t t = pick_thread(k, src, 0);
+        joist_slot s[JOIST_MSG_CAPS];
+        for (uint32_t i = 0; i < JOIST_MSG_CAPS; i++) {
+            s[i] = pick_dst(k, src, thread_space(k, t));
+        }
+        return joist_recv_slots(k, t, s, ch(src, JOIST_MSG_CAPS + 2u));
     }
     case JX_GROW:
     case JX_SHRINK: {
@@ -390,8 +422,10 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
 
     /* Remember each thread's state, to see how each wake-up ended. */
     uint8_t before[JOIST_MAX_THREADS];
+    static struct joist_msg msg_before[JOIST_MAX_THREADS];
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         before[t] = k->th[t].state;
+        msg_before[t] = k->th[t].msg;
     }
     struct last ls = {0};
 
@@ -407,6 +441,19 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     st->result[op][bucket(e)]++;
     if (w > st->max_work[op]) {
         st->max_work[op] = w;
+    }
+    /* Capability transfer coverage: positions of newly delivered messages. */
+    for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+        const struct joist_msg *m = &k->th[t].msg;
+        if (memcmp(m, &msg_before[t], sizeof *m) != 0) {
+            for (uint32_t i = 0; i < m->ncaps && i < JOIST_MSG_CAPS; i++) {
+                if (m->cap[i] != JOIST_SLOT_NONE) {
+                    st->caps_moved++;
+                } else {
+                    st->caps_skipped++;
+                }
+            }
+        }
     }
     int delivered = 0; /* SIGNAL: a waiter woke with every signalled bit */
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
