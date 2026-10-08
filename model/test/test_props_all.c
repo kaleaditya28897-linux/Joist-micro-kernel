@@ -101,9 +101,12 @@ JT_TEST(props_all_invariants_hold)
             st.caps_moved, st.caps_skipped);
     fprintf(stderr, "  coverage donation      %lu steps with a context lent, %lu with a chain\n",
             st.lent, st.chains);
+    fprintf(stderr, "  coverage faults        %lu to a handler, %lu with none (task or thread ended)\n",
+            st.faults_taken, st.faults_fatal);
     if (one == NULL || *one == '\0') {
         /* The full run must actually move capabilities and skip some. */
         JT_CHECK(st.caps_moved > 100 && st.caps_skipped > 100);
         JT_CHECK(st.lent > 100 && st.chains > 10);
+        JT_CHECK(st.faults_taken > 100 && st.faults_fatal > 100);
     }
 }

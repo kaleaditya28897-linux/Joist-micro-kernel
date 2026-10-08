@@ -367,3 +367,43 @@ object and thread records; `make fuzz` 120 s, clean; `make check` in
 has no IPC, so donation is covered by the unit tests, the executor's I11
 checks and the mutations.
 
+### Step 3, part 4: thread control and faults (2026-10-08)
+
+Decisions 0009 and 0010 in the model (`kernel/core/fault.c`, with the
+fault call in `ipc.c`). A thread control capability reads and writes the
+thread's register record (generic in the model: pc, sp, TLS base, 8
+registers), aborts its blocking operation (`E_ABORTED`, a new result code:
+glibc's `EINTR`), suspends it (a new thread state) and resumes it. A
+thread's fault handler, or its task's, is a slot in its own space, looked
+up when the fault happens (seL4's way: no hidden kernel-held capability).
+A fault is a Call on it carrying kind, address, error code and a thread
+control capability, lending the faulting thread's context; the handler's
+reply resumes (`r[0] = 0`) or destroys the thread.
+
+Two choices of this step, both changeable: **a fault call that ends without
+the handler's reply leaves the thread suspended** (0009 terminates the task
+only when there is no handler at fault time; after delivery, destroying
+from inside a wake-up could recurse, and a stopped thread is what a parent
+or debugger wants to see), and **with no handler the root task loses only
+the faulting thread**, since it can't be destroyed (0013); the kernel will
+also report it. A new check in the IPC invariants: a thread marked faulting
+is in its fault call (queued, or waiting for the reply).
+
+Tests: `test/test_fault.c`, 12 unit tests (registers, abort of a receive
+and of a reply wait, suspend and resume, a fault resumed with rewritten
+registers, a fault terminated, no handler ending the task, the task's
+handler as fallback, a handler dying and an abort leaving the thread
+suspended, a queued fault carrying the capability, the fault charged to the
+faulting thread's context, a dead handler endpoint, and the root task). The
+executor reads and writes registers (checking they read back), aborts,
+suspends, resumes, sets handlers and raises faults; the root task's fault
+handler is its endpoint, and replies to faulting callers resume half the
+time, checked for the right outcome. Its full run must deliver and fail
+faults (715 to a handler, 2 122 ending a task or thread). Faults count as
+cascading operations in the work bounds (I9), since one can destroy a task.
+
+Checked (2026-10-08): `make check` in `model/`, 125 tests under all six
+builds; `make mutate`, 80 of 80 caught (10 new); `make cbmc`, 7 of 7
+verified; `make fuzz` 120 s, clean; `make check` in `kernel/`, passing
+(20 sources clean under `clang-tidy`).
+

@@ -225,6 +225,38 @@ queue is dropped: nobody can collect it.
 its notification once, with the registering capability's badge, and is
 freed; every remaining capability to the endpoint then fails with `E_GONE`.
 
+## Thread control and faults (0009, 0010; Phase 3 step 3)
+
+A **thread control capability** (CONTROL on a thread) is the authority over
+a thread; nothing else is checked (0010).
+
+| Operation | Arguments | Results, in check order | Effect | Bound |
+|---|---|---|---|---|
+| `thread_read_regs` / `thread_write_regs` | thread slot, register record | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE` | the thread's register record: one fixed record per architecture (pc, sp, the TLS base, the general registers), never a family of flavours | O(1) |
+| `thread_abort` | thread slot | as above | a thread blocked in `Call`, `Recv` or `Wait`, or waiting for a reply, wakes with `E_ABORTED` (glibc's `EINTR`); a caller that stops waiting leaves the server's reply capability stale (its `Reply` gets `E_PEER`). A running or suspended thread is left alone | O(1) |
+| `thread_suspend` | thread slot | as above | aborts a blocking operation first, then stops the thread; twice is not an error | O(1) |
+| `thread_resume` | thread slot | as above, then `E_STATE` (not suspended) | the thread runs again | O(1) |
+| `thread_set_fault` / `task_set_fault` | thread (or task) slot, handler slot | as above for the capability, then `E_RANGE` (handler past the table) | names the fault handler: a slot in the thread's (or task's) own space, or none. Nothing is checked until a fault | O(1) |
+
+**Faults** (0009). A fault in a thread (an exception in user mode; the
+kernel's trap handlers raise it, the model's tests call `joist_fault`) is a
+`Call` to its handler: the thread's own, else its task's, provided the slot
+holds an endpoint capability with SEND whose endpoint is alive. The message
+carries the fault kind (page fault, general protection, invalid opcode,
+maths, other), the address and the error code, and as capability 0 a thread
+control capability for the faulting thread, placed in the handler's first
+receive slot like any transferred capability. The call lends the faulting
+thread's scheduling context like any `Call`, so the fault is charged to the
+thread that faulted. The handler's reply decides: `r[0] = 0` resumes the
+thread (with whatever registers the handler wrote), anything else destroys
+it. If the call ends any other way (the handler dies, the reply object is
+deleted, the thread is aborted) the fault is unresolved and **the thread is
+left suspended**, for its parent or a debugger. **With no usable handler the
+task is destroyed** (a faulting system with no handler must stop, not
+spin); the root task can't be (0013), so its faulting thread is. A faulting
+thread is blocked, so it can't fault again: fault recursion is excluded by
+construction.
+
 ## Scheduling contexts and donation (§5.3, §5.6; Phase 3 step 3)
 
 A thread runs only on a **scheduling context**: a priority (0–255, higher
@@ -279,7 +311,8 @@ lender is waiting for a reply.
 | `E_PEER` | 11 | the other end of a call is gone: the reply capability died unused, or the caller stopped waiting |
 | `E_NOREPLY` | 12 | no reply capability to use (I6) |
 | `E_STATE` | 13 | the thread isn't running, or holds an unused reply capability |
-| `BLOCKED` | 14 | not an error: the thread sleeps until woken |
+| `E_ABORTED` | 14 | the blocking operation was cancelled by `thread_abort` or `thread_suspend` (glibc's `EINTR`) |
+| `BLOCKED` | 15 | not an error: the thread sleeps until woken |
 
 ## Open, before Phase 3 builds on this (as of Phase 1; status updated through Phase 3)
 

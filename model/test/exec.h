@@ -51,6 +51,12 @@ enum {
     JX_SC_BIND,
     JX_SC_UNBIND,
     JX_SET_MCP,
+    JX_REGS,
+    JX_ABORT,
+    JX_SUSPEND,
+    JX_RESUME,
+    JX_SET_FAULT,
+    JX_FAULT,
     JX_TICK,
     JX_OPS
 };
@@ -65,6 +71,8 @@ struct jx_stats {
     unsigned long caps_skipped; /* sent, but not placed (no slot, taken, gone) */
     unsigned long lent;         /* steps that left a context lent (I11 under load) */
     unsigned long chains;       /* steps that left a loan two or more deep */
+    unsigned long faults_taken; /* faults delivered to a handler */
+    unsigned long faults_fatal; /* faults with no handler: task or thread ended */
     unsigned long sequences;
     unsigned long cycles; /* tasks left alive at teardown only by holding each other */
     unsigned long steps;

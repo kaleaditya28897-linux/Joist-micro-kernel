@@ -79,6 +79,8 @@ typedef enum {
                          capability, or the caller stopped waiting (I6, I10) */
     JOIST_E_NOREPLY,  /* Reply without a reply capability (I6: single use) */
     JOIST_E_STATE,    /* thread is not running, or holds an unused reply capability */
+    JOIST_E_ABORTED,  /* the blocking operation was cancelled by thread_abort or
+                         thread_suspend (0010): glibc's EINTR */
     JOIST_BLOCKED     /* not an error: the thread is now blocked; the outcome is
                          left in its record when it wakes */
 } joist_err;
@@ -197,7 +199,8 @@ typedef enum {
     JOIST_T_BLOCKED_SEND,  /* queued on an endpoint with a Call not yet received */
     JOIST_T_BLOCKED_RECV,  /* queued on an endpoint to receive */
     JOIST_T_BLOCKED_REPLY, /* Call delivered; waiting for the server's Reply */
-    JOIST_T_BLOCKED_WAIT   /* queued on a notification */
+    JOIST_T_BLOCKED_WAIT,  /* queued on a notification */
+    JOIST_T_SUSPENDED      /* stopped by thread_suspend, or by a fault nobody resolved */
 } joist_thread_state;
 
 /* Capabilities one message can carry (Phase 3 step 3; docs/abi.md). */
@@ -206,6 +209,31 @@ typedef enum {
 #endif
 /* "No capability arrived in this position" in a received message. */
 #define JOIST_SLOT_NONE UINT32_MAX
+
+/* A thread's register state (0010): one fixed record per architecture, never
+ * a family of flavours. The model's is generic; the kernel's x86_64 record
+ * maps onto it (pc, sp, the TLS base, and the general registers). */
+#ifndef JOIST_REGS
+#define JOIST_REGS 8u
+#endif
+struct joist_regs {
+    uint64_t pc;
+    uint64_t sp;
+    uint64_t tls; /* the TLS base is a thread attribute, not a GDT call (0010) */
+    uint64_t r[JOIST_REGS];
+};
+
+/* Fault messages (0009): what a fault handler receives, in the message
+ * registers: r[0] the kind, r[1] the address (page faults), r[2] the
+ * architecture's error code; capability 0, a thread control capability for
+ * the faulting thread. The handler's reply says what happens: r[0] ==
+ * JOIST_FAULT_RESUME resumes it, anything else terminates it. */
+#define JOIST_FAULT_PAGE   1u
+#define JOIST_FAULT_GP     2u
+#define JOIST_FAULT_UD     3u
+#define JOIST_FAULT_MATH   4u
+#define JOIST_FAULT_OTHER  5u
+#define JOIST_FAULT_RESUME 0u
 
 struct joist_msg {
     uint64_t r[JOIST_MSG_REGS];
@@ -258,6 +286,12 @@ struct joist_thread_rec {
     uint32_t run_sc;
     uint32_t sc_from;
     uint32_t sc_to;
+    struct joist_regs regs;
+    /* Faults (0009): the handler, a slot in this thread's own space plus one
+     * (looked up when a fault happens; 0 for none), and whether this thread
+     * is blocked in a fault call now. */
+    uint32_t fault_slot;
+    uint8_t faulting;
 };
 
 struct joist_cspace_state {
@@ -270,6 +304,8 @@ struct joist_cspace_state {
     uint8_t fixture;   /* made by joist_cspace_create: nameless by design */
     uint8_t mcp;       /* the highest priority this space may give a scheduling
                           context (seL4's MCP); a child starts with its parent's */
+    uint32_t fault_slot; /* the task's fault handler, for threads without their own:
+                            a slot in this space plus one, 0 for none (0009) */
     /* Leaf 0: slots 0 .. JOIST_CNODE_LEAF - 1. */
     struct joist_cap slot[JOIST_CNODE_LEAF];
     /* The other leaves: leaf[i] is the pool index plus one of leaf i, 0 if
@@ -512,6 +548,49 @@ joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc
  * (JOIST_E_RIGHTS otherwise). */
 joist_err joist_task_set_mcp(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
                              uint8_t mcp);
+
+/* ---- thread control and faults (Phase 3 step 3; 0009, 0010) ----
+ * Each takes a thread capability with CONTROL in cs's slot th_slot (or a
+ * task capability for joist_task_set_fault): JOIST_E_RANGE/JOIST_E_DEAD
+ * (space), then JOIST_E_RANGE, JOIST_E_EMPTY, JOIST_E_TYPE, JOIST_E_RIGHTS,
+ * JOIST_E_GONE for the capability. */
+
+/* Read or write the thread's register record. */
+joist_err joist_thread_read_regs(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot,
+                                 struct joist_regs *out);
+joist_err joist_thread_write_regs(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot,
+                                  const struct joist_regs *in);
+
+/* Cancel the thread's blocking operation, if it is in one: it wakes with
+ * JOIST_E_ABORTED (glibc's EINTR, 0010's abort). A caller waiting for its
+ * reply stops waiting (the server's reply then gets JOIST_E_PEER). A
+ * running or suspended thread is left as it is. */
+joist_err joist_thread_abort(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot);
+
+/* Stop the thread (aborting a blocking operation first) / let it run again
+ * (JOIST_E_STATE unless suspended). Suspending twice is not an error. */
+joist_err joist_thread_suspend(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot);
+joist_err joist_thread_resume(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot);
+
+/* Name the fault handler of a thread, or of a task (for its threads without
+ * their own): a slot in the thread's or task's own space, looked up when a
+ * fault happens, or JOIST_SLOT_NONE for none. Nothing is checked until then. */
+joist_err joist_thread_set_fault(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot,
+                                 joist_slot handler);
+joist_err joist_task_set_fault(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                               joist_slot handler);
+
+/* A fault in running thread t (the kernel's trap handlers call this; the
+ * model's tests and executor call it directly). The handler is the thread's,
+ * else its task's: an endpoint capability with SEND, alive. With one, the
+ * fault is a Call to it (JOIST_BLOCKED; the thread's context is lent as for
+ * any Call, so the fault is charged to the faulting thread, 0009); its reply
+ * resumes or terminates the thread, and if the call ends any other way
+ * (handler gone, aborted) the thread is left suspended. With none, the task
+ * is terminated, or, for the root task, which can't be, the thread
+ * (JOIST_E_PEER). JOIST_E_RANGE/JOIST_E_STATE (thread not running). */
+joist_err joist_fault(struct joist_kernel *k, joist_thread t, uint64_t kind, uint64_t addr,
+                      uint64_t code);
 
 /* Read a capability (for tests and the eventual ABI's inspection call). */
 joist_err joist_cap_read(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,

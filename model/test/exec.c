@@ -47,6 +47,12 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_SC_BIND] = "sc_bind",
                                         [JX_SC_UNBIND] = "sc_unbind",
                                         [JX_SET_MCP] = "set_mcp",
+                                        [JX_REGS] = "regs",
+                                        [JX_ABORT] = "abort",
+                                        [JX_SUSPEND] = "suspend",
+                                        [JX_RESUME] = "resume",
+                                        [JX_SET_FAULT] = "set_fault",
+                                        [JX_FAULT] = "fault",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -59,7 +65,8 @@ static const uint8_t weight[JX_OPS] = {
     [JX_DEADNAME] = 3,     [JX_COLLECT] = 3,       [JX_REAP] = 2,        [JX_DESCENDANT] = 2,
     [JX_SAVE] = 3,         [JX_SAVED] = 3,         [JX_GROW] = 2,        [JX_SHRINK] = 2,
     [JX_RECV_SLOTS] = 3,   [JX_SC_CREATE] = 3,     [JX_SC_BIND] = 4,     [JX_SC_UNBIND] = 2,
-    [JX_SET_MCP] = 1,
+    [JX_SET_MCP] = 1,      [JX_REGS] = 2,          [JX_ABORT] = 2,       [JX_SUSPEND] = 1,
+    [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,
     [JX_TICK] = 6};
 
 static uint64_t boot_budget;
@@ -67,7 +74,8 @@ static uint64_t boot_budget;
 int jx_op_cascades(unsigned op)
 {
     return op == JX_SPACE_DESTROY || op == JX_DELETE || op == JX_TASK_DESTROY || op == JX_KILL ||
-           op == JX_TH_DESTROY || op == JX_REAP;
+           op == JX_TH_DESTROY || op == JX_REAP ||
+           op == JX_FAULT; /* a fault with no handler destroys its task (0009) */
 }
 
 static uint32_t ch(struct jx_source *src, uint32_t n)
@@ -245,6 +253,10 @@ void jx_begin(struct joist_kernel *k, struct jx_source *src)
     if (joist_sc_create(k, root, 6, 10, 1, 2) == JOIST_OK) {
         (void)joist__sc_bind_thread(k, k->cs[root].slot[6].obj - 1u, 0);
     }
+    /* The root task's fault handler is its endpoint (slot 0), so a fault
+     * usually reaches a thread that receives there. (The root has no task
+     * capability for joist_task_set_fault: set directly, as setup.) */
+    k->cs[root].fault_slot = 1;
 }
 
 /* What a step did, for the checks that need more than the final state. */
@@ -254,7 +266,23 @@ struct last {
     joist_badge bits; /* SIGNAL: the badge signalled */
     uint64_t word;    /* SIGNAL: the notification's pending word before */
     uint32_t caller;  /* REPLY: the caller the reply capability named, plus one */
+    int faulting;     /* REPLY: that caller was blocked in a fault call */
+    uint64_t r0;      /* REPLY: the reply's first register (for a fault: the verdict) */
 };
+
+/* Before a reply to `caller` (plus one): note whether it is a fault call,
+ * and if so, resume it half the time (r[0] = JOIST_FAULT_RESUME) and
+ * terminate it otherwise (0009). */
+static void reply_prep(const struct joist_kernel *k, struct jx_source *src, struct last *ls,
+                       struct joist_msg *m)
+{
+    ls->faulting = ls->caller != 0 && ls->caller <= JOIST_MAX_THREADS &&
+                   k->th[ls->caller - 1u].faulting;
+    if (ls->faulting && ch(src, 2) == 0) {
+        m->r[0] = JOIST_FAULT_RESUME;
+    }
+    ls->r0 = m->r[0];
+}
 
 static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned op,
                        unsigned long step, struct last *ls, int *bad, char *why, unsigned whylen)
@@ -358,6 +386,7 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_REPLY:
         ls->t = pick_thread(k, src, 1);
         ls->caller = ls->t < JOIST_MAX_THREADS ? k->th[ls->t].reply_to : 0;
+        reply_prep(k, src, ls, &m);
         pick_caps(k, src, &m, thread_space(k, ls->t));
         return joist_reply(k, ls->t, &m);
     case JX_REPLY_RECV: {
@@ -403,6 +432,7 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
             }
         }
         ls->t = t;
+        reply_prep(k, src, ls, &m);
         pick_caps(k, src, &m, thread_space(k, t));
         return joist_reply_saved(k, t, r, &m);
     }
@@ -434,6 +464,37 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_SET_MCP:
         return joist_task_set_mcp(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK),
                                   (uint8_t)ch(src, 256));
+    case JX_REGS: {
+        /* Write a register record and read it back through the same
+         * capability: what was written is what is read (0010). */
+        uint32_t s = pick_slot(k, src, cs, JOIST_OBJ_THREAD);
+        struct joist_regs r = {0};
+        r.pc = step;
+        r.r[ch(src, JOIST_REGS)] = step;
+        joist_err e = joist_thread_write_regs(k, cs, s, &r);
+        struct joist_regs back;
+        if (e == JOIST_OK && (joist_thread_read_regs(k, cs, s, &back) != JOIST_OK ||
+                              memcmp(&back, &r, sizeof r) != 0)) {
+            (void)snprintf(why, whylen, "0010: registers read back differ from those written");
+            *bad = 1;
+        }
+        return e;
+    }
+    case JX_ABORT:
+        return joist_thread_abort(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD));
+    case JX_SUSPEND:
+        return joist_thread_suspend(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD));
+    case JX_RESUME:
+        return joist_thread_resume(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD));
+    case JX_SET_FAULT: {
+        /* A handler slot that usually holds an endpoint, sometimes not. */
+        joist_slot hs = ch(src, 8) == 0 ? JOIST_SLOT_NONE : pick_slot(k, src, cs, JOIST_OBJ_ENDPOINT);
+        return ch(src, 3) == 0
+                   ? joist_task_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK), hs)
+                   : joist_thread_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD), hs);
+    }
+    case JX_FAULT:
+        return joist_fault(k, pick_thread(k, src, 0), 1u + ch(src, 5), step, ch(src, 16));
     case JX_GROW:
     case JX_SHRINK: {
         /* A real leaf index (1 .. root - 1) 3 times in 4; else any, 0 and
@@ -510,6 +571,10 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
             any_chain |= k->th[k->th[t].sc_to - 1u].sc_to != 0;
         }
     }
+    if (op == JX_FAULT) {
+        st->faults_taken += (unsigned long)(e == JOIST_BLOCKED);
+        st->faults_fatal += (unsigned long)(e == JOIST_E_PEER);
+    }
     st->lent += (unsigned long)any_lent;
     st->chains += (unsigned long)any_chain;
     int delivered = 0; /* SIGNAL: a waiter woke with every signalled bit */
@@ -530,19 +595,27 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     }
     /* I6, directly: a reply consumes the reply capability and reaches the
      * caller, with this step's message. */
-    if (op == JX_SAVED && e == JOIST_OK &&
+    /* A fault's caller is resumed (r[0] == JOIST_FAULT_RESUME) or gone (0009). */
+    int terminated = ls.faulting && ls.r0 != JOIST_FAULT_RESUME;
+    if ((op == JX_SAVED || op == JX_REPLY) && e == JOIST_OK && terminated &&
+        (ls.caller == 0 || k->th[ls.caller - 1u].state != JOIST_T_FREE)) {
+        (void)snprintf(why, whylen, "0009: a fault's caller %u survived a terminate verdict",
+                       ls.caller);
+        return 0;
+    }
+    if (op == JX_SAVED && e == JOIST_OK && !terminated &&
         (ls.caller == 0 || k->th[ls.caller - 1u].state != JOIST_T_RUNNING ||
-         k->th[ls.caller - 1u].result != JOIST_OK ||
-         k->th[ls.caller - 1u].msg.r[0] != st->steps - 1u)) {
+         k->th[ls.caller - 1u].result != JOIST_OK || k->th[ls.caller - 1u].faulting ||
+         k->th[ls.caller - 1u].msg.r[0] != ls.r0)) {
         (void)snprintf(why, whylen, "I6: saved reply by thread %u missed caller %u", ls.t,
                        ls.caller);
         return 0;
     }
-    if (op == JX_REPLY && e == JOIST_OK &&
+    if (op == JX_REPLY && e == JOIST_OK && !terminated &&
         (k->th[ls.t].reply_to != 0 || ls.caller == 0 ||
          k->th[ls.caller - 1u].state != JOIST_T_RUNNING ||
-         k->th[ls.caller - 1u].result != JOIST_OK ||
-         k->th[ls.caller - 1u].msg.r[0] != st->steps - 1u)) {
+         k->th[ls.caller - 1u].result != JOIST_OK || k->th[ls.caller - 1u].faulting ||
+         k->th[ls.caller - 1u].msg.r[0] != ls.r0)) {
         (void)snprintf(why, whylen,
                        "I6: reply by thread %u kept its capability or missed caller %u", ls.t,
                        ls.caller);
@@ -607,8 +680,8 @@ int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned
      * wait left is a caller whose server, a live thread, still owes a reply. */
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         const struct joist_thread_rec *r = &k->th[t];
-        if (r->state <= JOIST_T_RUNNING) {
-            continue;
+        if (r->state <= JOIST_T_RUNNING || r->state == JOIST_T_SUSPENDED) {
+            continue; /* a suspended thread is stopped, not waiting for anything */
         }
         int owed = 0;
         for (uint32_t h = 0; r->state == JOIST_T_BLOCKED_REPLY && h < JOIST_MAX_THREADS; h++) {

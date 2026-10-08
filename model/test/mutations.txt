@@ -75,3 +75,14 @@ sc-reclaim-keeps-links @@ ../kernel/core/sched.c @@ b->run_sc = b->sc; @@ (void)
 sc-unbind-while-lent @@ ../kernel/core/sched.c @@ if (r->sc_to != 0 && r->sc_from == 0) { @@ if (0) {
 sc-mcp-raisable @@ ../kernel/core/sched.c @@ if (mcp > k->cs[cs].mcp) { @@ if (0) {
 sc-mcp-not-inherited @@ ../kernel/core/task.c @@ n->mcp = k->cs[cs].mcp; @@ n->mcp = JOIST_PRIO_MAX;
+# Thread control and faults (Phase 3 step 3; 0009, 0010).
+fault-no-thread-cap @@ ../kernel/core/ipc.c @@ if (o == 0 || rr->nrecv == 0 || !k->cs[rr->cs].live) { @@ if (1) {
+fault-verdict-ignored @@ ../kernel/core/ipc.c @@ if (m->r[0] != JOIST_FAULT_RESUME) { @@ if (0) {
+fault-unresolved-runs @@ ../kernel/core/ipc.c @@         r->state = JOIST_T_SUSPENDED; @@         (void)0;
+fault-no-task-fallback @@ ../kernel/core/fault.c @@ handler_ep(k, cs, k->cs[cs].fault_slot, &obj, &badge)) { @@ 0) {
+fault-dead-handler-used @@ ../kernel/core/fault.c @@ (c->rights & JOIST_R_SEND) == 0 || k->obj[c->obj - 1u].dead) { @@ (c->rights & JOIST_R_SEND) == 0) {
+fault-root-destroyed @@ ../kernel/core/fault.c @@ if (k->root == cs + 1u) { @@ if (0) {
+abort-ignores-reply-wait @@ ../kernel/core/fault.c @@ r->state == JOIST_T_BLOCKED_REPLY || r->state == JOIST_T_BLOCKED_WAIT; @@ r->state == JOIST_T_BLOCKED_WAIT;
+suspend-leaves-queued @@ ../kernel/core/fault.c @@     if (blocked(&k->th[t])) { @@     if (0) {
+resume-anything @@ ../kernel/core/fault.c @@ if (k->th[t].state != JOIST_T_SUSPENDED) { @@ if (0) {
+fault-flag-unset @@ ../kernel/core/ipc.c @@ k->th[t].faulting = 1; @@ (void)t;

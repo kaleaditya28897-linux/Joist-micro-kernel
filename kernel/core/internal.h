@@ -73,6 +73,17 @@ void joist__q_push(struct joist_kernel *k, uint32_t obj, joist_queue_kind kind, 
 uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj);
 uint64_t joist__deadline(const struct joist_kernel *k, uint64_t timeout);
 
+/* A capability in cs's slot naming a live object of `type`, with CONTROL:
+ * JOIST_E_RANGE/JOIST_E_DEAD (space), JOIST_E_RANGE, JOIST_E_EMPTY,
+ * JOIST_E_TYPE, JOIST_E_RIGHTS, JOIST_E_GONE (sched.c). */
+joist_err joist__control_cap(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,
+                             joist_obj_type type, uint32_t *obj);
+/* Cancel t's blocking operation: dequeue it and wake it with result (ipc.c). */
+void joist__cancel(struct joist_kernel *k, uint32_t t, joist_err result);
+/* A fault in t, as a Call on endpoint obj with that badge (ipc.c). */
+joist_err joist__fault_call(struct joist_kernel *k, uint32_t t, uint32_t obj, joist_badge badge,
+                            const struct joist_msg *m);
+
 /* Scheduling-context donation (sched.c). */
 /* A Call from `from` was delivered to `to`: lend from's context if `to` is
  * passive. */

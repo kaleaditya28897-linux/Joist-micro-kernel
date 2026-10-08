@@ -22,9 +22,8 @@
  * JOIST_MAX_THREADS (a chain visits each thread at most once, I11). */
 #include "internal.h"
 
-/* A capability in cs's slot naming a live object of `type`, with CONTROL. */
-static joist_err sched_cap(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,
-                           joist_obj_type type, uint32_t *obj)
+joist_err joist__control_cap(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,
+                             joist_obj_type type, uint32_t *obj)
 {
     if (cs >= JOIST_MAX_CSPACES) {
         return JOIST_E_RANGE;
@@ -108,9 +107,9 @@ joist_err joist_sc_bind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_s
 {
     uint32_t so;
     uint32_t to;
-    joist_err e = sched_cap(k, cs, sc_slot, JOIST_OBJ_SCHED, &so);
+    joist_err e = joist__control_cap(k, cs, sc_slot, JOIST_OBJ_SCHED, &so);
     if (e == JOIST_OK) {
-        e = sched_cap(k, cs, th_slot, JOIST_OBJ_THREAD, &to);
+        e = joist__control_cap(k, cs, th_slot, JOIST_OBJ_THREAD, &to);
     }
     if (e != JOIST_OK) {
         return e;
@@ -138,7 +137,7 @@ joist_err joist__sc_bind_thread(struct joist_kernel *k, uint32_t so, uint32_t t)
 joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot)
 {
     uint32_t so;
-    joist_err e = sched_cap(k, cs, sc_slot, JOIST_OBJ_SCHED, &so);
+    joist_err e = joist__control_cap(k, cs, sc_slot, JOIST_OBJ_SCHED, &so);
     if (e != JOIST_OK) {
         return e;
     }
@@ -162,7 +161,7 @@ joist_err joist_task_set_mcp(struct joist_kernel *k, joist_cspace cs, joist_slot
                              uint8_t mcp)
 {
     uint32_t tobj;
-    joist_err e = sched_cap(k, cs, task_slot, JOIST_OBJ_TASK, &tobj);
+    joist_err e = joist__control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &tobj);
     if (e != JOIST_OK) {
         return e;
     }

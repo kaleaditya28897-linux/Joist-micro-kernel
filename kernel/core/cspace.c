@@ -599,6 +599,8 @@ const char *joist_err_name(joist_err e)
         return "E_NOREPLY";
     case JOIST_E_STATE:
         return "E_STATE";
+    case JOIST_E_ABORTED:
+        return "E_ABORTED";
     case JOIST_BLOCKED:
         return "BLOCKED";
     default:

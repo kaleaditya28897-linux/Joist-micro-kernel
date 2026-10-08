@@ -31,6 +31,12 @@ void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
     if (r->sc_to != 0) {
         joist__sc_reclaim(k, t); /* a caller waking, however, takes its time back */
     }
+    /* A fault call that ends without the handler's reply (handler gone,
+     * aborted) leaves the fault unresolved: the thread stops (0009). */
+    if (r->faulting && result != JOIST_OK) {
+        r->faulting = 0;
+        r->state = JOIST_T_SUSPENDED;
+    }
 }
 
 /* ---- endpoint queues: doubly linked through thread records, O(1) ---- */
@@ -82,6 +88,19 @@ uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj)
     uint32_t t = k->obj[obj].qhead - 1u;
     q_remove(k, t, obj);
     return t;
+}
+
+void joist__cancel(struct joist_kernel *k, uint32_t t, joist_err result)
+{
+    struct joist_thread_rec *r = &k->th[t];
+    if ((r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
+         r->state == JOIST_T_BLOCKED_WAIT) &&
+        r->ep != 0) {
+        q_remove(k, t, r->ep - 1u);
+    }
+    /* A caller in BLOCKED_REPLY simply stops waiting: the server's reply
+     * capability goes stale, and its Reply gets JOIST_E_PEER. */
+    joist__wake(k, t, result);
 }
 
 /* Look up an endpoint capability in the thread's space and check a right. */
@@ -185,6 +204,30 @@ joist_err joist_recv_slots(struct joist_kernel *k, joist_thread t, const joist_s
     return JOIST_OK;
 }
 
+/* A fault message delivered from faulting thread f to receiver r carries a
+ * thread control capability for f (0009) in position 0, placed in r's first
+ * receive slot as any transferred capability would be: skipped, never an
+ * error, if r offered none or it is taken, or f is a fixture thread with no
+ * thread object. */
+static void fault_cap(struct joist_kernel *k, uint32_t f, uint32_t r)
+{
+    struct joist_thread_rec *rr = &k->th[r];
+    rr->msg.ncaps = 1;
+    rr->msg.cap[0] = JOIST_SLOT_NONE;
+    uint32_t o = k->th[f].obj;
+    if (o == 0 || rr->nrecv == 0 || !k->cs[rr->cs].live) {
+        return;
+    }
+    struct joist_cap *d = joist__slot(k, rr->cs, rr->recv_slot[0]);
+    if (d == NULL || d->obj != 0) {
+        return;
+    }
+    *d = (struct joist_cap){.obj = o, .type = JOIST_OBJ_THREAD, .rights = JOIST_R_CONTROL, .badge = 0};
+    k->obj[o - 1u].refs++;
+    joist__cap_added(k, d);
+    rr->msg.cap[0] = rr->recv_slot[0];
+}
+
 /* Hand the server a reply capability for caller c's delivered Call. */
 static void mint_reply(struct joist_kernel *k, uint32_t server, uint32_t c)
 {
@@ -275,6 +318,32 @@ void joist__queue_wake_all(struct joist_kernel *k, uint32_t obj, joist_err r)
 
 /* ---- IPC ---- */
 
+/* The body of a Call, once checked: rendezvous with a waiting receiver or
+ * queue. Shared by joist_call and fault calls. */
+static joist_err call_on(struct joist_kernel *k, uint32_t t, uint32_t obj, joist_badge badge,
+                         const struct joist_msg *m)
+{
+    struct joist_object *ep = &k->obj[obj];
+    struct joist_thread_rec *me = &k->th[t];
+    if (ep->qkind == JOIST_Q_RECEIVERS) {
+        uint32_t r = joist__q_pop(k, obj);
+        deliver(k, me->cs, r, m);
+        if (me->faulting) {
+            fault_cap(k, t, r);
+        }
+        k->th[r].badge = badge; /* I7: the badge of the capability used */
+        joist__wake(k, r, JOIST_OK);
+        mint_reply(k, r, t);
+        joist__sc_donate(k, t, r);
+        return JOIST_BLOCKED;
+    }
+    me->msg = *m;
+    me->badge = badge;
+    me->state = JOIST_T_BLOCKED_SEND;
+    joist__q_push(k, obj, JOIST_Q_SENDERS, t);
+    return JOIST_BLOCKED;
+}
+
 joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot slot,
                      const struct joist_msg *m, uint64_t timeout)
 {
@@ -295,23 +364,16 @@ joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot slot,
     if (e != JOIST_OK) {
         return e;
     }
-    struct joist_object *ep = &k->obj[obj];
-    struct joist_thread_rec *me = &k->th[t];
-    me->deadline = joist__deadline(k, timeout);
-    if (ep->qkind == JOIST_Q_RECEIVERS) {
-        uint32_t r = joist__q_pop(k, obj);
-        deliver(k, me->cs, r, m);
-        k->th[r].badge = badge; /* I7: the badge of the capability used */
-        joist__wake(k, r, JOIST_OK);
-        mint_reply(k, r, t);
-        joist__sc_donate(k, t, r);
-        return JOIST_BLOCKED;
-    }
-    me->msg = *m;
-    me->badge = badge;
-    me->state = JOIST_T_BLOCKED_SEND;
-    joist__q_push(k, obj, JOIST_Q_SENDERS, t);
-    return JOIST_BLOCKED;
+    k->th[t].deadline = joist__deadline(k, timeout);
+    return call_on(k, t, obj, badge, m);
+}
+
+joist_err joist__fault_call(struct joist_kernel *k, uint32_t t, uint32_t obj, joist_badge badge,
+                            const struct joist_msg *m)
+{
+    k->th[t].faulting = 1;
+    k->th[t].deadline = JOIST_FOREVER;
+    return call_on(k, t, obj, badge, m);
 }
 
 joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, uint64_t timeout)
@@ -338,6 +400,9 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         /* The capabilities are taken from the sender's space now, as they
          * are at delivery; any gone since the send are skipped. */
         deliver(k, k->th[s].cs, t, &k->th[s].msg);
+        if (k->th[s].faulting) {
+            fault_cap(k, s, t);
+        }
         me->badge = k->th[s].badge;
         me->result = JOIST_OK;
         mint_reply(k, t, s);
@@ -363,6 +428,13 @@ static joist_err deliver_reply(struct joist_kernel *k, uint32_t from, uint32_t c
     deliver(k, from, c, m);
     k->th[c].badge = 0;
     joist__wake(k, c, JOIST_OK);
+    if (k->th[c].faulting) {
+        /* The handler's verdict on a fault (0009): resume, or terminate. */
+        k->th[c].faulting = 0;
+        if (m->r[0] != JOIST_FAULT_RESUME) {
+            (void)joist_thread_destroy(k, c);
+        }
+    }
     return JOIST_OK;
 }
 
@@ -590,6 +662,11 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
         if ((r->state == JOIST_T_BLOCKED_RECV || r->state == JOIST_T_BLOCKED_WAIT) &&
             r->reply_to != 0) {
             VIOLATION("I10: thread %u waits while holding a reply capability", t);
+        }
+        if (r->faulting && r->state != JOIST_T_BLOCKED_SEND &&
+            r->state != JOIST_T_BLOCKED_REPLY) {
+            VIOLATION("0009: thread %u is faulting in state %u, not in its fault call", t,
+                      r->state);
         }
         /* A caller blocks, so it can never receive its own call (CBMC). */
         if (r->reply_to == t + 1u) {
