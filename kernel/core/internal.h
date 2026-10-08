@@ -73,6 +73,27 @@ void joist__q_push(struct joist_kernel *k, uint32_t obj, joist_queue_kind kind, 
 uint32_t joist__q_pop(struct joist_kernel *k, uint32_t obj);
 uint64_t joist__deadline(const struct joist_kernel *k, uint64_t timeout);
 
+/* Scheduling-context donation (sched.c). */
+/* A Call from `from` was delivered to `to`: lend from's context if `to` is
+ * passive. */
+void joist__sc_donate(struct joist_kernel *k, uint32_t from, uint32_t to);
+/* Thread x wakes or dies: take back the context it lent, along the chain. */
+void joist__sc_reclaim(struct joist_kernel *k, uint32_t x);
+/* Thread h stops serving (receives again, waits, dies): give a borrowed
+ * context back to its lender. */
+void joist__sc_giveback(struct joist_kernel *k, uint32_t h);
+/* Thread t is being destroyed: unwind its donation links, unbind its own
+ * context. */
+void joist__sc_thread_gone(struct joist_kernel *k, uint32_t t);
+/* Bind context object so to thread t (both valid and live): sc_bind's
+ * effect once its capabilities are checked; tests use it for fixture
+ * threads, which have no thread capability. JOIST_E_OCCUPIED as sc_bind. */
+joist_err joist__sc_bind_thread(struct joist_kernel *k, uint32_t so, uint32_t t);
+/* A scheduling context's last capability is gone. */
+void joist__sc_freed(struct joist_kernel *k, uint32_t obj);
+unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned msglen,
+                            int msg_free);
+
 /* A reply object's last capability is gone (ipc.c). */
 void joist__reply_obj_freed(struct joist_kernel *k, uint32_t obj);
 

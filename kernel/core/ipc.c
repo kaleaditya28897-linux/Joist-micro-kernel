@@ -28,6 +28,9 @@ void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
     r->state = JOIST_T_RUNNING;
     r->deadline = JOIST_FOREVER;
     r->result = result;
+    if (r->sc_to != 0) {
+        joist__sc_reclaim(k, t); /* a caller waking, however, takes its time back */
+    }
 }
 
 /* ---- endpoint queues: doubly linked through thread records, O(1) ---- */
@@ -241,6 +244,7 @@ joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t)
             joist__wake(k, c, JOIST_E_PEER);
         }
     }
+    joist__sc_thread_gone(k, t);
     if (r->obj != 0) {
         k->obj[r->obj - 1u].dead = 1; /* thread capabilities now fail with E_GONE */
     }
@@ -300,6 +304,7 @@ joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot slot,
         k->th[r].badge = badge; /* I7: the badge of the capability used */
         joist__wake(k, r, JOIST_OK);
         mint_reply(k, r, t);
+        joist__sc_donate(k, t, r);
         return JOIST_BLOCKED;
     }
     me->msg = *m;
@@ -327,6 +332,7 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
     if (e != JOIST_OK) {
         return e;
     }
+    joist__sc_giveback(k, t); /* receiving again: done with any borrowed time */
     if (k->obj[obj].qkind == JOIST_Q_SENDERS) {
         uint32_t s = joist__q_pop(k, obj);
         /* The capabilities are taken from the sender's space now, as they
@@ -335,6 +341,7 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         me->badge = k->th[s].badge;
         me->result = JOIST_OK;
         mint_reply(k, t, s);
+        joist__sc_donate(k, s, t);
         return JOIST_OK;
     }
     if (timeout == 0) {

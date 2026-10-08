@@ -16,7 +16,9 @@ static joist_rights full_rights(joist_obj_type t)
     case JOIST_OBJ_TASK:
     case JOIST_OBJ_THREAD:
     case JOIST_OBJ_REPLY:
-        /* CONTROL on tasks and threads; on a reply object, SEND: may reply.
+    case JOIST_OBJ_SCHED:
+        /* CONTROL on tasks, threads and scheduling contexts; on a reply
+         * object, SEND: may reply.
          * The same bit (JOIST_R_CONTROL is JOIST_R_SEND). */
         return (joist_rights)(JOIST_R_SEND | JOIST_R_GRANT);
     case JOIST_OBJ_NONE:
@@ -57,6 +59,7 @@ joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspa
             s->live = 1;
             s->quota = quota;
             s->fixture = 1;
+            s->mcp = JOIST_PRIO_MAX;
             k->budget += quota; /* fixture quota enters from nothing (I3) */
             *out = i;
             return JOIST_OK;
@@ -94,6 +97,9 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
         o->ns_first = 0;
         o->ns_last = 0;
         o->word = 0;
+        o->prio = 0;
+        o->budget = 0;
+        o->period = 0;
         k->objects_live--;
     }
 }
@@ -220,8 +226,9 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
     if (d == NULL) {
         return JOIST_E_RANGE;
     }
-    /* Tasks and threads have their own constructors (task.c). */
-    if (full_rights(type) == 0 || type == JOIST_OBJ_TASK || type == JOIST_OBJ_THREAD) {
+    /* Tasks, threads and scheduling contexts have their own constructors. */
+    if (full_rights(type) == 0 || type == JOIST_OBJ_TASK || type == JOIST_OBJ_THREAD ||
+        type == JOIST_OBJ_SCHED) {
         return JOIST_E_TYPE;
     }
     if (d->obj != 0) {
@@ -541,7 +548,9 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
 #undef VIOLATION
     unsigned ipc = joist__check_ipc(k, msg, msglen, bad == 0);
     unsigned note = joist__check_notify(k, msg, msglen, bad + ipc == 0);
-    return bad + ipc + note + joist__check_task(k, msg, msglen, bad + ipc + note == 0);
+    unsigned task = joist__check_task(k, msg, msglen, bad + ipc + note == 0);
+    return bad + ipc + note + task +
+           joist__check_sched(k, msg, msglen, bad + ipc + note + task == 0);
 }
 
 #if !__STDC_HOSTED__

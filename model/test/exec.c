@@ -43,6 +43,10 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_GROW] = "grow",
                                         [JX_SHRINK] = "shrink",
                                         [JX_RECV_SLOTS] = "recv_slots",
+                                        [JX_SC_CREATE] = "sc_create",
+                                        [JX_SC_BIND] = "sc_bind",
+                                        [JX_SC_UNBIND] = "sc_unbind",
+                                        [JX_SET_MCP] = "set_mcp",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -54,7 +58,8 @@ static const uint8_t weight[JX_OPS] = {
     [JX_REPLY_RECV] = 4,   [JX_SIGNAL] = 5,        [JX_WAIT] = 5,        [JX_BIND] = 3,
     [JX_DEADNAME] = 3,     [JX_COLLECT] = 3,       [JX_REAP] = 2,        [JX_DESCENDANT] = 2,
     [JX_SAVE] = 3,         [JX_SAVED] = 3,         [JX_GROW] = 2,        [JX_SHRINK] = 2,
-    [JX_RECV_SLOTS] = 3,
+    [JX_RECV_SLOTS] = 3,   [JX_SC_CREATE] = 3,     [JX_SC_BIND] = 4,     [JX_SC_UNBIND] = 2,
+    [JX_SET_MCP] = 1,
     [JX_TICK] = 6};
 
 static uint64_t boot_budget;
@@ -234,6 +239,12 @@ void jx_begin(struct joist_kernel *k, struct jx_source *src)
     for (int i = 0; i < 3; i++) {
         (void)joist_thread_create(k, root, &t);
     }
+    /* The first thread is an active client with a context of its own; the
+     * other two are passive, so a call can be lent on (a donation chain)
+     * even on the one endpoint. */
+    if (joist_sc_create(k, root, 6, 10, 1, 2) == JOIST_OK) {
+        (void)joist__sc_bind_thread(k, k->cs[root].slot[6].obj - 1u, 0);
+    }
 }
 
 /* What a step did, for the checks that need more than the final state. */
@@ -305,13 +316,32 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_SPAWN: {
         joist_thread out;
         uint32_t ts = pick_slot(k, src, cs, JOIST_OBJ_TASK);
-        return joist_thread_spawn(k, cs, ts, pick_dst(k, src, cs), &out);
+        uint32_t d = pick_dst(k, src, cs);
+        joist_err e = joist_thread_spawn(k, cs, ts, d, &out);
+        /* Half the new threads get a context of their own at once, through
+         * the public calls, so there are active clients to lend time to the
+         * passive rest (a random space rarely holds both capabilities). */
+        if (e == JOIST_OK && ch(src, 2) == 0) {
+            uint32_t sd = pick_dst(k, src, cs);
+            if (joist_sc_create(k, cs, sd, (uint8_t)ch(src, 256), 1, 2) == JOIST_OK) {
+                (void)joist_sc_bind(k, cs, sd, d);
+            }
+        }
+        return e;
     }
     case JX_KILL:
         return joist_thread_kill(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD));
     case JX_TH_CREATE: {
         joist_thread out;
-        return joist_thread_create(k, cs, &out);
+        joist_err e = joist_thread_create(k, cs, &out);
+        /* Half the fixture threads are active, as with spawn. */
+        if (e == JOIST_OK && ch(src, 2) == 0) {
+            uint32_t sd = pick_dst(k, src, cs);
+            if (joist_sc_create(k, cs, sd, (uint8_t)ch(src, 256), 1, 2) == JOIST_OK) {
+                (void)joist__sc_bind_thread(k, joist__slot_c(k, cs, sd)->obj - 1u, out);
+            }
+        }
+        return e;
     }
     case JX_TH_DESTROY:
         return joist_thread_destroy(k, ch(src, JOIST_MAX_THREADS + 1u));
@@ -388,6 +418,22 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         }
         return joist_recv_slots(k, t, s, ch(src, JOIST_MSG_CAPS + 2u));
     }
+    case JX_SC_CREATE: {
+        /* Valid parameters 7 times in 8; a priority anywhere, so the mcp
+         * check fires once mcps have been lowered. */
+        uint64_t period = 1u + ch(src, 100);
+        uint64_t budget = ch(src, 8) == 0 ? ch(src, 200) : 1u + ch(src, (uint32_t)period);
+        return joist_sc_create(k, cs, pick_dst(k, src, cs), (uint8_t)ch(src, 256), budget,
+                               period);
+    }
+    case JX_SC_BIND:
+        return joist_sc_bind(k, cs, pick_slot(k, src, cs, JOIST_OBJ_SCHED),
+                             pick_slot(k, src, cs, JOIST_OBJ_THREAD));
+    case JX_SC_UNBIND:
+        return joist_sc_unbind(k, cs, pick_slot(k, src, cs, JOIST_OBJ_SCHED));
+    case JX_SET_MCP:
+        return joist_task_set_mcp(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK),
+                                  (uint8_t)ch(src, 256));
     case JX_GROW:
     case JX_SHRINK: {
         /* A real leaf index (1 .. root - 1) 3 times in 4; else any, 0 and
@@ -455,6 +501,17 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
             }
         }
     }
+    /* Donation coverage: loans standing after this step, and chains. */
+    int any_lent = 0;
+    int any_chain = 0;
+    for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+        if (k->th[t].state != JOIST_T_FREE && k->th[t].sc_to != 0) {
+            any_lent = 1;
+            any_chain |= k->th[k->th[t].sc_to - 1u].sc_to != 0;
+        }
+    }
+    st->lent += (unsigned long)any_lent;
+    st->chains += (unsigned long)any_chain;
     int delivered = 0; /* SIGNAL: a waiter woke with every signalled bit */
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         if (before[t] >= JOIST_T_BLOCKED_SEND && k->th[t].state == JOIST_T_RUNNING) {

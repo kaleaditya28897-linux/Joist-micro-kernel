@@ -320,3 +320,50 @@ grant operation, now also each delivery's copy, included); `make fuzz` for
 delivery loop itself (the harness has no threads); it is two calls of the
 proven grant, and the unit tests, executor and mutations cover the rest.
 
+### Step 3, part 3: scheduling contexts and donation (2026-10-08)
+
+Choice 9's semantics in the model (`kernel/core/sched.c`); the run queues,
+budgets and the one-shot timer are the kernel's (step 5). A new object
+type, the scheduling context (priority, budget, period), made by
+`joist_sc_create` within the space's **mcp** (the highest priority it may
+give; the root's is 255, a new task inherits its creator's, and
+`joist_task_set_mcp` sets a task's to at most the caller's own), and bound
+to a thread with `joist_sc_bind`. A thread has `sc` (its own) and `run_sc`
+(what it runs on); without its own it is passive.
+
+Donation: a Call delivered to a passive receiver lends the caller's
+`run_sc`; `sc_to` on the lender and `sc_from` on the borrower link them, so
+a borrower calling another passive server makes a chain. The context comes
+back to the caller whenever it wakes (reply, timeout, peer death), pulled
+along the chain from wherever it is, and from a server when it receives or
+waits again or dies, so a deferred reply never strands a client's time.
+Deleting a context unwinds its loan. Chosen over seL4's rule of tying the
+loan to the reply object: here a saved reply hands the time back at once,
+so a server deferring many replies holds no one's time while it waits,
+which suits the Hurd's deferred-reply servers (`proc_wait`, `select`).
+
+**I11** (new, in `joist_check_invariants`): no two threads run on one
+context; a context and its owner name each other; every loan is recorded at
+both ends, ends at a holder, never loops, and its lender is blocked waiting
+for a reply; free threads and non-context objects carry no scheduling
+state.
+
+Tests: `test/test_sched.c`, 14 unit tests (creation limits and mcp, bind
+and unbind, lending to a passive server and not to an active one, at
+delivery and at receive, return on reply, timeout, server death and
+deferral, a two-deep chain unwinding reply by reply, a timeout pulling the
+time back through the chain, a context deleted while lent, unbinding
+refused while lent, a dying client, and the checker catching bad links).
+The executor creates, binds and unbinds contexts and sets mcps, and starts
+each sequence with one active and two passive threads; its full run must
+lend and chain (15 752 steps with a loan standing, 383 with a chain, I11
+checked after each).
+
+Checked (2026-10-08): `make check` in `model/`, 113 tests under all six
+builds; `make mutate`, 70 of 70 caught (10 new: four by I11 in the random
+run, six by the unit tests); `make cbmc`, 7 of 7 verified with the larger
+object and thread records; `make fuzz` 120 s, clean; `make check` in
+`kernel/`, passing (19 sources clean under `clang-tidy`). CBMC's harness
+has no IPC, so donation is covered by the unit tests, the executor's I11
+checks and the mutations.
+

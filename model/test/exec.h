@@ -47,6 +47,10 @@ enum {
     JX_GROW,
     JX_SHRINK,
     JX_RECV_SLOTS,
+    JX_SC_CREATE,
+    JX_SC_BIND,
+    JX_SC_UNBIND,
+    JX_SET_MCP,
     JX_TICK,
     JX_OPS
 };
@@ -59,6 +63,8 @@ struct jx_stats {
     unsigned long wakeups[JX_RESULTS];
     unsigned long caps_moved;   /* capabilities that arrived in a message */
     unsigned long caps_skipped; /* sent, but not placed (no slot, taken, gone) */
+    unsigned long lent;         /* steps that left a context lent (I11 under load) */
+    unsigned long chains;       /* steps that left a loan two or more deep */
     unsigned long sequences;
     unsigned long cycles; /* tasks left alive at teardown only by holding each other */
     unsigned long steps;

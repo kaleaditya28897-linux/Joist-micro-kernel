@@ -64,3 +64,14 @@ xfer-position-collapse @@ ../kernel/core/ipc.c @@ out.cap[i] = r->recv_slot[i]; 
 xfer-bad-reply-consumes @@ ../kernel/core/ipc.c @@ return e; /* the reply capability is kept: nothing changed */ @@ (void)0;
 xfer-ignores-nrecv @@ ../kernel/core/ipc.c @@ if (i >= r->nrecv) { @@ if (0) {
 xfer-wrong-source-space @@ ../kernel/core/ipc.c @@ deliver(k, k->th[s].cs, t, &k->th[s].msg); @@ deliver(k, me->cs, t, &k->th[s].msg);
+# Scheduling contexts and donation (Phase 3 step 3; I11).
+sc-no-reclaim-on-wake @@ ../kernel/core/ipc.c @@ joist__sc_reclaim(k, t); /* a caller waking @@ (void)0; /* a caller waking
+sc-no-giveback-on-recv @@ ../kernel/core/ipc.c @@ joist__sc_giveback(k, t); /* receiving again @@ (void)0; /* receiving again
+sc-donate-to-active @@ ../kernel/core/sched.c @@ if (r->sc != 0 || r->run_sc != 0 || r->sc_from != 0 || r->sc_to != 0 || f->run_sc == 0 || @@ if (r->sc_from != 0 || r->sc_to != 0 || f->run_sc == 0 ||
+sc-mcp-ignored @@ ../kernel/core/sched.c @@ if (prio > s->mcp) { @@ if (0) {
+sc-thread-gone-skipped @@ ../kernel/core/ipc.c @@ joist__sc_thread_gone(k, t); @@ (void)0;
+sc-freed-skipped @@ ../kernel/core/notify.c @@ joist__sc_freed(k, obj); @@ (void)obj;
+sc-reclaim-keeps-links @@ ../kernel/core/sched.c @@ b->run_sc = b->sc; @@ (void)b;
+sc-unbind-while-lent @@ ../kernel/core/sched.c @@ if (r->sc_to != 0 && r->sc_from == 0) { @@ if (0) {
+sc-mcp-raisable @@ ../kernel/core/sched.c @@ if (mcp > k->cs[cs].mcp) { @@ if (0) {
+sc-mcp-not-inherited @@ ../kernel/core/task.c @@ n->mcp = k->cs[cs].mcp; @@ n->mcp = JOIST_PRIO_MAX;

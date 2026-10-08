@@ -132,6 +132,9 @@ void joist__object_freed(struct joist_kernel *k, uint32_t obj)
     if (o->type == JOIST_OBJ_REPLY) {
         joist__reply_obj_freed(k, obj);
     }
+    if (o->type == JOIST_OBJ_SCHED) {
+        joist__sc_freed(k, obj);
+    }
     if (o->type == JOIST_OBJ_NOTIFICATION) {
         /* Drop every reference the kernel keeps to this notification. */
         for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
@@ -240,6 +243,7 @@ joist_err joist_wait(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
     if (e != JOIST_OK) {
         return e;
     }
+    joist__sc_giveback(k, t); /* waiting again: done with any borrowed time */
     struct joist_object *n = &k->obj[obj];
     if (n->word != 0) {
         me->badge = n->word;
@@ -415,6 +419,10 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
     }
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
         const struct joist_object *ob = &k->obj[o];
+        if (ob->type != JOIST_OBJ_SCHED && ob->type != JOIST_OBJ_NONE &&
+            (ob->prio != 0 || ob->budget != 0 || ob->period != 0)) {
+            VIOLATION("object %u of type %u carries scheduling-context state", o, ob->type);
+        }
         if (ob->type == JOIST_OBJ_ENDPOINT) {
             if (ob->recv_caps != recv_seen[o]) {
                 VIOLATION("I5: endpoint %u recv_caps %u but %u RECV capabilities", o, ob->recv_caps,
@@ -449,7 +457,12 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
             if (ob->word != 0 || ob->recv_caps != 0) {
                 VIOLATION("task/thread object %u carries endpoint or notification state", o);
             }
-        } else if (ob->word != 0 || ob->recv_caps != 0 || ob->dead || ob->target != 0 ||
+        } else if (ob->type == JOIST_OBJ_SCHED) {
+            if (ob->word != 0 || ob->recv_caps != 0 || ob->dead || ob->qkind != JOIST_Q_NONE ||
+                ob->ns_notif != 0 || ob->rseq != 0) {
+                VIOLATION("scheduling context %u carries other objects' state", o);
+            }
+        } else if (ob->prio != 0 || ob->budget != 0 || ob->period != 0 || ob->word != 0 || ob->recv_caps != 0 || ob->dead || ob->target != 0 ||
                    ob->rseq != 0 || ob->donor != 0 || ob->ns_notif != 0 || ob->ns_bits != 0 ||
                    ob->ns_first != 0 || ob->ns_last != 0 || ob->qkind != JOIST_Q_NONE ||
                    ob->qhead != 0 || ob->qtail != 0) {

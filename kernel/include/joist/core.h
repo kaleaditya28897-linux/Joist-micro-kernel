@@ -89,8 +89,12 @@ typedef enum {
     JOIST_OBJ_NOTIFICATION,
     JOIST_OBJ_TASK,   /* a capability space with its threads (0004) */
     JOIST_OBJ_THREAD, /* a thread; its capability is 0010's thread control capability */
-    JOIST_OBJ_REPLY   /* holds one saved reply capability: a deferred reply (0001) */
+    JOIST_OBJ_REPLY,  /* holds one saved reply capability: a deferred reply (0001) */
+    JOIST_OBJ_SCHED   /* a scheduling context: priority, budget, period (§5.6) */
 } joist_obj_type;
+
+/* Priorities (§5.6): 0 lowest, JOIST_PRIO_MAX highest. */
+#define JOIST_PRIO_MAX 255u
 
 /* Rights bits (0001). */
 typedef uint8_t joist_rights;
@@ -150,6 +154,12 @@ struct joist_object {
     uint32_t ns_last;
     /* Notifications: the pending bit-set. Width: 0001's open item 3. */
     uint64_t word;
+    /* Scheduling contexts (target: the owning thread, plus one, 0 if
+     * unbound). Budget and period in ticks; the kernel's scheduler enforces
+     * them, the model only records them. */
+    uint8_t prio;
+    uint64_t budget;
+    uint64_t period;
 };
 
 typedef enum {
@@ -238,6 +248,16 @@ struct joist_thread_rec {
      * in the kernel, the thread's IPC buffer). */
     uint32_t nrecv;
     joist_slot recv_slot[JOIST_MSG_CAPS];
+    /* Scheduling (§5.3, §5.6). sc: the context bound to this thread as its
+     * own (object index plus one), 0 for a passive thread. run_sc: the one it
+     * runs on now: its own, a borrowed one, or 0. Donation: a Call delivered
+     * to a passive receiver lends the caller's run_sc to it; sc_to (on the
+     * lender) and sc_from (on the borrower) link the two, so a context lent
+     * on and on forms a chain, and comes back along it (sched.c). */
+    uint32_t sc;
+    uint32_t run_sc;
+    uint32_t sc_from;
+    uint32_t sc_to;
 };
 
 struct joist_cspace_state {
@@ -248,6 +268,8 @@ struct joist_cspace_state {
                           0 for the root and for fixtures */
     uint32_t task_obj; /* the task object naming this space, plus one; 0 if none */
     uint8_t fixture;   /* made by joist_cspace_create: nameless by design */
+    uint8_t mcp;       /* the highest priority this space may give a scheduling
+                          context (seL4's MCP); a child starts with its parent's */
     /* Leaf 0: slots 0 .. JOIST_CNODE_LEAF - 1. */
     struct joist_cap slot[JOIST_CNODE_LEAF];
     /* The other leaves: leaf[i] is the pool index plus one of leaf i, 0 if
@@ -467,6 +489,29 @@ joist_err joist_thread_spawn(struct joist_kernel *k, joist_cspace cs, joist_slot
 
 /* Kill the thread named by the thread capability in slot (needs CONTROL). */
 joist_err joist_thread_kill(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
+
+/* ---- scheduling contexts and donation (Phase 3 step 3; I11) ---- */
+
+/* Create a scheduling context with priority prio (at most cs's mcp:
+ * JOIST_E_RIGHTS), and budget <= period, both nonzero (JOIST_E_RANGE),
+ * charged to cs, with a capability with all rights in dst. */
+joist_err joist_sc_create(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uint8_t prio,
+                          uint64_t budget, uint64_t period);
+
+/* Bind the scheduling context in sc_slot to the thread in th_slot as its own
+ * (both need CONTROL). JOIST_E_OCCUPIED if either is already bound. A thread
+ * not holding a borrowed context starts running on it. */
+joist_err joist_sc_bind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot,
+                        joist_slot th_slot);
+
+/* Unbind the scheduling context in sc_slot from its thread (CONTROL), which
+ * becomes passive. JOIST_E_STATE if it is unbound or lent out right now. */
+joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot);
+
+/* Set the mcp of the task named by task_slot (CONTROL) to at most cs's own
+ * (JOIST_E_RIGHTS otherwise). */
+joist_err joist_task_set_mcp(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                             uint8_t mcp);
 
 /* Read a capability (for tests and the eventual ABI's inspection call). */
 joist_err joist_cap_read(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,

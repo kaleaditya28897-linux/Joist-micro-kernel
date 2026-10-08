@@ -129,6 +129,7 @@ joist_err joist_boot(struct joist_kernel *k, uint32_t budget, joist_cspace *root
     memset(s, 0, sizeof *s);
     s->live = 1;
     s->quota = budget;
+    s->mcp = JOIST_PRIO_MAX; /* the root may give any priority (0013) */
     k->budget = budget;
     k->root = 1;
     *root = 0;
@@ -212,6 +213,7 @@ joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t do
     n->live = 1;
     n->quota = donation;
     n->parent = cs + 1u;
+    n->mcp = k->cs[cs].mcp; /* lowered with joist_task_set_mcp */
     n->task_obj = obj + 1u;
     k->cs[cs].quota -= donation;
     return JOIST_OK;

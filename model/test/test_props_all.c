@@ -99,8 +99,11 @@ JT_TEST(props_all_invariants_hold)
             st.sequences, st.steps, st.cycles);
     fprintf(stderr, "  coverage transfer      %lu capabilities arrived, %lu skipped\n",
             st.caps_moved, st.caps_skipped);
+    fprintf(stderr, "  coverage donation      %lu steps with a context lent, %lu with a chain\n",
+            st.lent, st.chains);
     if (one == NULL || *one == '\0') {
         /* The full run must actually move capabilities and skip some. */
         JT_CHECK(st.caps_moved > 100 && st.caps_skipped > 100);
+        JT_CHECK(st.lent > 100 && st.chains > 10);
     }
 }

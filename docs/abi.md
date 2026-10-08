@@ -53,6 +53,7 @@ are given as `joist_*` so every statement can be checked against the code.
 | Reply object | `obj_create` | SEND, GRANT | holds one saved reply capability: a deferred reply (0001 amendment) |
 | Task | `task_create` | CONTROL, GRANT | a capability space, its threads and its memory quota (0004) |
 | Thread | `thread_spawn` | CONTROL, GRANT | a thread of a task; its capability is 0010's thread control capability |
+| Scheduling context | `sc_create` | CONTROL, GRANT | a priority, a budget and a period: the time a thread runs on (§5.6) |
 
 **Memory (0003, 0004, I3).** Every object is paid for from a task's quota,
 one unit per object; a failed allocation returns `E_NOMEM` and never blocks.
@@ -223,6 +224,42 @@ queue is dropped: nobody can collect it.
 **Dead names (I5).** When an endpoint dies, every registration on it signals
 its notification once, with the registering capability's badge, and is
 freed; every remaining capability to the endpoint then fails with `E_GONE`.
+
+## Scheduling contexts and donation (§5.3, §5.6; Phase 3 step 3)
+
+A thread runs only on a **scheduling context**: a priority (0–255, higher
+first), a budget and a period. A context bound to a thread is its own; a
+thread with none is **passive** and runs only on time lent to it. The
+kernel's scheduler (Phase 3 step 5) runs threads by their current
+context's priority and charges its budget; what the model fixes is who
+holds which context.
+
+| Operation | Arguments | Results, in check order | Effect | Bound |
+|---|---|---|---|---|
+| `sc_create` | dst, priority, budget, period | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (dst), `E_OCCUPIED`, `E_RANGE` (budget 0, period 0, or budget > period), `E_RIGHTS` (priority above the space's mcp), `E_NOMEM` (quota, then object table) | a new context, unbound, paid by the caller | one table scan |
+| `sc_bind` | context slot, thread slot | for each (context, then thread): `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE`; then `E_OCCUPIED` (either already bound) | the context becomes the thread's own; a thread not holding borrowed time starts running on it | O(1) |
+| `sc_unbind` | context slot | as above for the context, then `E_STATE` (unbound, or lent out right now) | the thread becomes passive | O(1) |
+| `task_set_mcp` | task slot, mcp | as for a task capability with CONTROL, then `E_RIGHTS` (above the caller's own mcp) | the task's mcp: the highest priority it may give a context. The root's is 255, and a new task starts with its creator's | O(1) |
+
+**Donation.** A `Call` delivered to a passive receiver (no context of its
+own, holding none) **lends** it the caller's current context: the server
+runs at the client's priority, on the client's budget (§5.3), and a server
+with no context of its own uses no time unless clients give it. A borrower
+that calls another passive server lends the same context on, so a loan can
+be a chain. **The context comes back**:
+
+- to the caller, whenever it wakes from the call, for any reason (the
+  reply, its timeout, the server's death, a deleted reply object), from
+  wherever along the chain it is;
+- from the server, when it stops serving: when it receives or waits again
+  (so saving a reply for later hands the time back at once), or dies.
+
+Deleting a context unbinds it and unwinds any loan of it; killing a thread
+gives back what it borrowed and takes back, then drops, what it lent. **I11**
+(checked after every operation): no two threads run on one context; a
+context's owner and its thread name each other; every loan is recorded at
+both ends, ends at the thread running on the context, never loops, and its
+lender is waiting for a reply.
 
 ## Result codes
 
