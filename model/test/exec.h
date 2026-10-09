@@ -57,6 +57,9 @@ enum {
     JX_RESUME,
     JX_SET_FAULT,
     JX_FAULT,
+    JX_SPLIT,
+    JX_MAP,
+    JX_UNMAP,
     JX_TICK,
     JX_OPS
 };
@@ -73,6 +76,7 @@ struct jx_stats {
     unsigned long chains;       /* steps that left a loan two or more deep */
     unsigned long faults_taken; /* faults delivered to a handler */
     unsigned long faults_fatal; /* faults with no handler: task or thread ended */
+    unsigned long mapped;       /* steps that left a mapping standing */
     unsigned long sequences;
     unsigned long cycles; /* tasks left alive at teardown only by holding each other */
     unsigned long steps;

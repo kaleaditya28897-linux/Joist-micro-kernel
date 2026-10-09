@@ -54,6 +54,7 @@ are given as `joist_*` so every statement can be checked against the code.
 | Task | `task_create` | CONTROL, GRANT | a capability space, its threads and its memory quota (0004) |
 | Thread | `thread_spawn` | CONTROL, GRANT | a thread of a task; its capability is 0010's thread control capability |
 | Scheduling context | `sc_create` | CONTROL, GRANT | a priority, a budget and a period: the time a thread runs on (§5.6) |
+| Frame | boot (`boot_frame`), `frame_split` | CONTROL, WRITE, GRANT | a range of physical pages (0013: memory is handed out as capabilities) |
 
 **Memory (0003, 0004, I3).** Every object is paid for from a task's quota,
 one unit per object; a failed allocation returns `E_NOMEM` and never blocks.
@@ -224,6 +225,32 @@ queue is dropped: nobody can collect it.
 **Dead names (I5).** When an endpoint dies, every registration on it signals
 its notification once, with the registering capability's badge, and is
 freed; every remaining capability to the endpoint then fails with `E_GONE`.
+
+## Frames and mappings (0013, §5.5; Phase 3 step 3)
+
+The kernel manages only page tables and frame capabilities (§5.5). At boot
+it makes **frames** for the free memory and gives them all to the root
+task (0013); frames never overlap, so no page is handed out twice. On a
+frame capability CONTROL (the SEND bit) allows mapping and splitting, and
+**WRITE** (the RECV bit) allows mapping writable, so a read-only frame
+capability can be passed on.
+
+| Operation | Arguments | Results, in check order | Effect | Bound |
+|---|---|---|---|---|
+| `boot_frame` (kernel, at boot) | dst, first page, pages | `E_RANGE` (space), `E_STATE` (not the root), `E_RANGE` (dst), `E_OCCUPIED`, `E_RANGE` (empty or wrapping), `E_STATE` (overlaps a frame), `E_NOMEM` | a frame in the root's slot, paid from its quota | one table scan |
+| `frame_split` | frame slot, page, dst | as for a frame capability with CONTROL, then `E_RANGE` (page not inside), `E_RANGE`/`E_OCCUPIED` (dst), `E_STATE` (another capability names it, or it is mapped), `E_NOMEM` | the frame keeps the pages before `page`; a new frame with the rest, same rights, goes in dst, paid by the caller | one table scan |
+| `map` | frame slot, task slot, first virtual page, permissions | for the frame, then the task (each with CONTROL): `E_RANGE`/`E_DEAD`, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS`, `E_GONE`; then `E_RIGHTS` (writable and executable, an unknown permission, or writable without WRITE), `E_RANGE` (outside the user half), `E_OCCUPIED` (overlaps a mapping in that task), `E_NOMEM` (the task's quota, then the mapping table) | the whole frame appears at those pages of the task, readable, and writable **or** executable (W^X); the task pays one quota unit for its page tables | one table scan |
+| `unmap` | task slot, first virtual page | as for a task capability with CONTROL, then `E_EMPTY` (no mapping starts there) | the mapping goes; its unit returns to the task | one table scan |
+
+The same frame may be mapped in several tasks, or twice in one: sharing is
+how memory is passed in Phase 3 (0006's grants come in Phase 5). W^X holds
+per mapping, not across aliases of one frame. Deleting a frame's last
+capability unmaps it everywhere; destroying a task removes its mappings.
+**I12**: frames are disjoint and non-empty; every mapping maps a whole live
+frame into a live space, in the user half, never writable and executable;
+no two mappings in one space overlap; and each mapping is charged to its
+space (I3). No fault is resolved by the kernel: a page fault is fault IPC
+(above), and Phase 4's memory manager maps in reply.
 
 ## Thread control and faults (0009, 0010; Phase 3 step 3)
 

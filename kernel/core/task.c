@@ -67,6 +67,7 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
             joist__leaf_free(k, s, l);
         }
     }
+    joist__space_unmap_all(k, s); /* its page tables go; the units to its quota */
     /* I3: hand everything this space still owns to its parent, and its
      * children too, so no quota is lost and the parent chain stays live. */
     uint32_t p = st->parent;

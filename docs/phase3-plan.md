@@ -420,3 +420,30 @@ each part of step 3 runs its new mutations; the whole suite (with CBMC,
 fuzzing and the kernel check) runs once at the end of the step, as agreed
 with the project owner.
 
+### Step 3, part 5: frames and mappings (2026-10-09)
+
+Plan choice 5 in the model (`kernel/core/map.c`): frame objects (a page
+range; the kernel creates them for free memory at boot, in the root's
+space, 0013), `joist_frame_split` (only unshared and unmapped frames), and
+`joist_map`/`joist_unmap` of whole frames into a task's user half,
+readable plus writable or executable, never both. Mapping writable needs
+the frame capability's WRITE right (the RECV bit), so read-only frame
+capabilities exist. Each mapping costs the task one quota unit, standing
+for its page tables; deleting a frame's last capability unmaps it
+everywhere, and a dying task's mappings go before its quota passes to its
+parent. Aliases are allowed (one frame in several tasks, or twice in one);
+W^X is per mapping. New invariant **I12** (frames disjoint and non-empty;
+mappings of whole live frames, into live spaces, in the user half, W^X,
+non-overlapping per space, and charged).
+
+Tests: `test/test_map.c`, 8 unit tests (boot frames and their overlap
+check, splitting and its refusals, map and unmap with quota, the
+refusals: W^X, WRITE, the user half, types; quota exhaustion, a freed
+frame unmapped in two tasks, task destruction, and the checker catching
+overlaps). The executor splits, maps and unmaps (from the root half the
+time, unmapping where mappings are), with two boot frames in its starting
+world; its full run must keep mappings standing (44 115 steps). Ten
+mutations, all caught (seven by I12 or I3 in the random run). Checked per
+the agreed routine: `make check` in `model/` (all six builds), the new
+mutations, and the kernel's freestanding compile and `clang-tidy`.
+

@@ -56,6 +56,12 @@
 #define JOIST_MAX_BADGE_ACCTS 64u
 #endif
 /* Dead-name notification registrations (I5). */
+/* Mappings of frames into address spaces (Phase 3 step 3; I12). */
+#ifndef JOIST_MAX_MAPPINGS
+#define JOIST_MAX_MAPPINGS 64u
+#endif
+/* Pages in the user half of an address space (x86_64: 2^47 bytes of 4 KiB). */
+#define JOIST_USER_PAGES (1ull << 35)
 #ifndef JOIST_MAX_DEADNAMES
 #define JOIST_MAX_DEADNAMES 32u
 #endif
@@ -92,7 +98,8 @@ typedef enum {
     JOIST_OBJ_TASK,   /* a capability space with its threads (0004) */
     JOIST_OBJ_THREAD, /* a thread; its capability is 0010's thread control capability */
     JOIST_OBJ_REPLY,  /* holds one saved reply capability: a deferred reply (0001) */
-    JOIST_OBJ_SCHED   /* a scheduling context: priority, budget, period (§5.6) */
+    JOIST_OBJ_SCHED,  /* a scheduling context: priority, budget, period (§5.6) */
+    JOIST_OBJ_FRAME   /* a range of physical pages (0013: memory as capabilities) */
 } joist_obj_type;
 
 /* Priorities (§5.6): 0 lowest, JOIST_PRIO_MAX highest. */
@@ -162,6 +169,27 @@ struct joist_object {
     uint8_t prio;
     uint64_t budget;
     uint64_t period;
+    /* Frames: the first physical page and the number of pages. */
+    uint64_t base;
+    uint64_t npages;
+};
+
+/* On a frame capability the RECV bit means "may be mapped writable"; SEND is
+ * CONTROL (map, split), as on tasks and threads. */
+#define JOIST_R_WRITE JOIST_R_RECV
+
+/* Mapping permissions. Readable is implied; never both (W^X). */
+#define JOIST_MAP_W 1u
+#define JOIST_MAP_X 2u
+
+/* A frame mapped into an address space: pages [va, va + npages) of the
+ * space show the frame's pages, all of it (split a frame to map part). */
+struct joist_mapping {
+    uint32_t space; /* the space, plus one; 0 = free entry */
+    uint32_t frame; /* the frame object, plus one */
+    uint64_t va;    /* first virtual page */
+    uint64_t npages;
+    uint8_t perms; /* JOIST_MAP_W, JOIST_MAP_X */
 };
 
 typedef enum {
@@ -327,6 +355,7 @@ struct joist_kernel {
     struct joist_badge_acct acct[JOIST_MAX_BADGE_ACCTS];
     struct joist_deadname dn[JOIST_MAX_DEADNAMES];
     struct joist_leaf leaf[JOIST_MAX_LEAVES];
+    struct joist_mapping map[JOIST_MAX_MAPPINGS];
     uint32_t objects_live;
     uint64_t now; /* model time: advanced only by joist_tick */
     /* Quota conservation (I3): every unit of quota entered through joist_boot
@@ -546,6 +575,40 @@ joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc
 
 /* Set the mcp of the task named by task_slot (CONTROL) to at most cs's own
  * (JOIST_E_RIGHTS otherwise). */
+/* ---- frames and mappings (Phase 3 step 3; 0013, plan choice 5; I12) ----
+ * The kernel manages only page tables and frame capabilities (§5.5): it
+ * creates frames for free memory at boot, held by the root task, which
+ * splits them and maps them into the tasks it makes. Page tables cost the
+ * task mapped into one quota unit per mapping. Phase 4's memory manager
+ * builds on this; no fault is resolved by the kernel. */
+
+/* Boot: a frame of pages [base, base + npages) in the root's slot dst,
+ * paid from the root's quota. JOIST_E_STATE if not the root or the range
+ * overlaps an existing frame, JOIST_E_RANGE if empty or wrapping, then as
+ * obj_create. */
+joist_err joist_boot_frame(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uint64_t base,
+                           uint64_t npages);
+
+/* Split the frame in slot (CONTROL) at page `at`: it keeps [base, base +
+ * at), and a new frame with the rest goes in dst with the same rights,
+ * paid by cs. JOIST_E_RANGE (at not inside), JOIST_E_OCCUPIED (dst),
+ * JOIST_E_STATE (mapped, or another capability names it), JOIST_E_NOMEM. */
+joist_err joist_frame_split(struct joist_kernel *k, joist_cspace cs, joist_slot slot, uint64_t at,
+                            joist_slot dst);
+
+/* Map the frame in frame_slot (CONTROL; JOIST_R_WRITE too for JOIST_MAP_W)
+ * at virtual page va of the task in task_slot (CONTROL). JOIST_E_RIGHTS
+ * (W and X together, or W without JOIST_R_WRITE), JOIST_E_RANGE (outside
+ * the user half), JOIST_E_OCCUPIED (overlaps a mapping there), JOIST_E_NOMEM
+ * (the task's quota: one unit for its page tables; then the mapping
+ * table). */
+joist_err joist_map(struct joist_kernel *k, joist_cspace cs, joist_slot frame_slot,
+                    joist_slot task_slot, uint64_t va, unsigned perms);
+
+/* Remove the mapping starting at virtual page va of the task in task_slot
+ * (CONTROL), refunding its unit. JOIST_E_EMPTY if there is none. */
+joist_err joist_unmap(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot, uint64_t va);
+
 joist_err joist_task_set_mcp(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
                              uint8_t mcp);
 

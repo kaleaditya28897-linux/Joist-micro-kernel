@@ -86,3 +86,14 @@ abort-ignores-reply-wait @@ ../kernel/core/fault.c @@ r->state == JOIST_T_BLOCKE
 suspend-leaves-queued @@ ../kernel/core/fault.c @@     if (blocked(&k->th[t])) { @@     if (0) {
 resume-anything @@ ../kernel/core/fault.c @@ if (k->th[t].state != JOIST_T_SUSPENDED) { @@ if (0) {
 fault-flag-unset @@ ../kernel/core/ipc.c @@ k->th[t].faulting = 1; @@ (void)t;
+# Frames and mappings (Phase 3 step 3; 0013; I12).
+map-wx-allowed @@ ../kernel/core/map.c @@ ((perms & JOIST_MAP_W) && (perms & JOIST_MAP_X))) { @@ 0) {
+map-write-right-ignored @@ ../kernel/core/map.c @@ if ((perms & JOIST_MAP_W) && (joist__slot_c(k, cs, frame_slot)->rights & JOIST_R_WRITE) == 0) { @@ if (0) {
+map-kernel-half @@ ../kernel/core/map.c @@ if (va >= JOIST_USER_PAGES || f->npages > JOIST_USER_PAGES - va) { @@ if (0) {
+map-overlap-allowed @@ ../kernel/core/map.c @@ } else if (m->space == space + 1u && va < m->va + m->npages && m->va < va + f->npages) { @@ } else if (0) {
+map-uncharged @@ ../kernel/core/map.c @@ ts->charged++; /* the task pays @@ (void)ts; /* the task pays
+map-frame-freed-keeps @@ ../kernel/core/notify.c @@ joist__frame_freed(k, obj); @@ (void)obj;
+map-destroy-keeps @@ ../kernel/core/task.c @@ joist__space_unmap_all(k, s); /* its page tables @@ (void)s; /* its page tables
+map-split-shared @@ ../kernel/core/map.c @@ if (f->refs != 1) { @@ if (0) {
+map-boot-overlap @@ ../kernel/core/map.c @@ if (o->type == JOIST_OBJ_FRAME && base < o->base + o->npages && o->base < base + npages) { @@ if (o->type == JOIST_OBJ_FRAME && 0) {
+map-split-mapped @@ ../kernel/core/map.c @@ if (k->map[i].space != 0 && k->map[i].frame == fo + 1u) { @@ if (0) {

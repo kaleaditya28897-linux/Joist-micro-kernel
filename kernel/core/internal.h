@@ -84,6 +84,11 @@ void joist__cancel(struct joist_kernel *k, uint32_t t, joist_err result);
 joist_err joist__fault_call(struct joist_kernel *k, uint32_t t, uint32_t obj, joist_badge badge,
                             const struct joist_msg *m);
 
+/* Frames and mappings (map.c). */
+void joist__frame_freed(struct joist_kernel *k, uint32_t obj);  /* unmap it everywhere */
+void joist__space_unmap_all(struct joist_kernel *k, uint32_t cs); /* refunds cs's quota */
+unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msglen, int msg_free);
+
 /* Scheduling-context donation (sched.c). */
 /* A Call from `from` was delivered to `to`: lend from's context if `to` is
  * passive. */

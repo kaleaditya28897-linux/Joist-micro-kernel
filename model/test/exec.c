@@ -53,6 +53,9 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_RESUME] = "resume",
                                         [JX_SET_FAULT] = "set_fault",
                                         [JX_FAULT] = "fault",
+                                        [JX_SPLIT] = "split",
+                                        [JX_MAP] = "map",
+                                        [JX_UNMAP] = "unmap",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -66,7 +69,8 @@ static const uint8_t weight[JX_OPS] = {
     [JX_SAVE] = 3,         [JX_SAVED] = 3,         [JX_GROW] = 2,        [JX_SHRINK] = 2,
     [JX_RECV_SLOTS] = 3,   [JX_SC_CREATE] = 3,     [JX_SC_BIND] = 4,     [JX_SC_UNBIND] = 2,
     [JX_SET_MCP] = 1,      [JX_REGS] = 2,          [JX_ABORT] = 2,       [JX_SUSPEND] = 1,
-    [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,
+    [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,       [JX_SPLIT] = 2,
+    [JX_MAP] = 4,          [JX_UNMAP] = 2,
     [JX_TICK] = 6};
 
 static uint64_t boot_budget;
@@ -257,6 +261,9 @@ void jx_begin(struct joist_kernel *k, struct jx_source *src)
      * usually reaches a thread that receives there. (The root has no task
      * capability for joist_task_set_fault: set directly, as setup.) */
     k->cs[root].fault_slot = 1;
+    /* Memory, as the kernel hands it to the root at boot (0013). */
+    (void)joist_boot_frame(k, root, 7, 0x100, 32);
+    (void)joist_boot_frame(k, root, 8, 0x1000, 8);
 }
 
 /* What a step did, for the checks that need more than the final state. */
@@ -493,6 +500,36 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
                    ? joist_task_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK), hs)
                    : joist_thread_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD), hs);
     }
+    case JX_SPLIT:
+    case JX_MAP:
+    case JX_UNMAP: {
+        /* From the root half the time: it holds the boot frames and the
+         * task capabilities to map into. */
+        uint32_t ms = ch(src, 2) == 0 && k->root != 0 ? k->root - 1u : cs;
+        if (op == JX_SPLIT) {
+            uint32_t f = pick_slot(k, src, ms, JOIST_OBJ_FRAME);
+            return joist_frame_split(k, ms, f, ch(src, 34), pick_dst(k, src, ms));
+        }
+        uint32_t ts = pick_slot(k, src, ms, JOIST_OBJ_TASK);
+        if (op == JX_UNMAP) {
+            /* Usually where a mapping of that task starts. */
+            uint64_t va = 0x400u + 8u * ch(src, 8);
+            const struct joist_cap *tc = ms < JOIST_MAX_CSPACES ? joist__slot_c(k, ms, ts) : NULL;
+            if (tc != NULL && tc->obj != 0 && tc->type == JOIST_OBJ_TASK && ch(src, 4) != 0) {
+                for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+                    if (k->map[i].space != 0 && k->map[i].space == k->obj[tc->obj - 1u].target) {
+                        va = k->map[i].va;
+                        break;
+                    }
+                }
+            }
+            return joist_unmap(k, ms, ts, va);
+        }
+        /* A few virtual places, so mappings collide; now and then the top. */
+        uint64_t va = ch(src, 16) == 0 ? JOIST_USER_PAGES - ch(src, 40) : 0x400u + 8u * ch(src, 8);
+        unsigned perms = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 3);
+        return joist_map(k, ms, pick_slot(k, src, ms, JOIST_OBJ_FRAME), ts, va, perms);
+    }
     case JX_FAULT:
         return joist_fault(k, pick_thread(k, src, 0), 1u + ch(src, 5), step, ch(src, 16));
     case JX_GROW:
@@ -574,6 +611,12 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     if (op == JX_FAULT) {
         st->faults_taken += (unsigned long)(e == JOIST_BLOCKED);
         st->faults_fatal += (unsigned long)(e == JOIST_E_PEER);
+    }
+    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+        if (k->map[i].space != 0) {
+            st->mapped++;
+            break;
+        }
     }
     st->lent += (unsigned long)any_lent;
     st->chains += (unsigned long)any_chain;

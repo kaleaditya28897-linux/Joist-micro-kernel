@@ -12,6 +12,7 @@ static joist_rights full_rights(joist_obj_type t)
     switch (t) {
     case JOIST_OBJ_ENDPOINT:
     case JOIST_OBJ_NOTIFICATION:
+    case JOIST_OBJ_FRAME: /* CONTROL, WRITE (the RECV bit), GRANT */
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
     case JOIST_OBJ_TASK:
     case JOIST_OBJ_THREAD:
@@ -100,6 +101,8 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
         o->prio = 0;
         o->budget = 0;
         o->period = 0;
+        o->base = 0;
+        o->npages = 0;
         k->objects_live--;
     }
 }
@@ -228,7 +231,7 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
     }
     /* Tasks, threads and scheduling contexts have their own constructors. */
     if (full_rights(type) == 0 || type == JOIST_OBJ_TASK || type == JOIST_OBJ_THREAD ||
-        type == JOIST_OBJ_SCHED) {
+        type == JOIST_OBJ_SCHED || type == JOIST_OBJ_FRAME) {
         return JOIST_E_TYPE;
     }
     if (d->obj != 0) {
@@ -539,6 +542,12 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     if (live != k->objects_live) {
         VIOLATION("I3: objects_live %u but %u objects are live", k->objects_live, live);
     }
+    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+        uint32_t ms = k->map[i].space;
+        if (ms != 0 && ms <= JOIST_MAX_CSPACES) {
+            charged_seen[ms - 1u]++; /* a mapping is paid for by its space (I3) */
+        }
+    }
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         if (k->cs[c].charged != charged_seen[c]) {
             VIOLATION("I3: space %u charged %u but pays for %u live objects and leaves", c,
@@ -549,8 +558,9 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     unsigned ipc = joist__check_ipc(k, msg, msglen, bad == 0);
     unsigned note = joist__check_notify(k, msg, msglen, bad + ipc == 0);
     unsigned task = joist__check_task(k, msg, msglen, bad + ipc + note == 0);
-    return bad + ipc + note + task +
-           joist__check_sched(k, msg, msglen, bad + ipc + note + task == 0);
+    unsigned sched = joist__check_sched(k, msg, msglen, bad + ipc + note + task == 0);
+    return bad + ipc + note + task + sched +
+           joist__check_map(k, msg, msglen, bad + ipc + note + task + sched == 0);
 }
 
 #if !__STDC_HOSTED__
