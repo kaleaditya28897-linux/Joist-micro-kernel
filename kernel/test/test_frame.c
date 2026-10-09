@@ -114,6 +114,29 @@ JT_TEST(frame_reserve_is_permanent)
     JT_CHECK(frame_get(&fa, &p) == KERR_NOMEM && frame_check(&fa));
 }
 
+JT_TEST(frame_take_range_all_or_nothing)
+{
+    struct frame_alloc fa;
+    struct frame_range r[] = {{0, MiB}, {2 * MiB, MiB}}; /* a 1 MiB gap between */
+    JT_REQUIRE(frame_init(&fa, r, 2, store, sizeof store) == KERR_OK);
+    uint64_t before = fa.nfree;
+    JT_CHECK(frame_take_range(&fa, 0x10000, 0x4000) == KERR_OK);
+    JT_CHECK(fa.nfree == before - 4u && frame_check(&fa));
+    JT_CHECK(frame_put(&fa, 0x10000) == KERR_STATE); /* gone for good */
+    /* Overlapping taken frames, or the gap: refused, nothing taken. */
+    JT_CHECK(frame_take_range(&fa, 0xe000, 0x4000) == KERR_STATE);
+    JT_CHECK(frame_take_range(&fa, MiB - 0x2000, 0x4000) == KERR_STATE); /* runs into the gap */
+    JT_CHECK(fa.nfree == before - 4u && frame_check(&fa));
+    JT_CHECK(frame_take_range(&fa, 0x100, 0x1000) == KERR_INVAL);
+    JT_CHECK(frame_take_range(&fa, 0x1000, 0) == KERR_INVAL);
+    JT_CHECK(frame_take_range(&fa, 3 * MiB, 0x1000) == KERR_RANGE); /* past the end */
+    /* A frame handed out by frame_get blocks a range over it. */
+    uint64_t pa;
+    JT_REQUIRE(frame_get(&fa, &pa) == KERR_OK);
+    JT_CHECK(frame_take_range(&fa, pa, 0x1000) == KERR_STATE);
+    JT_CHECK(frame_check(&fa));
+}
+
 JT_TEST(frame_large_map_bounds)
 {
     struct frame_alloc fa;

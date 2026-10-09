@@ -10,7 +10,7 @@
 #include "frame.h"
 #include "io.h"
 #include "paging.h"
-#include "user.h"
+#include "run.h"
 #include "joist/kprint.h"
 #include "serial.h"
 
@@ -273,9 +273,7 @@ void kmain(void)
     if (module_req.response == NULL || module_req.response->module_count == 0) {
         panic("no root task module");
     }
-    const struct limine_file *root = module_req.response->modules[0];
-    panic(user_run_root(&frames, hhdm_req.response->offset, (const uint8_t *)root->address,
-                        root->size));
+    panic(run_start(&frames, hhdm_req.response->offset, mm, module_req.response));
 #endif
     kputs("joist: ok\n");
     kernel_finish(0);

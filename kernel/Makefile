@@ -40,10 +40,15 @@ CORE_SRC := $(wildcard core/*.c)
 RUNNER := test/harness.c
 BUILD := build
 
+# The core's table sizes in the kernel (the host tests and model/ use their
+# own): the root task's image and every task's pages are frames and
+# mappings, so these are larger than the model's defaults.
+KSIZES := -DJOIST_MAX_OBJECTS=1024u -DJOIST_MAX_MAPPINGS=512u
+
 # §13's kernel flags.
 KFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding -nostdlib -fno-builtin \
           -fno-stack-protector -fno-pic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only \
-          -O2 -g $(WARN)
+          -O2 -g $(WARN) $(KSIZES)
 
 SANITIZERS := asan ubsan msan tsan
 SAN_asan  := -fsanitize=address
@@ -82,7 +87,7 @@ freestanding:
 # ---- the kernel image (Phase 2 step 1) ----
 # Everything that goes into the image. KSRC (host-testable) is a subset.
 IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c arch/x86_64/gdt.c arch/x86_64/idt.c \
-           arch/x86_64/paging.c arch/x86_64/apic.c arch/x86_64/user.c \
+           arch/x86_64/paging.c arch/x86_64/apic.c arch/x86_64/run.c \
            lib/kprint.c lib/string.c $(KSRC) $(CORE_SRC)
 IMG_ASM := arch/x86_64/isr.S arch/x86_64/syscall.S
 IMG_INC := $(INC) -Iarch/x86_64

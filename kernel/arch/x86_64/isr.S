@@ -5,7 +5,9 @@
  * every frame has the same shape (struct trap_frame in cpu.h). The common
  * path saves all general registers, calls isr_dispatch(frame) with a 16-byte
  * aligned stack, restores, drops vector and error code, and returns with
- * iretq. No swapgs yet: nothing runs in user mode until step 6, which adds it.
+ * iretq. No swapgs: GS base is the user's whenever the kernel runs
+ * (syscall.S). From user mode, isr_dispatch doesn't return: the kernel goes
+ * back to user mode through resume_user, below.
  */
     .text
 
@@ -20,6 +22,7 @@ isr_\vec:
     jmp isr_common
 .endm
 
+    .globl isr_common
 isr_common:
     pushq %rax
     pushq %rbx
@@ -42,6 +45,32 @@ isr_common:
     andq $-16, %rsp        /* SysV: 16-byte aligned at the call */
     call isr_dispatch
     movq %rbx, %rsp
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %r11
+    popq %r10
+    popq %r9
+    popq %r8
+    popq %rbp
+    popq %rdi
+    popq %rsi
+    popq %rdx
+    popq %rcx
+    popq %rbx
+    popq %rax
+    addq $16, %rsp         /* vector and error code */
+    iretq
+
+/* resume_user(frame): enter user mode from a trap frame the kernel built
+ * from a thread's record (run.c), at the top of the kernel stack: the stack
+ * pointer moves to it, so whatever was on the stack below is abandoned (the
+ * kernel is non-preemptible and keeps no state on its stack between entries,
+ * decision 0016). */
+    .globl resume_user
+resume_user:
+    movq %rdi, %rsp
     popq %r15
     popq %r14
     popq %r13

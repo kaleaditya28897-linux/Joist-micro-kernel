@@ -580,3 +580,36 @@ after every call; 7 980 inputs in 2 minutes, clean). `clang-tidy` found an
 arbitrary user value cast to the object-type enum; it is now refused as no
 type.
 
+### Step 4, part 4: the kernel runs the core (2026-10-09)
+
+`kernel/arch/x86_64/run.c` replaces Phase 2's single root task
+(`user.c`). One `struct joist_kernel` in BSS, sized for the kernel (1 024
+objects, 512 mappings: `KSIZES` in `kernel/Makefile`). A page-table pool
+reserved at boot, `JOIST_MAX_CSPACES` + 3 × `JOIST_MAX_MAPPINGS` frames
+(+8), from which the core's hooks build each space's tables (sharing the
+kernel half, which `paging_init` now prefills) and to which `vm_unmap`
+returns them. One kernel stack: `syscall` now builds the same frame as an
+interrupt from user mode and joins the common path (`syscall.S`, `isr.S`);
+every entry from user mode saves the thread's registers into its record,
+and every exit builds a frame from the record of the thread that runs next
+and enters it with `iretq` (`resume_user`), after checking its pc is in the
+user half (which keeps Phase 2's `sysret` guard). Round robin for now, on
+blocking and on every tick; an idle loop that reports a system where no
+thread can ever run again instead of hanging. Faults go to the core
+(`joist_fault`); a root-task fault with no handler is reported and ends the
+run as in Phase 2.
+
+The root task is loaded through the core: each page of its image and stack
+is a frame (`joist_boot_frame`) in its leaf 1, mapped into its own space
+(`JOIST_SLOT_SELF`), so the core's record of its address space is
+complete. It is given a memory pool of four 512-page frames (8 MiB, carved
+contiguously from the top of the largest usable range with the new
+`frame_take_range`) and a frame per further boot module, and starts with
+registers saying where they are (`run.h`).
+
+Checked: the kernel boots under BIOS and UEFI on the new path, all 16
+self-tests pass on it (the million-call `sysfuzz` with every register
+preserved, the faults, the `sysret` hole now caught by the general user-half
+check), and `make check` in `kernel/` passes (`clang-tidy` asked for two
+64-bit products in a boot message).
+

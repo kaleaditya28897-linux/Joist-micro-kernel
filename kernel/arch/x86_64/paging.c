@@ -114,6 +114,11 @@ const char *paging_init(struct frame_alloc *fa, const struct limine_memmap_respo
     __asm__ volatile("mov %0, %%cr0" : : "r"(cr0 | (1ull << 16)) : "memory"); /* WP */
     __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
     __asm__ volatile("mov %0, %%cr4" : : "r"(cr4 | (1ull << 7)) : "memory"); /* PGE */
+    /* Every upper-half PML4 entry gets its table now, so every task's PML4,
+     * copying them, shares the whole kernel half for good (vm_share_upper). */
+    if (vm_prefill_upper(&kspace) != KERR_OK) {
+        return "no frames for the kernel half's tables";
+    }
     __asm__ volatile("mov %0, %%cr3" : : "r"(kspace.root) : "memory");
     return NULL;
 }

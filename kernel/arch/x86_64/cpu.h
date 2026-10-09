@@ -13,6 +13,9 @@
 #define GDT_UCODE 0x20u /* | 3 when loaded */
 #define GDT_TSS   0x28u /* 16-byte system descriptor */
 
+/* The vector syscall.S gives a system call's frame (past every real one). */
+#define SYSCALL_VECTOR 256u
+
 /* Interrupt stack table slots (1-based, as in the IDT gate). */
 #define IST_DOUBLE_FAULT 1u
 
@@ -30,6 +33,9 @@ void gdt_init(void);
 /* End the run: report code through QEMU's isa-debug-exit device (0 = success)
  * and halt. boot.c. */
 __attribute__((noreturn)) void kernel_finish(uint8_t code);
+
+/* A trap's name, for reports (idt.c). */
+const char *trap_name(uint64_t vector);
 void idt_init(void);
 
 /* Called by isr.S for every interrupt and exception. */

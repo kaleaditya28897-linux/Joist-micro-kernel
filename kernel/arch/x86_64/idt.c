@@ -7,6 +7,7 @@
  * come with step 6; device interrupts with step 5. */
 #include "apic.h"
 #include "cpu.h"
+#include "run.h"
 #include "joist/kprint.h"
 
 extern const uint64_t isr_table[256];
@@ -60,6 +61,11 @@ static const char *const names[32] = {"#DE divide error",
                                       "#VC VMM communication",
                                       "#SX security",
                                       "reserved 31"};
+
+const char *trap_name(uint64_t vector)
+{
+    return vector < 32u ? names[vector] : "interrupt";
+}
 
 void idt_init(void)
 {
@@ -161,26 +167,15 @@ void isr_dispatch(struct trap_frame *tf)
         kputs(", continuing\n");
         return; /* a trap: rip already points past int3 */
     }
+    if ((tf->cs & 3u) == 3u) {
+        run_user_trap(tf); /* from user mode, a system call included: never returns */
+    }
     if (v == APIC_TIMER_VECTOR) {
-        apic_timer_interrupt();
+        run_tick(); /* while the kernel idles */
         return;
     }
     if (v == APIC_SPURIOUS_VECTOR) {
         return; /* no EOI for a spurious interrupt */
-    }
-    if (v < 32u && (tf->cs & 3u) == 3u) {
-        /* From user mode: the root task's fault, not the kernel's. Phase 3
-         * turns this into a fault message to its handler (0009). */
-        kputs("joist: root task fault: ");
-        kputs(names[v]);
-        kputs(" at ");
-        kputx(tf->rip);
-        if (v == 14u) {
-            kputs(", address ");
-            kputx(read_cr2());
-        }
-        kputs("\n");
-        kernel_finish(4);
     }
     if (v == 6u && (tf->cs & 3u) == 0 && ubsan_kind(tf->rip) >= 0) {
         int kind = ubsan_kind(tf->rip);

@@ -164,6 +164,29 @@ kerr frame_get(struct frame_alloc *fa, uint64_t *phys)
     return KERR_NOMEM; /* nfree said otherwise: frame_check would fail */
 }
 
+kerr frame_take_range(struct frame_alloc *fa, uint64_t phys, uint64_t len)
+{
+    if (len == 0 || phys % FRAME_SIZE != 0 || len % FRAME_SIZE != 0 || phys > UINT64_MAX - len) {
+        return KERR_INVAL;
+    }
+    uint64_t f0 = phys / FRAME_SIZE;
+    uint64_t f1 = (phys + len) / FRAME_SIZE;
+    if (f0 < fa->base_pfn || f1 > fa->base_pfn + fa->nframes) {
+        return KERR_RANGE;
+    }
+    for (uint64_t f = f0; f < f1; f++) {
+        if (bit(fa->taken, f - fa->base_pfn)) {
+            return KERR_STATE; /* in use, or never allocatable: nothing taken */
+        }
+    }
+    for (uint64_t f = f0; f < f1; f++) {
+        set_bit(fa->taken, f - fa->base_pfn);
+        set_bit(fa->fixed, f - fa->base_pfn); /* gone for good, like reserved */
+        fa->nfree--;
+    }
+    return KERR_OK;
+}
+
 kerr frame_put(struct frame_alloc *fa, uint64_t phys)
 {
     if (phys % FRAME_SIZE != 0) {

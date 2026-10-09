@@ -64,6 +64,14 @@ void frame_reserve(struct frame_alloc *fa, uint64_t phys, uint64_t len);
 /* Take one free frame; its physical address in *phys. KERR_NOMEM if none. */
 kerr frame_get(struct frame_alloc *fa, uint64_t *phys);
 
+/* Take the frames [phys, phys + len) for good (they leave the allocator
+ * like reserved ones), but only if every one of them is free now: KERR_STATE
+ * (and nothing taken) if any is taken or never allocatable, KERR_RANGE if
+ * the range isn't wholly covered, KERR_INVAL if unaligned or empty. How the
+ * kernel carves out the root task's memory pool (0013), contiguous, at boot.
+ * Bounded by the range's frames. */
+kerr frame_take_range(struct frame_alloc *fa, uint64_t phys, uint64_t len);
+
 /* Give a frame back. KERR_INVAL if phys isn't frame-aligned, KERR_RANGE if
  * the bitmaps don't cover it, KERR_STATE if it is already free or was never
  * allocatable (a double free, or freeing the kernel image, is a kernel bug,
