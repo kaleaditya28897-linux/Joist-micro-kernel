@@ -6,7 +6,7 @@ I8 rights grow     @@ ../kernel/core/cspace.c @@ to.rights = (joist_rights)(from
 I1 refcount        @@ ../kernel/core/cspace.c @@     k->obj[from->obj - 1u].refs++; @@     /* mutated */
 I3 refund          @@ ../kernel/core/cspace.c @@             donor->quota++; @@             /* mutated */;
 I7 rebadge         @@ ../kernel/core/cspace.c @@ if (from->badge != 0 || badge == 0) { @@ if (badge == 0) {
-I1 destroy leaks   @@ ../kernel/core/task.c @@ joist__cap_delete_slot(k, s, slot); /* may queue unreachable tasks */ @@ (void)slot;
+I1 destroy leaks   @@ ../kernel/core/task.c @@ joist__cap_delete_slot(k, s, slot); /* may begin unreachable tasks */ @@ (void)slot;
 I3 quota ignored   @@ ../kernel/core/cspace.c @@     if (s->quota == 0) { @@     if (0) {
 I6 reply reusable    @@ ../kernel/core/ipc.c @@ me->reply_to = 0; /* consumed, whatever happens next (I6) */ @@ /* mutated */
 I10 server death     @@ ../kernel/core/ipc.c @@ joist__wake(k, c, JOIST_E_PEER); @@ (void)c;
@@ -28,7 +28,7 @@ task-no-reparent @@ ../kernel/core/task.c @@ k->cs[c].parent = heir; @@ k->cs[c]
 task-quota-lost @@ ../kernel/core/task.c @@ ps->quota += st->quota; @@ ps->quota += 0;
 task-charges-not-moved @@ ../kernel/core/task.c @@ k->obj[o].donor = p - 1u; @@ k->obj[o].donor = s;
 task-not-marked-dead @@ ../kernel/core/task.c @@ k->obj[st->task_obj - 1u].dead = 1; @@ (void)0;
-task-no-cascade @@ ../kernel/core/task.c @@ pending_push(k, o->target - 1u); @@ if (o->dead) pending_push(k, o->target - 1u);
+task-no-cascade @@ ../kernel/core/task.c @@         joist__space_destroy(k, o->target - 1u); @@         if (o->dead) joist__space_destroy(k, o->target - 1u);
 task-thread-cap-no-kill @@ ../kernel/core/task.c @@ (void)joist_thread_destroy(k, t); @@ (void)t;
 task-donation-off-by-one @@ ../kernel/core/task.c @@ k->cs[cs].quota < donation + 1u @@ k->cs[cs].quota < donation
 task-destroy-no-control @@ ../kernel/core/task.c @@ if ((c->rights & JOIST_R_CONTROL) == 0) { @@ if (0) {
@@ -46,7 +46,7 @@ reply-saved-reusable @@ ../kernel/core/ipc.c @@ o->target = 0; /* consumed (I6) 
 reply-obj-freed-silent @@ ../kernel/core/notify.c @@ joist__reply_obj_freed(k, obj); @@ (void)obj;
 reply-save-overwrites @@ ../kernel/core/ipc.c @@ return JOIST_E_OCCUPIED; @@ (void)0;
 reap-no-ancestry @@ ../kernel/core/task.c @@ if (!is_descendant(k, cs, target)) { @@ if (0) {
-descendant-includes-self @@ ../kernel/core/task.c @@ if (k->cs[s].live && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && (s == cs || is_descendant(k, cs, s))) {
+descendant-includes-self @@ ../kernel/core/task.c @@ if (joist__usable(k, s) && is_descendant(k, cs, s)) { @@ if (joist__usable(k, s) && (s == cs || is_descendant(k, cs, s))) {
 task-orphan-on-fixture-death @@ ../kernel/core/task.c @@ uint32_t heir = p != 0 ? p : k->root; @@ uint32_t heir = p;
 # The two-level capability table (Phase 3 step 3).
 leaf-grow-uncharged @@ ../kernel/core/cspace.c @@ s->charged++; /* I3: a leaf is paid for like an object */ @@ (void)0;
@@ -54,7 +54,7 @@ leaf-free-no-refund @@ ../kernel/core/cspace.c @@     s->quota++; @@     (void)0
 leaf-shrink-nonempty @@ ../kernel/core/cspace.c @@ return JOIST_E_STATE; @@ break;
 leaf-lookup-aliases-leaf0 @@ ../kernel/core/cspace.c @@ return k->leaf[s->leaf[l] - 1u].slot; @@ return s->slot;
 leaf-destroy-leaks-leaves @@ ../kernel/core/task.c @@ joist__leaf_free(k, s, l); @@ (void)l;
-leaf-destroy-only-leaf0 @@ ../kernel/core/task.c @@ for (uint32_t l = 0; l < JOIST_CNODE_ROOT; l++) { @@ for (uint32_t l = 0; l < 1u; l++) {
+leaf-destroy-only-leaf0 @@ ../kernel/core/task.c @@ for (uint32_t l = 1; l < JOIST_CNODE_ROOT; l++) { @@ for (uint32_t l = 1; l < 1u; l++) {
 budget-unbounded @@ ../kernel/core/cspace.c @@ if (k->budget > UINT32_MAX || (uint64_t)quota > UINT32_MAX - k->budget) { @@ if (0) {
 # Capability transfer in messages (Phase 3 step 3).
 xfer-no-grant-check @@ ../kernel/core/ipc.c @@ if ((c->rights & JOIST_R_GRANT) == 0) { @@ if (0) {
@@ -76,7 +76,7 @@ sc-unbind-while-lent @@ ../kernel/core/sched.c @@ if (r->sc_to != 0 && r->sc_fro
 sc-mcp-raisable @@ ../kernel/core/sched.c @@ if (mcp > k->cs[cs].mcp) { @@ if (0) {
 sc-mcp-not-inherited @@ ../kernel/core/task.c @@ n->mcp = k->cs[cs].mcp; @@ n->mcp = JOIST_PRIO_MAX;
 # Thread control and faults (Phase 3 step 3; 0009, 0010).
-fault-no-thread-cap @@ ../kernel/core/ipc.c @@ if (o == 0 || rr->nrecv == 0 || !k->cs[rr->cs].live) { @@ if (1) {
+fault-no-thread-cap @@ ../kernel/core/ipc.c @@ if (o == 0 || rr->nrecv == 0 || !joist__usable(k, rr->cs)) { @@ if (1) {
 fault-verdict-ignored @@ ../kernel/core/ipc.c @@ if (m->r[0] != JOIST_FAULT_RESUME) { @@ if (0) {
 fault-unresolved-runs @@ ../kernel/core/ipc.c @@         r->state = JOIST_T_SUSPENDED; @@         (void)0;
 fault-no-task-fallback @@ ../kernel/core/fault.c @@ handler_ep(k, cs, k->cs[cs].fault_slot, &obj, &badge)) { @@ 0) {

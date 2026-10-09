@@ -165,7 +165,7 @@ What earlier phases hand to this one:
 1. ~~**Decision 0016**, and this plan, accepted.~~ Done 2026-10-06.
 2. **One object layer:** move `model/src` to `kernel/core/`; `model/` builds
    against it; it compiles freestanding. Nothing changes in behaviour.
-3. **The model grows** (host only): capability transfer, the two-level
+3. ~~**The model grows**~~ (done 2026-10-09; see *Progress*) (host only): capability transfer, the two-level
    table, scheduling contexts and donation, thread state and abort, fault
    IPC, frame capabilities and the mapping bookkeeping, preemption points in
    the cascades. Each with property tests and mutations; CBMC and TLA+
@@ -484,4 +484,29 @@ With this, step 3's model work is done: everything the plan put in the
 model for Phase 3 (the table, transfer, scheduling contexts and donation,
 thread state and faults, frames and mappings, preemption points) is in
 `kernel/core/` and tested. Revoke and 0011's batched copy are Phase 4's.
+
+### Step 3: the full run (2026-10-09)
+
+The whole suite, run once at the end of the step as agreed, on joist-dev.
+Its first pass found three things, all in the test machinery rather than
+the core: five mutations had gone stale (their target text was rewritten
+by part 6, or by the change to `joist__usable`; one of them, also listed
+in `fuzz-sanity`, stopped that run); CBMC failed every operation in seconds
+on an unwinding assertion, because its tiny table sizes didn't include the
+new mapping table (64 entries against `--unwind 4`); and the kernel check,
+filtered too tightly, stopped without saying why (run alone it passed in
+full). The mutations were re-aimed at the new code, CBMC got
+`JOIST_MAX_MAPPINGS=1`, and the second pass kept the kernel log.
+
+| Check | Result |
+|---|---|
+| `make check` (`model/`) | 139 tests under plain, ASan, UBSan, MSan, TSan and the small build |
+| `make mutate` | 98 of 98 caught (16 minutes, 12 at a time) |
+| `make cbmc` | 7 of 7 operations verified (op0 430 s, op1 244 s, op2 309 s, op4 350 s, op5 267 s, grow 129 s, shrink 125 s) |
+| `make tla`, `make tla-mutate` | both configurations hold (safe: 1 460 distinct states; large: 143 000); the unsafe one leaks as expected; 4 of 4 TLA+ mutations caught |
+| `make fuzz` (300 s) | clean |
+| `make fuzz-sanity` | 7 of 7 injected bugs crash the fuzzer from the seed corpus within a second; from an empty corpus 6 of 7 within 120 s (`I6 reply reusable` not, which is reported only, as before) |
+| `make check` (`kernel/`) | passing: 25 host tests in five builds, 12 sources freestanding, 21 clean under `clang-tidy`, `scan-build` clean, BIOS and UEFI boots, all self-tests |
+
+Step 3 is done.
 
