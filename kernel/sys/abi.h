@@ -1,0 +1,122 @@
+/* abi.h - the system-call ABI: registers to core operations (Phase 3 step
+ * 4; docs/abi.md, *Encoding*; plan choice 8).
+ *
+ * A thread's user registers are saved in its record (struct joist_regs: pc,
+ * sp, flags, tls, r[] = RAX RBX RCX RDX RSI RDI RBP R8-R15) on every entry,
+ * and restored from it on every exit, so the dispatcher works on the record
+ * alone and needs no CPU access: it is host-tested and fuzzed (§8.1).
+ *
+ * In:  RAX the call number; RDI, RSI, RDX, R10, R8 its arguments; R12-R15
+ *      the four message registers (0001 amendment); R9 the capabilities a
+ *      message carries, packed (ABI_CAPS_*).
+ * Out: RAX the result (a joist_err, so 0 is success); RDX a badge or a
+ *      returned value; R12-R15 a received message; R9 the receive slots
+ *      capabilities landed in, packed. Every other register is the caller's.
+ *      The `syscall` instruction itself clobbers RCX and R11.
+ *
+ * A call that blocks (Call, Recv, ReplyRecv, Wait) leaves the thread waiting
+ * with its outputs unwritten: abi_complete writes them from the thread's
+ * record when it runs again.
+ *
+ * Calls 1 and 2 keep Phase 2's debug convention (docs/phase2-plan.md):
+ * debug_write returns the bytes written or a negated SYS_E_* code, exit ends
+ * the run (from the root task) or the calling thread; an unknown call number
+ * returns -SYS_E_NOSYS and changes nothing else. */
+#ifndef JOIST_SYS_ABI_H
+#define JOIST_SYS_ABI_H
+
+#include "joist/core.h"
+#include "syscall.h"
+#include "vm.h"
+
+#include <stddef.h>
+#include <stdint.h>
+
+/* Register indexes into struct joist_regs.r. */
+enum {
+    ABI_RAX = 0, ABI_RBX, ABI_RCX, ABI_RDX, ABI_RSI, ABI_RDI, ABI_RBP,
+    ABI_R8, ABI_R9, ABI_R10, ABI_R11, ABI_R12, ABI_R13, ABI_R14, ABI_R15
+};
+
+/* Call numbers. */
+#define ABI_DEBUG_WRITE      1u
+#define ABI_EXIT             2u
+#define ABI_CALL             10u /* ep, timeout; message, caps */
+#define ABI_RECV             11u /* ep, timeout */
+#define ABI_REPLY            12u /* message, caps */
+#define ABI_REPLY_RECV       13u /* ep, timeout; message, caps */
+#define ABI_SIGNAL           14u /* notification */
+#define ABI_WAIT             15u /* notification, timeout -> RDX the bits */
+#define ABI_RECV_SLOTS       16u /* slot0, slot1, n */
+#define ABI_REPLY_SAVE       17u /* reply object */
+#define ABI_REPLY_SAVED      18u /* reply object; message, caps */
+#define ABI_OBJ_CREATE       20u /* type, dst */
+#define ABI_CAP_DERIVE       21u /* src, dst, mask */
+#define ABI_CAP_MINT         22u /* src, dst, mask, badge */
+#define ABI_CAP_DELETE       23u /* slot */
+#define ABI_CAP_READ         24u /* slot -> RDX type | rights << 8, R8 badge, R10 frame pages */
+#define ABI_CAP_GIVE         25u /* task, src, dst, mask */
+#define ABI_CSPACE_GROW      26u /* leaf */
+#define ABI_CSPACE_SHRINK    27u /* leaf */
+#define ABI_TASK_CREATE      30u /* donation, dst */
+#define ABI_TASK_DESTROY     31u /* task */
+#define ABI_THREAD_SPAWN     32u /* task, dst, pc, sp: the new thread starts there */
+#define ABI_THREAD_KILL      33u /* thread */
+#define ABI_THREAD_SUSPEND   34u /* thread */
+#define ABI_THREAD_RESUME    35u /* thread */
+#define ABI_THREAD_ABORT     36u /* thread */
+#define ABI_THREAD_SET_FAULT 37u /* thread, handler slot */
+#define ABI_TASK_SET_FAULT   38u /* task, handler slot */
+#define ABI_FRAME_SPLIT      40u /* frame, at, dst */
+#define ABI_MAP              41u /* frame, task (or JOIST_SLOT_SELF), va page, perms */
+#define ABI_UNMAP            42u /* task (or JOIST_SLOT_SELF), va page */
+#define ABI_SC_CREATE        50u /* dst, prio, budget, period */
+#define ABI_SC_BIND          51u /* context, thread */
+#define ABI_SC_UNBIND        52u /* context */
+#define ABI_TASK_SET_MCP     53u /* task, mcp */
+#define ABI_CONTINUE         60u /* budget */
+#define ABI_TASK_REAP        61u /* task id */
+#define ABI_TASK_DESCENDANT  62u /* from -> RDX the task id */
+#define ABI_NOSENDERS_NEXT   63u /* endpoint -> RDX the badge */
+#define ABI_BIND_NOSENDERS   64u /* endpoint, notification */
+#define ABI_REQUEST_DEADNAME 65u /* endpoint, notification */
+
+/* Calls 1 and 2, and unknown numbers, use Phase 2's dispatcher and result
+ * codes (syscall.h: SYS_E_*, DEBUG_WRITE_MAX), unchanged. */
+
+/* Capabilities in R9: bits 0-1 the count, then per position (16 bits slot,
+ * 4 bits rights mask) at bits 2 and 22. A received slot that didn't arrive
+ * reads ABI_CAPS_NONE. */
+#define ABI_CAPS_SLOT_BITS 16u
+#define ABI_CAPS_NONE      0xffffu
+uint64_t abi_caps_pack(const struct joist_msg *m);
+void abi_caps_unpack(uint64_t v, struct joist_msg *m);
+
+struct abi_env {
+    struct joist_kernel *k;
+    /* The address space of space s, for debug_write's checked copy. */
+    const struct vm_space *(*space_of)(void *ctx, uint32_t s);
+    /* Where debug_write's bytes go. */
+    void (*out)(void *ctx, const uint8_t *buf, size_t n);
+    void *ctx;
+    /* Set by exit from the root task: the run is over. */
+    int finished;
+    uint64_t exit_code;
+    /* A blocked call per thread, waiting for abi_complete. */
+    uint8_t pending[JOIST_MAX_THREADS];
+};
+
+/* Outcome of a call. */
+enum { ABI_DONE, ABI_WAITING, ABI_GONE };
+
+/* Run the system call thread t made. ABI_DONE: its outputs are in its
+ * registers and it can go on; ABI_WAITING: it is blocked; ABI_GONE: it no
+ * longer exists (exit, or it destroyed itself or its task). */
+int abi_syscall(struct abi_env *env, uint32_t t);
+
+/* Thread t is about to run: if a blocking call of its is done, write the
+ * call's outputs (result, badge, message, capabilities) into its registers.
+ * Also forgets the pending call of a thread slot that is free now. */
+void abi_complete(struct abi_env *env, uint32_t t);
+
+#endif /* JOIST_SYS_ABI_H */

@@ -19,6 +19,7 @@
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
 #   make fuzz-syscall  libFuzzer on the system-call dispatcher
+#   make fuzz-abi   libFuzzer over the whole system-call ABI (Phase 3)
 #   make format     clang-format in place
 #   make clean
 
@@ -31,7 +32,7 @@ WARN := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototyp
 INC  := -Iinclude -Imem -Ielf -Isys -Icore
 
 # Kernel sources that also build for the host. Grows as Phase 2 adds them.
-KSRC  := mem/frame.c mem/vm.c elf/elf.c sys/usercopy.c sys/syscall.c
+KSRC  := mem/frame.c mem/vm.c elf/elf.c sys/usercopy.c sys/syscall.c sys/abi.c
 TESTS := $(wildcard test/test_*.c)
 # The object layer (Phase 3 step 2: the Phase 1 model, moved here). Its tests,
 # fuzzer, mutations and CBMC proofs live in ../model and build against it.
@@ -51,16 +52,16 @@ SAN_msan  := -fsanitize=memory -fsanitize-memory-track-origins
 SAN_tsan  := -fsanitize=thread
 
 STAMP := $(BUILD)/sources.list
-$(shell mkdir -p $(BUILD); echo '$(KSRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(TESTS)' > $(STAMP))
+$(shell mkdir -p $(BUILD); echo '$(KSRC) $(CORE_SRC) $(TESTS)' | cmp -s - $(STAMP) || echo '$(KSRC) $(CORE_SRC) $(TESTS)' > $(STAMP))
 
-.PHONY: all test check freestanding kernel iso qemu-test boot-test pve-test selftest fuzz-kernel tidy scan mutate fuzz-elf fuzz-syscall format clean $(SANITIZERS)
+.PHONY: all test check freestanding kernel iso qemu-test boot-test pve-test selftest fuzz-kernel tidy scan mutate fuzz-elf fuzz-syscall fuzz-abi format clean $(SANITIZERS)
 all: test
 
 define variant
-$(BUILD)/$(1)/run-tests: $(KSRC) $(TESTS) $(RUNNER) $(STAMP) $(wildcard include/joist/*.h mem/*.h elf/*.h sys/*.h test/*.h)
+$(BUILD)/$(1)/run-tests: $(KSRC) $(CORE_SRC) $(TESTS) $(RUNNER) $(STAMP) $(wildcard include/joist/*.h mem/*.h elf/*.h sys/*.h core/*.h test/*.h)
 	@mkdir -p $$(@D)
 	$$(CC) -std=c17 -O1 -g -fno-omit-frame-pointer $$(WARN) $$(INC) -Itest $(2) \
-	    $$(KSRC) $$(TESTS) $$(RUNNER) -o $$@
+	    $$(KSRC) $$(CORE_SRC) $$(TESTS) $$(RUNNER) -o $$@
 endef
 $(eval $(call variant,plain,))
 $(foreach s,$(SANITIZERS),$(eval $(call variant,$(s),$(SAN_$(s)))))
@@ -218,6 +219,16 @@ $(BUILD)/fuzz/fuzz-syscall: mem/vm.c sys/usercopy.c sys/syscall.c fuzz/fuzz_sysc
 	@mkdir -p $(@D) $(BUILD)/fuzz-syscall-corpus
 	$(CC) -std=c17 -O1 -g $(WARN) $(INC) -Itest -fsanitize=fuzzer,address,undefined \
 	    -fsanitize-trap=undefined mem/vm.c sys/usercopy.c sys/syscall.c fuzz/fuzz_syscall.c -o $@
+
+$(BUILD)/fuzz/fuzz-abi: $(KSRC) $(CORE_SRC) fuzz/fuzz_abi.c $(wildcard include/joist/*.h mem/*.h sys/*.h core/*.h)
+	@mkdir -p $(@D) $(BUILD)/fuzz-abi-corpus
+	$(CC) -std=c17 -O1 -g $(WARN) $(INC) -Itest -fsanitize=fuzzer,address,undefined \
+	    -fsanitize-trap=undefined $(KSRC) $(CORE_SRC) fuzz/fuzz_abi.c -o $@
+
+# libFuzzer over the whole system-call ABI (Phase 3 step 4).
+fuzz-abi: $(BUILD)/fuzz/fuzz-abi
+	./$< -max_total_time=$(FUZZ_TIME) -max_len=4096 -artifact_prefix=$(BUILD)/ \
+	    -print_final_stats=1 $(BUILD)/fuzz-abi-corpus
 
 fuzz-syscall: $(BUILD)/fuzz/fuzz-syscall
 	./$< -max_total_time=$(FUZZ_TIME) -max_len=24 -artifact_prefix=$(BUILD)/ \

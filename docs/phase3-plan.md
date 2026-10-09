@@ -561,3 +561,22 @@ copy and every refusal), an executor operation (373 successes in the full
 run), and two mutations (the mask ignored, the CONTROL check bypassed), both
 caught.
 
+### Step 4, part 3: the system-call ABI (2026-10-09)
+
+`kernel/sys/abi.c`: the dispatcher from a thread's saved registers to the
+core (encoding in `docs/abi.md`, *Encoding*): 45 calls, IPC with message
+registers in R12-R15 and capabilities packed in R9, and results written
+back into the record; a blocking call's outputs are written by
+`abi_complete` when the thread next runs. Phase 2's `debug_write`, `exit`
+and unknown-number behaviour are kept (Phase 2's dispatcher handles them),
+so the existing self-tests and `sysfuzz` still hold. Host tests
+(`test/test_abi.c`, 8: an unknown call changing nothing else, a Call /
+Recv / Reply round trip through registers, capabilities through R9, wide
+slot arguments refused, spawn starting at pc and sp, exit from a task and
+from the root, `cap_read` of a frame, Wait completing on a Signal) and a
+libFuzzer harness over the whole ABI (`make fuzz-abi`: sequences of calls
+from several threads, preempted destruction included, every invariant
+after every call; 7 980 inputs in 2 minutes, clean). `clang-tidy` found an
+arbitrary user value cast to the object-type enum; it is now refused as no
+type.
+

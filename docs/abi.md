@@ -348,6 +348,31 @@ context's owner and its thread name each other; every loan is recorded at
 both ends, ends at the thread running on the context, never loops, and its
 lender is waiting for a reply.
 
+## Encoding (x86_64; Phase 3 step 4)
+
+The machine encoding of the operations above (`kernel/sys/abi.h`, which
+lists every call number). A thread's user registers are saved in its
+register record on every kernel entry and restored from it on every exit;
+the dispatcher works on that record alone.
+
+| | Registers |
+|---|---|
+| In | `RAX` the call number; `RDI`, `RSI`, `RDX`, `R10`, `R8` the arguments, in the order the tables above list them; `R12`-`R15` the four message registers; `R9` the capabilities a message carries |
+| Out | `RAX` the result code (0 is `OK`); `RDX` a badge or returned value (the badge of a received message, `Wait`'s bits, `cap_read`'s type and rights, `task_descendant`'s id, `nosenders_next`'s badge); `R12`-`R15` a received message; `R9` where received capabilities landed; every other register is the caller's (the `syscall` instruction itself clobbers `RCX` and `R11`) |
+| `R9` | bits 0-1 the count; per position *i* (0, 1) a 16-bit slot at bit 2 + 20*i* and a 4-bit rights mask at bit 18 + 20*i*; slot `0xffff` is "none" (`JOIST_SLOT_NONE` on receipt; out of range if sent) |
+
+Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
+`Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-27 capabilities and
+the table, 30-38 tasks and threads, 40-42 frames and mappings, 50-53
+scheduling contexts, 60-65 destruction, ancestry and lifetime
+notifications. `thread_spawn` takes the new thread's pc and sp, so it
+starts where its creator says; `cap_read` also returns a frame's size in
+pages in `R10`. A slot argument wider than 32 bits is out of range, never
+truncated into a valid slot. A call that blocks gets its outputs written
+when its thread next runs. Calls 1 (`debug_write`) and 2 (`exit`) keep
+Phase 2's debug convention, and an unknown number returns `-3` and changes
+nothing else.
+
 ## Result codes
 
 | Code | Value | Meaning |
