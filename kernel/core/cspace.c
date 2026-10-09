@@ -61,6 +61,9 @@ joist_err joist_cspace_create(struct joist_kernel *k, uint32_t quota, joist_cspa
             s->quota = quota;
             s->fixture = 1;
             s->mcp = JOIST_PRIO_MAX;
+            if (k->hooks.space_new != NULL) {
+                k->hooks.space_new(k->hooks.ctx, i);
+            }
             k->budget += quota; /* fixture quota enters from nothing (I3) */
             *out = i;
             return JOIST_OK;

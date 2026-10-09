@@ -101,6 +101,9 @@ static void space_finish(struct joist_kernel *k, uint32_t s)
     st->dying = 0;
     st->sweep = 0;
     st->live = 0;
+    if (k->hooks.space_gone != NULL) {
+        k->hooks.space_gone(k->hooks.ctx, s); /* its mappings are gone already */
+    }
 }
 
 int joist__drain_pending(struct joist_kernel *k)
@@ -175,6 +178,9 @@ joist_err joist_boot(struct joist_kernel *k, uint32_t budget, joist_cspace *root
     k->budget = budget;
     k->root = 1;
     *root = 0;
+    if (k->hooks.space_new != NULL) {
+        k->hooks.space_new(k->hooks.ctx, 0);
+    }
     return JOIST_OK;
 }
 
@@ -258,6 +264,9 @@ joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t do
     n->mcp = k->cs[cs].mcp; /* lowered with joist_task_set_mcp */
     n->task_obj = obj + 1u;
     k->cs[cs].quota -= donation;
+    if (k->hooks.space_new != NULL) {
+        k->hooks.space_new(k->hooks.ctx, ns); /* its page tables (kernel) */
+    }
     return JOIST_OK;
 }
 

@@ -237,19 +237,51 @@ typedef enum {
 #endif
 /* "No capability arrived in this position" in a received message. */
 #define JOIST_SLOT_NONE UINT32_MAX
+/* In place of a task slot (joist_map, joist_unmap): the caller's own space.
+ * The root task has no task object (0013), and every task may map memory it
+ * holds into itself. */
+#define JOIST_SLOT_SELF (UINT32_MAX - 1u)
 
 /* A thread's register state (0010): one fixed record per architecture, never
- * a family of flavours. The model's is generic; the kernel's x86_64 record
- * maps onto it (pc, sp, the TLS base, and the general registers). */
+ * a family of flavours. On x86_64: pc (RIP), sp (RSP), flags (RFLAGS, of
+ * which the kernel lets user code set only the arithmetic and direction
+ * flags), tls (the FS base), and r[] = RAX, RBX, RCX, RDX, RSI, RDI, RBP,
+ * R8-R15 (r[15] unused). The kernel saves a thread's user state here on
+ * every entry and restores it from here on every exit, so reading and
+ * writing it through a thread control capability is reading and writing
+ * the thread. */
 #ifndef JOIST_REGS
-#define JOIST_REGS 8u
+#define JOIST_REGS 16u
 #endif
 struct joist_regs {
     uint64_t pc;
     uint64_t sp;
+    uint64_t flags;
     uint64_t tls; /* the TLS base is a thread attribute, not a GDT call (0010) */
     uint64_t r[JOIST_REGS];
 };
+
+/* Hooks through which the core tells the architecture what to carry out
+ * (all optional: the host model leaves them NULL). The core decides and the
+ * kernel only executes, so the hooks can't fail: everything they need is
+ * sized from the core's own limits at boot. */
+struct joist_hooks {
+    void *ctx;
+    /* A space came alive (task_create, boot) or is gone (destruction
+     * finished): build or free its page tables. */
+    void (*space_new)(void *ctx, uint32_t space);
+    void (*space_gone)(void *ctx, uint32_t space);
+    /* npages pages from physical page `pa` appear at virtual page va of the
+     * space, or disappear from it. */
+    void (*map)(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t npages,
+                unsigned perms);
+    void (*unmap)(void *ctx, uint32_t space, uint64_t va, uint64_t npages);
+};
+/* Pages one mapping may span: one page table (x86_64: 512 pages, 2 MiB). A
+ * mapping lies within one such aligned region, so it needs at most one table
+ * at each level and the kernel's table pool is sized from JOIST_MAX_MAPPINGS
+ * and JOIST_MAX_CSPACES alone. Larger regions are several frames. */
+#define JOIST_MAP_SPAN 512u
 
 /* Fault messages (0009): what a fault handler receives, in the message
  * registers: r[0] the kind, r[1] the address (page faults), r[2] the
@@ -382,6 +414,7 @@ struct joist_kernel {
     uint32_t preempt;
     /* Loop iterations run by operations so far (I9; see JOIST_WORK). */
     uint64_t work;
+    struct joist_hooks hooks; /* the kernel's; zero in the host model */
 };
 
 /* Lifecycle. */
@@ -615,16 +648,18 @@ joist_err joist_frame_split(struct joist_kernel *k, joist_cspace cs, joist_slot 
                             joist_slot dst);
 
 /* Map the frame in frame_slot (CONTROL; JOIST_R_WRITE too for JOIST_MAP_W)
- * at virtual page va of the task in task_slot (CONTROL). JOIST_E_RIGHTS
- * (W and X together, or W without JOIST_R_WRITE), JOIST_E_RANGE (outside
- * the user half), JOIST_E_OCCUPIED (overlaps a mapping there), JOIST_E_NOMEM
- * (the task's quota: one unit for its page tables; then the mapping
- * table). */
+ * at virtual page va of the task in task_slot (CONTROL), or of the caller's
+ * own space for JOIST_SLOT_SELF. JOIST_E_RIGHTS (W and X together, or W
+ * without JOIST_R_WRITE), JOIST_E_RANGE (outside the user half, or not
+ * within one aligned JOIST_MAP_SPAN), JOIST_E_OCCUPIED (overlaps a mapping
+ * there), JOIST_E_NOMEM (the task's quota: one unit for its page tables;
+ * then the mapping table). */
 joist_err joist_map(struct joist_kernel *k, joist_cspace cs, joist_slot frame_slot,
                     joist_slot task_slot, uint64_t va, unsigned perms);
 
 /* Remove the mapping starting at virtual page va of the task in task_slot
- * (CONTROL), refunding its unit. JOIST_E_EMPTY if there is none. */
+ * (CONTROL), or of the caller's own space for JOIST_SLOT_SELF, refunding its
+ * unit. JOIST_E_EMPTY if there is none. */
 joist_err joist_unmap(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot, uint64_t va);
 
 joist_err joist_task_set_mcp(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,

@@ -106,3 +106,8 @@ pre-limit-ignored @@ ../kernel/core/task.c @@ if (k->preempt != 0 && done >= k->
 pre-finish-early @@ ../kernel/core/task.c @@ if (st->sweep < JOIST_CSPACE_SLOTS) { @@ if (st->sweep < JOIST_CNODE_LEAF) {
 pre-reap-dying @@ ../kernel/core/task.c @@ if (!joist__usable(k, target)) { /* dead, or already dying */ @@ if (!k->cs[target].live) {
 pre-descendant-dying @@ ../kernel/core/task.c @@ if (joist__usable(k, s) && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && is_descendant(k, cs, s)) {
+# Kernel hooks and the mapping span (Phase 3 step 4).
+hook-map-missed @@ ../kernel/core/map.c @@ k->hooks.map(k->hooks.ctx, space, va, f->base, f->npages, perms); @@ (void)space;
+hook-unmap-missed @@ ../kernel/core/map.c @@ k->hooks.unmap(k->hooks.ctx, k->map[i].space - 1u, k->map[i].va, k->map[i].npages); @@ (void)i;
+hook-space-gone-missed @@ ../kernel/core/task.c @@ k->hooks.space_gone(k->hooks.ctx, s); /* its mappings are gone already */ @@ (void)s;
+map-span-ignored @@ ../kernel/core/map.c @@ if (f->npages > JOIST_MAP_SPAN - va % JOIST_MAP_SPAN) { @@ if (0) {

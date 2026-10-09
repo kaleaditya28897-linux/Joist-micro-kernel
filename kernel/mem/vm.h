@@ -36,6 +36,9 @@ struct vm_space {
     /* Where the code can reach physical address phys. */
     void *(*phys_to_ptr)(void *ctx, uint64_t phys);
     void *ctx;
+    /* Where tables that become empty go (vm_unmap, vm_destroy); NULL keeps
+     * them. Set after vm_create. */
+    void (*put_frame)(void *ctx, uint64_t phys);
 };
 
 /* A new, empty address space (allocates the PML4). */
@@ -46,6 +49,28 @@ kerr vm_create(struct vm_space *s, kerr (*get_frame)(void *, uint64_t *),
  * or 2 MiB pages (VM_LARGE); va, pa and len aligned to it. */
 kerr vm_map(struct vm_space *s, uint64_t va, uint64_t pa, uint64_t len, uint64_t page_size,
             unsigned perms);
+
+/* Remove the 4 KiB mappings of [va, va + len), all of which must exist
+ * (KERR_RANGE otherwise, changing nothing; KERR_INVAL for an unaligned or
+ * non-canonical range). Tables of the lower (user) half that become empty
+ * are freed through put_frame, bottom up; the upper half's never are, since
+ * every space shares them. Flushing the TLB is the caller's job. Bounded:
+ * per page, four levels and, per emptied table, one scan of its 512 entries. */
+kerr vm_unmap(struct vm_space *s, uint64_t va, uint64_t len);
+
+/* Free every table of the lower half, then the PML4, through put_frame
+ * (the mapped frames themselves are not the tables' to free). The space is
+ * unusable afterwards. Bounded by the tables present times 512. */
+void vm_destroy(struct vm_space *s);
+
+/* Give every upper-half PML4 entry (256-511) a table, so that copying the
+ * entries into another space shares the whole kernel half for good: later
+ * kernel mappings land in these tables, never in the PML4, and so appear in
+ * every space (Phase 3 plan, choice 4). KERR_NOMEM if frames run out. */
+kerr vm_prefill_upper(struct vm_space *s);
+
+/* Copy src's upper-half PML4 entries into dst (a new, empty space). */
+void vm_share_upper(struct vm_space *dst, const struct vm_space *src);
 
 /* Software walk: the physical address va maps to and its permissions.
  * KERR_RANGE if va isn't mapped. */

@@ -510,3 +510,43 @@ full). The mutations were re-aimed at the new code, CBMC got
 
 Step 3 is done.
 
+### Step 4, part 1: memory plumbing for many address spaces (2026-10-09)
+
+Host-tested pieces the kernel needs before it runs more than one task:
+
+- `vm_unmap` (`kernel/mem/vm.c`): removes 4 KiB mappings, all or nothing,
+  and returns page tables of the user half that become empty, bottom up,
+  through a new `put_frame` callback (the shared upper half's never).
+  `vm_destroy` returns every table of a space. `vm_prefill_upper` gives
+  every upper-half PML4 entry a table once at boot, and `vm_share_upper`
+  copies those entries into a new space, so the kernel half is shared for
+  good (plan choice 4: no copying when the kernel maps something later).
+  Tests: unmap with exact reclamation, refusals that change nothing, the
+  upper half never freed, destroy returning every table, the shared half
+  seeing a later mapping, and a property test of random maps and unmaps
+  across 2 MiB and 1 GiB boundaries where the tables in use must equal,
+  after every step, exactly the PML4 plus one table per occupied region at
+  each level (4 942 maps, 3 870 unmaps).
+- The core (`kernel/core/`): **a mapping lies within one aligned 512-page
+  span** (one page table), so it needs at most one table per level and the
+  kernel's page-table pool is sized from `JOIST_MAX_MAPPINGS` and
+  `JOIST_MAX_CSPACES` alone, never failing where the model succeeds;
+  `JOIST_SLOT_SELF` maps into the caller's own space (the root task has no
+  task object, 0013); the register record is the full user state (pc, sp,
+  flags, TLS base, 16 general registers), so 0010's register access is the
+  thread itself; and **hooks** (`struct joist_hooks`) through which the
+  core tells the kernel what to carry out: a space's tables to build or
+  free, a mapping to make or remove. The core decides, the kernel executes,
+  and the hooks can't fail.
+- The executor installs recording hooks that keep a shadow of every
+  space's page tables, and after every step the shadow must equal the
+  core's record, so a missing, extra or wrong hook call anywhere fails the
+  run (preempted destructions included). Four mutations (a hook left out
+  in three places, the span check removed), all caught.
+
+The remote runner (`tools/dev/remote.sh`) had a stale-build hazard: `rsync
+-a` kept the workstation's modification times, so a file edited while an
+earlier remote build ran arrived older than that build's output, and make
+skipped it (seen once: a kernel test binary one test short). It now copies
+by content and gives copied files the time of the copy.
+

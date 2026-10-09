@@ -227,6 +227,141 @@ static joist_badge pick_badge(struct jx_source *src)
     return (joist_badge)1u << ch(src, 16);
 }
 
+/* ---- the kernel hooks, recorded (Phase 3 step 4) ----
+ * The executor installs hooks that keep a shadow of what the kernel would
+ * have built: which spaces have page tables and what is mapped in each.
+ * After every step the shadow must equal the core's own record, so a
+ * missing, extra or wrong hook call anywhere in the core is caught. */
+static struct {
+    uint8_t live[JOIST_MAX_CSPACES];
+    struct {
+        uint32_t space1; /* space plus one; 0 = free */
+        uint64_t va, pa, npages;
+        unsigned perms;
+    } m[JOIST_MAX_MAPPINGS];
+    int bad;
+    char why[160];
+} hshadow;
+
+static void hs_fail(const char *what, uint32_t space)
+{
+    if (!hshadow.bad) {
+        (void)snprintf(hshadow.why, sizeof hshadow.why, "hooks: %s (space %u)", what, space);
+    }
+    hshadow.bad = 1;
+}
+
+static void hk_space_new(void *ctx, uint32_t space)
+{
+    (void)ctx;
+    if (space >= JOIST_MAX_CSPACES || hshadow.live[space]) {
+        hs_fail("space_new for a space that has tables", space);
+        return;
+    }
+    hshadow.live[space] = 1;
+}
+
+static void hk_space_gone(void *ctx, uint32_t space)
+{
+    (void)ctx;
+    if (space >= JOIST_MAX_CSPACES || !hshadow.live[space]) {
+        hs_fail("space_gone for a space without tables", space);
+        return;
+    }
+    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+        if (hshadow.m[i].space1 == space + 1u) {
+            hs_fail("space_gone while still mapping something", space);
+        }
+    }
+    hshadow.live[space] = 0;
+}
+
+static void hk_map(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t npages,
+                   unsigned perms)
+{
+    (void)ctx;
+    if (space >= JOIST_MAX_CSPACES || !hshadow.live[space]) {
+        hs_fail("map into a space without tables", space);
+        return;
+    }
+    uint32_t freeslot = JOIST_MAX_MAPPINGS;
+    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+        if (hshadow.m[i].space1 == space + 1u && va < hshadow.m[i].va + hshadow.m[i].npages &&
+            hshadow.m[i].va < va + npages) {
+            hs_fail("map over a live mapping", space);
+            return;
+        }
+        if (hshadow.m[i].space1 == 0 && freeslot == JOIST_MAX_MAPPINGS) {
+            freeslot = i;
+        }
+    }
+    if (freeslot == JOIST_MAX_MAPPINGS) {
+        hs_fail("more mappings than the table holds", space);
+        return;
+    }
+    hshadow.m[freeslot].space1 = space + 1u;
+    hshadow.m[freeslot].va = va;
+    hshadow.m[freeslot].pa = pa;
+    hshadow.m[freeslot].npages = npages;
+    hshadow.m[freeslot].perms = perms;
+}
+
+static void hk_unmap(void *ctx, uint32_t space, uint64_t va, uint64_t npages)
+{
+    (void)ctx;
+    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+        if (hshadow.m[i].space1 == space + 1u && hshadow.m[i].va == va && hshadow.m[i].npages == npages) {
+            hshadow.m[i].space1 = 0;
+            return;
+        }
+    }
+    hs_fail("unmap of something not mapped", space);
+}
+
+/* The shadow and the core agree: the same spaces have tables, and the same
+ * mappings (space, place, frame, size, permissions) exist. 1 if so. */
+static int hooks_agree(const struct joist_kernel *k, char *why, unsigned whylen)
+{
+    if (hshadow.bad) {
+        (void)snprintf(why, whylen, "%s", hshadow.why);
+        return 0;
+    }
+    for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
+        if (hshadow.live[s] != k->cs[s].live) {
+            (void)snprintf(why, whylen, "hooks: space %u live %u, but tables %u", s, k->cs[s].live,
+                           hshadow.live[s]);
+            return 0;
+        }
+    }
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+        const struct joist_mapping *m = &k->map[i];
+        n += (uint32_t)(hshadow.m[i].space1 != 0);
+        if (m->space == 0) {
+            continue;
+        }
+        int found = 0;
+        for (uint32_t j = 0; j < JOIST_MAX_MAPPINGS && !found; j++) {
+            found = hshadow.m[j].space1 == m->space && hshadow.m[j].va == m->va &&
+                    hshadow.m[j].npages == m->npages && hshadow.m[j].perms == m->perms &&
+                    m->frame != 0 && hshadow.m[j].pa == k->obj[m->frame - 1u].base;
+        }
+        if (!found) {
+            (void)snprintf(why, whylen, "hooks: mapping %u was never carried out", i);
+            return 0;
+        }
+    }
+    uint32_t live_maps = 0;
+    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+        live_maps += (uint32_t)(k->map[i].space != 0);
+    }
+    if (n != live_maps) {
+        (void)snprintf(why, whylen, "hooks: %u mappings carried out, %u in the core", n, live_maps);
+        return 0;
+    }
+    return 1;
+}
+
 void jx_begin(struct joist_kernel *k, struct jx_source *src)
 {
     joist_cspace root;
@@ -237,6 +372,11 @@ void jx_begin(struct joist_kernel *k, struct jx_source *src)
         }
     }
     joist_init(k);
+    memset(&hshadow, 0, sizeof hshadow);
+    k->hooks = (struct joist_hooks){.space_new = hk_space_new,
+                                    .space_gone = hk_space_gone,
+                                    .map = hk_map,
+                                    .unmap = hk_unmap};
     boot_budget = 8u + ch(src, 120);
     (void)joist_boot(k, (uint32_t)boot_budget, &root);
     /* A starting world, so every sequence can reach IPC at once instead of
@@ -685,6 +825,12 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     }
     unsigned n = joist_check_invariants(k, why, whylen);
     if (n != 0) {
+        size_t len = strlen(why);
+        (void)snprintf(why + len, whylen - len, " (after %s -> %s)", jx_op_name[op],
+                       joist_err_name(e));
+        return 0;
+    }
+    if (!hooks_agree(k, why, whylen)) {
         size_t len = strlen(why);
         (void)snprintf(why + len, whylen - len, " (after %s -> %s)", jx_op_name[op],
                        joist_err_name(e));

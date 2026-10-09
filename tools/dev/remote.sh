@@ -13,6 +13,10 @@ set -u
 host=${JOIST_DEV:-joist-dev}
 top=$(cd "$(dirname "$0")/../.." && pwd)
 [ $# -ge 1 ] || { echo "usage: $0 'command'" >&2; exit 2; }
-rsync -a --delete --exclude .git --exclude build --exclude __pycache__ \
+# Contents decide what is copied (--checksum), and copied files get the time
+# of the copy, not the workstation's (no -t): a file edited while an earlier
+# remote build ran would otherwise arrive older than that build's output,
+# and make would not rebuild it.
+rsync -rlpD --checksum --delete --exclude .git --exclude build --exclude __pycache__ \
     --exclude 'mcp-server/joist-mcp' --exclude '*.o' "$top/" "$host:joist/" || exit 2
 exec ssh -o BatchMode=yes "$host" "cd joist && $*"

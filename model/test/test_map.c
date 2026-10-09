@@ -160,3 +160,30 @@ JT_TEST(map_invariants_catch_overlaps)
     k.map[1].va = 0x500;
     JT_CHECK(clean());
 }
+
+JT_TEST(map_into_own_space)
+{
+    /* The root has no task object (0013): it maps into itself with
+     * JOIST_SLOT_SELF, as any task may. */
+    setup();
+    uint32_t q = k.cs[root].quota;
+    JT_REQUIRE(joist_map(&k, root, F, JOIST_SLOT_SELF, 0x600, JOIST_MAP_W) == JOIST_OK);
+    JT_CHECK(mappings_in(root) == 1 && k.cs[root].quota == q - 1u);
+    JT_CHECK(joist_unmap(&k, root, JOIST_SLOT_SELF, 0x600) == JOIST_OK);
+    JT_CHECK(mappings_in(root) == 0 && k.cs[root].quota == q);
+    JT_CHECK(joist_unmap(&k, root, JOIST_SLOT_SELF, 0x600) == JOIST_E_EMPTY);
+    JT_CHECK(joist_unmap(&k, JOIST_MAX_CSPACES, JOIST_SLOT_SELF, 0x600) == JOIST_E_RANGE);
+    JT_CHECK(clean());
+}
+
+JT_TEST(map_within_one_page_table)
+{
+    /* A mapping lies within one aligned JOIST_MAP_SPAN, so it needs at most
+     * one table per level and the kernel's table pool can't run out. */
+    setup();
+    JT_CHECK(joist_map(&k, root, F, TK, 0x600 - 8u, 0) == JOIST_E_RANGE); /* crosses 0x600 */
+    JT_CHECK(joist_map(&k, root, F, TK, 0x600 - 16u, 0) == JOIST_OK);    /* ends exactly there */
+    JT_REQUIRE(joist_boot_frame(&k, root, F2, 0x1000, JOIST_MAP_SPAN + 1u) == JOIST_OK);
+    JT_CHECK(joist_map(&k, root, F2, TK, 0x800, 0) == JOIST_E_RANGE); /* too big for any */
+    JT_CHECK(clean());
+}

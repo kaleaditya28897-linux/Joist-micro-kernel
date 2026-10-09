@@ -15,9 +15,19 @@ static uint8_t phys[PHYS_FRAMES * 4096u] __attribute__((aligned(4096)));
 static uint32_t next_frame;
 static uint32_t frame_limit;
 
+/* Frames given back (put_frame) are reused first, so long property runs
+ * don't run out. */
+static uint64_t freed[PHYS_FRAMES];
+static uint32_t nfreed;
+
 static kerr get_frame(void *ctx, uint64_t *pa)
 {
     (void)ctx;
+    if (nfreed != 0) {
+        *pa = freed[--nfreed];
+        memset(&phys[*pa - PHYS_BASE], 0, 4096u);
+        return KERR_OK;
+    }
     if (next_frame == frame_limit) {
         return KERR_NOMEM;
     }
@@ -36,16 +46,32 @@ static void *phys_to_ptr(void *ctx, uint64_t pa)
     return &phys[pa - PHYS_BASE];
 }
 
+static uint32_t frames_put;
+
+static void put_frame(void *ctx, uint64_t pa)
+{
+    (void)ctx;
+    if (pa < PHYS_BASE || pa - PHYS_BASE >= sizeof phys || pa % 4096u != 0) {
+        abort(); /* not a frame this allocator handed out */
+    }
+    frames_put++;
+    freed[nfreed++] = pa;
+}
+
 static struct vm_space fresh(void)
 {
     struct vm_space s;
     next_frame = 0;
     frame_limit = PHYS_FRAMES;
+    frames_put = 0;
+    nfreed = 0;
     if (vm_create(&s, get_frame, phys_to_ptr, NULL) != KERR_OK) {
         abort();
     }
     return s;
 }
+
+#define UBASE 0x0000000040000000ull /* a user-half address, 1 GiB */
 
 #define KBASE 0xffffffff80000000ull
 #define HHDM  0xffff800000000000ull
@@ -229,3 +255,201 @@ JT_TEST(props_vm_matches_shadow)
     fprintf(stderr, "  coverage maps ok=%lu refused=%lu\n", ok, refused);
     JT_CHECK(ok > 1000 && refused > 1000);
 }
+
+JT_TEST(vm_unmap_frees_emptied_tables)
+{
+    struct vm_space s = fresh();
+    s.put_frame = put_frame;
+    uint64_t pa;
+    unsigned perms;
+    /* Two pages in one page table, one in another 2 MiB away. */
+    JT_REQUIRE(vm_map(&s, UBASE, 0x10000, 0x2000, VM_PAGE, VM_USER) == KERR_OK);
+    JT_REQUIRE(vm_map(&s, UBASE + VM_LARGE, 0x20000, 0x1000, VM_PAGE, VM_USER) == KERR_OK);
+    uint32_t taken = next_frame; /* PML4, PDPT, PD, two PTs */
+    JT_CHECK(taken == 5u);
+    JT_REQUIRE(vm_unmap(&s, UBASE, 0x1000) == KERR_OK);
+    JT_CHECK(frames_put == 0); /* its page table still maps UBASE + 0x1000 */
+    JT_CHECK(vm_translate(&s, UBASE, &pa, &perms) == KERR_RANGE);
+    JT_CHECK(vm_translate(&s, UBASE + 0x1000, &pa, &perms) == KERR_OK && pa == 0x11000);
+    JT_REQUIRE(vm_unmap(&s, UBASE + 0x1000, 0x1000) == KERR_OK);
+    JT_CHECK(frames_put == 1); /* that PT, now empty */
+    JT_REQUIRE(vm_unmap(&s, UBASE + VM_LARGE, 0x1000) == KERR_OK);
+    JT_CHECK(frames_put == 4); /* the other PT, the PD, the PDPT: only the PML4 is left */
+    JT_CHECK(vm_translate(&s, UBASE + VM_LARGE, &pa, &perms) == KERR_RANGE);
+    /* Mapping again builds the tables again. */
+    JT_REQUIRE(vm_map(&s, UBASE, 0x10000, 0x1000, VM_PAGE, VM_USER) == KERR_OK);
+    JT_CHECK(vm_translate(&s, UBASE, &pa, &perms) == KERR_OK && pa == 0x10000);
+}
+
+JT_TEST(vm_unmap_refusals_change_nothing)
+{
+    struct vm_space s = fresh();
+    s.put_frame = put_frame;
+    uint64_t pa;
+    unsigned perms;
+    JT_REQUIRE(vm_map(&s, UBASE, 0x10000, 0x2000, VM_PAGE, VM_USER) == KERR_OK);
+    /* The range runs one page past the mapping: nothing is unmapped. */
+    JT_CHECK(vm_unmap(&s, UBASE, 0x3000) == KERR_RANGE);
+    JT_CHECK(vm_translate(&s, UBASE, &pa, &perms) == KERR_OK && frames_put == 0);
+    JT_CHECK(vm_unmap(&s, UBASE + 8, 0x1000) == KERR_INVAL);
+    JT_CHECK(vm_unmap(&s, UBASE, 0) == KERR_INVAL);
+    JT_CHECK(vm_unmap(&s, 0x0000800000000000ull, 0x1000) == KERR_INVAL); /* non-canonical */
+    /* A large page isn't unmapped page by page. */
+    JT_REQUIRE(vm_map(&s, HHDM, 0, VM_LARGE, VM_LARGE, VM_W) == KERR_OK);
+    JT_CHECK(vm_unmap(&s, HHDM, 0x1000) == KERR_RANGE);
+}
+
+JT_TEST(vm_upper_half_tables_are_never_freed)
+{
+    struct vm_space s = fresh();
+    s.put_frame = put_frame;
+    JT_REQUIRE(vm_map(&s, KBASE, 0x10000, 0x1000, VM_PAGE, 0) == KERR_OK);
+    JT_REQUIRE(vm_unmap(&s, KBASE, 0x1000) == KERR_OK);
+    JT_CHECK(frames_put == 0); /* shared by every space: kept */
+}
+
+JT_TEST(vm_destroy_returns_every_table)
+{
+    struct vm_space s = fresh();
+    s.put_frame = put_frame;
+    JT_REQUIRE(vm_map(&s, UBASE, 0x10000, 0x3000, VM_PAGE, VM_USER) == KERR_OK);
+    JT_REQUIRE(vm_map(&s, UBASE + 5u * VM_LARGE, 0x20000, 0x1000, VM_PAGE, VM_USER) == KERR_OK);
+    JT_REQUIRE(vm_map(&s, 0x0000004000000000ull, 0x30000, 0x1000, VM_PAGE, VM_USER) == KERR_OK);
+    vm_destroy(&s);
+    JT_CHECK(frames_put == next_frame); /* every table, the PML4 included */
+}
+
+/* Tables needed for a set of mapped user pages: the PML4, and one table per
+ * distinct 512 GiB, 1 GiB and 2 MiB region holding a mapped page. */
+static uint32_t tables_needed(const uint8_t *mapped, const uint64_t *va, uint32_t n)
+{
+    uint32_t count = 1;
+    for (unsigned level = 1; level <= 3u; level++) {
+        unsigned shift = 12u + 9u * level;
+        for (uint32_t i = 0; i < n; i++) {
+            if (!mapped[i]) {
+                continue;
+            }
+            int first = 1;
+            for (uint32_t j = 0; j < i; j++) {
+                if (mapped[j] && (va[j] >> shift) == (va[i] >> shift)) {
+                    first = 0;
+                    break;
+                }
+            }
+            count += (uint32_t)first;
+        }
+    }
+    return count;
+}
+
+JT_TEST(props_vm_unmap_reclaims_exactly)
+{
+    /* 48 pages: 16 below and 16 above a 2 MiB boundary, and 16 above a
+     * 1 GiB boundary, so PTs, PDs and PDPT-level splits are all exercised. */
+    enum { N = 48 };
+    uint64_t va[N];
+    for (uint32_t i = 0; i < 16u; i++) {
+        va[i] = UBASE + VM_LARGE - 16u * VM_PAGE + i * VM_PAGE;
+        va[16u + i] = UBASE + VM_LARGE + i * VM_PAGE;
+        va[32u + i] = UBASE + 0x40000000ull + i * VM_PAGE;
+    }
+    unsigned long maps = 0, unmaps = 0;
+    for (uint64_t seed = 1; seed <= 100; seed++) {
+        struct vm_space s = fresh();
+        s.put_frame = put_frame;
+        uint8_t mapped[N] = {0};
+        rng_state = seed * 0x9E3779B97F4A7C15ULL + 7u;
+        for (int step = 0; step < 300; step++) {
+            uint32_t i = (uint32_t)(rng() % N);
+            uint32_t run = 1u + (uint32_t)(rng() % 4u);
+            if (i + run > N || (i % 16u) + run > 16u) {
+                run = 1; /* keep runs inside one group of contiguous pages */
+            }
+            int all_mapped = 1;
+            int none_mapped = 1;
+            for (uint32_t j = i; j < i + run; j++) {
+                all_mapped &= mapped[j];
+                none_mapped &= !mapped[j];
+            }
+            if (rng() % 2u == 0) {
+                kerr e = vm_map(&s, va[i], 0x100000u + i * VM_PAGE, run * VM_PAGE, VM_PAGE, VM_USER);
+                if ((e == KERR_OK) != none_mapped) {
+                    JT_CHECK(0 && "map result differs from the shadow");
+                    return;
+                }
+                if (e == KERR_OK) {
+                    maps++;
+                    for (uint32_t j = i; j < i + run; j++) {
+                        mapped[j] = 1;
+                    }
+                }
+            } else {
+                kerr e = vm_unmap(&s, va[i], run * VM_PAGE);
+                if ((e == KERR_OK) != all_mapped) {
+                    JT_CHECK(0 && "unmap result differs from the shadow");
+                    return;
+                }
+                if (e == KERR_OK) {
+                    unmaps++;
+                    for (uint32_t j = i; j < i + run; j++) {
+                        mapped[j] = 0;
+                    }
+                }
+            }
+            /* Translations match the shadow, and exactly the needed tables
+             * are in use: none leaked, none freed too early. (Every run stays
+             * inside one page table, so a refused map only walks tables that
+             * already exist and leaves nothing behind.) */
+            for (uint32_t j = 0; j < N; j++) {
+                uint64_t pa;
+                unsigned perms;
+                kerr t = vm_translate(&s, va[j], &pa, &perms);
+                if ((t == KERR_OK) != (mapped[j] != 0)) {
+                    JT_CHECK(0 && "translation differs from the shadow");
+                    return;
+                }
+            }
+            uint32_t in_use = next_frame - nfreed;
+            uint32_t need = tables_needed(mapped, va, N);
+            if (in_use != need) {
+                fprintf(stderr, "  seed %llu step %d: %u tables in use, %u needed\n",
+                        (unsigned long long)seed, step, in_use, need);
+                JT_CHECK(0);
+                return;
+            }
+        }
+        /* vm_destroy returns every table there is. */
+        vm_destroy(&s);
+        if (next_frame != nfreed) {
+            fprintf(stderr, "  seed %llu: %u tables never returned\n", (unsigned long long)seed,
+                    next_frame - nfreed);
+            JT_CHECK(0);
+            return;
+        }
+    }
+    fprintf(stderr, "  coverage unmap maps=%lu unmaps=%lu\n", maps, unmaps);
+    JT_CHECK(maps > 1000 && unmaps > 1000);
+}
+
+JT_TEST(vm_shared_upper_half)
+{
+    /* After prefilling, a kernel mapping made later shows in a space that
+     * copied the upper half before it was made. */
+    struct vm_space kern = fresh();
+    JT_REQUIRE(vm_prefill_upper(&kern) == KERR_OK);
+    JT_CHECK(next_frame == 257u); /* the PML4 and 256 PDPTs */
+    struct vm_space task;
+    JT_REQUIRE(vm_create(&task, get_frame, phys_to_ptr, NULL) == KERR_OK);
+    vm_share_upper(&task, &kern);
+    JT_REQUIRE(vm_map(&kern, KBASE + 0x5000, 0x77000, 0x1000, VM_PAGE, VM_W) == KERR_OK);
+    uint64_t pa;
+    unsigned perms;
+    JT_CHECK(vm_translate(&task, KBASE + 0x5000, &pa, &perms) == KERR_OK && pa == 0x77000);
+    JT_CHECK((perms & VM_USER) == 0); /* never user-accessible, at any level */
+    /* Prefilling twice changes nothing. */
+    uint32_t before = next_frame;
+    JT_REQUIRE(vm_prefill_upper(&kern) == KERR_OK);
+    JT_CHECK(next_frame == before);
+}
+

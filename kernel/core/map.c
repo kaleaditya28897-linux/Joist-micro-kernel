@@ -115,9 +115,9 @@ joist_err joist_map(struct joist_kernel *k, joist_cspace cs, joist_slot frame_sl
                     joist_slot task_slot, uint64_t va, unsigned perms)
 {
     uint32_t fo;
-    uint32_t to;
+    uint32_t to = 0;
     joist_err e = joist__control_cap(k, cs, frame_slot, JOIST_OBJ_FRAME, &fo);
-    if (e == JOIST_OK) {
+    if (e == JOIST_OK && task_slot != JOIST_SLOT_SELF) {
         e = joist__control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &to);
     }
     if (e != JOIST_OK) {
@@ -134,7 +134,10 @@ joist_err joist_map(struct joist_kernel *k, joist_cspace cs, joist_slot frame_sl
     if (va >= JOIST_USER_PAGES || f->npages > JOIST_USER_PAGES - va) {
         return JOIST_E_RANGE; /* the user half only */
     }
-    uint32_t space = k->obj[to].target - 1u;
+    if (f->npages > JOIST_MAP_SPAN - va % JOIST_MAP_SPAN) {
+        return JOIST_E_RANGE; /* within one page table (JOIST_MAP_SPAN) */
+    }
+    uint32_t space = task_slot == JOIST_SLOT_SELF ? cs : k->obj[to].target - 1u;
     uint32_t freeslot = JOIST_MAX_MAPPINGS;
     for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
         JOIST_WORK(k);
@@ -155,12 +158,18 @@ joist_err joist_map(struct joist_kernel *k, joist_cspace cs, joist_slot frame_sl
         .space = space + 1u, .frame = fo + 1u, .va = va, .npages = f->npages, .perms = (uint8_t)perms};
     ts->quota--;
     ts->charged++; /* the task pays for its page tables (I3) */
+    if (k->hooks.map != NULL) {
+        k->hooks.map(k->hooks.ctx, space, va, f->base, f->npages, perms);
+    }
     return JOIST_OK;
 }
 
 /* Free mapping i, refunding its space. */
 static void unmap_one(struct joist_kernel *k, uint32_t i)
 {
+    if (k->hooks.unmap != NULL) {
+        k->hooks.unmap(k->hooks.ctx, k->map[i].space - 1u, k->map[i].va, k->map[i].npages);
+    }
     struct joist_cspace_state *s = &k->cs[k->map[i].space - 1u];
     s->charged--;
     s->quota++;
@@ -169,12 +178,19 @@ static void unmap_one(struct joist_kernel *k, uint32_t i)
 
 joist_err joist_unmap(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot, uint64_t va)
 {
-    uint32_t to;
-    joist_err e = joist__control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &to);
+    uint32_t to = 0;
+    joist_err e;
+    if (task_slot != JOIST_SLOT_SELF) {
+        e = joist__control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &to);
+    } else if (cs >= JOIST_MAX_CSPACES) {
+        e = JOIST_E_RANGE;
+    } else {
+        e = joist__usable(k, cs) ? JOIST_OK : JOIST_E_DEAD;
+    }
     if (e != JOIST_OK) {
         return e;
     }
-    uint32_t space = k->obj[to].target - 1u;
+    uint32_t space = task_slot == JOIST_SLOT_SELF ? cs : k->obj[to].target - 1u;
     for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
         JOIST_WORK(k);
         if (k->map[i].space == space + 1u && k->map[i].va == va) {
