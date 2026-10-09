@@ -97,3 +97,12 @@ map-destroy-keeps @@ ../kernel/core/task.c @@ joist__space_unmap_all(k, s); /* i
 map-split-shared @@ ../kernel/core/map.c @@ if (f->refs != 1) { @@ if (0) {
 map-boot-overlap @@ ../kernel/core/map.c @@ if (o->type == JOIST_OBJ_FRAME && base < o->base + o->npages && o->base < base + npages) { @@ if (o->type == JOIST_OBJ_FRAME && 0) {
 map-split-mapped @@ ../kernel/core/map.c @@ if (k->map[i].space != 0 && k->map[i].frame == fo + 1u) { @@ if (0) {
+# Preemptible destruction (Phase 3 step 3; 0016; TLA+'s rule).
+pre-dying-usable @@ ../kernel/core/internal.h @@ return k->cs[cs].live && !k->cs[cs].dying; @@ return k->cs[cs].live;
+pre-begin-keeps-threads @@ ../kernel/core/task.c @@     joist__threads_destroy_owned(k, s); @@     (void)s;
+pre-unreachable-deferred @@ ../kernel/core/task.c @@         joist__space_destroy(k, o->target - 1u); @@         pending_push(k, o->target - 1u);
+pre-sweep-skips @@ ../kernel/core/task.c @@             st->sweep++; @@             st->sweep += 2u;
+pre-limit-ignored @@ ../kernel/core/task.c @@ if (k->preempt != 0 && done >= k->preempt) { @@ if (k->preempt != 0 && done >= k->preempt && 0) {
+pre-finish-early @@ ../kernel/core/task.c @@ if (st->sweep < JOIST_CSPACE_SLOTS) { @@ if (st->sweep < JOIST_CNODE_LEAF) {
+pre-reap-dying @@ ../kernel/core/task.c @@ if (!joist__usable(k, target)) { /* dead, or already dying */ @@ if (!k->cs[target].live) {
+pre-descendant-dying @@ ../kernel/core/task.c @@ if (joist__usable(k, s) && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && is_descendant(k, cs, s)) {

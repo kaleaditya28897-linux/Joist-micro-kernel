@@ -56,6 +56,7 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_SPLIT] = "split",
                                         [JX_MAP] = "map",
                                         [JX_UNMAP] = "unmap",
+                                        [JX_CONTINUE] = "continue",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -70,7 +71,7 @@ static const uint8_t weight[JX_OPS] = {
     [JX_RECV_SLOTS] = 3,   [JX_SC_CREATE] = 3,     [JX_SC_BIND] = 4,     [JX_SC_UNBIND] = 2,
     [JX_SET_MCP] = 1,      [JX_REGS] = 2,          [JX_ABORT] = 2,       [JX_SUSPEND] = 1,
     [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,       [JX_SPLIT] = 2,
-    [JX_MAP] = 4,          [JX_UNMAP] = 2,
+    [JX_MAP] = 4,          [JX_UNMAP] = 2,         [JX_CONTINUE] = 4,
     [JX_TICK] = 6};
 
 static uint64_t boot_budget;
@@ -79,7 +80,8 @@ int jx_op_cascades(unsigned op)
 {
     return op == JX_SPACE_DESTROY || op == JX_DELETE || op == JX_TASK_DESTROY || op == JX_KILL ||
            op == JX_TH_DESTROY || op == JX_REAP ||
-           op == JX_FAULT; /* a fault with no handler destroys its task (0009) */
+           op == JX_FAULT || /* a fault with no handler destroys its task (0009) */
+           op == JX_CONTINUE;
 }
 
 static uint32_t ch(struct jx_source *src, uint32_t n)
@@ -530,6 +532,9 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         unsigned perms = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 3);
         return joist_map(k, ms, pick_slot(k, src, ms, JOIST_OBJ_FRAME), ts, va, perms);
     }
+    case JX_CONTINUE:
+        /* Resume pending destruction: a few slots, or to the end. */
+        return joist_continue(k, ch(src, 4) == 0 ? 0 : 1u + ch(src, 4));
     case JX_FAULT:
         return joist_fault(k, pick_thread(k, src, 0), 1u + ch(src, 5), step, ch(src, 16));
     case JX_GROW:
@@ -574,6 +579,11 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     struct last ls = {0};
 
     int bad = 0;
+    /* A third of operations run with a small preemption limit (0016): any
+     * destruction they start or cause stops after a few slots and is left
+     * half done, for every other operation to meet, with every invariant
+     * checked in between. */
+    k->preempt = ch(src, 3) == 0 ? 1u + ch(src, 4) : 0;
     uint64_t w0 = k->work;
     why[0] = '\0';
     joist_err e = apply(k, src, op, st->steps, &ls, &bad, why, whylen);
@@ -618,6 +628,8 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
             break;
         }
     }
+    st->dying += (unsigned long)(k->npending != 0);
+    st->dying_deep += (unsigned long)(k->npending > 1u);
     st->lent += (unsigned long)any_lent;
     st->chains += (unsigned long)any_chain;
     int delivered = 0; /* SIGNAL: a waiter woke with every signalled bit */
@@ -685,6 +697,12 @@ int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned
 {
     uint32_t root = k->root - 1u;
     joist_cspace d;
+    /* Finish any destruction left half done, then tear down unpreempted. */
+    k->preempt = 0;
+    if (joist_continue(k, 0) != JOIST_OK) {
+        (void)snprintf(why, whylen, "0016: pending destruction didn't finish");
+        return 0;
+    }
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
         if (k->cs[s].live && k->cs[s].fixture) {
             /* A fixture has no parent, so its children would be left with

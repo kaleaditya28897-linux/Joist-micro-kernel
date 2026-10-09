@@ -166,7 +166,7 @@ joist_err joist_fault(struct joist_kernel *k, joist_thread t, uint64_t kind, uin
         (void)joist_thread_destroy(k, t);
     } else {
         joist__space_destroy(k, cs);
-        joist__drain_pending(k);
+        (void)joist__drain_pending(k);
     }
     return JOIST_E_PEER;
 }

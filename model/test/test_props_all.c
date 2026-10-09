@@ -104,11 +104,14 @@ JT_TEST(props_all_invariants_hold)
     fprintf(stderr, "  coverage faults        %lu to a handler, %lu with none (task or thread ended)\n",
             st.faults_taken, st.faults_fatal);
     fprintf(stderr, "  coverage memory        %lu steps with a mapping standing\n", st.mapped);
+    fprintf(stderr, "  coverage preemption    %lu steps with a destruction half done, %lu with two or more\n",
+            st.dying, st.dying_deep);
     if (one == NULL || *one == '\0') {
         /* The full run must actually move capabilities and skip some. */
         JT_CHECK(st.caps_moved > 100 && st.caps_skipped > 100);
         JT_CHECK(st.lent > 100 && st.chains > 10);
         JT_CHECK(st.faults_taken > 100 && st.faults_fatal > 100);
         JT_CHECK(st.mapped > 1000);
+        JT_CHECK(st.dying > 1000 && st.dying_deep > 10);
     }
 }

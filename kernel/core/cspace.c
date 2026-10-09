@@ -38,7 +38,7 @@ static joist_err get_space(struct joist_kernel *k, joist_cspace cs, struct joist
     if (cs >= JOIST_MAX_CSPACES) {
         return JOIST_E_RANGE;
     }
-    if (!k->cs[cs].live) {
+    if (!joist__usable(k, cs)) {
         return JOIST_E_DEAD;
     }
     *out = &k->cs[cs];
@@ -390,7 +390,7 @@ joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot s
         return JOIST_E_EMPTY;
     }
     joist__cap_delete_slot(k, cs, slot);
-    joist__drain_pending(k);
+    (void)joist__drain_pending(k);
     return JOIST_OK;
 }
 
@@ -405,7 +405,7 @@ joist_err joist_cspace_destroy(struct joist_kernel *k, joist_cspace cs)
         return JOIST_E_STATE; /* the root task never dies (0013) */
     }
     joist__space_destroy(k, cs);
-    joist__drain_pending(k);
+    (void)joist__drain_pending(k);
     return JOIST_OK;
 }
 
@@ -415,7 +415,7 @@ joist_err joist_cap_read(const struct joist_kernel *k, joist_cspace cs, joist_sl
     if (cs >= JOIST_MAX_CSPACES || slot >= JOIST_CSPACE_SLOTS) {
         return JOIST_E_RANGE;
     }
-    if (!k->cs[cs].live) {
+    if (!joist__usable(k, cs)) {
         return JOIST_E_DEAD;
     }
     const struct joist_cap *c = joist__slot_c(k, cs, slot);

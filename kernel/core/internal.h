@@ -4,6 +4,13 @@
 
 #include "joist/core.h"
 
+/* A space operations may act on: live, and not being destroyed (0016: a
+ * dying space acts as dead and accepts no capability). */
+static inline int joist__usable(const struct joist_kernel *k, uint32_t cs)
+{
+    return k->cs[cs].live && !k->cs[cs].dying;
+}
+
 #include <stddef.h>
 
 /* The core builds both on the host (model/'s tests) and freestanding in the
@@ -115,7 +122,8 @@ void joist__reply_obj_freed(struct joist_kernel *k, uint32_t obj);
 
 /* Task lifecycle (task.c). */
 void joist__space_destroy(struct joist_kernel *k, uint32_t s);
-void joist__drain_pending(struct joist_kernel *k);
+/* Sweep the work list; 1 if k->preempt stopped it with work left. */
+int joist__drain_pending(struct joist_kernel *k);
 void joist__lifecycle_freed(struct joist_kernel *k, uint32_t obj);
 /* Delete one capability with no argument checks and no draining. */
 void joist__cap_delete_slot(struct joist_kernel *k, uint32_t s, joist_slot slot);

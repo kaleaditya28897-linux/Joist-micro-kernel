@@ -60,6 +60,7 @@ enum {
     JX_SPLIT,
     JX_MAP,
     JX_UNMAP,
+    JX_CONTINUE,
     JX_TICK,
     JX_OPS
 };
@@ -77,6 +78,8 @@ struct jx_stats {
     unsigned long faults_taken; /* faults delivered to a handler */
     unsigned long faults_fatal; /* faults with no handler: task or thread ended */
     unsigned long mapped;       /* steps that left a mapping standing */
+    unsigned long dying;        /* steps that left a destruction half done (0016) */
+    unsigned long dying_deep;   /* ... with two or more spaces on the work list */
     unsigned long sequences;
     unsigned long cycles; /* tasks left alive at teardown only by holding each other */
     unsigned long steps;

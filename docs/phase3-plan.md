@@ -447,3 +447,41 @@ mutations, all caught (seven by I12 or I3 in the random run). Checked per
 the agreed routine: `make check` in `model/` (all six builds), the new
 mutations, and the kernel's freestanding compile and `clang-tidy`.
 
+### Step 3, part 6: preemptible destruction (2026-10-09)
+
+Decision 0016's preemption points in the model (`kernel/core/task.c`),
+closing `docs/abi.md`'s open item 2. Destruction is now three parts:
+**begin** (bounded: the space becomes `dying`, which every entry point
+treats as dead through `joist__usable`, so nothing can be put into it,
+TLA+'s rule; its task object dies; its threads are destroyed; it goes on
+the work list), **sweep** (one slot per unit of work, from the space's own
+cursor `sweep`, skipping absent leaves; a task made unreachable begins its
+own destruction at once and is pushed on top, so the newest is swept first
+and the older resumes later), and **finish** (bounded: leaves, mappings,
+children, quota and charges to the parent). `k->preempt` limits the slots
+one operation sweeps (0: no limit, the old behaviour); `joist_continue`
+resumes. A task made unreachable begins its destruction in the same
+operation, even when its sweep waits, so a doomed task never has a window
+to receive a capability.
+
+New checks: the work list holds exactly the dying spaces, once each; a
+dying space has no task object and owns no threads; and **no capability
+sits in a slot its sweep has passed**, TLA+'s SpaceEmptied as a C check.
+The checker no longer forbids pending work.
+
+Tests: `test/test_preempt.c`, 6 unit tests (destruction in single-slot
+steps with every intermediate state checked, a dying space refusing every
+operation and every way in for a capability, a cascade swept newest first
+with the older resuming after it, an unreachable task dying at once, a
+fault with no handler destroying in steps, and the checker seeing the
+leak). The executor sets a random limit of 1 to 4 slots on a third of its
+operations and resumes with a `continue` operation, so everything else runs
+against half-done destructions: 45 325 steps with one pending, 6 462 with
+two or more, every invariant checked after each. Eight mutations, all
+caught (five by the invariants in the random run).
+
+With this, step 3's model work is done: everything the plan put in the
+model for Phase 3 (the table, transfer, scheduling contexts and donation,
+thread state and faults, frames and mappings, preemption points) is in
+`kernel/core/` and tested. Revoke and 0011's batched copy are Phase 4's.
+

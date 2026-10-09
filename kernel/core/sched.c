@@ -28,7 +28,7 @@ joist_err joist__control_cap(const struct joist_kernel *k, joist_cspace cs, jois
     if (cs >= JOIST_MAX_CSPACES) {
         return JOIST_E_RANGE;
     }
-    if (!k->cs[cs].live) {
+    if (!joist__usable(k, cs)) {
         return JOIST_E_DEAD;
     }
     const struct joist_cap *c = joist__slot_c(k, cs, slot);
@@ -58,7 +58,7 @@ joist_err joist_sc_create(struct joist_kernel *k, joist_cspace cs, joist_slot ds
         return JOIST_E_RANGE;
     }
     struct joist_cspace_state *s = &k->cs[cs];
-    if (!s->live) {
+    if (!joist__usable(k, cs)) {
         return JOIST_E_DEAD;
     }
     struct joist_cap *d = joist__slot(k, cs, dst);

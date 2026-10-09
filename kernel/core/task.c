@@ -1,14 +1,27 @@
 /* task.c - tasks and threads as capability-named objects, boot, and task
  * destruction (Phase 1 work item 4; invariants I1, I3; decisions 0004, 0010,
- * 0013).
+ * 0013, 0016).
  *
  * Destruction cascades: destroying a task deletes its capabilities, and if
  * one was the last capability to another live task, that task becomes
- * unreachable and must go too. That is done with a work list (k->pending),
- * drained by a loop, never by recursion; each space is destroyed once. The
- * total work is bounded by the table sizes but not per operation: this is the
- * case decision 0003 means by "revoke may block the caller", and the kernel
- * will have to make it preemptible. Recorded as open in docs/phase1-plan.md. */
+ * unreachable and must go too. It is done in three parts (decision 0016,
+ * Phase 3 step 3), checked against the order the TLA+ model verified
+ * (model/tla/IpcDelete.tla):
+ *
+ *  1. begin (joist__space_destroy), bounded: the space becomes *dying*, so
+ *     every operation treats it as dead and nothing can put a capability
+ *     into it (TLA+'s rule); its task object dies; its threads are
+ *     destroyed; it goes on the work list (k->pending).
+ *  2. sweep, one slot per unit of work, from the space's own cursor: the
+ *     preemptible part. A deletion that makes another task unreachable
+ *     begins that task's destruction at once and pushes it on top, so the
+ *     newest is swept first and the older one resumes at its cursor later.
+ *     No recursion: a loop over the work list.
+ *  3. finish, bounded: free its leaves and mappings, hand its children,
+ *     quota and charges to its parent, and mark it dead.
+ *
+ * With k->preempt nonzero, a sweep stops after that many slots and the
+ * operation returns with the rest pending, for joist_continue. */
 #include "internal.h"
 
 /* ---- the destruction work list ---- */
@@ -24,47 +37,34 @@ static void pending_push(struct joist_kernel *k, uint32_t s)
     k->pending[k->npending++] = s;
 }
 
-void joist__drain_pending(struct joist_kernel *k)
-{
-    while (k->npending != 0) {
-        JOIST_WORK(k);
-        uint32_t s = k->pending[--k->npending];
-        joist__space_destroy(k, s);
-    }
-}
-
 void joist__space_destroy(struct joist_kernel *k, uint32_t s)
 {
     struct joist_cspace_state *st = &k->cs[s];
-    if (!st->live) {
-        return;
+    if (!st->live || st->dying) {
+        return; /* already gone, or already going */
     }
-    /* Dead first, so deleting this task's own last capability during the
-     * teardown below does not queue it again. */
+    /* Dying first, so nothing is put into it from here on, and deleting this
+     * task's own last capability during the sweep doesn't begin it again. */
+    st->dying = 1;
+    st->sweep = 0;
     if (st->task_obj != 0) {
         k->obj[st->task_obj - 1u].dead = 1;
         st->task_obj = 0;
     }
     /* Threads before capabilities: they may hold reply capabilities whose
-     * callers must wake. */
+     * callers must wake, and with them gone nothing in the space can act. */
     joist__threads_destroy_owned(k, s);
-    /* Leaf by leaf, skipping absent ones; then the emptied leaves go back to
-     * the pool, their units to this space's quota, which goes to the parent
-     * below with the rest. */
-    for (uint32_t l = 0; l < JOIST_CNODE_ROOT; l++) {
+    pending_push(k, s);
+}
+
+/* Part 3: everything a fully swept space still owns goes to its parent. */
+static void space_finish(struct joist_kernel *k, uint32_t s)
+{
+    struct joist_cspace_state *st = &k->cs[s];
+    for (uint32_t l = 1; l < JOIST_CNODE_ROOT; l++) {
         JOIST_WORK(k);
-        if (joist__leaf_slots_c(k, s, l) == NULL) {
-            continue;
-        }
-        for (uint32_t i = 0; i < JOIST_CNODE_LEAF; i++) {
-            JOIST_WORK(k);
-            joist_slot slot = l * JOIST_CNODE_LEAF + i;
-            if (joist__slot_c(k, s, slot)->obj != 0) {
-                joist__cap_delete_slot(k, s, slot); /* may queue unreachable tasks */
-            }
-        }
-        if (l != 0) {
-            joist__leaf_free(k, s, l);
+        if (st->leaf[l] != 0) {
+            joist__leaf_free(k, s, l); /* empty: swept */
         }
     }
     joist__space_unmap_all(k, s); /* its page tables go; the units to its quota */
@@ -98,7 +98,48 @@ void joist__space_destroy(struct joist_kernel *k, uint32_t s)
     st->quota = 0;
     st->parent = 0;
     st->fixture = 0;
+    st->dying = 0;
+    st->sweep = 0;
     st->live = 0;
+}
+
+int joist__drain_pending(struct joist_kernel *k)
+{
+    uint32_t done = 0;
+    while (k->npending != 0) {
+        JOIST_WORK(k);
+        uint32_t s = k->pending[k->npending - 1u];
+        struct joist_cspace_state *st = &k->cs[s];
+        if (st->sweep < JOIST_CSPACE_SLOTS) {
+            if (k->preempt != 0 && done >= k->preempt) {
+                return 1; /* a preemption point: the rest waits for joist_continue */
+            }
+            done++;
+            joist_slot slot = st->sweep;
+            if (slot % JOIST_CNODE_LEAF == 0 && joist__leaf_slots_c(k, s, slot / JOIST_CNODE_LEAF) == NULL) {
+                st->sweep += JOIST_CNODE_LEAF; /* an absent leaf: nothing to sweep */
+                continue;
+            }
+            st->sweep++;
+            if (joist__slot_c(k, s, slot)->obj != 0) {
+                joist__cap_delete_slot(k, s, slot); /* may begin unreachable tasks */
+            }
+            continue;
+        }
+        /* Fully swept, and on top: nothing pushed since is left. */
+        k->npending--;
+        space_finish(k, s);
+    }
+    return 0;
+}
+
+joist_err joist_continue(struct joist_kernel *k, uint32_t budget)
+{
+    uint32_t saved = k->preempt;
+    k->preempt = budget;
+    int more = joist__drain_pending(k);
+    k->preempt = saved;
+    return more ? JOIST_BLOCKED : JOIST_OK;
 }
 
 /* The last capability to a task or thread object is gone. */
@@ -106,11 +147,11 @@ void joist__lifecycle_freed(struct joist_kernel *k, uint32_t obj)
 {
     struct joist_object *o = &k->obj[obj];
     if (o->type == JOIST_OBJ_TASK && !o->dead && o->target != 0) {
-        /* Unreachable now: destroy it, from the work list. The space's
-         * back-pointer is cleared first, because this object is about to be
-         * freed and its slot may be reused. */
-        k->cs[o->target - 1u].task_obj = 0;
-        pending_push(k, o->target - 1u);
+        /* Unreachable now: its destruction begins at once (dying, threads
+         * gone, on the work list), so no window is left in which a doomed
+         * task could still receive a capability. Beginning clears the
+         * space's back-pointer to this object, which is about to be freed. */
+        joist__space_destroy(k, o->target - 1u);
     }
     if (o->type == JOIST_OBJ_THREAD && !o->dead && o->target != 0) {
         uint32_t t = o->target - 1u;
@@ -142,7 +183,7 @@ static joist_err space_live(const struct joist_kernel *k, joist_cspace cs)
     if (cs >= JOIST_MAX_CSPACES) {
         return JOIST_E_RANGE;
     }
-    return k->cs[cs].live ? JOIST_OK : JOIST_E_DEAD;
+    return joist__usable(k, cs) ? JOIST_OK : JOIST_E_DEAD;
 }
 
 static int free_object(struct joist_kernel *k, uint32_t *out)
@@ -255,7 +296,7 @@ joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot
         return e;
     }
     joist__space_destroy(k, k->obj[obj].target - 1u);
-    joist__drain_pending(k);
+    (void)joist__drain_pending(k);
     return JOIST_OK;
 }
 
@@ -284,7 +325,7 @@ joist_err joist_task_reap(struct joist_kernel *k, joist_cspace cs, joist_cspace 
     if (target >= JOIST_MAX_CSPACES) {
         return JOIST_E_RANGE;
     }
-    if (!k->cs[target].live) {
+    if (!joist__usable(k, target)) { /* dead, or already dying */
         return JOIST_E_DEAD;
     }
     /* The authority is ancestry: the parent chain records who donated the
@@ -294,7 +335,7 @@ joist_err joist_task_reap(struct joist_kernel *k, joist_cspace cs, joist_cspace 
         return JOIST_E_RIGHTS;
     }
     joist__space_destroy(k, target);
-    joist__drain_pending(k);
+    (void)joist__drain_pending(k);
     return JOIST_OK;
 }
 
@@ -310,7 +351,7 @@ joist_err joist_task_descendant(struct joist_kernel *k, joist_cspace cs, joist_c
     }
     for (uint32_t s = from; s < JOIST_MAX_CSPACES; s++) {
         JOIST_WORK(k);
-        if (k->cs[s].live && is_descendant(k, cs, s)) {
+        if (joist__usable(k, s) && is_descendant(k, cs, s)) {
             *out = s;
             return JOIST_OK;
         }
@@ -392,20 +433,67 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
         }                                                                                          \
     } while (0)
 
-    if (k->npending != 0) {
-        VIOLATION("I1: %u task destructions left pending", k->npending);
+    /* 0016: the work list holds exactly the dying spaces, once each. */
+    if (k->npending > JOIST_MAX_CSPACES) {
+        VIOLATION("0016: work list length %u", k->npending);
+    }
+    for (uint32_t i = 0; i < k->npending && i < JOIST_MAX_CSPACES; i++) {
+        uint32_t ps = k->pending[i];
+        if (ps >= JOIST_MAX_CSPACES || !k->cs[ps].live || !k->cs[ps].dying) {
+            VIOLATION("0016: work list entry %u is space %u, not a dying one", i, ps);
+            continue;
+        }
+        for (uint32_t j = i + 1u; j < k->npending && j < JOIST_MAX_CSPACES; j++) {
+            if (k->pending[j] == ps) {
+                VIOLATION("0016: space %u is on the work list twice", ps);
+            }
+        }
     }
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
         const struct joist_cspace_state *st = &k->cs[s];
         sum += st->charged;
         if (!st->live) {
-            if (st->quota != 0 || st->parent != 0 || st->task_obj != 0 || st->fixture) {
+            if (st->quota != 0 || st->parent != 0 || st->task_obj != 0 || st->fixture ||
+                st->dying || st->sweep != 0) {
                 VIOLATION("I3: dead space %u still has quota %u, parent %u or task %u", s,
                           st->quota, st->parent, st->task_obj);
             }
             continue;
         }
         sum += st->quota;
+        if (st->dying) {
+            /* 0016, and TLA+'s rule: a dying space is on the work list, has
+             * no task object or threads, and nothing has been put into a
+             * slot its sweep has passed (that capability would leak). */
+            int listed = 0;
+            for (uint32_t i = 0; i < k->npending && i < JOIST_MAX_CSPACES; i++) {
+                listed |= k->pending[i] == s;
+            }
+            if (!listed) {
+                VIOLATION("0016: dying space %u is not on the work list", s);
+            }
+            if (st->task_obj != 0) {
+                VIOLATION("0016: dying space %u still has a task object", s);
+            }
+            for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+                if (k->th[t].state != JOIST_T_FREE && k->th[t].cs == s) {
+                    VIOLATION("0016: dying space %u still owns thread %u", s, t);
+                }
+            }
+            if (st->sweep > JOIST_CSPACE_SLOTS) {
+                VIOLATION("0016: dying space %u sweep cursor %u", s, st->sweep);
+            }
+            for (uint32_t i = 0; i < st->sweep && i < JOIST_CSPACE_SLOTS; i++) {
+                const struct joist_cap *c = joist__slot_c(k, s, i);
+                if (c != NULL && c->obj != 0) {
+                    VIOLATION("TLA+ SpaceEmptied: dying space %u has a capability in swept slot %u",
+                              s, i);
+                    break;
+                }
+            }
+        } else if (st->sweep != 0) {
+            VIOLATION("0016: space %u isn't dying but has sweep cursor %u", s, st->sweep);
+        }
         /* The parent chain is live and acyclic. */
         /* 0004 amendment: every task but the root has an ancestor who can
          * reap it. (Fixtures, made by the test-only joist_cspace_create,
@@ -423,7 +511,7 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
             p = k->cs[p - 1u].parent;
         }
         /* I1: a space nothing can name is destroyed, not left running. */
-        if (st->task_obj == 0 && !st->fixture && k->root != s + 1u) {
+        if (st->task_obj == 0 && !st->fixture && !st->dying && k->root != s + 1u) {
             VIOLATION("I1: space %u is alive but no task object names it", s);
         }
         /* Every index is range-checked before use: the checker must report a

@@ -334,6 +334,12 @@ struct joist_cspace_state {
                           context (seL4's MCP); a child starts with its parent's */
     uint32_t fault_slot; /* the task's fault handler, for threads without their own:
                             a slot in this space plus one, 0 for none (0009) */
+    /* Destruction in progress (decision 0016): the space is still live, but
+     * acts as dead to every operation and accepts no capability (TLA+'s
+     * rule); its threads are gone, and its slots are being swept from
+     * `sweep` upwards, a few per step. */
+    uint8_t dying;
+    uint32_t sweep;
     /* Leaf 0: slots 0 .. JOIST_CNODE_LEAF - 1. */
     struct joist_cap slot[JOIST_CNODE_LEAF];
     /* The other leaves: leaf[i] is the pool index plus one of leaf i, 0 if
@@ -364,10 +370,16 @@ struct joist_kernel {
      * Quota only leaves when a parentless (fixture) space or its charges die. */
     uint64_t budget;
     uint32_t root; /* the root space, plus one, once booted (0013) */
-    /* Spaces whose destruction is pending: a task's destruction can make other
-     * tasks unreachable, and they are destroyed by a loop, not by recursion. */
+    /* Dying spaces still being swept, the newest on top: destroying a task
+     * can make others unreachable, and they are destroyed by a loop, not by
+     * recursion. Every dying space is here, and only those (0016). */
     uint32_t pending[JOIST_MAX_CSPACES];
     uint32_t npending;
+    /* Preemption (0016): the most slots one operation sweeps before it
+     * returns and leaves the rest to joist_continue; 0 for no limit. The
+     * kernel sets it from whether an interrupt is pending; tests set it to
+     * interleave destruction with everything else. */
+    uint32_t preempt;
     /* Loop iterations run by operations so far (I9; see JOIST_WORK). */
     uint64_t work;
 };
@@ -538,6 +550,12 @@ joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot
  * JOIST_E_RIGHTS (not a strict descendant: itself, the root and fixtures
  * never are). */
 joist_err joist_task_reap(struct joist_kernel *k, joist_cspace cs, joist_cspace target);
+
+/* Continue pending destruction (0016): sweep at most `budget` slots (0: no
+ * limit). JOIST_OK when nothing is left, JOIST_BLOCKED if more remains. The
+ * kernel calls it when the thread that started a destruction runs again;
+ * between calls, every other operation sees dying spaces as dead. */
+joist_err joist_continue(struct joist_kernel *k, uint32_t budget);
 
 /* The first live strict descendant of cs whose id is >= from, in *out, or
  * JOIST_E_EMPTY if there is none: how an ancestor finds a task it holds no

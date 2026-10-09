@@ -226,6 +226,33 @@ queue is dropped: nobody can collect it.
 its notification once, with the registering capability's badge, and is
 freed; every remaining capability to the endpoint then fails with `E_GONE`.
 
+## Task destruction (0016; Phase 3 step 3)
+
+Destroying a task (`task_destroy`, `task_reap`, the last capability to it
+going, a fault with no handler) is done in three parts, in the order the
+TLA+ model verified (`model/tla/IpcDelete.tla`):
+
+1. **Begin**, at once: the task becomes *dying*. Every operation then
+   treats it as dead (`E_DEAD`; `E_GONE` through its task capability), and
+   nothing can put a capability into it: no transfer, grant or creation
+   (TLA+'s rule). Its threads are destroyed, waking whoever waits on them.
+2. **Sweep**, one capability slot per unit of work, from the task's own
+   cursor. Deleting a slot may make another task unreachable; that task's
+   destruction begins at once and is swept first, and the first resumes at
+   its cursor afterwards.
+3. **Finish**, at once: its capability-table leaves and mappings go, and
+   its children, unspent quota and the charges of objects it paid for that
+   still live go to its parent.
+
+The sweep is the only part that can be long, and it is **preemptible**: an
+operation sweeps at most the kernel's preemption limit (`k->preempt`: the
+kernel stops when an interrupt is pending; 0 means no limit) and returns
+with the rest pending. **`continue`** (budget) resumes it: `OK` when nothing
+is left, `BLOCKED` when more remains. Meanwhile everything else runs and
+sees the dying task as dead. The operation that started the destruction
+returns `OK` either way: its own effect, beginning the destruction, is
+done.
+
 ## Frames and mappings (0013, §5.5; Phase 3 step 3)
 
 The kernel manages only page tables and frame capabilities (§5.5). At boot
@@ -346,10 +373,15 @@ lender is waiting for a reply.
 1. ~~**Capability transfer in messages.**~~ Settled in Phase 3 step 3
    (*Capability transfer*, under IPC), with TLA+'s rule (work item 8): a
    transfer into a space whose task is being destroyed does not happen, from
-   the moment the task is marked dead. In the model's atomic destruction that
-   is "the space is dead"; the kernel's preemptible destruction (item 2)
-   must keep it with a dying flag.
-2. **Preemptible cascades (I9, 0003).** Destroying a task or deleting a last
+   the moment the task is marked dead: the space is *dying* (item 2) and
+   accepts nothing.
+2. ~~**Preemptible cascades (I9, 0003).**~~ Settled in Phase 3 step 3
+   (decision 0016, *Task destruction* above): destruction begins at once
+   (dying, threads gone), sweeps one slot per unit of work from a per-space
+   cursor on a work list, and finishes at once; `continue` resumes it. Every
+   intermediate state passes the invariant check, including TLA+'s
+   SpaceEmptied, as a C check that no capability sits in a swept slot.
+   As written in Phase 1: Destroying a task or deleting a last
    capability may cascade; the work is bounded by the tables (measured ~30×
    the largest non-cascading operation) but not per operation. The kernel's
    version must be preemptible, with the model's work list as its
@@ -363,6 +395,7 @@ lender is waiting for a reply.
    each other's task capabilities outlive their last outside capability, and
    any ancestor reclaims them with `task_reap`, found with `task_descendant`.
 4. **Revoke and the batched capability copy** (0003, 0011): not yet in the
-   model.
-5. **Thread state** (register records, TLS base, 0010) and **fault IPC**
-   (0009): outside the model's scope until Phase 3.
+   model; moved to Phase 4, which needs them for `fork` (`docs/phase3-plan.md`,
+   *Scope*).
+5. ~~**Thread state** (register records, TLS base, 0010) and **fault IPC**
+   (0009).~~ Settled in Phase 3 step 3 (*Thread control and faults*).

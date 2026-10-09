@@ -270,7 +270,7 @@ static joist_err space_live(const struct joist_kernel *k, joist_cspace cs)
     if (cs >= JOIST_MAX_CSPACES) {
         return JOIST_E_RANGE;
     }
-    return k->cs[cs].live ? JOIST_OK : JOIST_E_DEAD;
+    return joist__usable(k, cs) ? JOIST_OK : JOIST_E_DEAD;
 }
 
 joist_err joist_bind_nosenders(struct joist_kernel *k, joist_cspace cs, joist_slot ep_slot,

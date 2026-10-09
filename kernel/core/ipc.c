@@ -215,7 +215,7 @@ static void fault_cap(struct joist_kernel *k, uint32_t f, uint32_t r)
     rr->msg.ncaps = 1;
     rr->msg.cap[0] = JOIST_SLOT_NONE;
     uint32_t o = k->th[f].obj;
-    if (o == 0 || rr->nrecv == 0 || !k->cs[rr->cs].live) {
+    if (o == 0 || rr->nrecv == 0 || !joist__usable(k, rr->cs)) {
         return;
     }
     struct joist_cap *d = joist__slot(k, rr->cs, rr->recv_slot[0]);
@@ -244,7 +244,7 @@ joist_err joist_thread_create(struct joist_kernel *k, joist_cspace cs, joist_thr
     if (cs >= JOIST_MAX_CSPACES) {
         return JOIST_E_RANGE;
     }
-    if (!k->cs[cs].live) {
+    if (!joist__usable(k, cs)) {
         return JOIST_E_DEAD;
     }
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
