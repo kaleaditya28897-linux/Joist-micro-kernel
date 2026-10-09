@@ -107,7 +107,8 @@ $(BUILD)/joist.elf: $(IMG_OBJ) arch/x86_64/linker.ld
 
 kernel: $(BUILD)/joist.elf
 
-# Limine's files, from the distribution package (Void: /usr/share/limine).
+# Limine's files: the distribution package's, or the release binaries installed
+# there (joist-dev, docs/testbed.md).
 LIMINE_DIR ?= /usr/share/limine
 # The root task: Phase 2's user programs (../user). ROOT_TASK picks which.
 ROOT_TASK ?= hello
@@ -140,7 +141,9 @@ QEMU ?= qemu-system-x86_64
 QEMU_TIMEOUT ?= 30
 # FIRMWARE=bios (default) or uefi (QEMU's EDK2 build).
 FIRMWARE ?= bios
-UEFI_CODE ?= /usr/share/qemu/edk2-x86_64-code.fd
+# OVMF's code image: the first that exists (Void's edk2 package, Debian's ovmf).
+UEFI_CODE ?= $(firstword $(wildcard /usr/share/qemu/edk2-x86_64-code.fd \
+                                    /usr/share/OVMF/OVMF_CODE_4M.fd) /usr/share/OVMF/OVMF_CODE_4M.fd)
 FW_bios :=
 FW_uefi := -drive if=pflash,format=raw,readonly=on,file=$(UEFI_CODE)
 qemu-test: $(BUILD)/joist.iso

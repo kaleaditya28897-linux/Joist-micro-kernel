@@ -407,3 +407,16 @@ builds; `make mutate`, 80 of 80 caught (10 new); `make cbmc`, 7 of 7
 verified; `make fuzz` 120 s, clean; `make check` in `kernel/`, passing
 (20 sources clean under `clang-tidy`).
 
+### Build and test environment: `joist-dev` (2026-10-09)
+
+The workstation moved to Alpine (musl), where clang 21's sanitizer
+runtimes, `scan-build` and CBMC aren't available. Builds and tests moved to
+VM 113 on pve1 (`docs/testbed.md`), with the same tool versions (clang
+21.1.8, Limine 12.9.2, CBMC 6.11.0, TLA+ v1.7.4); `tools/dev/remote.sh`
+runs a command there on the current working tree. `make check` in `model/`
+and `kernel/` passed there in full before any further work. `mutate.sh`
+now runs mutations in parallel (80 in 13 minutes on 12 vCPUs). From here,
+each part of step 3 runs its new mutations; the whole suite (with CBMC,
+fuzzing and the kernel check) runs once at the end of the step, as agreed
+with the project owner.
+

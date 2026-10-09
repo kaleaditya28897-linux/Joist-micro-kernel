@@ -1,8 +1,45 @@
 # Testbeds
 
-The project runs two live VMs on **pvehome**: VM 111, the Debian GNU/Hurd
-testbed for measurements, and VM 112, which boots the Joist kernel itself. A
-third, VM 110, is retired.
+Three live VMs. On **pvehome**: VM 111, the Debian GNU/Hurd testbed for
+measurements, and VM 112, which boots the Joist kernel itself (and runs the
+benchmarks). On **pve1**: VM 113, `joist-dev`, where everything is built and
+tested since 2026-10-09. A fourth, VM 110, is retired.
+
+## VM 113: `joist-dev`, the build and test VM (pve1)
+
+Created 2026-10-09, when the workstation moved from Void (glibc) to Alpine
+(musl): Alpine has clang 21 but its sanitizer runtimes and `scan-build` only
+for clang 22, and no CBMC, while decision 0002 pins clang 21. Rather than
+change the pin or the workstation, the toolchain lives in a Debian VM; the
+workstation only edits, commits and pushes.
+
+| | |
+|---|---|
+| Host | pve1 (cluster `kale-cluster` with pve2): Xeon E5-2670 (Sandy Bridge), 16 threads, 31 GB, ZFS |
+| VM | VMID **113**, `joist-dev`; q35, `cpu host` (nested KVM: `/dev/kvm` works inside), 12 vCPUs, 16 GB, 60 GB on `local-zfs`, `onboot 1` |
+| OS | Debian 13.7 from the official `debian-13-genericcloud-amd64.qcow2` (SHA-512 checked against Debian's `SHA512SUMS`), cloud-init user `aditya` with the workstation's key |
+| Address | <lan-address> on pve1's LAN (DHCP lease); reached as `ssh joist-dev`, jumping through `root@pve1` (<pve1-address>) |
+
+Toolchain, each pinned to what the project used before:
+
+| Tool | Version | Source, verification |
+|---|---|---|
+| clang, LLD, clang-tidy, clang-format, `scan-build`, LLVM tools, sanitizer and libFuzzer runtimes | **21.1.8** | apt.llvm.org `llvm-toolchain-trixie-21`, key fingerprint `6084 F3CF 814B 57C1 CF12 EFD5 15CF 4D18 AF4F 7421`; `clang`, `ld.lld` etc. linked in `/usr/local/bin` |
+| Limine | **12.9.2** | GitHub release `limine-binary.tar.xz`, SHA-256 `07d01fd0139f76afd510d9a8d7805af730ef7f6a55eb5cf23500f132283829de`, signature good from Mintsuki, key `05D2 9860 D0A0 668A AEFB 9D69 1F3C 021B ECA2 3821`; files in `/usr/local/share/limine` (linked as `/usr/share/limine`), the tool built with clang 21 |
+| CBMC | **6.11.0** | `ubuntu-24.04-cbmc-6.11.0-Linux.deb`, SHA-256 as in `docs/phase1-plan.md` |
+| TLA+ tools | **v1.7.4** (TLC 2.19) | `tla2tools.jar`, SHA-256 as in `docs/phase1-plan.md`; `/usr/local/bin/tlc` wraps it |
+| QEMU | 10.0.13 | Debian `1:10.0.13+ds-0+deb13u1` (the workstation had 11.1.1; the kernel's tests don't depend on the difference) |
+| OVMF, xorriso, gdb, OpenJDK | 2025.02, 1.5.6, 16.3, 21.0.12 | Debian `2025.02-8+deb13u1`, `1.5.6-1.2+b1`, `16.3-1`, `21.0.12.1+1-1~deb13u1` |
+
+**How it's used:** `tools/dev/remote.sh 'command'` copies the working tree as
+it is (uncommitted edits included; `.git` and build directories excluded,
+so builds there stay incremental) to `~/joist` on the VM and runs the
+command there, e.g. `tools/dev/remote.sh 'make -C model check'`. The first
+run there of `make check` in `model/` and in `kernel/` passed in full
+(2026-10-09, 21 minutes for both). `make mutate` runs its mutations in
+parallel there (`MUTATE_JOBS`, default all CPUs): all 80 in 13 minutes,
+against about an hour one at a time on the workstation.
+
 
 ## VM 112: the Joist kernel test VM
 

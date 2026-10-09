@@ -20,6 +20,7 @@ make            # build and run the tests (plain)
 make check      # the same tests under plain, ASan, UBSan, MSan, TSan and small
 make sanity     # prove each sanitizer is live: a seeded bug must be caught
 make mutate     # prove the property tests catch each bug in test/mutations.txt
+                #   (MUTATE_ONLY=regex for a subset, MUTATE_JOBS=n at once; default: all CPUs)
 make fuzz       # libFuzzer over the whole model (FUZZ_TIME=seconds, default 60)
 make fuzz-sanity  # prove the fuzzer crashes on a set of injected bugs
 make tla        # TLC on tla/IpcDelete.tla: IPC racing a preemptible destruction
