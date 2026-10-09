@@ -550,3 +550,14 @@ earlier remote build ran arrived older than that build's output, and make
 skipped it (seen once: a kernel test binary one test short). It now copies
 by content and gives copied files the time of the copy.
 
+### Step 4, part 2: giving a task capabilities (2026-10-09)
+
+A task starts with an empty capability space, and nothing so far let its
+creator put anything there (the model's tests used an internal stand-in).
+`joist_cap_give` copies a capability with GRANT into a slot of a task named
+by a task capability with CONTROL, rights masked, badge kept: how the root
+task (0013) hands the tasks it starts their endpoints. One unit test (the
+copy and every refusal), an executor operation (373 successes in the full
+run), and two mutations (the mask ignored, the CONTROL check bypassed), both
+caught.
+

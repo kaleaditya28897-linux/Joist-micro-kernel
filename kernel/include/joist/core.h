@@ -457,6 +457,17 @@ joist_err joist_cap_derive(struct joist_kernel *k, joist_cspace cs, joist_slot s
 joist_err joist_cap_mint(struct joist_kernel *k, joist_cspace cs, joist_slot src, joist_slot dst,
                          joist_rights mask, joist_badge badge);
 
+/* Give a task a capability: copy the capability in cs's slot src (which
+ * needs GRANT) into slot dst of the task named by task_slot (which needs
+ * CONTROL), keeping only the rights in mask (I8). How a task's creator
+ * hands it its first capabilities (the root task, 0013, setting up the
+ * tasks it starts). Results: as for a task capability with CONTROL
+ * (JOIST_E_RANGE/JOIST_E_DEAD for cs, then JOIST_E_RANGE, JOIST_E_EMPTY,
+ * JOIST_E_TYPE, JOIST_E_RIGHTS, JOIST_E_GONE), then JOIST_E_RANGE (src or
+ * dst), JOIST_E_EMPTY (src), JOIST_E_RIGHTS (no GRANT), JOIST_E_OCCUPIED. */
+joist_err joist_cap_give(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                         joist_slot src, joist_slot dst, joist_rights mask);
+
 /* Delete the capability in slot. Deleting the last capability to an object
  * destroys it and refunds its donor. */
 joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot slot);

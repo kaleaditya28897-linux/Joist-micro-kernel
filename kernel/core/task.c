@@ -309,6 +309,22 @@ joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot
     return JOIST_OK;
 }
 
+joist_err joist_cap_give(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                         joist_slot src, joist_slot dst, joist_rights mask)
+{
+    uint32_t obj;
+    joist_err e = space_live(k, cs);
+    if (e == JOIST_OK) {
+        e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj);
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    /* The copy itself, with its checks and accounting: the target is alive
+     * (its task capability isn't dead), so not dying either. */
+    return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, mask);
+}
+
 /* Is space s a strict descendant of space anc (anc on s's parent chain)?
  * Bounded by JOIST_MAX_CSPACES: parent chains are acyclic (an invariant),
  * and the walk stops after that many steps regardless. */

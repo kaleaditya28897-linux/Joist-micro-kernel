@@ -57,6 +57,7 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_MAP] = "map",
                                         [JX_UNMAP] = "unmap",
                                         [JX_CONTINUE] = "continue",
+                                        [JX_GIVE] = "give",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -71,7 +72,7 @@ static const uint8_t weight[JX_OPS] = {
     [JX_RECV_SLOTS] = 3,   [JX_SC_CREATE] = 3,     [JX_SC_BIND] = 4,     [JX_SC_UNBIND] = 2,
     [JX_SET_MCP] = 1,      [JX_REGS] = 2,          [JX_ABORT] = 2,       [JX_SUSPEND] = 1,
     [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,       [JX_SPLIT] = 2,
-    [JX_MAP] = 4,          [JX_UNMAP] = 2,         [JX_CONTINUE] = 4,
+    [JX_MAP] = 4,          [JX_UNMAP] = 2,         [JX_CONTINUE] = 4,       [JX_GIVE] = 4,
     [JX_TICK] = 6};
 
 static uint64_t boot_budget;
@@ -671,6 +672,18 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         uint64_t va = ch(src, 16) == 0 ? JOIST_USER_PAGES - ch(src, 40) : 0x400u + 8u * ch(src, 8);
         unsigned perms = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 3);
         return joist_map(k, ms, pick_slot(k, src, ms, JOIST_OBJ_FRAME), ts, va, perms);
+    }
+    case JX_GIVE: {
+        /* Into a task this space holds, a free slot there 3 times in 4. */
+        uint32_t ts = pick_slot(k, src, cs, JOIST_OBJ_TASK);
+        const struct joist_cap *tc = cs < JOIST_MAX_CSPACES ? joist__slot_c(k, cs, ts) : NULL;
+        uint32_t target = tc != NULL && tc->obj != 0 && tc->type == JOIST_OBJ_TASK
+                              ? k->obj[tc->obj - 1u].target
+                              : 0;
+        uint32_t d = target != 0 && target <= JOIST_MAX_CSPACES ? pick_dst(k, src, target - 1u)
+                                                               : ch(src, JOIST_CSPACE_SLOTS + 1u);
+        joist_rights mask = ch(src, 3) == 0 ? (joist_rights)ch(src, 16) : JOIST_R_ALL;
+        return joist_cap_give(k, cs, ts, pick_slot(k, src, cs, JOIST_OBJ_NONE), d, mask);
     }
     case JX_CONTINUE:
         /* Resume pending destruction: a few slots, or to the end. */

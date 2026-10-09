@@ -447,3 +447,31 @@ JT_TEST(fixture_children_go_to_root)
     JT_CHECK(!k.cs[c].live);
     JT_CHECK(clean());
 }
+
+JT_TEST(cap_give_to_a_child)
+{
+    /* A creator hands a new task its first capabilities through the task
+     * capability (0013's root setting up the tasks it starts). */
+    boot();
+    JT_REQUIRE(joist_task_create(&k, root, 10, 0) == JOIST_OK);
+    joist_cspace t = space_of(root, 0);
+    JT_REQUIRE(joist_obj_create(&k, root, JOIST_OBJ_ENDPOINT, 1) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, root, 1, 2, JOIST_R_SEND | JOIST_R_GRANT, 9) == JOIST_OK);
+    JT_REQUIRE(joist_cap_give(&k, root, 0, 2, 5, JOIST_R_SEND) == JOIST_OK);
+    struct joist_cap c;
+    JT_REQUIRE(joist_cap_read(&k, t, 5, &c) == JOIST_OK);
+    JT_CHECK(c.type == JOIST_OBJ_ENDPOINT && c.rights == JOIST_R_SEND && c.badge == 9);
+    /* Refusals: the destination taken, no GRANT on the source, an empty
+     * source, not a task, no CONTROL, a dead task. */
+    JT_CHECK(joist_cap_give(&k, root, 0, 2, 5, JOIST_R_ALL) == JOIST_E_OCCUPIED);
+    JT_REQUIRE(joist_cap_derive(&k, root, 1, 3, JOIST_R_SEND) == JOIST_OK);
+    JT_CHECK(joist_cap_give(&k, root, 0, 3, 6, JOIST_R_ALL) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_cap_give(&k, root, 0, 7, 6, JOIST_R_ALL) == JOIST_E_EMPTY);
+    JT_CHECK(joist_cap_give(&k, root, 1, 2, 6, JOIST_R_ALL) == JOIST_E_TYPE);
+    JT_REQUIRE(joist_cap_derive(&k, root, 0, 4, JOIST_R_GRANT) == JOIST_OK);
+    JT_CHECK(joist_cap_give(&k, root, 4, 2, 6, JOIST_R_ALL) == JOIST_E_RIGHTS);
+    JT_CHECK(joist_cap_give(&k, root, 0, 2, JOIST_CSPACE_SLOTS, JOIST_R_ALL) == JOIST_E_RANGE);
+    JT_REQUIRE(joist_task_destroy(&k, root, 0) == JOIST_OK);
+    JT_CHECK(joist_cap_give(&k, root, 0, 2, 6, JOIST_R_ALL) == JOIST_E_GONE);
+    JT_CHECK(clean());
+}

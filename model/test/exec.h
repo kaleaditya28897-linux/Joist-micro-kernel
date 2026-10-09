@@ -61,6 +61,7 @@ enum {
     JX_MAP,
     JX_UNMAP,
     JX_CONTINUE,
+    JX_GIVE,
     JX_TICK,
     JX_OPS
 };
