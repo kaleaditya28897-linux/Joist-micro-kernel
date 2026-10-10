@@ -55,3 +55,16 @@ time was charged, which fails the scheduler test on this VM; and the kernel
 that wrote the timer on every exit, on which the same ping-pong took 51
 interrupts (about 2.5 µs a round trip).
 
+## Step 6 (2026-10-10): `step6/`
+
+The fault test on VM 112, at the commit that adds these files. Image
+`kernel/build/selftest-fault/joist.iso` (`ROOT_TASK=faultroot
+MODULES=faulter`), built on joist-dev by `make check` in `kernel/`, SHA-256
+`8940134ec50f1afe0f4d32dee69446a80067415ed6f48dc234f69455fd762e41`; booted
+with `tools/pve/boot.sh ISO bios|uefi 120 LOG`.
+
+| Firmware | Serial log (from `joist: boot`) | Result |
+|---|---|---|
+| SeaBIOS | `step6/vm112-fault-bios.txt` | status 1 (the root task exited 0): all six tests |
+| OVMF | `step6/vm112-fault-uefi.txt` | the same |
+

@@ -19,6 +19,8 @@ use the real system calls through `lib/joist.h` (`docs/abi.md`,
 | `root` | Phase 3's root task (0013): loads each boot module as a task of its own (the kernel's ELF validator, built for user mode; memory a page at a time from its pool), hands out endpoints, starts the threads. `ROOT_TASK=root MODULES="pong ping"` |
 | `pong`, `ping` | Phase 3 step 4: a server answering every message plus one, and a client making `PING_ROUNDS` calls (default 1000) and reporting to the root |
 | `schedroot`, `worker` | Phase 3 step 5: a root task testing the scheduler from user mode (priorities and preemption, a budget per period in user mode and in system calls, equals taking turns, donation to a passive server), and the one program it loads as every worker. `ROOT_TASK=schedroot MODULES=worker` |
+| `faultroot`, `faulter` | Phase 3 step 6: a root task that is the fault handler of the tasks it starts (resume past a bad instruction, a page fault resolved by mapping, terminate, no handler, an unanswered fault, thread control), and the one program it loads, which faults as asked. `ROOT_TASK=faultroot MODULES=faulter` |
+| `lib/testroot.h` | What the test root tasks share: workers from module 0 with a shared page each, sleeping, checks |
 | `lib/loader.h` | For root tasks: a page allocator over the memory pool, and the loader that turns a boot module into a task |
 | `lib/work.h` | The page `schedroot` shares with each worker: its role, and a count that moves only while it runs |
 | `lib/joist.h` | The system calls from user mode: one raw call with every ABI register, and wrappers. Its numbers are checked against the kernel's at compile time (`../kernel/test/test_abi_user.c`) |

@@ -158,6 +158,12 @@ static inline uint64_t j_cap_give(uint64_t task, uint64_t src, uint64_t dst, uin
 {
     return j_sys4(J_SYS_CAP_GIVE, task, src, dst, mask);
 }
+/* Add leaf `leaf` to the caller's capability table: 128 more slots, from
+ * slot leaf * 128. */
+static inline uint64_t j_cspace_grow(uint64_t leaf)
+{
+    return j_sys4(J_SYS_CSPACE_GROW, leaf, 0, 0, 0);
+}
 /* A frame capability's size in pages, or 0 if slot isn't a frame. */
 static inline uint64_t j_frame_pages(uint64_t slot)
 {

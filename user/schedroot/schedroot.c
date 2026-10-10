@@ -12,10 +12,9 @@
  * Shares are checked against wide bounds: under an emulator on a busy host
  * time is uneven, and what is being told apart is a fifth from all or
  * nothing. */
-#include "../lib/loader.h"
-#include "../lib/work.h"
+#define TEST_NAME "sched"
+#include "../lib/testroot.h"
 
-#define ROOT_WORK_VA 0x30000000ull /* the workers' pages, here, a page apart */
 #define SLEEP_NS     (300 * J_MS)
 #define BUSY_COUNTS  30000000u
 #ifndef SERVE_COUNTS
@@ -24,56 +23,6 @@
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free);
-
-struct worker {
-    uint64_t task, thread, sc;
-    struct work *w;
-};
-
-static unsigned nworkers;
-static uint64_t nobody; /* an endpoint to sleep on */
-
-/* A worker task with its role, not yet running: its thread has no context. */
-static struct worker worker_new(uint64_t role, uint64_t arg)
-{
-    struct worker k;
-    k.task = next_slot++;
-    k.thread = next_slot++;
-    k.sc = next_slot++;
-    uint64_t entry = ld_load(0, k.task);
-    uint64_t f = page_alloc();
-    uint64_t va = ROOT_WORK_VA + nworkers++ * J_PAGE;
-    must(j_map(f, J_SLOT_SELF, va / J_PAGE, J_MAP_W), "map (work page, here)");
-    k.w = (struct work *)(uintptr_t)va;
-    k.w->role = role;
-    k.w->arg = arg;
-    k.w->count = 0;
-    must(j_map(f, k.task, WORK_VA / J_PAGE, J_MAP_W), "map (work page, worker)");
-    must(j_thread_spawn(k.task, k.thread, entry, CHILD_LO), "thread_spawn");
-    return k;
-}
-
-/* Give it a context of its own: it can run from here on. */
-static void worker_run(struct worker *k, uint64_t prio, uint64_t budget, uint64_t period)
-{
-    must(j_sc_create(k->sc, prio, budget, period), "sc_create");
-    must(j_sc_bind(k->sc, k->thread), "sc_bind");
-}
-
-/* Take the context away again: it stops where it is. */
-static void worker_stop(struct worker *k)
-{
-    must(j_sc_unbind(k->sc), "sc_unbind");
-    must(j_cap_delete(k->sc), "cap_delete (context)");
-}
-
-static void sleep_ns(uint64_t ns)
-{
-    struct j_msg m = {0};
-    if (j_recv(nobody, &m, ns) != J_E_TIMEOUT) {
-        die("sleep: a Recv on an endpoint nobody sends to didn't time out");
-    }
-}
 
 /* Be busy without calling the kernel, for longer than the root's budget. */
 static void busy(void)
@@ -85,16 +34,6 @@ static void busy(void)
 static uint64_t percent(uint64_t a, uint64_t b)
 {
     return a + b == 0 ? 0 : a * 100u / (a + b);
-}
-
-static void check(int ok, const char *what)
-{
-    if (!ok) {
-        j_puts("sched: FAILED: ");
-        j_puts(what);
-        j_puts("\n");
-        j_exit(1);
-    }
 }
 
 /* A result, with the two counts behind it (the raw data, for the record). */
@@ -200,7 +139,7 @@ static void test_donation(void)
     struct worker server = worker_new(WORK_SERVE, SERVE_COUNTS);
     struct worker client = worker_new(WORK_CLIENT, 0);
     struct worker other = worker_new(WORK_SPIN, 0);
-    uint64_t ep = next_slot++;
+    uint64_t ep = slot_new();
     must(j_obj_create(J_ENDPOINT, ep), "obj_create");
     must(j_cap_give(server.task, ep, 0, J_R_RECV), "cap_give (server)");
     must(j_cap_give(client.task, ep, 0, J_R_SEND), "cap_give (client)");
@@ -237,8 +176,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     if (nmods < 1) {
         die("needs one module: worker");
     }
-    nobody = next_slot++;
-    must(j_obj_create(J_ENDPOINT, nobody), "obj_create");
+    test_init();
     test_priority();
     test_budget();
     test_kernel_time();

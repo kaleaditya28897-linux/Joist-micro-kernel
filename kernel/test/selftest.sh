@@ -29,6 +29,9 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # Phase 3 step 5: the scheduler test's root task and its workers.
     sched) kextra=""; root=schedroot; mods="worker" ;;
     ubsan-sched) kextra="$ub"; root=schedroot; mods="worker" ;;
+    # Phase 3 step 6: the fault test's root task and its faulters.
+    fault) kextra=""; root=faultroot; mods="faulter" ;;
+    ubsan-fault) kextra="$ub"; root=faultroot; mods="faulter" ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -43,7 +46,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|fault: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -88,4 +91,14 @@ run ubsan-pingpong 1 "ping: 1000 round trips ok" "root task exited with code 0"
 run sched 1 "sched: priorities ok" "sched: budget ok" "sched: kernel time ok" "sched: equals ok" \
     "sched: donation ok" "sched: all ok" "root task exited with code 0"
 run ubsan-sched 1 "sched: all ok" "root task exited with code 0"
+# Phase 3 step 6: fault IPC and thread control, seen from user mode
+# (user/faultroot): a fault is a message to the handler, who reads and writes
+# the thread's registers and resumes or ends it; a page fault resolved by
+# mapping; no handler destroys the task; an unanswered fault leaves the
+# thread suspended; suspend, resume, kill, abort, the TLS base.
+run fault 1 "fault: resume ok" "fault: pager ok" "fault: terminate ok" \
+    "faulted (#DE divide error at 0x00000000004[0-9a-f]*) with no handler: destroyed" \
+    "fault: no handler ok" "fault: unresolved ok" "fault: control ok" "fault: all ok" \
+    "root task exited with code 0"
+run ubsan-fault 1 "fault: all ok" "root task exited with code 0"
 exit $fail

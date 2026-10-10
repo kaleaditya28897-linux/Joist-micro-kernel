@@ -18,7 +18,7 @@
 #define STACK_PAGES 4u
 #define DONATION    64u
 
-static uint64_t next_slot;
+static uint64_t next_slot; /* slot_new() hands them out */
 static uint64_t pool_cur, pool_left, pool_next, pool_end;
 static uint64_t ld_mod_first;
 static uint8_t ld_mapped[8]; /* modules already mapped here */
@@ -43,6 +43,21 @@ static void must(uint64_t e, const char *what)
     }
 }
 
+/* A free slot of the root's capability table. The first leaf's (slots up
+ * to 127) come first; the second leaf holds the root's own image, so after
+ * that the table grows a leaf at a time from the third (slot 256) on. */
+#define LD_LEAF 128u
+static uint64_t slot_new(void)
+{
+    if (next_slot == LD_LEAF) {
+        next_slot = 2u * LD_LEAF;
+    }
+    if (next_slot >= 2u * LD_LEAF && next_slot % LD_LEAF == 0) {
+        must(j_cspace_grow(next_slot / LD_LEAF), "cspace_grow");
+    }
+    return next_slot++;
+}
+
 /* One page of memory, as a frame of its own: split off the pool. */
 static uint64_t page_alloc(void)
 {
@@ -57,7 +72,7 @@ static uint64_t page_alloc(void)
         pool_left = 0;
         return pool_cur;
     }
-    uint64_t rest = next_slot++;
+    uint64_t rest = slot_new();
     must(j_frame_split(pool_cur, 1, rest), "frame_split");
     uint64_t page = pool_cur;
     pool_cur = rest;

@@ -1,0 +1,20 @@
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 213 MiB usable in 9 ranges, 36 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000a43e000), direct map at 0xffff800000000000
+joist: frames: 54616 free of 65353 covered (213 MiB)
+joist: page tables: the kernel's own, loaded (54345 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625097 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0; 1 in use, the rest parked until SMP bring-up
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+fault: resume ok: an invalid instruction, skipped by its handler
+fault: pager ok: a page fault resolved by mapping the page
+fault: terminate ok: a privileged instruction, ended by its handler
+joist: task 4 faulted (#DE divide error at 0x00000000004000b3) with no handler: destroyed
+fault: no handler ok: the task is gone
+fault: unresolved ok: an unanswered fault leaves the thread suspended and mendable
+fault: control ok: suspend, resume, kill, abort, registers, TLS base, untrusted values
+fault: all ok
+joist: root task exited with code 0 (timer ticks so far: 38)
+joist: finish code 0

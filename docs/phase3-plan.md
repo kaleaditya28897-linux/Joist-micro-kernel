@@ -900,3 +900,33 @@ a property test of 20 000 random writes against a shadow of memory; the two
 calls, and their refusals in order). 7 new mutations, all caught. Host
 tests: 46.
 
+### Step 6, part 2: faults and thread control seen from user mode (2026-10-10)
+
+`user/faultroot` is a root task that is the fault handler of the tasks it
+starts; `user/faulter` is the one program it loads, which faults in the way
+the page it shares with the root says. Two new boot self-tests (`fault`,
+`ubsan-fault`; 23 in all). What is checked:
+
+| Test | What must hold |
+|---|---|
+| Resume | an invalid instruction arrives as a message (kind, the task's badge, a capability to the thread); the handler reads the thread's registers, moves the pc past the instruction, replies *resume*; the thread goes on |
+| Pager | a write to an unmapped address arrives with the address and the error code (user, write, not present); the handler maps a fresh page there and replies; the same instruction runs again and succeeds, and the value is in the page the handler gave |
+| Terminate | a privileged instruction; the handler replies otherwise; the thread is gone (`E_GONE` through its capability) |
+| No handler | a division by zero in a task with no handler: the task is destroyed, and the kernel says so in the log |
+| Unresolved | a thread's own handler comes before its task's (the badge tells); a fault call that is aborted leaves the endpoint's queue and leaves the thread suspended; whoever holds it can move its pc and resume it |
+| Control | suspend stops a spinner, twice is no error, resume starts it, resuming a running thread is `E_STATE`, kill ends it; abort makes a `Recv` that would never end return `E_ABORTED`; registers written before a thread first runs are what it starts with; the TLS base is a field of the record; a kernel address as TLS base and flags with IOPL and the trap flag don't reach the thread; a pc in the kernel half never runs and is a general-protection fault to the handler |
+
+It passed the first time it ran, but for one thing in the test's own
+support: the root ran out of the first 128 slots of its capability table
+(the second leaf holds its image). `user/lib/loader.h` now hands slots out
+through `slot_new`, which grows the table a leaf at a time
+(`j_cspace_grow`): the first use of the two-level table from user mode.
+The helpers the two test root tasks share moved to `user/lib/testroot.h`.
+
+A host test of part 1 had a fault of its own, found by the UBSan build in
+`make check`: an empty write below the test's memory indexed the shadow out
+of range. Test corrected; the kernel code was right.
+
+`make check` in `kernel/` passes; VM 112 runs the fault test under SeaBIOS
+and OVMF (`docs/phase3-data`, *Step 6*).
+

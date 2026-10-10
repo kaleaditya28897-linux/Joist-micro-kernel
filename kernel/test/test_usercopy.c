@@ -231,7 +231,9 @@ JT_TEST(props_usercopy_write_matches_shadow)
         }
         if (got == KERR_OK) {
             ok++;
-            memcpy(&shadow[va - UBASE], src, len);
+            if (len != 0) { /* an empty write is fine anywhere, and writes nothing */
+                memcpy(&shadow[va - UBASE], src, len);
+            }
         } else {
             refused++;
         }

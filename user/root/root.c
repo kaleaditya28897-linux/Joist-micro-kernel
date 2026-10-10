@@ -28,15 +28,15 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     if (nmods < 2) {
         die("needs two modules: pong and ping");
     }
-    uint64_t pong_task = next_slot++;
-    uint64_t ping_task = next_slot++;
+    uint64_t pong_task = slot_new();
+    uint64_t ping_task = slot_new();
     uint64_t pong_entry = ld_load(0, pong_task);
     uint64_t ping_entry = ld_load(1, ping_task);
 
     /* The endpoint pong serves, and the one ping reports on. */
-    uint64_t ep = next_slot++;
-    uint64_t done = next_slot++;
-    uint64_t tmp = next_slot++;
+    uint64_t ep = slot_new();
+    uint64_t done = slot_new();
+    uint64_t tmp = slot_new();
     must(j_obj_create(J_ENDPOINT, ep), "obj_create");
     must(j_obj_create(J_ENDPOINT, done), "obj_create");
     must(j_cap_give(pong_task, ep, 0, J_R_RECV), "cap_give (pong's endpoint)");
@@ -47,10 +47,10 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     must(j_cap_give(ping_task, tmp, 1, J_R_SEND), "cap_give (ping's report)");
     must(j_cap_delete(tmp), "cap_delete");
 
-    uint64_t pong_thread = next_slot++;
-    uint64_t ping_thread = next_slot++;
-    uint64_t init_sc = next_slot++;
-    uint64_t ping_sc = next_slot++;
+    uint64_t pong_thread = slot_new();
+    uint64_t ping_thread = slot_new();
+    uint64_t init_sc = slot_new();
+    uint64_t ping_sc = slot_new();
     must(j_thread_spawn(pong_task, pong_thread, pong_entry, CHILD_LO), "thread_spawn (pong)");
     must(j_sc_create(init_sc, 200, 10 * J_MS, 10 * J_MS), "sc_create (init)");
     must(j_sc_bind(init_sc, pong_thread), "sc_bind (pong)"); /* pong runs to its Recv */
