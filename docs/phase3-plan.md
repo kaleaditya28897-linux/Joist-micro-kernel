@@ -874,3 +874,29 @@ three hand-made broken kernels tried once rather than kept as mutations.
 
 Step 5 is done.
 
+### Step 6, part 1: a thread's registers through the caller's memory (2026-10-10)
+
+What the kernel already had from steps 3 and 4: faults from user mode go to
+the core's `joist_fault` (a `Call` to the handler), and suspend, resume,
+abort and the two set-fault calls are in the ABI. What was missing was the
+way for a handler to see and change the faulting thread: calls 70 and 71,
+`thread_read_regs` and `thread_write_regs`, with the record in the caller's
+memory (`docs/abi.md`, *Thread control and faults*).
+
+- `copy_to_user` (`kernel/sys/usercopy.c`): the kernel's first write to
+  user memory. Through the page tables like `copy_from_user`, user half
+  only, every page user-writable, and all or nothing: every page is checked
+  before a byte is written.
+- The two calls in `kernel/sys/abi.c`: the capability's checks, then the
+  pointer. Written values need no checking there, because the exit to user
+  mode already trusts no thread's record (pc, flags, TLS base).
+- `user/lib/joist.h`: the record, `j_thread_read_regs`,
+  `j_thread_write_regs`, suspend, resume, abort, kill, the set-fault calls;
+  the compile-time agreement test covers the record's layout and the fault
+  kinds.
+
+Tests: 5 new host tests (writes across pages; refusals that write nothing;
+a property test of 20 000 random writes against a shadow of memory; the two
+calls, and their refusals in order). 7 new mutations, all caught. Host
+tests: 46.
+

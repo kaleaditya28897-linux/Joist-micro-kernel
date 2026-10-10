@@ -293,6 +293,18 @@ a thread; nothing else is checked (0010).
 | `thread_resume` | thread slot | as above, then `E_STATE` (not suspended) | the thread runs again | O(1) |
 | `thread_set_fault` / `task_set_fault` | thread (or task) slot, handler slot | as above for the capability, then `E_RANGE` (handler past the table) | names the fault handler: a slot in the thread's (or task's) own space, or none. Nothing is checked until a fault | O(1) |
 
+**The register record in the encoding (Phase 3 step 6).** `thread_read_regs`
+and `thread_write_regs` take the thread slot and the address of the record
+in the caller's memory: 20 words (pc, sp, flags, the TLS base, then `RAX`
+`RBX` `RCX` `RDX` `RSI` `RDI` `RBP` `R8`-`R15` and a spare). The
+capability's checks come first; then a record that isn't wholly in the
+caller's user memory (writable, for a read) is `E_RANGE` and nothing is
+read or written, never a part. Any values may be written: the kernel
+trusts none of them and checks on every exit to user mode, for every
+thread, that the pc is in the user half, the flags are user flags and the
+TLS base is a user address. A thread blocked in a call still gets that
+call's outputs when it wakes, over what was written.
+
 **Faults** (0009). A fault in a thread (an exception in user mode; the
 kernel's trap handlers raise it, the model's tests call `joist_fault`) is a
 `Call` to its handler: the thread's own, else its task's, provided the slot
@@ -398,7 +410,8 @@ Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
 `Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-27 capabilities and
 the table, 30-38 tasks and threads, 40-42 frames and mappings, 50-53
 scheduling contexts, 60-65 destruction, ancestry and lifetime
-notifications. `thread_spawn` takes the new thread's pc and sp, so it
+notifications, 70-71 a thread's registers (`thread_read_regs`,
+`thread_write_regs`). `thread_spawn` takes the new thread's pc and sp, so it
 starts where its creator says; `cap_read` also returns a frame's size in
 pages in `R10`. A slot argument wider than 32 bits is out of range, never
 truncated into a valid slot. A call that blocks gets its outputs written

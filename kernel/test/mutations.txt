@@ -38,3 +38,11 @@ upper-half-user @@ mem/vm.c @@ pml4[i] = (f & PTE_ADDR) | PTE_P | PTE_W; @@ pml4
 take-range-over-used @@ mem/frame.c @@ return KERR_STATE; /* in use, or never allocatable: nothing taken */ @@ continue;
 abi-slot-truncated @@ sys/abi.c @@ return v > UINT32_MAX ? JOIST_CSPACE_SLOTS : (joist_slot)v; @@ return (joist_slot)v;
 abi-complete-silent @@ sys/abi.c @@ outputs(env->k, t, th->result); @@ (void)th;
+# Phase 3 step 6: writing user memory, a thread's registers through it.
+uc-write-readonly @@ sys/usercopy.c @@ (perms & (VM_USER | VM_W)) != (VM_USER | VM_W)) { @@ (perms & VM_USER) == 0) {
+uc-write-kernel-page @@ sys/usercopy.c @@ (perms & (VM_USER | VM_W)) != (VM_USER | VM_W)) { @@ (perms & VM_W) == 0) {
+uc-write-partial @@ sys/usercopy.c @@ for (uint64_t page = uva & ~(VM_PAGE - 1u); page < uva + len; page += VM_PAGE) { @@ for (uint64_t page = uva & ~(VM_PAGE - 1u); page < uva + 1u; page += VM_PAGE) {
+abi-regs-write-unchecked @@ sys/abi.c @@ e = joist_thread_read_regs(k, cs, slot_arg(a0), &regs); /* the capability's checks */ @@ e = JOIST_OK; regs = (struct joist_regs){0};
+uc-write-no-half-check @@ sys/usercopy.c @@ if (uva >= USER_TOP || USER_TOP - uva < (uint64_t)len) { @@ if (0) {
+abi-regs-write-bad-pointer @@ sys/abi.c @@ &regs, a1, sizeof regs) == KERR_OK @@ &regs, a1, sizeof regs) != (kerr)99
+abi-regs-read-bad-pointer @@ sys/abi.c @@ a1, &regs, sizeof regs) != KERR_OK @@ a1, &regs, sizeof regs) == (kerr)99

@@ -1,4 +1,4 @@
-/* usercopy.h - the only way the kernel reads user memory (Phase 2 step 6;
+/* usercopy.h - the only way the kernel reads or writes user memory (Phase 2 step 6;
  * §5.1: "user pointers are never dereferenced directly").
  *
  * copy_from_user never touches the user's virtual address: it walks the
@@ -23,5 +23,10 @@
  * lies outside the user half, wraps, or is not mapped user-accessible; then
  * dst may hold part of the data. len 0 always succeeds. */
 kerr copy_from_user(const struct vm_space *task, void *dst, uint64_t uva, size_t len);
+
+/* Copy len bytes from src to [uva, uva + len) of the task's memory (Phase 3
+ * step 6). KERR_RANGE on the same conditions, or if any page of it isn't
+ * mapped user-writable; then nothing was written. */
+kerr copy_to_user(const struct vm_space *task, uint64_t uva, const void *src, size_t len);
 
 #endif /* JOIST_SYS_USERCOPY_H */

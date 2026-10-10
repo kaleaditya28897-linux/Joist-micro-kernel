@@ -49,7 +49,8 @@ enum {
     J_SYS_FRAME_SPLIT = 40, J_SYS_MAP, J_SYS_UNMAP,
     J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
-    J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME
+    J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
+    J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS
 };
 
 /* Every register a call takes or returns. */
@@ -185,6 +186,59 @@ static inline uint64_t j_map(uint64_t frame, uint64_t task, uint64_t va_page, ui
 static inline uint64_t j_unmap(uint64_t task, uint64_t va_page)
 {
     return j_sys4(J_SYS_UNMAP, task, va_page, 0, 0);
+}
+
+/* Thread control (0010): everything through a thread capability. */
+static inline uint64_t j_thread_kill(uint64_t thread)
+{
+    return j_sys4(J_SYS_THREAD_KILL, thread, 0, 0, 0);
+}
+static inline uint64_t j_thread_suspend(uint64_t thread)
+{
+    return j_sys4(J_SYS_THREAD_SUSPEND, thread, 0, 0, 0);
+}
+static inline uint64_t j_thread_resume(uint64_t thread)
+{
+    return j_sys4(J_SYS_THREAD_RESUME, thread, 0, 0, 0);
+}
+static inline uint64_t j_thread_abort(uint64_t thread)
+{
+    return j_sys4(J_SYS_THREAD_ABORT, thread, 0, 0, 0);
+}
+/* A thread's registers: one record (the kernel's struct joist_regs). */
+enum { J_RAX, J_RBX, J_RCX, J_RDX, J_RSI, J_RDI, J_RBP, J_R8, J_R9, J_R10, J_R11, J_R12, J_R13,
+       J_R14, J_R15, J_NREGS = 16 }; /* the last is spare */
+struct j_thread_regs {
+    uint64_t pc, sp, flags, tls;
+    uint64_t r[J_NREGS];
+};
+static inline uint64_t j_thread_read_regs(uint64_t thread, struct j_thread_regs *out)
+{
+    return j_sys4(J_SYS_THREAD_READ_REGS, thread, (uint64_t)(uintptr_t)out, 0, 0);
+}
+static inline uint64_t j_thread_write_regs(uint64_t thread, const struct j_thread_regs *in)
+{
+    return j_sys4(J_SYS_THREAD_WRITE_REGS, thread, (uint64_t)(uintptr_t)in, 0, 0);
+}
+
+/* Faults (0009): the handler is a slot in the thread's (or task's) own
+ * space holding a send capability; a fault is a Call on it. The message:
+ * r[0] the kind, r[1] the address, r[2] the error code, and a capability to
+ * the faulting thread. The reply's r[0]: J_FAULT_RESUME, or anything else
+ * to end the thread. */
+enum { J_FAULT_PAGE = 1, J_FAULT_GP, J_FAULT_UD, J_FAULT_MATH, J_FAULT_OTHER };
+#define J_FAULT_RESUME 0u
+static inline uint64_t j_thread_set_fault(uint64_t thread, uint64_t handler)
+{
+    return j_sys4(J_SYS_THREAD_SET_FAULT, thread, handler, 0, 0);
+}
+static inline uint64_t j_task_set_fault(uint64_t task, uint64_t handler)
+{
+    return j_sys4(J_SYS_TASK_SET_FAULT, task, handler, 0, 0);
+}
+static inline uint64_t j_task_destroy(uint64_t task)
+{
+    return j_sys4(J_SYS_TASK_DESTROY, task, 0, 0, 0);
 }
 
 /* Scheduling contexts: a priority (0-255) and a budget per period, in

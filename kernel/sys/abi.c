@@ -1,6 +1,8 @@
 /* abi.c - the system-call ABI: registers to core operations. See abi.h. */
 #include "abi.h"
 
+#include "usercopy.h"
+
 /* A slot argument: anything past 32 bits is out of range, never truncated
  * into a valid slot. (JOIST_SLOT_SELF and JOIST_SLOT_NONE fit 32 bits and
  * pass through, for the calls that take them.) */
@@ -241,6 +243,31 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_REQUEST_DEADNAME:
         e = joist_request_deadname(k, cs, slot_arg(a0), slot_arg(a1));
         break;
+    case ABI_THREAD_READ_REGS: {
+        /* The capability first, then the caller's memory: a record that
+         * can't be written whole is E_RANGE and nothing is written. */
+        struct joist_regs regs;
+        e = joist_thread_read_regs(k, cs, slot_arg(a0), &regs);
+        if (e == JOIST_OK &&
+            copy_to_user(env->space_of(env->ctx, cs), a1, &regs, sizeof regs) != KERR_OK) {
+            e = JOIST_E_RANGE;
+        }
+        break;
+    }
+    case ABI_THREAD_WRITE_REGS: {
+        /* Any values at all: the way out to user mode trusts none of them
+         * (flags, the TLS base and the pc are checked there, for every
+         * thread, every time). A thread blocked in a call still gets that
+         * call's outputs when it wakes, over what is written here. */
+        struct joist_regs regs;
+        e = joist_thread_read_regs(k, cs, slot_arg(a0), &regs); /* the capability's checks */
+        if (e == JOIST_OK) {
+            e = copy_from_user(env->space_of(env->ctx, cs), &regs, a1, sizeof regs) == KERR_OK
+                    ? joist_thread_write_regs(k, cs, slot_arg(a0), &regs)
+                    : JOIST_E_RANGE;
+        }
+        break;
+    }
     default: {
         /* Phase 2's calls, and every unknown number, through its dispatcher. */
         struct sys_env se = {.task = env->space_of(env->ctx, cs), .out = env->out, .ctx = env->ctx};

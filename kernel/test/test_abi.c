@@ -4,6 +4,7 @@
 #include "harness.h"
 #include "internal.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static struct joist_kernel k;
@@ -11,11 +12,53 @@ static struct abi_env env;
 static joist_cspace root;
 static struct vm_space nowhere; /* debug_write's space: nothing mapped */
 
+static const struct vm_space *user = &nowhere; /* what space_of answers */
+
 static const struct vm_space *space_of(void *ctx, uint32_t s)
 {
     (void)ctx;
     (void)s;
-    return &nowhere;
+    return user;
+}
+
+/* A little simulated memory, for the calls that read or write the caller's:
+ * one writable user page at UPAGE, a read-only one after it. */
+#define UPAGE 0x400000ull
+#define UMEM_BASE 0x100000ull
+static uint8_t umem[8 * 4096u] __attribute__((aligned(4096)));
+static uint32_t unext;
+static struct vm_space uspace;
+
+static kerr uget(void *ctx, uint64_t *pa)
+{
+    (void)ctx;
+    if (unext == sizeof umem / 4096u) {
+        return KERR_NOMEM;
+    }
+    memset(&umem[unext * 4096u], 0, 4096u);
+    *pa = UMEM_BASE + (uint64_t)unext++ * 4096u;
+    return KERR_OK;
+}
+
+static void *uptr(void *ctx, uint64_t pa)
+{
+    (void)ctx;
+    return &umem[pa - UMEM_BASE];
+}
+
+static uint8_t *with_user_memory(void)
+{
+    uint64_t pa;
+    uint64_t ro;
+    unext = 0;
+    if (vm_create(&uspace, uget, uptr, NULL) != KERR_OK || uget(NULL, &pa) != KERR_OK ||
+        uget(NULL, &ro) != KERR_OK ||
+        vm_map(&uspace, UPAGE, pa, 4096u, VM_PAGE, VM_USER | VM_W) != KERR_OK ||
+        vm_map(&uspace, UPAGE + 4096u, ro, 4096u, VM_PAGE, VM_USER) != KERR_OK) {
+        abort();
+    }
+    user = &uspace;
+    return uptr(NULL, pa);
 }
 
 static void out(void *ctx, const uint8_t *buf, size_t n)
@@ -40,6 +83,7 @@ static void setup(void)
     joist_init(&k);
     (void)joist_boot(&k, 64, &root);
     memset(&env, 0, sizeof env);
+    user = &nowhere;
     env.k = &k;
     env.space_of = space_of;
     env.out = out;
@@ -214,5 +258,93 @@ JT_TEST(abi_wait_completes_on_signal)
     JT_CHECK(sys(s, ABI_SIGNAL, 1, 0, 0, 0) == ABI_DONE && k.th[s].regs.r[ABI_RAX] == JOIST_OK);
     abi_complete(&env, w);
     JT_CHECK(k.th[w].regs.r[ABI_RAX] == JOIST_OK && k.th[w].regs.r[ABI_RDX] == 0x8);
+    JT_CHECK(clean());
+}
+
+/* ---- Phase 3 step 6: a thread's registers through the caller's memory ---- */
+
+JT_TEST(abi_thread_regs_read_and_write)
+{
+    setup();
+    uint8_t *mem = with_user_memory();
+    joist_thread a;
+    joist_thread b;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_THREAD_SPAWN, 2, 3, 0x401000, 0x7000) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    b = k.obj[k.cs[root].slot[3].obj - 1u].target - 1u;
+    for (unsigned i = 0; i < JOIST_REGS; i++) {
+        k.th[b].regs.r[i] = 0x100u + i;
+    }
+    k.th[b].regs.pc = 0x401000;
+    k.th[b].regs.sp = 0x7000;
+    k.th[b].regs.tls = 0x5000;
+    struct joist_regs want = k.th[b].regs;
+    JT_CHECK(sys(a, ABI_THREAD_READ_REGS, 3, UPAGE + 8, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(memcmp(mem + 8, &want, sizeof want) == 0);
+    /* Write: what the caller's memory holds becomes the record, whole. */
+    struct joist_regs in = want;
+    in.pc = 0x402000;
+    in.tls = 0xffff800000000000ull; /* anything is accepted here; the exit checks */
+    in.r[ABI_R15] = 77;
+    memcpy(mem + 100, &in, sizeof in);
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 3, UPAGE + 100, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(memcmp(&k.th[b].regs, &in, sizeof in) == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(abi_thread_regs_refusals)
+{
+    setup();
+    uint8_t *mem = with_user_memory();
+    joist_thread a;
+    joist_thread b;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_THREAD_SPAWN, 2, 3, 0x401000, 0x7000) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    b = k.obj[k.cs[root].slot[3].obj - 1u].target - 1u;
+    k.th[b].regs.pc = 0x401000;
+    struct joist_regs before = k.th[b].regs;
+    memset(mem, 0x5a, 4096u);
+    /* The capability's errors come first, whatever the pointer. */
+    JT_CHECK(sys(a, ABI_THREAD_READ_REGS, 4, 0, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_EMPTY);
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 4, 0, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_EMPTY);
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 1ull << 32 | 3u, UPAGE, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    /* A record that doesn't fit the caller's memory: E_RANGE, nothing done.
+     * Unmapped; the kernel half; running off the writable page into the
+     * read-only one (for a read: nothing written, not even the first part). */
+    uint64_t bad[] = {0x1000, 0xffff800000000000ull, UPAGE + 4096u - 8u, UINT64_MAX};
+    for (unsigned i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        JT_CHECK(sys(a, ABI_THREAD_READ_REGS, 3, bad[i], 0, 0) == ABI_DONE &&
+                 k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    }
+    for (unsigned i = 0; i < 4096u; i++) {
+        JT_CHECK(mem[i] == 0x5a);
+    }
+    /* A write whose record lies partly on an unmapped page. */
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 3, UPAGE + 2 * 4096u - 8u, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 3, 0x1000, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    JT_CHECK(memcmp(&k.th[b].regs, &before, sizeof before) == 0);
+    /* A record read from a read-only page is fine. */
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 3, UPAGE + 4096u, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(k.th[b].regs.pc == 0);
+    /* Without CONTROL on the thread: refused, both ways. */
+    JT_REQUIRE(joist_cap_derive(&k, root, 3, 5, JOIST_R_GRANT) == JOIST_OK);
+    JT_CHECK(sys(a, ABI_THREAD_READ_REGS, 5, UPAGE, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RIGHTS);
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 5, UPAGE, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RIGHTS);
     JT_CHECK(clean());
 }

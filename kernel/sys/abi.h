@@ -81,6 +81,9 @@ enum {
 #define ABI_BIND_NOSENDERS   64u /* endpoint, notification */
 #define ABI_REQUEST_DEADNAME 65u /* endpoint, notification */
 
+#define ABI_THREAD_READ_REGS  70u /* thread, address of a struct joist_regs to fill */
+#define ABI_THREAD_WRITE_REGS 71u /* thread, address of a struct joist_regs to load */
+
 /* Calls 1 and 2, and unknown numbers, use Phase 2's dispatcher and result
  * codes (syscall.h: SYS_E_*, DEBUG_WRITE_MAX), unchanged. */
 
@@ -94,7 +97,8 @@ void abi_caps_unpack(uint64_t v, struct joist_msg *m);
 
 struct abi_env {
     struct joist_kernel *k;
-    /* The address space of space s, for debug_write's checked copy. */
+    /* The address space of space s, for the checked copies of user memory
+     * (debug_write's bytes, a register record). */
     const struct vm_space *(*space_of)(void *ctx, uint32_t s);
     /* Where debug_write's bytes go. */
     void (*out)(void *ctx, const uint8_t *buf, size_t n);
