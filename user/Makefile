@@ -1,5 +1,7 @@
-# Makefile for Phase 2's user programs (docs/phase2-plan.md). Plain Make.
-#   make        build/hello.elf
+# Makefile for the user programs: Phase 2's single-task tests
+# (docs/phase2-plan.md) and Phase 3's (the root task, ping, pong;
+# docs/phase3-plan.md step 4), which use lib/joist.h. Plain Make.
+#   make        every program, into build/*.elf
 ifeq ($(origin CC),default)
 CC := clang
 endif
@@ -19,7 +21,32 @@ PROGS := hello badptr ud rowrite spin
 ASMPROGS := sysfuzz sysrethole
 
 .PHONY: all clean
-all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS))
+# Phase 3 programs: lib/joist.h, plus the kernel's string functions (a
+# freestanding build may call memset and memcpy) and, for the root task, its
+# ELF validator.
+LIBPROGS := ping pong root
+
+all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
+
+$(BUILD)/string.o: ../kernel/lib/string.c
+	@mkdir -p $(@D)
+	$(CC) $(UFLAGS) -c $< -o $@
+
+$(BUILD)/elf.o: ../kernel/elf/elf.c ../kernel/elf/elf.h
+	@mkdir -p $(@D)
+	$(CC) $(UFLAGS) -I../kernel/include -I../kernel/elf -c $< -o $@
+
+define libprog
+$(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h ../kernel/elf/elf.h
+	@mkdir -p $$(@D)
+	$$(CC) $$(UFLAGS) -I../kernel/include -I../kernel/elf -c $$< -o $$@
+$(BUILD)/$(1).elf: $(BUILD)/$(1).o $(BUILD)/string.o $(2) user.ld
+	$$(LD) -static -nostdlib -z max-page-size=0x1000 -z noexecstack -T user.ld \
+	    $(BUILD)/$(1).o $(BUILD)/string.o $(2) -o $$@
+endef
+$(eval $(call libprog,ping,))
+$(eval $(call libprog,pong,))
+$(eval $(call libprog,root,$(BUILD)/elf.o))
 
 # One rule per program: a pattern can't use % twice (prog/prog.c).
 define prog

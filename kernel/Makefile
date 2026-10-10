@@ -125,13 +125,24 @@ ROOT_ELF := ../user/$(USER_BUILD)/$(ROOT_TASK).elf
 .PHONY: $(ROOT_ELF)
 $(ROOT_ELF):
 	$(MAKE) -s -C ../user BUILD=$(USER_BUILD) UEXTRA="$(UEXTRA)" $(USER_BUILD)/$(ROOT_TASK).elf
+# Further boot modules, in order (the root task gets a frame for each):
+# MODULES="pong ping" with ROOT_TASK=root is Phase 3 step 4's ping-pong.
+MODULES ?=
+MODULE_ELFS := $(patsubst %,../user/$(USER_BUILD)/%.elf,$(MODULES))
+.PHONY: $(MODULE_ELFS)
+$(MODULE_ELFS):
+	$(MAKE) -s -C ../user BUILD=$(USER_BUILD) UEXTRA="$(UEXTRA)" $(USER_BUILD)/$(notdir $@)
 
-$(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf $(ROOT_ELF)
+$(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf $(ROOT_ELF) $(MODULE_ELFS)
 	rm -rf $(BUILD)/iso && mkdir -p $(BUILD)/iso/boot/limine $(BUILD)/iso/EFI/BOOT
 	cp $(BUILD)/joist.elf $(BUILD)/iso/boot/joist.elf
 	cp $(ROOT_ELF) $(BUILD)/iso/boot/hello.elf
 	cp ../boot/limine.conf $(LIMINE_DIR)/limine-bios.sys $(LIMINE_DIR)/limine-bios-cd.bin \
 	    $(LIMINE_DIR)/limine-uefi-cd.bin $(BUILD)/iso/boot/limine/
+	@for m in $(MODULES); do \
+	    cp ../user/$(USER_BUILD)/$$m.elf $(BUILD)/iso/boot/$$m.elf && \
+	    echo "    module_path: boot():/boot/$$m.elf" >> $(BUILD)/iso/boot/limine/limine.conf || exit 1; \
+	done
 	cp $(LIMINE_DIR)/BOOTX64.EFI $(BUILD)/iso/EFI/BOOT/
 	xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot \
 	    -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 \

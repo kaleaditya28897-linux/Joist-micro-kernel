@@ -4,22 +4,25 @@ The freestanding C kernel for x86_64, booted by Limine (decision 0015).
 Scope and order of work: `docs/phase2-plan.md`; what was delivered and
 what is carried forward: `docs/phase2-exit.md`.
 
-**State:** Phase 2 (*Kernel bootstrap*) is closed (accepted 2026-10-05). The
+**State:** Phase 2 (*Kernel bootstrap*) is closed (accepted 2026-10-05);
+Phase 3 (*IPC and capabilities*) is under way (`docs/phase3-plan.md`). The
 kernel boots under BIOS and UEFI and sets up a GDT, TSS (IST1 for double
 faults) and IDT, a boot-time frame allocator, its own page tables (W^X, NX)
-and a 100 Hz Local APIC timer. It loads the root task from a Limine module
-through an ELF validator and runs it in ring 3. The system-call surface is
-deliberately tiny: `debug_write` and `exit`. The real ABI (`docs/abi.md`),
-capabilities, IPC and more than one task come in Phase 3.
+and a 100 Hz Local APIC timer. Since Phase 3 step 4 it runs the object
+layer in `core/`: many tasks, each with its own address space, threads
+switched round robin, and the system-call ABI of `docs/abi.md`
+(`sys/abi.c`). The root task is loaded from the first Limine module and
+given the memory and the other modules as frame capabilities; it starts
+the rest.
 
 ## Layout
 
 | Directory | What |
 |---|---|
-| `arch/x86_64/` | Boot entry (`boot.c`), GDT/TSS, IDT and exception stubs (`isr.S`), the `syscall`/`sysret` entry (`syscall.S`), serial, APIC, the kernel's paging setup, entering user mode, `linker.ld`. All assembly lives here |
+| `arch/x86_64/` | Boot entry (`boot.c`), GDT/TSS, IDT and exception stubs (`isr.S`), the `syscall` entry (`syscall.S`), serial, APIC, the kernel's paging setup, `run.c` (address spaces, threads, in and out of user mode, the root task), `linker.ld`. All assembly lives here |
 | `mem/` | The frame allocator (`frame.c`) and page tables (`vm.c`); host-testable |
 | `elf/` | The ELF validator for boot modules; host-testable |
-| `sys/` | The system-call dispatcher and `copy_from_user` (a software page walk); host-testable |
+| `sys/` | The system-call ABI (`abi.c`: registers to core operations), Phase 2's debug calls (`syscall.c`) and `copy_from_user` (a software page walk); host-testable |
 | `core/` | The object layer: capabilities, endpoints, IPC, notifications, lifetime events, tasks and threads (API: `include/joist/core.h`). The Phase 1 model, moved here in Phase 3; its tests, fuzzer, mutations, CBMC and TLA+ are in `../model` |
 | `lib/` | `kprint` and the string functions the freestanding build needs |
 | `include/` | `joist/` (kernel error codes, `kprint`) and Limine's 0BSD protocol header |
@@ -51,4 +54,7 @@ make tidy | scan | format | clean
 ```
 
 `ROOT_TASK=<name>` picks which `../user` program boots as the root task
-(default `hello`).
+(default `hello`), and `MODULES="a b"` adds further boot modules for it to
+load: `make BUILD=build/pp ROOT_TASK=root MODULES="pong ping" build/pp/joist.iso`
+is Phase 3's ping-pong (self-test `pingpong`). `make fuzz-abi` fuzzes the
+whole system-call ABI on the host.

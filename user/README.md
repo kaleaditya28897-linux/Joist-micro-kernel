@@ -1,9 +1,11 @@
-# user/: Phase 2's user programs
+# user/: user programs
 
-Small freestanding programs that run in ring 3 as the kernel's root task
-(`../kernel`, `ROOT_TASK=<name>`). They use the two Phase 2 debug system
-calls, `debug_write` and `exit`, through `sys.h`, and are linked with
-`user.ld`. Context: `docs/phase2-plan.md`, steps 6 and 7.
+Small freestanding programs that run in ring 3, linked with `user.ld`.
+Phase 2's run alone as the kernel's root task (`../kernel`,
+`ROOT_TASK=<name>`) and use the two debug system calls, `debug_write` and
+`exit`, through `sys.h` (`docs/phase2-plan.md`, steps 6 and 7). Phase 3's
+use the real system calls through `lib/joist.h` (`docs/abi.md`,
+*Encoding*; `docs/phase3-plan.md`, step 4).
 
 | Program | Purpose |
 |---|---|
@@ -14,6 +16,9 @@ calls, `debug_write` and `exit`, through `sys.h`, and are linked with
 | `rowrite` | Self-test: a write to read-only data is a user page fault |
 | `spin` | Self-test: the timer interrupts ring 3 many times and returns cleanly |
 | `sysrethole` | Self-test: `syscall` in the last bytes of the user half (the `sysret` hazard) |
+| `root` | Phase 3's root task (0013): loads each boot module as a task of its own (the kernel's ELF validator, built for user mode; memory a page at a time from its pool), hands out endpoints, starts the threads. `ROOT_TASK=root MODULES="pong ping"` |
+| `pong`, `ping` | Phase 3 step 4: a server answering every message plus one, and a client making `PING_ROUNDS` calls (default 1000) and reporting to the root |
+| `lib/joist.h` | The system calls from user mode: one raw call with every ABI register, and wrappers. Its numbers are checked against the kernel's at compile time (`../kernel/test/test_abi_user.c`) |
 
 The self-tests are run by `make selftest` in `../kernel`.
 
@@ -22,5 +27,5 @@ make        # every program, into build/*.elf (clang, ld.lld)
 make clean
 ```
 
-These are throwaway test programs. Real user space (servers, the Hurd,
-glibc) starts in later phases (§11).
+These are test programs. Real user space (servers, the Hurd, glibc) starts
+in later phases (§11).

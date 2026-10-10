@@ -10,11 +10,12 @@
 #include <limine/limine.h>
 #include <stdint.h>
 
-/* The root task's start, as its registers tell it (0013): RDI the first of
- * RSI memory frames (RUN_POOL_FRAMES of RUN_POOL_PAGES pages each, 2 MiB
- * aligned), RDX the first of R10 boot-module frames (modules 1 onwards, in
- * limine.conf's order; module 0 is the root task itself), R8 its first free
- * slot. Its own image and stack are frames in leaf 1 (slots 128-255): its
+/* The root task's start, as its registers tell it (0013), in the C calling
+ * convention's argument order so its entry can be a C function: RDI the
+ * first of RSI memory frames (RUN_POOL_FRAMES of RUN_POOL_PAGES pages each,
+ * 2 MiB aligned), RDX the first of RCX boot-module frames (modules 1
+ * onwards, in limine.conf's order; module 0 is the root task itself), R8 its
+ * first free slot. Its own image and stack are frames in leaf 1 (slots 128-255): its
  * to keep. */
 #define RUN_POOL_FIRST   1u
 #define RUN_POOL_FRAMES  4u

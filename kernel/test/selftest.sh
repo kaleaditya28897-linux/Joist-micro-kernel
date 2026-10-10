@@ -20,13 +20,19 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     n=$1; want=$2; shift 2
     b=build/selftest-$n
     ub="-fsanitize=undefined -fsanitize-trap=undefined"
+    mods=""; uextra=""; ubuild=build
     case $n in
+    # Phase 3 step 4: the root task loads pong and ping from boot modules.
+    pingpong) kextra=""; root=root; mods="pong ping" ;;
+    pingpong-long) kextra=""; root=root; mods="pong ping"; uextra="-DPING_ROUNDS=200000u"; ubuild=build/long ;;
+    ubsan-pingpong) kextra="$ub"; root=root; mods="pong ping" ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
     *) kextra=""; root=$n ;;
     esac
-    make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root $b/joist.iso >/dev/null 2>&1 ||
+    make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root MODULES="$mods" UEXTRA="$uextra" \
+        USER_BUILD=$ubuild $b/joist.iso >/dev/null 2>&1 ||
         { echo "selftest $n: BUILD FAILED"; fail=1; return; }
     boot $b/joist.iso $b/serial.log
     st=$?
@@ -34,7 +40,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -64,4 +70,12 @@ run 7 5 "EXCEPTION 8 (#DF double fault)"
 run ubsan-6 5 "UBSAN: signed add overflow (kind 0)"
 run ubsan-hello 1 "hello from user mode" "root task exited with code 0"
 run ubsan-sysfuzz 1 "sysfuzz: done" "registers preserved"
+# Phase 3 step 4: three tasks. The root task loads pong and ping from boot
+# modules into address spaces of their own and hands them their endpoints;
+# ping calls pong 1000 times and reports. The long run is preempted by the
+# timer hundreds of times in mid-IPC; the UBSan kernel runs it too.
+run pingpong 1 "root: pong and ping started" "ping: 1000 round trips ok" \
+    "root: ping reported 1000 round trips" "root task exited with code 0"
+run pingpong-long 1 "ping: 200000 round trips ok" "root: ping reported 200000 round trips"
+run ubsan-pingpong 1 "ping: 1000 round trips ok" "root task exited with code 0"
 exit $fail

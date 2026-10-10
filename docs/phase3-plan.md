@@ -613,3 +613,36 @@ preserved, the faults, the `sysret` hole now caught by the general user-half
 check), and `make check` in `kernel/` passes (`clang-tidy` asked for two
 64-bit products in a boot message).
 
+### Step 4, part 5: the root task starts two tasks that ping-pong (2026-10-10)
+
+The step's goal, met. `user/lib/joist.h` is the system calls from user mode
+(one raw call with every ABI register, and wrappers; its numbers are checked
+against the kernel's at compile time by `kernel/test/test_abi_user.c`).
+`user/root` is the root task of 0013 as far as this step needs it: the
+kernel hands it its memory pool and one frame per boot module (in the C
+calling convention's argument registers), and it loads each module as a
+task: maps the module into itself, validates it with the kernel's ELF
+validator built for user mode, creates the task, builds its memory a page
+at a time (a page split off the pool, mapped here to be zeroed and filled,
+then mapped into the task with the segment's permissions), gives it its
+capabilities with `cap_give`, and starts its thread with `thread_spawn`.
+`user/pong` receives on its endpoint and answers each message plus one;
+`user/ping` calls it `PING_ROUNDS` times through a badged send capability,
+checks every answer, and reports to the root, which exits.
+
+```
+joist: root task: 8 MiB of memory, 2 module(s); entering it at 0x0000000000400000
+root: pong and ping started
+ping: 1000 round trips ok
+root: ping reported 1000 round trips
+joist: root task exited with code 0 (timer ticks so far: 24)
+```
+
+It ran the first time it booted. Three boot self-tests were added
+(`kernel/test/selftest.sh`, now 19): `pingpong`, `pingpong-long` (200 000
+round trips, 594 timer ticks, so IPC is preempted some 570 times on the
+way) and `ubsan-pingpong` (the UBSan kernel). The ISO rule takes
+`MODULES="pong ping"` and writes them into the image and `limine.conf`.
+`make check` in `kernel/` passes: 41 host tests in five builds, `clang-tidy`
+and `scan-build` clean, both boots, all 19 self-tests.
+

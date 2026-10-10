@@ -331,7 +331,7 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     r->r[ABI_RDI] = RUN_POOL_FIRST;
     r->r[ABI_RSI] = RUN_POOL_FRAMES;
     r->r[ABI_RDX] = RUN_MODULE_FIRST;
-    r->r[ABI_R10] = nmods;
+    r->r[ABI_RCX] = nmods;
     r->r[ABI_R8] = RUN_FIRST_FREE;
 
     /* syscall: EFER.SCE; STAR: kernel CS 0x08 (SS 0x10) on entry; LSTAR the
