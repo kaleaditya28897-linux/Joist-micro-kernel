@@ -174,7 +174,7 @@ What earlier phases hand to this one:
    switch, many tasks, the ABI encoding, the real system calls over
    `kernel/core/`. The root task (0013) starts two tasks that ping-pong.
 5. ~~**Scheduler and scheduling contexts**~~ (done 2026-10-10; see *Progress*)**,** one-shot timer, donation.
-6. **Fault IPC and thread control.**
+6. ~~**Fault IPC and thread control.**~~ (done 2026-10-10; see *Progress*)
 7. **Preemptible cascades** in the kernel.
 8. **Fast path**, with the differential test, and **`ipcbench`**.
 9. **SMP** under 0016: start the other CPUs (Limine's MP request), per-CPU
@@ -929,4 +929,38 @@ of range. Test corrected; the kernel code was right.
 
 `make check` in `kernel/` passes; VM 112 runs the fault test under SeaBIOS
 and OVMF (`docs/phase3-data`, *Step 6*).
+
+### Step 6 done: full verification run (2026-10-10)
+
+One more change after part 2: the kernel's report of a task destroyed for a
+fault with no handler now follows the core's verdict (`joist_fault`
+returning `E_PEER`) and no longer its own guess from the handler slots, so
+a handler slot that is named but holds nothing usable is reported too. The
+fault test covers it (an empty handler slot), and the self-test requires
+both lines in the log.
+
+On joist-dev, about 70 minutes:
+
+| Suite | Result |
+|---|---|
+| `make check` (`model/`) | 149 tests, 0 failed, six builds |
+| `make mutate` | 112 of 112 caught |
+| `make cbmc` | 7 of 7 operations verified |
+| `make tla`, `make tla-mutate` | hold; every specification mutation caught |
+| `make fuzz`, `make fuzz-sanity` | clean; 7 of 7 seeded bugs found |
+| `make check` (`kernel/`) | passing: 46 host tests in five builds, freestanding, `clang-tidy`, `scan-build`, BIOS and UEFI boots, 23 self-tests |
+| `make mutate` (`kernel/`) | 43 of 43 caught |
+| `fuzz-abi`, `fuzz-elf`, `fuzz-syscall` | clean |
+| VM 112 | the fault test passes under SeaBIOS and OVMF (`docs/phase3-data`, *Step 6*) |
+
+The model and host suites ran at part 2's tree; the change above is in
+`kernel/arch/x86_64/run.c` and the fault test only, and the kernel's
+`make check` and the VM 112 boots were run again on the final tree.
+
+The core needed no change in this step: what step 3 put in the model for
+faults and thread control worked in the kernel as modelled. Not done here
+and left to the exit step's fault injection: handlers that die while
+holding a fault, and faults under load.
+
+Step 6 is done.
 

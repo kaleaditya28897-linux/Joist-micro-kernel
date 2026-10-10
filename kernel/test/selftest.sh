@@ -98,6 +98,7 @@ run ubsan-sched 1 "sched: all ok" "root task exited with code 0"
 # thread suspended; suspend, resume, kill, abort, the TLS base.
 run fault 1 "fault: resume ok" "fault: pager ok" "fault: terminate ok" \
     "faulted (#DE divide error at 0x00000000004[0-9a-f]*) with no handler: destroyed" \
+    "faulted (#UD invalid opcode at 0x00000000004[0-9a-f]*) with no handler: destroyed" \
     "fault: no handler ok" "fault: unresolved ok" "fault: control ok" "fault: all ok" \
     "root task exited with code 0"
 run ubsan-fault 1 "fault: all ok" "root task exited with code 0"

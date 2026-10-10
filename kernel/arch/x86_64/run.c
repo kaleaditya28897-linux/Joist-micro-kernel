@@ -442,16 +442,21 @@ static void fault(uint32_t t, uint64_t vector, uint64_t addr, uint64_t code, uin
         kputs("\n");
         kernel_finish(4);
     }
-    if (!has_handler(t)) {
-        kputs("joist: task ");
-        kputu(K.th[t].cs);
+    /* Whether there is a handler to tell is the core's finding (a slot can
+     * be named and hold nothing usable): with none it has destroyed the
+     * task, or the root's thread, and that is reported, not silent. */
+    uint32_t cs = K.th[t].cs;
+    if (joist_fault(&K, t, fault_kind(vector), addr, code) == JOIST_E_PEER) {
+        kputs(root ? "joist: a root task thread" : "joist: task ");
+        if (!root) {
+            kputu(cs);
+        }
         kputs(" faulted (");
         kputs(trap_name(vector));
         kputs(" at ");
         kputx(pc);
         kputs(") with no handler: destroyed\n");
     }
-    (void)joist_fault(&K, t, fault_kind(vector), addr, code);
 }
 
 /* Nothing can run: sleep until the next event the core names (a deadline,

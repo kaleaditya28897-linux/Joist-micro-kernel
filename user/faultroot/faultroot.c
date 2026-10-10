@@ -135,6 +135,13 @@ static void test_no_handler(void)
     check(f.w->count == 1, "a faulter with no handler went on");
     check(j_thread_suspend(f.thread) == J_E_GONE, "a faulter with no handler still exists");
     check(j_task_set_fault(f.task, HANDLER) == J_E_GONE, "its task still exists");
+    /* A handler named but not there (an empty slot) is no handler either. */
+    struct worker g = worker_new(FAULT_UD, 0);
+    must(j_task_set_fault(g.task, HANDLER), "task_set_fault");
+    go(&g);
+    sleep_ns(SHORT_NS);
+    check(g.w->count == 1, "a faulter with an empty handler slot went on");
+    check(j_thread_suspend(g.thread) == J_E_GONE, "a faulter with an empty handler slot still exists");
     j_puts("fault: no handler ok: the task is gone\n");
 }
 

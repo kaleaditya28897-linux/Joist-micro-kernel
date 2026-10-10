@@ -60,11 +60,11 @@ interrupts (about 2.5 µs a round trip).
 The fault test on VM 112, at the commit that adds these files. Image
 `kernel/build/selftest-fault/joist.iso` (`ROOT_TASK=faultroot
 MODULES=faulter`), built on joist-dev by `make check` in `kernel/`, SHA-256
-`8940134ec50f1afe0f4d32dee69446a80067415ed6f48dc234f69455fd762e41`; booted
+`285d678eb3bde5fc01f9a669ef617da24dd8288d927ce1dbce922c1b347e86e4`; booted
 with `tools/pve/boot.sh ISO bios|uefi 120 LOG`.
 
 | Firmware | Serial log (from `joist: boot`) | Result |
 |---|---|---|
-| SeaBIOS | `step6/vm112-fault-bios.txt` | status 1 (the root task exited 0): all six tests |
+| SeaBIOS | `step6/vm112-fault-bios.txt` | status 1 (the root task exited 0): all six tests; both tasks with no usable handler are reported destroyed |
 | OVMF | `step6/vm112-fault-uefi.txt` | the same |
 
