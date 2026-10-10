@@ -355,8 +355,14 @@ length of time from the call, `FOREVER` for none). The rules:
   equals, the one that has waited longest. A thread can run if it is not
   blocked or suspended, runs on a context (its own or a borrowed one), and
   that context has budget left or is due a new period.
-- Time a thread spends in user mode is charged to the context it runs on,
-  so a server on donated time spends its caller's budget. A context whose
+- Time is charged to the context a thread runs on, so a server on donated
+  time spends its caller's budget. A thread pays for its time in user mode
+  and for the kernel's time before it was resumed (from the kernel entry
+  that led to it): a call that returns to its caller is the caller's, a
+  call that hands over to a server on donated time is the same context's,
+  and a preemption is paid by the thread that preempts. No time is free
+  but idle time, so a thread that does nothing but make system calls
+  still spends its budget. A context whose
   budget is used up runs nothing until its next period, when the budget is
   whole again; a period starts when the context is first used after the
   last one ended. Using a budget up, and waking, put a thread behind its

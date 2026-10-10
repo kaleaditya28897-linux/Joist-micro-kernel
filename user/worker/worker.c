@@ -1,4 +1,4 @@
-/* worker.c - one program, three parts in the scheduler test (Phase 3 step
+/* worker.c - one program, four parts in the scheduler test (Phase 3 step
  * 5; schedroot loads it as several tasks): what it does is the role its
  * root wrote in the page they share (lib/work.h). */
 #include "../lib/joist.h"
@@ -40,6 +40,11 @@ void _start(void)
             if (j_call(0, &m, J_FOREVER) != J_OK) {
                 fail("call failed");
             }
+            w->count = w->count + 1u;
+        }
+    case WORK_CALLS:
+        for (;;) {
+            (void)j_frame_pages(1); /* an empty slot: refused at once */
             w->count = w->count + 1u;
         }
     default:

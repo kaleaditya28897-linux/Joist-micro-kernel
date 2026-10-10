@@ -19,7 +19,7 @@
 #define SLEEP_NS     (300 * J_MS)
 #define BUSY_COUNTS  30000000u
 #ifndef SERVE_COUNTS
-#define SERVE_COUNTS 20000u /* a request's work */
+#define SERVE_COUNTS 200000u /* a request's work: enough that the call itself is small beside it */
 #endif
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
@@ -97,13 +97,18 @@ static void check(int ok, const char *what)
     }
 }
 
-static void report(const char *what, uint64_t pct)
+/* A result, with the two counts behind it (the raw data, for the record). */
+static void report(const char *what, uint64_t pct, uint64_t a, uint64_t b)
 {
     j_puts("sched: ");
     j_puts(what);
-    j_puts(" (");
+    j_puts(" ");
     j_putu(pct);
-    j_puts("%)\n");
+    j_puts("% (counts ");
+    j_putu(a);
+    j_puts(", ");
+    j_putu(b);
+    j_puts(")\n");
 }
 
 /* 1. Fixed priorities, and preemption on waking. */
@@ -147,10 +152,31 @@ static void test_budget(void)
     worker_stop(&b);
     check(b.w->count != 0, "a spent budget kept the CPU from a lower priority");
     check(pct >= 8 && pct <= 40, "2 ms in 10 wasn't about a fifth of the time");
-    report("budget ok: 2 ms in every 10 got", pct);
+    report("budget ok: 2 ms in every 10 got", pct, a.w->count, b.w->count);
 }
 
-/* 3. Equals take turns. */
+/* 3. Time in the kernel is charged too: a thread that does nothing but
+ * make system calls, with 2 ms in every 10, leaves a lower priority about
+ * four fifths of what it gets alone. */
+static void test_kernel_time(void)
+{
+    struct worker b = worker_new(WORK_SPIN, 0);
+    struct worker a = worker_new(WORK_CALLS, 0);
+    worker_run(&b, 50, 10 * J_MS, 10 * J_MS);
+    sleep_ns(SLEEP_NS);
+    uint64_t alone = b.w->count;
+    worker_run(&a, 60, 2 * J_MS, 10 * J_MS);
+    sleep_ns(SLEEP_NS);
+    uint64_t beside = b.w->count - alone;
+    worker_stop(&a);
+    worker_stop(&b);
+    check(alone != 0 && a.w->count != 0, "a worker didn't run");
+    uint64_t pct = beside * 100u / alone;
+    check(pct >= 60 && pct <= 92, "a budget spent in system calls wasn't about a fifth of the time");
+    report("kernel time ok: beside 2 ms in every 10 of system calls, a spinner kept", pct, beside, alone);
+}
+
+/* 4. Equals take turns. */
 static void test_equals(void)
 {
     struct worker a = worker_new(WORK_SPIN, 0);
@@ -162,12 +188,13 @@ static void test_equals(void)
     worker_stop(&a);
     worker_stop(&b);
     check(pct >= 30 && pct <= 70, "two equals didn't share the time about evenly");
-    report("equals ok: one of two got", pct);
+    report("equals ok: one of two got", pct, a.w->count, b.w->count);
 }
 
-/* 4. Donation: a passive server works on its client's time. The client
+/* 5. Donation: a passive server works on its client's time. The client
  * has 2 ms in every 10 at priority 60; the server, with no context, does
- * all the work, above a spinner at 50 and out of the client's budget. */
+ * all the work, above a spinner at 50 and out of the client's budget: the
+ * spinner keeps about four fifths of what it gets alone. */
 static void test_donation(void)
 {
     struct worker server = worker_new(WORK_SERVE, SERVE_COUNTS);
@@ -182,24 +209,25 @@ static void test_donation(void)
     worker_stop(&server);
     check(server.w->count == 0, "the server worked before anyone called");
     worker_run(&other, 50, 10 * J_MS, 10 * J_MS);
-    sleep_ns(SLEEP_NS / 10);
+    sleep_ns(SLEEP_NS);
     check(server.w->count == 0, "a passive server ran with no caller");
-    uint64_t before = other.w->count;
-    check(before != 0, "the spinner didn't run");
+    uint64_t alone = other.w->count;
+    check(alone != 0, "the spinner didn't run");
     worker_run(&client, 60, 2 * J_MS, 10 * J_MS);
     sleep_ns(SLEEP_NS);
     uint64_t s = server.w->count;
     uint64_t calls = client.w->count;
-    uint64_t rest = other.w->count - before;
-    uint64_t pct = percent(s, rest);
+    uint64_t beside = other.w->count - alone;
     check(s != 0 && calls != 0, "the server never ran on its client's time");
-    check(rest != 0, "the server's work wasn't limited by its client's budget");
+    uint64_t kept = beside * 100u / alone;
+    uint64_t pct = percent(s, beside);
+    check(kept >= 60 && kept <= 92, "a server's work wasn't limited by its client's budget");
     check(pct >= 8 && pct <= 40, "work on donated time wasn't about the client's fifth");
-    j_puts("sched: donation ok: ");
+    j_puts("sched: ");
     j_putu(calls);
-    j_puts(" calls served on the client's budget (");
-    j_putu(pct);
-    j_puts("%)\n");
+    j_puts(" calls served;\n");
+    report("donation ok: a passive server on its client's 2 ms in every 10 got", pct, s, beside);
+    report("donation ok: and the spinner beside them kept", kept, beside, alone);
 }
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
@@ -213,6 +241,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     must(j_obj_create(J_ENDPOINT, nobody), "obj_create");
     test_priority();
     test_budget();
+    test_kernel_time();
     test_equals();
     test_donation();
     j_puts("sched: all ok\n");

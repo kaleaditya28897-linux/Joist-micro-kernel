@@ -16,9 +16,11 @@
  *   interrupts off and keeps nothing on its stack between entries (0016).
  * - Scheduling (step 5): the core's rules (joist_sched_pick: fixed
  *   priorities, contexts with budgets, donation). Time is the TSC in
- *   nanoseconds; on every entry the thread that ran is charged for it, and
- *   before every exit the one-shot timer is armed for the next thing that
- *   can change the choice without a system call (joist_sched_next_event).
+ *   nanoseconds; on every entry the thread that ran is charged for it
+ *   (and for the kernel's time before it was resumed; idle time is no
+ *   one's), and before every exit the one-shot timer is armed for the next
+ *   thing that can change the choice without a system call
+ *   (joist_sched_next_event).
  * - The root task (0013): its image is loaded through the core, a frame per
  *   page mapped into its own space, so the core's record of its address
  *   space is complete; it is given frames for a memory pool and for every
@@ -62,7 +64,7 @@ __attribute__((noreturn)) void resume_user(struct trap_frame *tf);
 static struct joist_kernel K;
 static struct abi_env env;
 static uint32_t cur; /* the thread running, or JOIST_MAX_THREADS */
-static uint64_t resumed_at; /* when it was last entered (ns) */
+static uint64_t resumed_at; /* what it is charged from: the kernel entry before it was resumed (ns) */
 static uint32_t cur_space = JOIST_MAX_CSPACES;
 
 static struct {
@@ -480,13 +482,17 @@ static void idle(void)
 static __attribute__((noreturn)) void enter(uint32_t t)
 {
     abi_complete(&env, t);
-    /* The one-shot timer: the next thing that changes who should run. */
-    K.now = apic_clock_ns();
+    /* The one-shot timer: the next thing that changes who should run.
+     * The thread is charged from the last kernel entry (K.now), not from
+     * here: the kernel's time between an entry and the exit that follows
+     * is paid for by the thread that exit resumes, so no time is free and
+     * a thread that only makes system calls still spends its budget. */
     uint64_t next = joist_sched_next_event(&K, t);
     if (next == JOIST_FOREVER) {
         apic_timer_disarm();
     } else {
-        apic_timer_arm(next > K.now ? next - K.now : 1);
+        uint64_t now = apic_clock_ns();
+        apic_timer_arm(next > now ? next - now : 1);
     }
     resumed_at = K.now;
     struct joist_regs *r = &K.th[t].regs;

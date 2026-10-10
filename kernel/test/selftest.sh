@@ -82,9 +82,10 @@ run pingpong 1 "root: pong and ping started" "ping: 1000 round trips ok" \
 run pingpong-long 1 "ping: 200000 round trips ok" "root: ping reported 200000 round trips"
 run ubsan-pingpong 1 "ping: 1000 round trips ok" "root task exited with code 0"
 # Phase 3 step 5: the scheduler, seen from user mode (user/schedroot): fixed
-# priorities and preemption on waking, a budget enforced per period, equals
-# taking turns, a passive server working on its client's budget.
-run sched 1 "sched: priorities ok" "sched: budget ok" "sched: equals ok" "sched: donation ok" \
-    "sched: all ok" "root task exited with code 0"
+# priorities and preemption on waking, a budget enforced per period (in user
+# mode and in system calls), equals taking turns, a passive server working on
+# its client's budget.
+run sched 1 "sched: priorities ok" "sched: budget ok" "sched: kernel time ok" "sched: equals ok" \
+    "sched: donation ok" "sched: all ok" "root task exited with code 0"
 run ubsan-sched 1 "sched: all ok" "root task exited with code 0"
 exit $fail

@@ -778,3 +778,52 @@ in the first test and fails by timeout. (The rules themselves are the
 core's, under the eight `pick-*` mutations.)
 
 `make check` in `kernel/` passes with the 21 self-tests.
+
+### Step 5, part 4: time in the kernel is charged; found on the real CPU (2026-10-10)
+
+The scheduler test was booted on VM 112 (KVM, i5-14400) before the
+end-of-step run. It passed, but its donation figure was 25 % where the
+emulator gave 14 %, and following that up found two things.
+
+**1. A hole in budget enforcement (fixed).** Part 2 charged a thread from
+its entry to user mode to its next kernel entry, so the kernel's own time
+was nobody's. Under emulation that hides: user-mode work is slow and
+dominates. On the real CPU a kernel entry and exit (two timer writes that
+leave the guest, an address-space switch) cost about as much as a short
+request's work, and a thread doing little but system calls could use
+several times its budget of CPU at the expense of lower priorities. Now
+(`run.c`, `enter`) a thread is charged from the kernel entry that led to
+its being resumed: the kernel's time between an entry and the exit that
+follows is paid by the thread that exit resumes (`docs/abi.md`,
+*Scheduling*). Only idle time is free. The core is unchanged: this is
+what the kernel passes to `joist_sched_charge`.
+
+A test for it was added to `schedroot` (*kernel time*): a worker that makes
+the cheapest system call for ever, with 2 ms in every 10 at priority 60,
+beside a spinner at 50 that must keep about four fifths of what it gets
+alone (bounds 60-92 %). On VM 112 the kernel as it was fails it
+(`sched: FAILED: a budget spent in system calls wasn't about a fifth of
+the time`); the fixed kernel passes.
+
+**2. A flaw in the test's measurement (fixed).** With the kernel fixed the
+donation figure on VM 112 rose to 33 %. The raw counts showed why: the
+spinner beside the server had kept its 79 %, and the server's counts were
+more than its time could hold. The counting loop was inlined, and the
+compiler's two copies (the spinner's and the server's) ran at rates a
+factor of two apart on the real CPU, though alike under emulation. The loop
+is now one function, never inlined (`user/lib/work.h`); the donation test
+checks the spinner's share against a window of its own alone as well; a
+request's work is ten times larger (200 000 counts), so the call is small
+beside it; and every result prints the two counts behind it.
+
+| Test | QEMU (TCG) on joist-dev | VM 112 (KVM), SeaBIOS |
+|---|---|---|
+| A budget: 2 ms in every 10 | 20 % | 20 % |
+| Kernel time: a spinner beside 2 ms in every 10 of system calls keeps | 78 % | 84 % |
+| Equals | 50 % | 49 % |
+| Donation: the server's share on its client's 2 ms in every 10 | 18 % (78 calls) | 19 % (1 148 calls) |
+| Donation: the spinner beside them keeps | 79 % | 74 % |
+
+(The *kept* figures compare two 300 ms windows, and the VM's speed varies
+by several per cent between windows; the bounds allow for it.) Part 3's
+table above is from the test as it was then.

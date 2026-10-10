@@ -11,7 +11,8 @@
 enum {
     WORK_SPIN = 1, /* count for ever, never calling the kernel */
     WORK_SERVE,    /* on the endpoint in slot 0: arg counts per request, then the reply */
-    WORK_CLIENT    /* call the endpoint in slot 0 for ever; count is the calls answered */
+    WORK_CLIENT,   /* call the endpoint in slot 0 for ever; count is the calls answered */
+    WORK_CALLS     /* make the cheapest system call for ever: nearly all its time is the kernel's */
 };
 
 struct work {
@@ -20,9 +21,12 @@ struct work {
     volatile uint64_t count;
 };
 
-/* The one loop every count comes from, so counts measure time alike
- * wherever they were made. */
-static inline void work_spin(struct work *w, uint64_t n)
+/* The one loop every count comes from, never inlined: within a program
+ * every count is made by the same instructions, so counts compare as time.
+ * (Inlined, the spinner's and the server's copies were compiled apart and
+ * ran at rates a factor of two apart on a real CPU, though alike under
+ * emulation.) */
+static __attribute__((noinline)) void work_spin(struct work *w, uint64_t n)
 {
     for (uint64_t i = 0; i < n; i++) {
         w->count = w->count + 1u;
