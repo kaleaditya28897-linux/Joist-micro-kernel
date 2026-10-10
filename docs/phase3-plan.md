@@ -701,3 +701,44 @@ more than its budget in a period, and something is always due later (1 440
 idle stretches, 13 847 periods begun). Eight mutations, all caught.
 `make check` in `model/`: 149 tests, six builds.
 
+### Step 5, part 2: the kernel runs on it (2026-10-10)
+
+`kernel/arch/x86_64/run.c` no longer chooses: every exit to user mode asks
+`joist_sched_pick`. The round robin of step 4 is gone.
+
+- **Time** is the TSC in nanoseconds (`apic_clock_ns`), its rate measured
+  against the PIT in the same window that calibrates the LAPIC timer. On
+  every kernel entry the core's clock is set and the thread that ran is
+  charged for the time since it was entered.
+- **The timer is one-shot.** The 100 Hz tick serves the boot and stops when
+  the root task starts; from then on, before every exit, the timer is set
+  for `joist_sched_next_event` (the running thread's budget end, a
+  deadline, a new period), or switched off if there is none. Idle sleeps
+  until that event; if there is none and nothing can run, the kernel says
+  so and stops, as before.
+- **The root task** is given a scheduling context of its own in slot 0
+  (`RUN_ROOT_SC`: priority 128, 10 ms of every 10 ms), since nothing runs
+  without one.
+- **User side:** `j_sc_create`, `j_sc_bind`, `j_sc_unbind`; the module
+  loader moved out of the root task into `user/lib/loader.h`, for the test
+  root tasks of part 3 to share.
+- **Starting a passive server.** Pong has no context of its own: it runs on
+  what each call lends it. The first run with the scheduler stopped with
+  "no thread can ever run again": pong could never reach its first `Recv`.
+  The root now lends it a context of priority 200, above its own; pong runs
+  at once until it blocks, and the root takes the context back
+  (`docs/abi.md`, *Scheduling*). One CPU makes the priority do the
+  sequencing; step 9 needs a handshake.
+
+Not charged to anyone yet: the kernel's own time in a call (a thread is
+charged from its entry to user mode to its next kernel entry). It is small
+against a budget and bounded per call; noted here so the benchmark step
+can measure it and decide.
+
+Check: `make check` in `kernel/` passes, the 19 self-tests with it (the
+three ping-pong runs on donated time: 200 000 round trips with pong never
+holding a context of its own). In the ping-pong runs no timer interrupt
+happens at all: a budget that runs out is noticed at the next system call,
+microseconds away, and with a budget equal to the period the next period is
+then already due. `spin`, which makes no calls, is interrupted at each
+budget end (313 interrupts in its run).

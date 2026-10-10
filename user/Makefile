@@ -37,7 +37,7 @@ $(BUILD)/elf.o: ../kernel/elf/elf.c ../kernel/elf/elf.h
 	$(CC) $(UFLAGS) -I../kernel/include -I../kernel/elf -c $< -o $@
 
 define libprog
-$(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h ../kernel/elf/elf.h
+$(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h lib/loader.h ../kernel/elf/elf.h
 	@mkdir -p $$(@D)
 	$$(CC) $$(UFLAGS) -I../kernel/include -I../kernel/elf -c $$< -o $$@
 $(BUILD)/$(1).elf: $(BUILD)/$(1).o $(BUILD)/string.o $(2) user.ld

@@ -318,8 +318,7 @@ A thread runs only on a **scheduling context**: a priority (0–255, higher
 first), a budget and a period. A context bound to a thread is its own; a
 thread with none is **passive** and runs only on time lent to it. The
 kernel's scheduler (Phase 3 step 5) runs threads by their current
-context's priority and charges its budget; what the model fixes is who
-holds which context.
+context's priority and charges its budget (*Scheduling*, below).
 
 | Operation | Arguments | Results, in check order | Effect | Bound |
 |---|---|---|---|---|
@@ -347,6 +346,34 @@ gives back what it borrowed and takes back, then drops, what it lent. **I11**
 context's owner and its thread name each other; every loan is recorded at
 both ends, ends at the thread running on the context, never loops, and its
 lender is waiting for a reply.
+
+**Scheduling (Phase 3 step 5).** Times are in nanoseconds: budgets,
+periods, and the timeouts of `Call`, `Recv` and `Wait` (a timeout is a
+length of time from the call, `FOREVER` for none). The rules:
+
+- The thread that runs is the one of highest priority that can run; among
+  equals, the one that has waited longest. A thread can run if it is not
+  blocked or suspended, runs on a context (its own or a borrowed one), and
+  that context has budget left or is due a new period.
+- Time a thread spends in user mode is charged to the context it runs on,
+  so a server on donated time spends its caller's budget. A context whose
+  budget is used up runs nothing until its next period, when the budget is
+  whole again; a period starts when the context is first used after the
+  last one ended. Using a budget up, and waking, put a thread behind its
+  equals.
+- A higher-priority thread that becomes able to run (woken by a message, a
+  timeout or a new period) runs at once: the kernel decides again on every
+  entry, and its one timer is set for the next moment the answer can
+  change without a system call.
+
+A **passive server** needs time once, to reach its first `Recv`. Its
+starter binds a context of a priority above its own to the server's
+thread, which runs at once until it blocks; the starter, running again,
+unbinds it (`user/root/root.c`). This is enough on one CPU; with more
+(step 9) the server says when it is waiting.
+
+The root task's own context is the capability in its slot 0: priority 128,
+a budget of the whole of a 10 ms period.
 
 ## Encoding (x86_64; Phase 3 step 4)
 

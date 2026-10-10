@@ -30,6 +30,7 @@ enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRA
 #define J_MAP_X     2u
 
 #define J_FOREVER   UINT64_MAX
+#define J_MS        1000000ull /* times are in nanoseconds */
 #define J_SLOT_NONE 0xffffffffu
 #define J_SLOT_SELF 0xfffffffeu
 #define J_PAGE      4096u
@@ -184,6 +185,21 @@ static inline uint64_t j_map(uint64_t frame, uint64_t task, uint64_t va_page, ui
 static inline uint64_t j_unmap(uint64_t task, uint64_t va_page)
 {
     return j_sys4(J_SYS_UNMAP, task, va_page, 0, 0);
+}
+
+/* Scheduling contexts: a priority (0-255) and a budget per period, in
+ * nanoseconds. A thread runs only on one: its own, or one lent by a caller. */
+static inline uint64_t j_sc_create(uint64_t dst, uint64_t prio, uint64_t budget, uint64_t period)
+{
+    return j_sys4(J_SYS_SC_CREATE, dst, prio, budget, period);
+}
+static inline uint64_t j_sc_bind(uint64_t sc, uint64_t thread)
+{
+    return j_sys4(J_SYS_SC_BIND, sc, thread, 0, 0);
+}
+static inline uint64_t j_sc_unbind(uint64_t sc)
+{
+    return j_sys4(J_SYS_SC_UNBIND, sc, 0, 0, 0);
 }
 
 /* Debug calls (Phase 2's convention: bytes written, or a negative code). */

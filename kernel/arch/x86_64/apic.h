@@ -22,4 +22,20 @@ uint32_t apic_counts_per_tick(void);
 /* Called from the interrupt dispatcher for the timer vector. */
 void apic_timer_interrupt(void);
 
+/* Nanoseconds since the timer was calibrated: the TSC, measured against the
+ * PIT in the same 10 ms as the LAPIC timer (Phase 3 step 5). Monotonic. */
+uint64_t apic_clock_ns(void);
+
+/* From the periodic boot tick to one-shot use: after this the timer fires
+ * only when armed. */
+void apic_timer_oneshot(void);
+
+/* Fire once, ns from now. Never sooner than one timer count; if ns is more
+ * than the 32-bit counter holds (about a minute) it fires at that limit,
+ * and the caller, finding nothing due, arms it again. */
+void apic_timer_arm(uint64_t ns);
+
+/* Don't fire (nothing is due). */
+void apic_timer_disarm(void);
+
 #endif /* JOIST_ARCH_APIC_H */

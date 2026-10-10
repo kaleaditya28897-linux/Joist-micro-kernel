@@ -23,6 +23,17 @@
 static volatile uint32_t *lapic;
 static volatile uint64_t ticks;
 static uint32_t counts_per_tick;
+static uint32_t counts_per_10ms;
+static uint64_t tsc_per_10ms;
+static uint64_t tsc_zero;
+
+static uint64_t rdtsc(void)
+{
+    uint32_t lo;
+    uint32_t hi;
+    __asm__ volatile("lfence; rdtsc" : "=a"(lo), "=d"(hi));
+    return (uint64_t)hi << 32 | lo;
+}
 
 static uint32_t rd(uint32_t reg)
 {
@@ -50,10 +61,15 @@ static uint32_t lapic_counts_during_pit(unsigned ms)
     outb(0x61, (uint8_t)(gate & 0xfeu));
     outb(0x61, (uint8_t)(gate | 0x01u));
     wr(LAPIC_TMR_INIT, 0xffffffffu);
+    uint64_t t0 = rdtsc();
     for (uint32_t spin = 0; spin < 100000000u && (inb(0x61) & 0x20u) == 0; spin++) {
     }
     uint32_t left = rd(LAPIC_TMR_CUR);
+    uint64_t t1 = rdtsc();
     wr(LAPIC_TMR_INIT, 0);
+    /* The TSC over the same interval: the clock's rate (apic_clock_ns). */
+    tsc_per_10ms = (t1 - t0) * 10u / ms;
+    tsc_zero = t1;
     return 0xffffffffu - left;
 }
 
@@ -83,6 +99,10 @@ const char *apic_init(uint64_t hhdm)
     if (per10ms == 0) {
         return "the LAPIC timer didn't count against the PIT";
     }
+    if (tsc_per_10ms == 0) {
+        return "the TSC didn't advance against the PIT";
+    }
+    counts_per_10ms = per10ms;
     counts_per_tick = per10ms * (100u / APIC_TICK_HZ);
     wr(LAPIC_LVT_TMR, APIC_TIMER_VECTOR | (1u << 17)); /* periodic, unmasked */
     wr(LAPIC_TMR_INIT, counts_per_tick);
@@ -104,3 +124,38 @@ uint32_t apic_counts_per_tick(void)
 {
     return counts_per_tick;
 }
+
+#define NS_PER_10MS 10000000ull
+
+uint64_t apic_clock_ns(void)
+{
+    /* Split so nothing overflows: whole 10 ms units, then the rest (less
+     * than tsc_per_10ms, a few times 10^7, times 10^7 fits 64 bits). */
+    uint64_t d = rdtsc() - tsc_zero;
+    return d / tsc_per_10ms * NS_PER_10MS + d % tsc_per_10ms * NS_PER_10MS / tsc_per_10ms;
+}
+
+void apic_timer_oneshot(void)
+{
+    wr(LAPIC_TMR_INIT, 0);                 /* stop the periodic tick */
+    wr(LAPIC_LVT_TMR, APIC_TIMER_VECTOR); /* one-shot, unmasked */
+}
+
+void apic_timer_arm(uint64_t ns)
+{
+    uint64_t whole = ns / NS_PER_10MS;
+    uint64_t counts = 0xffffffffu;
+    if (whole < 0xffffffffu / counts_per_10ms) {
+        counts = whole * counts_per_10ms + ns % NS_PER_10MS * counts_per_10ms / NS_PER_10MS;
+    }
+    if (counts == 0) {
+        counts = 1;
+    }
+    wr(LAPIC_TMR_INIT, (uint32_t)counts);
+}
+
+void apic_timer_disarm(void)
+{
+    wr(LAPIC_TMR_INIT, 0);
+}
+

@@ -14,9 +14,11 @@
  *   record; every exit builds a frame from the record of the thread that
  *   runs next and enters it with iretq (resume_user). The kernel runs with
  *   interrupts off and keeps nothing on its stack between entries (0016).
- * - Scheduling, for now: round robin over running threads, switching when
- *   the current one blocks or a timer tick arrives (step 5 brings
- *   priorities and scheduling contexts).
+ * - Scheduling (step 5): the core's rules (joist_sched_pick: fixed
+ *   priorities, contexts with budgets, donation). Time is the TSC in
+ *   nanoseconds; on every entry the thread that ran is charged for it, and
+ *   before every exit the one-shot timer is armed for the next thing that
+ *   can change the choice without a system call (joist_sched_next_event).
  * - The root task (0013): its image is loaded through the core, a frame per
  *   page mapped into its own space, so the core's record of its address
  *   space is complete; it is given frames for a memory pool and for every
@@ -36,6 +38,10 @@
 #define USER_TOP         0x0000800000000000ull
 #define USER_STACK_PAGES 8u
 #define ROOT_BUDGET      4096u
+/* The root task's own scheduling context (in its slot RUN_ROOT_SC): the
+ * middle priority, and the whole of a 10 ms period. */
+#define ROOT_PRIO        128u
+#define ROOT_PERIOD_NS   10000000ull
 
 #define MSR_EFER           0xc0000080u
 #define MSR_STAR           0xc0000081u
@@ -56,6 +62,7 @@ __attribute__((noreturn)) void resume_user(struct trap_frame *tf);
 static struct joist_kernel K;
 static struct abi_env env;
 static uint32_t cur; /* the thread running, or JOIST_MAX_THREADS */
+static uint64_t resumed_at; /* when it was last entered (ns) */
 static uint32_t cur_space = JOIST_MAX_CSPACES;
 
 static struct {
@@ -324,6 +331,11 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     if (joist_thread_create(&K, root, &t) != JOIST_OK) {
         return "no thread for the root task";
     }
+    /* Its scheduling context: nothing runs without one (step 5). */
+    if (joist_sc_create(&K, root, RUN_ROOT_SC, ROOT_PRIO, ROOT_PERIOD_NS, ROOT_PERIOD_NS) != JOIST_OK ||
+        joist__sc_bind_thread(&K, K.cs[root].slot[RUN_ROOT_SC].obj - 1u, t) != JOIST_OK) {
+        return "no scheduling context for the root task";
+    }
     struct joist_regs *r = &K.th[t].regs;
     r->pc = entry;
     r->sp = USER_LO;
@@ -353,6 +365,9 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     kputx(entry);
     kputs("\n");
     cur = t;
+    apic_timer_oneshot(); /* from the boot tick to one-shot: armed on every exit */
+    K.now = apic_clock_ns();
+    resumed_at = K.now;
     run_user_trap(NULL); /* "return" to user mode: the root task starts */
 }
 
@@ -434,47 +449,28 @@ static void fault(uint32_t t, uint64_t vector, uint64_t addr, uint64_t code, uin
     (void)joist_fault(&K, t, fault_kind(vector), addr, code);
 }
 
-static int runnable(uint32_t t)
-{
-    return K.th[t].state == JOIST_T_RUNNING;
-}
-
-/* The next running thread after `from`, round robin, or JOIST_MAX_THREADS. */
-static uint32_t pick(uint32_t from)
-{
-    for (uint32_t n = 1; n <= JOIST_MAX_THREADS; n++) {
-        uint32_t t = (from + n) % JOIST_MAX_THREADS;
-        if (runnable(t)) {
-            return t;
-        }
-    }
-    return JOIST_MAX_THREADS;
-}
-
-/* Nothing can run: wait for an interrupt, unless nothing could ever wake
- * anyone (no deadline left, no destruction pending): then the system is
- * stuck, which is reported, not hidden. */
+/* Nothing can run: sleep until the next event the core names (a deadline,
+ * a new period), unless there is none and no destruction is pending: then
+ * no thread can ever run again, which is reported, not hidden. */
 static void idle(void)
 {
     for (;;) {
-        for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
-            if (runnable(t)) {
-                return;
-            }
-        }
-        int hope = K.npending != 0;
-        for (uint32_t t = 0; t < JOIST_MAX_THREADS && !hope; t++) {
-            hope = K.th[t].state != JOIST_T_FREE && K.th[t].state != JOIST_T_SUSPENDED &&
-                   K.th[t].deadline != JOIST_FOREVER;
-        }
-        if (!hope) {
-            kputs("joist: no thread can ever run again (every thread waits forever): stopping\n");
-            kernel_finish(6);
+        joist_thread t;
+        K.now = apic_clock_ns();
+        joist_tick(&K, 0); /* deadlines that have passed */
+        if (joist_sched_pick(&K, &t) == JOIST_OK) {
+            return;
         }
         if (K.npending != 0) {
             (void)joist_continue(&K, 0);
             continue;
         }
+        uint64_t next = joist_sched_next_event(&K, JOIST_MAX_THREADS);
+        if (next == JOIST_FOREVER) {
+            kputs("joist: no thread can ever run again (every thread waits forever): stopping\n");
+            kernel_finish(6);
+        }
+        apic_timer_arm(next > K.now ? next - K.now : 1);
         __asm__ volatile("sti; hlt; cli" : : : "memory");
     }
 }
@@ -484,6 +480,15 @@ static void idle(void)
 static __attribute__((noreturn)) void enter(uint32_t t)
 {
     abi_complete(&env, t);
+    /* The one-shot timer: the next thing that changes who should run. */
+    K.now = apic_clock_ns();
+    uint64_t next = joist_sched_next_event(&K, t);
+    if (next == JOIST_FOREVER) {
+        apic_timer_disarm();
+    } else {
+        apic_timer_arm(next > K.now ? next - K.now : 1);
+    }
+    resumed_at = K.now;
     struct joist_regs *r = &K.th[t].regs;
     uint32_t s = K.th[t].cs;
     if (s != cur_space) {
@@ -522,6 +527,12 @@ static __attribute__((noreturn)) void enter(uint32_t t)
 void run_user_trap(struct trap_frame *tf)
 {
     uint32_t t = cur;
+    /* Time first: the core's clock, and what the thread that ran used. */
+    K.now = apic_clock_ns();
+    if (t < JOIST_MAX_THREADS) {
+        joist_sched_charge(&K, t, K.now - resumed_at);
+        resumed_at = K.now;
+    }
     if (tf != NULL && t < JOIST_MAX_THREADS && K.th[t].state != JOIST_T_FREE) {
         save(t, tf);
         if (tf->vector == SYSCALL_VECTOR) {
@@ -537,19 +548,15 @@ void run_user_trap(struct trap_frame *tf)
             (void)outcome;
         } else if (tf->vector == APIC_TIMER_VECTOR) {
             run_tick();
-            t = pick(t); /* round robin on every tick */
         } else if (tf->vector < 32u) {
             fault(t, tf->vector, tf->vector == 14u ? read_cr2() : 0, tf->error, tf->rip);
         }
         /* (Other vectors: spurious; nothing to do.) */
     }
     for (;;) {
-        if (t >= JOIST_MAX_THREADS || !runnable(t)) {
-            t = pick(t < JOIST_MAX_THREADS ? t : 0);
-        }
-        if (t >= JOIST_MAX_THREADS) {
+        /* Who runs is the core's decision, every time (step 5). */
+        if (joist_sched_pick(&K, &t) != JOIST_OK) {
             idle();
-            t = pick(0);
             continue;
         }
         /* The way out goes to a user-half address only: an address past it
@@ -570,6 +577,7 @@ void run_user_trap(struct trap_frame *tf)
 
 void run_tick(void)
 {
-    apic_timer_interrupt();
-    joist_tick(&K, 1);
+    apic_timer_interrupt(); /* count it, and EOI */
+    K.now = apic_clock_ns();
+    joist_tick(&K, 0); /* deadlines that have passed wake their threads */
 }

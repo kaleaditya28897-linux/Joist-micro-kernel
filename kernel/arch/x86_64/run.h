@@ -17,6 +17,7 @@
  * onwards, in limine.conf's order; module 0 is the root task itself), R8 its
  * first free slot. Its own image and stack are frames in leaf 1 (slots 128-255): its
  * to keep. */
+#define RUN_ROOT_SC      0u /* its own scheduling context */
 #define RUN_POOL_FIRST   1u
 #define RUN_POOL_FRAMES  4u
 #define RUN_POOL_PAGES   512u
