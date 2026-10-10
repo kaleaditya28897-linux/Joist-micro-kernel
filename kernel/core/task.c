@@ -426,6 +426,7 @@ joist_err joist_thread_spawn(struct joist_kernel *k, joist_cspace cs, joist_slot
     r->state = JOIST_T_RUNNING;
     r->cs = space;
     r->deadline = JOIST_FOREVER;
+    r->ready_seq = ++k->ready_seq;
     r->obj = obj + 1u;
     *out = t;
     return JOIST_OK;

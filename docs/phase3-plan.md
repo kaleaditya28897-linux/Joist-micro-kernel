@@ -672,3 +672,32 @@ this step's code, none of which had any.
 
 Step 4 is done.
 
+### Step 5, part 1: the scheduler's rules (2026-10-10)
+
+In the core (`kernel/core/sched.c`), host-tested: `joist_sched_pick` (the
+thread of highest priority that can run, and among equals the one that has
+waited longest; a thread can run if it is running, runs on a context, and
+that context has budget left or is due a new period), `joist_sched_charge`
+(time used is charged to the context a thread runs on, so a server on
+donated time spends its client's budget; using a budget up puts the thread
+behind its equals), and `joist_sched_next_event` (the running thread's
+budget end, a blocked thread's deadline, or the next period of a thread
+waiting for one: what the one-shot timer waits for). A context's budget is
+whole again once per period, the period starting when the context is first
+used after the last one ended. A woken thread goes behind its equals.
+
+**A change of order from the plan (choice 9):** these are bounded scans of
+the thread table, not yet the bitmap and per-priority queues. The scan is
+the specification; the O(1) queues come with the per-CPU run queues of step
+9, checked against it.
+
+Tests: `model/test/test_pick.c`, 6 unit tests (priority and passive
+threads, equals taking turns, a budget enforced per period, a server
+running on its client's budget, the next event, a woken thread behind its
+equals) and a simulation over 60 random sets of threads and contexts, half
+lightly loaded and half overcommitted: at each of 22 560 decisions the
+choice equals an independent reading of the rules, no context ever uses
+more than its budget in a period, and something is always due later (1 440
+idle stretches, 13 847 periods begun). Eight mutations, all caught.
+`make check` in `model/`: 149 tests, six builds.
+

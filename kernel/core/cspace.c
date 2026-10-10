@@ -104,6 +104,8 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
         o->prio = 0;
         o->budget = 0;
         o->period = 0;
+        o->remaining = 0;
+        o->refill_at = 0;
         o->base = 0;
         o->npages = 0;
         k->objects_live--;

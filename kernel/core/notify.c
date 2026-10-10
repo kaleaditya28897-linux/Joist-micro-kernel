@@ -423,7 +423,8 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
         const struct joist_object *ob = &k->obj[o];
         if (ob->type != JOIST_OBJ_SCHED && ob->type != JOIST_OBJ_NONE &&
-            (ob->prio != 0 || ob->budget != 0 || ob->period != 0)) {
+            (ob->prio != 0 || ob->budget != 0 || ob->period != 0 || ob->remaining != 0 ||
+             ob->refill_at != 0)) {
             VIOLATION("object %u of type %u carries scheduling-context state", o, ob->type);
         }
         if (ob->type != JOIST_OBJ_FRAME && ob->type != JOIST_OBJ_NONE &&
@@ -474,7 +475,8 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
                 ob->ns_notif != 0 || ob->rseq != 0) {
                 VIOLATION("scheduling context %u carries other objects' state", o);
             }
-        } else if (ob->prio != 0 || ob->budget != 0 || ob->period != 0 || ob->base != 0 ||
+        } else if (ob->prio != 0 || ob->budget != 0 || ob->period != 0 || ob->remaining != 0 ||
+                   ob->refill_at != 0 || ob->base != 0 ||
                    ob->npages != 0 || ob->word != 0 || ob->recv_caps != 0 || ob->dead || ob->target != 0 ||
                    ob->rseq != 0 || ob->donor != 0 || ob->ns_notif != 0 || ob->ns_bits != 0 ||
                    ob->ns_first != 0 || ob->ns_last != 0 || ob->qkind != JOIST_Q_NONE ||

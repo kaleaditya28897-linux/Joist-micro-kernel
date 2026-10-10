@@ -88,6 +88,7 @@ joist_err joist_sc_create(struct joist_kernel *k, joist_cspace cs, joist_slot ds
             o->prio = prio;
             o->budget = budget;
             o->period = period;
+            o->remaining = budget; /* the first period starts when it first runs */
             s->quota--;
             s->charged++;
             k->objects_live++;
@@ -274,6 +275,92 @@ void joist__sc_freed(struct joist_kernel *k, uint32_t obj)
     }
 }
 
+/* ---- who runs (Phase 3 step 5) ---- */
+
+/* Can thread t run at k->now? Its context, if so. */
+static const struct joist_object *can_run(const struct joist_kernel *k, uint32_t t)
+{
+    const struct joist_thread_rec *r = &k->th[t];
+    if (r->state != JOIST_T_RUNNING || r->run_sc == 0) {
+        return NULL;
+    }
+    const struct joist_object *sc = &k->obj[r->run_sc - 1u];
+    return sc->remaining != 0 || sc->refill_at <= k->now ? sc : NULL;
+}
+
+joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t)
+{
+    uint32_t best = JOIST_MAX_THREADS;
+    for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        JOIST_WORK(k);
+        const struct joist_object *sc = can_run(k, i);
+        if (sc == NULL) {
+            continue;
+        }
+        if (best == JOIST_MAX_THREADS) {
+            best = i;
+            continue;
+        }
+        const struct joist_object *bsc = &k->obj[k->th[best].run_sc - 1u];
+        if (sc->prio > bsc->prio ||
+            (sc->prio == bsc->prio && k->th[i].ready_seq < k->th[best].ready_seq)) {
+            best = i;
+        }
+    }
+    if (best == JOIST_MAX_THREADS) {
+        return JOIST_E_EMPTY;
+    }
+    /* A period that is due starts now, when its context is first used. */
+    struct joist_object *sc = &k->obj[k->th[best].run_sc - 1u];
+    if (sc->refill_at <= k->now) {
+        sc->remaining = sc->budget;
+        sc->refill_at = k->now > JOIST_FOREVER - sc->period ? JOIST_FOREVER : k->now + sc->period;
+    }
+    *t = best;
+    return JOIST_OK;
+}
+
+void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used)
+{
+    if (t >= JOIST_MAX_THREADS || k->th[t].state == JOIST_T_FREE || k->th[t].run_sc == 0) {
+        return;
+    }
+    struct joist_object *sc = &k->obj[k->th[t].run_sc - 1u];
+    if (used >= sc->remaining) {
+        sc->remaining = 0;
+        k->th[t].ready_seq = ++k->ready_seq; /* its turn is over: behind its equals */
+    } else {
+        sc->remaining -= used;
+    }
+}
+
+uint64_t joist_sched_next_event(const struct joist_kernel *k, joist_thread running)
+{
+    uint64_t next = JOIST_FOREVER;
+    if (running < JOIST_MAX_THREADS && k->th[running].state != JOIST_T_FREE &&
+        k->th[running].run_sc != 0) {
+        uint64_t left = k->obj[k->th[running].run_sc - 1u].remaining;
+        next = k->now > JOIST_FOREVER - left ? JOIST_FOREVER : k->now + left;
+    }
+    for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        const struct joist_thread_rec *r = &k->th[i];
+        if (r->state == JOIST_T_FREE) {
+            continue;
+        }
+        if (r->state != JOIST_T_RUNNING && r->state != JOIST_T_SUSPENDED &&
+            r->deadline < next) {
+            next = r->deadline; /* a blocked thread's timeout */
+        }
+        if (r->state == JOIST_T_RUNNING && r->run_sc != 0) {
+            const struct joist_object *sc = &k->obj[r->run_sc - 1u];
+            if (sc->remaining == 0 && sc->refill_at > k->now && sc->refill_at < next) {
+                next = sc->refill_at; /* out of budget: its next period */
+            }
+        }
+    }
+    return next;
+}
+
 /* ---- invariants (I11) ---- */
 
 unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned msglen, int msg_free)
@@ -290,6 +377,10 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
         const struct joist_object *ob = &k->obj[o];
         if (ob->type != JOIST_OBJ_SCHED) {
             continue;
+        }
+        if (ob->remaining > ob->budget) {
+            VIOLATION("I11: context %u has %llu left of a budget of %llu", o,
+                      (unsigned long long)ob->remaining, (unsigned long long)ob->budget);
         }
         if (ob->budget == 0 || ob->budget > ob->period) {
             VIOLATION("I11: context %u budget %llu period %llu", o,

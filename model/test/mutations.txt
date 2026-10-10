@@ -114,3 +114,12 @@ map-span-ignored @@ ../kernel/core/map.c @@ if (f->npages > JOIST_MAP_SPAN - va 
 # Giving a task capabilities (Phase 3 step 4).
 give-mask-ignored @@ ../kernel/core/task.c @@ return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, mask); @@ return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, (joist_rights)(mask | JOIST_R_ALL));
 give-no-control @@ ../kernel/core/task.c @@ e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj); @@ e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj); if (e == JOIST_E_RIGHTS) { obj = joist__slot_c(k, cs, task_slot)->obj - 1u; e = JOIST_OK; }
+# The scheduler's rules (Phase 3 step 5).
+pick-ignores-budget @@ ../kernel/core/sched.c @@ return sc->remaining != 0 || sc->refill_at <= k->now ? sc : NULL; @@ return sc;
+pick-lowest-priority @@ ../kernel/core/sched.c @@ if (sc->prio > bsc->prio || @@ if (sc->prio < bsc->prio ||
+pick-no-turns @@ ../kernel/core/sched.c @@ (sc->prio == bsc->prio && k->th[i].ready_seq < k->th[best].ready_seq)) { @@ (sc->prio == bsc->prio && k->th[i].ready_seq > k->th[best].ready_seq)) {
+pick-no-refill @@ ../kernel/core/sched.c @@         sc->remaining = sc->budget; @@         (void)sc->budget;
+pick-charge-free @@ ../kernel/core/sched.c @@         sc->remaining -= used; @@         (void)used;
+pick-passive-runs @@ ../kernel/core/sched.c @@ if (r->state != JOIST_T_RUNNING || r->run_sc == 0) { @@ if (r->state != JOIST_T_RUNNING) {
+pick-wake-keeps-place @@ ../kernel/core/ipc.c @@ r->ready_seq = ++k->ready_seq; /* ready again: behind its equals */ @@ (void)0; /* ready again: behind its equals */
+pick-event-ignores-deadline @@ ../kernel/core/sched.c @@ next = r->deadline; /* a blocked thread's timeout */ @@ (void)r;

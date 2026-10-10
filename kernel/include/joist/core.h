@@ -164,11 +164,16 @@ struct joist_object {
     /* Notifications: the pending bit-set. Width: 0001's open item 3. */
     uint64_t word;
     /* Scheduling contexts (target: the owning thread, plus one, 0 if
-     * unbound). Budget and period in ticks; the kernel's scheduler enforces
-     * them, the model only records them. */
+     * unbound). Budget and period in time units (the kernel's: nanoseconds).
+     * `remaining` is what is left of the budget in the current period, and
+     * `refill_at` when the next period starts and the budget is whole again
+     * (0: no period has started yet). In any period at most `budget` runs on
+     * this context, whoever holds it. */
     uint8_t prio;
     uint64_t budget;
     uint64_t period;
+    uint64_t remaining;
+    uint64_t refill_at;
     /* Frames: the first physical page and the number of pages. */
     uint64_t base;
     uint64_t npages;
@@ -346,6 +351,10 @@ struct joist_thread_rec {
     uint32_t run_sc;
     uint32_t sc_from;
     uint32_t sc_to;
+    /* Its place among ready threads of its priority: lower runs first. Set
+     * from k->ready_seq whenever it becomes ready or uses up a budget, so
+     * equal priorities take turns. */
+    uint64_t ready_seq;
     struct joist_regs regs;
     /* Faults (0009): the handler, a slot in this thread's own space plus one
      * (looked up when a fault happens; 0 for none), and whether this thread
@@ -396,6 +405,7 @@ struct joist_kernel {
     struct joist_mapping map[JOIST_MAX_MAPPINGS];
     uint32_t objects_live;
     uint64_t now; /* model time: advanced only by joist_tick */
+    uint64_t ready_seq; /* the last place given out among ready threads */
     /* Quota conservation (I3): every unit of quota entered through joist_boot
      * or a fixture space, and
      *   sum over live spaces of quota + sum over all spaces of charged == budget.
@@ -634,6 +644,32 @@ joist_err joist_sc_bind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_s
 /* Unbind the scheduling context in sc_slot from its thread (CONTROL), which
  * becomes passive. JOIST_E_STATE if it is unbound or lent out right now. */
 joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot);
+
+/* ---- scheduling (Phase 3 step 5; §5.6): who runs, and until when ----
+ * Fixed priorities, 0 to JOIST_PRIO_MAX. A thread can run if it is running
+ * (not blocked or suspended), runs on some context (its own or a borrowed
+ * one), and that context has budget left in its current period or is due a
+ * new one. The thread to run is the one of highest priority that can, and
+ * among equals the one that has waited longest. These are the scheduler's
+ * rules, as plain bounded scans of the thread table; the kernel calls them
+ * on every entry. */
+
+/* The thread that should run at time k->now, in *t (JOIST_OK), starting a
+ * new period for its context if one is due; JOIST_E_EMPTY if none can.
+ * Bounded by JOIST_MAX_THREADS. */
+joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t);
+
+/* Thread t ran for `used` time units: charged to the context it runs on. If
+ * that uses the budget up, t goes behind its equals. No effect if t runs on
+ * no context. */
+void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used);
+
+/* The next time something changes without a system call, given that thread
+ * `running` runs from k->now (JOIST_MAX_THREADS: nobody does): its budget
+ * running out, a blocked thread's deadline, or a new period for a thread
+ * waiting on one. JOIST_FOREVER if nothing will. For the one-shot timer.
+ * Bounded by JOIST_MAX_THREADS. */
+uint64_t joist_sched_next_event(const struct joist_kernel *k, joist_thread running);
 
 /* Set the mcp of the task named by task_slot (CONTROL) to at most cs's own
  * (JOIST_E_RIGHTS otherwise). */
