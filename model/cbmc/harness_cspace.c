@@ -51,6 +51,10 @@ int main(void)
      * is either a bug or a missing invariant: a state the check accepts that
      * no execution reaches. */
     k = nondet_kernel();
+    /* The host model has no kernel hooks (struct joist_hooks): an arbitrary
+     * state would otherwise call arbitrary function pointers. The kernel's
+     * hooks are tested by the executor's recorded shadow and by booting. */
+    k.hooks = (struct joist_hooks){0};
     __CPROVER_assume(joist_check_invariants(&k, NULL, 0) == 0);
 #else
     joist_cspace root;

@@ -30,3 +30,11 @@ uc-page-overrun @@ sys/usercopy.c @@ size_t n = len < in_page ? len : (size_t)in
 sys-len-unbounded @@ sys/syscall.c @@ if (a1 > DEBUG_WRITE_MAX) { @@ if (a1 > DEBUG_WRITE_MAX && 0) {
 sys-exit-ignored @@ sys/syscall.c @@ env->exited = 1; @@ (void)env;
 sys-unknown-ok @@ sys/syscall.c @@ return fail(SYS_E_NOSYS); @@ return 0;
+# Phase 3 step 4 (docs/phase3-plan.md): unmapping, the shared kernel half,
+# the root's memory pool, the system-call ABI.
+unmap-keeps-entry @@ mem/vm.c @@ path[0][idx(v, 0)] = 0; @@ (void)v;
+unmap-keeps-tables @@ mem/vm.c @@ s->put_frame(s->ctx, phys[l]); @@ (void)phys;
+upper-half-user @@ mem/vm.c @@ pml4[i] = (f & PTE_ADDR) | PTE_P | PTE_W; @@ pml4[i] = (f & PTE_ADDR) | PTE_P | PTE_W | PTE_U;
+take-range-over-used @@ mem/frame.c @@ return KERR_STATE; /* in use, or never allocatable: nothing taken */ @@ continue;
+abi-slot-truncated @@ sys/abi.c @@ return v > UINT32_MAX ? JOIST_CSPACE_SLOTS : (joist_slot)v; @@ return (joist_slot)v;
+abi-complete-silent @@ sys/abi.c @@ outputs(env->k, t, th->result); @@ (void)th;

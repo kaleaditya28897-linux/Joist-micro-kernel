@@ -447,6 +447,11 @@ JT_TEST(vm_shared_upper_half)
     unsigned perms;
     JT_CHECK(vm_translate(&task, KBASE + 0x5000, &pa, &perms) == KERR_OK && pa == 0x77000);
     JT_CHECK((perms & VM_USER) == 0); /* never user-accessible, at any level */
+    /* Even a kernel-half leaf asked for with VM_USER isn't user-accessible:
+     * the prefilled level above it has no user bit. */
+    JT_REQUIRE(vm_map(&kern, KBASE + 0x9000, 0x78000, 0x1000, VM_PAGE, VM_USER) == KERR_OK);
+    JT_CHECK(vm_translate(&task, KBASE + 0x9000, &pa, &perms) == KERR_OK &&
+             (perms & VM_USER) == 0);
     /* Prefilling twice changes nothing. */
     uint32_t before = next_frame;
     JT_REQUIRE(vm_prefill_upper(&kern) == KERR_OK);

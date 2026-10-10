@@ -170,7 +170,7 @@ What earlier phases hand to this one:
    IPC, frame capabilities and the mapping bookkeeping, preemption points in
    the cascades. Each with property tests and mutations; CBMC and TLA+
    extended where they apply.
-4. **Address spaces and threads in the kernel:** shared kernel half, context
+4. ~~**Address spaces and threads in the kernel**~~ (done 2026-10-10; see *Progress*)**:** shared kernel half, context
    switch, many tasks, the ABI encoding, the real system calls over
    `kernel/core/`. The root task (0013) starts two tasks that ping-pong.
 5. **Scheduler and scheduling contexts**, one-shot timer, donation.
@@ -645,4 +645,30 @@ way) and `ubsan-pingpong` (the UBSan kernel). The ISO rule takes
 `MODULES="pong ping"` and writes them into the image and `limine.conf`.
 `make check` in `kernel/` passes: 41 host tests in five builds, `clang-tidy`
 and `scan-build` clean, both boots, all 19 self-tests.
+
+### Step 4: the full run (2026-10-10)
+
+The whole suite at the end of the step, on joist-dev, and the step's goal
+on VM 112. The first pass found two things, both in test machinery: CBMC
+failed `task_create` because its arbitrary starting state now includes the
+hook function pointers, which the operation calls (the harness now clears
+them: the host model has none); and the kernel's mutation script copied
+only `kernel/`, while a host test now includes `user/lib/joist.h`, so no
+mutant built (it copies both now). Six kernel mutations were added for
+this step's code, none of which had any.
+
+| Check | Result |
+|---|---|
+| `make check` (`model/`) | 142 tests under all six builds |
+| `make mutate` (`model/`) | 104 of 104 caught |
+| `make cbmc` | 7 of 7 operations verified (op0 420 s, op1 297 s, op2 431 s, op4 369 s, op5 198 s after the fix, grow 110 s, shrink 155 s) |
+| `make tla`, `make tla-mutate` | hold; the unsafe configuration leaks as expected; all TLA+ mutations caught |
+| `make fuzz` (`model/`, 300 s) | clean |
+| `make fuzz-sanity` | 7 of 7 from the seed corpus (from an empty corpus 6 of 7 within 120 s, reported only) |
+| `make check` (`kernel/`) | passing: 41 host tests in five builds, freestanding, `clang-tidy`, `scan-build`, BIOS and UEFI boots, 19 self-tests |
+| `make mutate` (`kernel/`) | 36 of 36 caught (6 new) |
+| `make fuzz-abi`, `fuzz-elf`, `fuzz-syscall` (180 s each) | clean: 12 079, 57 million and 71 million inputs |
+| VM 112 (real Intel CPU, KVM) | 200 000 ping-pong round trips under SeaBIOS and OVMF, correct, in about 13 to 15 timer ticks (`docs/phase3-data/README.md`) |
+
+Step 4 is done.
 
