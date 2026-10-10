@@ -24,3 +24,34 @@ So about 13 to 15 ticks (130 to 150 ms) for 200 000 round trips: roughly
 0.65 to 0.75 µs each under KVM on the i5-14400. This is the 100 Hz tick
 counter, not a benchmark (step 8 measures with the TSC); it is recorded as
 the first evidence that IPC on real hardware is in the expected range.
+
+## Step 5 (2026-10-10): `step5/`
+
+The scheduler on VM 112, at the commit that adds these files. Images built
+on joist-dev by `make check` in `kernel/` (`sh test/selftest.sh`), booted
+with `tools/pve/boot.sh ISO bios|uefi 120 LOG`:
+
+| Image | Built as | SHA-256 |
+|---|---|---|
+| `kernel/build/selftest-sched/joist.iso` | `ROOT_TASK=schedroot MODULES=worker` | `b9598017a05745223c5c73813ef8d64f2124f436447ad0e3364b72175bb57fd1` |
+| `kernel/build/selftest-pingpong-long/joist.iso` | `ROOT_TASK=root MODULES="pong ping" UEXTRA=-DPING_ROUNDS=200000u` | `63b53c9fa3329c148a603e3ac30eb7f195a00abf8decf7fc1bcb79d1f8c93786` |
+
+| Run | Serial log (from `joist: boot`) | Result |
+|---|---|---|
+| Scheduler test, SeaBIOS | `step5/vm112-sched-bios.txt` | status 1 (exited 0). Budget of 2 ms in 10: 20 %. Spinner beside system calls on that budget keeps 81 %. Equals: 50 %. Passive server on its client's budget: 19 % (1 193 calls); the spinner beside keeps 80 % |
+| Scheduler test, OVMF | `step5/vm112-sched-uefi.txt` | status 1. 19 %, 79 %, 50 %, 19 % (1 196 calls), 80 % |
+| Ping-pong, 200 000 round trips, SeaBIOS | `step5/vm112-pingpong-long-bios.txt` | status 1; 9 timer interrupts after boot |
+| Ping-pong, OVMF | `step5/vm112-pingpong-long-uefi.txt` | status 1; 13 |
+
+Each line of the scheduler test prints the two counts behind its
+percentage. In the ping-pong run a timer interrupt now marks the end of a
+10 ms budget (the timer is one-shot), so 9 to 13 of them is roughly 90 to
+130 ms for 200 000 round trips: 0.45 to 0.65 µs each, where step 4 measured
+0.65 to 0.75 µs by the same rough method. Still not a benchmark (step 8).
+
+Two earlier boots of this step are described in `docs/phase3-plan.md`
+(*Step 5*, parts 4 and 5) and not kept as files: the kernel before kernel
+time was charged, which fails the scheduler test on this VM; and the kernel
+that wrote the timer on every exit, on which the same ping-pong took 51
+interrupts (about 2.5 µs a round trip).
+

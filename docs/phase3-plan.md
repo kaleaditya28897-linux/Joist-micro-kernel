@@ -173,7 +173,7 @@ What earlier phases hand to this one:
 4. ~~**Address spaces and threads in the kernel**~~ (done 2026-10-10; see *Progress*)**:** shared kernel half, context
    switch, many tasks, the ABI encoding, the real system calls over
    `kernel/core/`. The root task (0013) starts two tasks that ping-pong.
-5. **Scheduler and scheduling contexts**, one-shot timer, donation.
+5. ~~**Scheduler and scheduling contexts**~~ (done 2026-10-10; see *Progress*)**,** one-shot timer, donation.
 6. **Fault IPC and thread control.**
 7. **Preemptible cascades** in the kernel.
 8. **Fast path**, with the differential test, and **`ipcbench`**.
@@ -827,3 +827,50 @@ beside it; and every result prints the two counts behind it.
 (The *kept* figures compare two 300 ms windows, and the VM's speed varies
 by several per cent between windows; the bounds allow for it.) Part 3's
 table above is from the test as it was then.
+
+### Step 5, part 5: the timer is written only when its moment changes (2026-10-10)
+
+The final boots on VM 112 showed the cost of part 2's "set the timer before
+every exit": 200 000 ping-pong round trips took 51 budget periods (about
+2.5 µs each) where step 4's kernel took about 0.7 µs. Under KVM a write to
+the LAPIC timer leaves the guest, and there was one on every exit. `run.c`
+now remembers the moment the timer is set for and writes it only when the
+next event differs. Since a thread is charged from its kernel entry, a
+budget's end is the same moment from call to call while one context runs,
+through a call to a server on donated time too, so ping-pong writes the
+timer about once per period. The same run: 9 to 13 periods, 0.45 to 0.65 µs
+a round trip. (Rough, by counting periods; step 8 measures.)
+
+### Step 5 done: full verification run (2026-10-10)
+
+On joist-dev, about 70 minutes:
+
+| Suite | Result |
+|---|---|
+| `make check` (`model/`) | 149 tests, 0 failed, six builds |
+| `make mutate` | 112 of 112 caught |
+| `make cbmc` | 7 of 7 operations verified |
+| `make tla`, `make tla-mutate` | safe and large configurations hold, the unsafe one leaks as expected; every specification mutation caught |
+| `make fuzz`, `make fuzz-sanity` | clean; 7 of 7 seeded bugs found |
+| `make check` (`kernel/`) | passing: host tests in five builds, freestanding, `clang-tidy`, `scan-build`, BIOS and UEFI boots, 21 self-tests |
+| `make mutate` (`kernel/`) | 36 of 36 caught |
+| `fuzz-abi`, `fuzz-elf`, `fuzz-syscall` | clean |
+| VM 112 | the scheduler test and the 200 000 round trip ping-pong pass under SeaBIOS and OVMF (`docs/phase3-data`, *Step 5*) |
+
+The model and host suites ran at part 3's tree; parts 4 and 5 changed only
+`kernel/arch/x86_64/run.c` and the user test programs, which those suites
+don't build, and the kernel's `make check` and the VM 112 boots were run
+again on the final tree.
+
+What the run and the real CPU found, all in this step's own work: kernel
+time charged to no one (part 4); a test that compared counts from two
+differently compiled loops (part 4); a timer write on every exit (part 5).
+Nothing in earlier steps' code.
+
+Left for later steps, as recorded above: O(1) run queues (step 9, checked
+against the scans); a handshake for starting passive servers on more than
+one CPU (step 9); `run.c`'s scheduling glue is tested by boot only, with
+three hand-made broken kernels tried once rather than kept as mutations.
+
+Step 5 is done.
+

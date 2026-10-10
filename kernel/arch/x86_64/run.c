@@ -66,6 +66,9 @@ static struct abi_env env;
 static uint32_t cur; /* the thread running, or JOIST_MAX_THREADS */
 static uint64_t resumed_at; /* what it is charged from: the kernel entry before it was resumed (ns) */
 static uint32_t cur_space = JOIST_MAX_CSPACES;
+/* The moment the one-shot timer is set for (JOIST_FOREVER: off); 0 once it
+ * has fired or idle has used it, so the next exit sets it again. */
+static uint64_t armed_for;
 
 static struct {
     uint64_t kernel_rsp;
@@ -473,6 +476,7 @@ static void idle(void)
             kernel_finish(6);
         }
         apic_timer_arm(next > K.now ? next - K.now : 1);
+        armed_for = 0;
         __asm__ volatile("sti; hlt; cli" : : : "memory");
     }
 }
@@ -488,11 +492,18 @@ static __attribute__((noreturn)) void enter(uint32_t t)
      * is paid for by the thread that exit resumes, so no time is free and
      * a thread that only makes system calls still spends its budget. */
     uint64_t next = joist_sched_next_event(&K, t);
-    if (next == JOIST_FOREVER) {
-        apic_timer_disarm();
-    } else {
-        uint64_t now = apic_clock_ns();
-        apic_timer_arm(next > now ? next - now : 1);
+    if (next != armed_for) {
+        /* Only when the moment changes: a budget's end stays where it is
+         * from call to call while one context runs (as through a call to a
+         * server on donated time), and a timer write is the dearest thing
+         * on this path (it leaves a virtual machine). */
+        if (next == JOIST_FOREVER) {
+            apic_timer_disarm();
+        } else {
+            uint64_t now = apic_clock_ns();
+            apic_timer_arm(next > now ? next - now : 1);
+        }
+        armed_for = next;
     }
     resumed_at = K.now;
     struct joist_regs *r = &K.th[t].regs;
@@ -584,6 +595,7 @@ void run_user_trap(struct trap_frame *tf)
 void run_tick(void)
 {
     apic_timer_interrupt(); /* count it, and EOI */
+    armed_for = 0;
     K.now = apic_clock_ns();
     joist_tick(&K, 0); /* deadlines that have passed wake their threads */
 }

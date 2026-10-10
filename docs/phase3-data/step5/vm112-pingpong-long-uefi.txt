@@ -1,0 +1,15 @@
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 213 MiB usable in 9 ranges, 38 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000a43f000), direct map at 0xffff800000000000
+joist: frames: 54621 free of 65353 covered (213 MiB)
+joist: page tables: the kernel's own, loaded (54350 frames free after)
+joist: timer: 20 ticks at 100 Hz, 624986 LAPIC counts per tick
+joist: modules: 3
+joist: cpus: 4 found, bsp lapic id 0; 1 in use, the rest parked until SMP bring-up
+joist: root task: 8 MiB of memory, 2 module(s); entering it at 0x0000000000400000
+root: pong and ping started
+ping: 200000 round trips ok
+root: ping reported 200000 round trips
+joist: root task exited with code 0 (timer ticks so far: 33)
+joist: finish code 0
