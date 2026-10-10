@@ -742,3 +742,39 @@ happens at all: a budget that runs out is noticed at the next system call,
 microseconds away, and with a budget equal to the period the next period is
 then already due. `spin`, which makes no calls, is interrupted at each
 budget end (313 interrupts in its run).
+
+### Step 5, part 3: the scheduler seen from user mode (2026-10-10)
+
+`user/schedroot` is a root task that loads one program, `user/worker`, as
+nine tasks, and shares a page with each (`user/lib/work.h`): the root writes
+the worker's role there and reads its count, which moves only while the
+worker runs. Every count comes from one loop, so counts compare as time and
+no clock is needed. Workers below the root's priority run only while it
+sleeps (a `Recv` with a timeout on an endpoint nobody sends to). What it
+checks, as two new boot self-tests (`sched`, and `ubsan-sched` on the UBSan
+kernel; 21 in all):
+
+| Test | What must hold | Measured (QEMU on joist-dev, three runs) |
+|---|---|---|
+| Priorities | a spinner at 50 doesn't advance while the root (128) is busy for longer than its budget; it does while the root sleeps; the root's timeout takes the CPU back from it though it never calls the kernel; a spinner at 200 runs the moment it is given a context, and the root resumes only when its 2 ms are spent; no worker advances once its context is taken away | all hold |
+| A budget | priority 60 with 2 ms in every 10, over a spinner at 50: the first gets about a fifth, the second the rest (bounds 8-40 %) | 20 %, 20 %, 20 % |
+| Equals | two spinners at 50 share about evenly (bounds 30-70 %) | 50 %, 50 %, 50 % |
+| Donation | a passive server does nothing until called, and nothing while only a spinner at 50 runs; then, for a client at 60 with 2 ms in every 10, it does the work above the spinner and out of the client's budget (bounds 8-40 %) | 557, 536, 538 calls served; 14 % each time |
+
+The donation share is 14 % and not 20 % because a call costs more than its
+work: with 20 000 counts of work per request, about a third of what the
+budget is charged is the way into and out of the kernel (under emulation;
+`resumed_at` is taken before the exit path, so the exit is charged to the
+thread). With ten times the work per request (`-DSERVE_COUNTS=200000u`) the
+same test measures 20 %. The bounds are wide on purpose: an emulator on a
+busy host keeps uneven time, and what must be told apart is a fifth from
+all or nothing.
+
+**Does the test notice a broken kernel?** `run.c`'s part isn't reachable
+from the host tests, so three kernels broken by hand were booted against
+it, once: no charging on entry; the timer never armed before an exit; idle
+arming the timer for the far future instead of the next event. Each hangs
+in the first test and fails by timeout. (The rules themselves are the
+core's, under the eight `pick-*` mutations.)
+
+`make check` in `kernel/` passes with the 21 self-tests.

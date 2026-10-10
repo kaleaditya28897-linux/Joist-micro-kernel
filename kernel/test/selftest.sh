@@ -26,6 +26,9 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     pingpong) kextra=""; root=root; mods="pong ping" ;;
     pingpong-long) kextra=""; root=root; mods="pong ping"; uextra="-DPING_ROUNDS=200000u"; ubuild=build/long ;;
     ubsan-pingpong) kextra="$ub"; root=root; mods="pong ping" ;;
+    # Phase 3 step 5: the scheduler test's root task and its workers.
+    sched) kextra=""; root=schedroot; mods="worker" ;;
+    ubsan-sched) kextra="$ub"; root=schedroot; mods="worker" ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -40,7 +43,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -78,4 +81,10 @@ run pingpong 1 "root: pong and ping started" "ping: 1000 round trips ok" \
     "root: ping reported 1000 round trips" "root task exited with code 0"
 run pingpong-long 1 "ping: 200000 round trips ok" "root: ping reported 200000 round trips"
 run ubsan-pingpong 1 "ping: 1000 round trips ok" "root task exited with code 0"
+# Phase 3 step 5: the scheduler, seen from user mode (user/schedroot): fixed
+# priorities and preemption on waking, a budget enforced per period, equals
+# taking turns, a passive server working on its client's budget.
+run sched 1 "sched: priorities ok" "sched: budget ok" "sched: equals ok" "sched: donation ok" \
+    "sched: all ok" "root task exited with code 0"
+run ubsan-sched 1 "sched: all ok" "root task exited with code 0"
 exit $fail
