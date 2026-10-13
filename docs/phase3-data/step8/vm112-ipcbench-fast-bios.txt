@@ -1,0 +1,18 @@
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe84000), direct map at 0xffff800000000000
+joist: frames: 64884 free of 65235 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64622 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625166 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0; 1 in use, the rest parked until SMP bring-up
+joist: address spaces: PCID in use
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+ipcbench: a system call that does nothing: n=20x100000 min=301 p50=376 p99=424 worst-p50=380 max=19031 cycles (12000 cycles took 7337 to 9092 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1032 p50=1356 p99=1480 worst-p50=1356 max=1811931 cycles (12000 cycles took 6565 to 8884 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=617 p50=764 p99=852 worst-p50=764 max=1781826 cycles (12000 cycles took 7338 to 8885 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=5705 p50=9748 p99=9988 worst-p50=9752 max=1894764 cycles (12000 cycles took 6543 to 8884 counts; clock 35 counts, taken off)
+ipcbench: done
+joist: root task exited with code 0 (timer ticks so far: 49)
+joist: finish code 0

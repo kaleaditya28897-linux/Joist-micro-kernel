@@ -334,6 +334,34 @@ void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used)
     }
 }
 
+joist_thread joist_sched_handed(const struct joist_kernel *k, joist_thread from, uint64_t place,
+                                joist_thread to)
+{
+    if (from >= JOIST_MAX_THREADS || to >= JOIST_MAX_THREADS) {
+        return JOIST_MAX_THREADS;
+    }
+    const struct joist_thread_rec *f = &k->th[from];
+    const struct joist_thread_rec *r = &k->th[to];
+    if (f->state != JOIST_T_BLOCKED_REPLY && f->state != JOIST_T_BLOCKED_RECV) {
+        return JOIST_MAX_THREADS; /* it didn't block: it may be the one to go on */
+    }
+    if (f->deadline != JOIST_FOREVER) {
+        return JOIST_MAX_THREADS; /* its wait can end by itself: a new timer event */
+    }
+    if (r->state != JOIST_T_RUNNING || r->run_sc == 0) {
+        return JOIST_MAX_THREADS; /* `to` can't run */
+    }
+    if (r->ready_seq != place) {
+        /* Not in `from`'s place in line: the context `from` ran on didn't
+         * go to it (a place moves only with its context, ipc.c). */
+        return JOIST_MAX_THREADS;
+    }
+    if (k->obj[r->run_sc - 1u].remaining == 0) {
+        return JOIST_MAX_THREADS; /* the budget is spent: nobody runs on it now */
+    }
+    return to;
+}
+
 uint64_t joist_sched_next_event(const struct joist_kernel *k, joist_thread running)
 {
     uint64_t next = JOIST_FOREVER;

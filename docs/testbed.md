@@ -50,7 +50,7 @@ uses it by default from that date (`JOIST_DEV=joist-dev` goes back).
 | | |
 |---|---|
 | Host | pvehome: Intel Core i5-14400, 16 threads, 15 GB, LVM-thin |
-| VM | VMID **114**, `joist-dev2`; q35, `cpu host` (`/dev/kvm` works inside), 10 vCPUs (not pinned), 8 GB, 40 GB on `local-lvm`, `onboot 0` |
+| VM | VMID **114**, `joist-dev2`; q35, `cpu host` (`/dev/kvm` works inside: the self-tests that need a real CPU's PCID, and the benchmark gate, run under it), 10 vCPUs, **affinity host CPUs 0, 1, 10-15** (one P-core and the E-cores: off VM 112's four P-cores and their sibling threads), 8 GB, 40 GB on `local-lvm`, `onboot 0` |
 | OS | Debian 13.7 from `debian-13-genericcloud-amd64.qcow2`, checked against Debian's `SHA512SUMS` (SHA-512 begins `f46f0671a6e5bdec5291ab8972bae2f1`); cloud-init user `aditya` with the workstation's key |
 | Address | DHCP on pvehome's LAN; reached as `ssh joist-dev2` by its link-local address, which follows from its MAC and doesn't change (`fe80::<link-local>%vmbr0`), jumping through `root@pvehome` (<pvehome-address>) |
 
@@ -60,11 +60,24 @@ same key fingerprint), Limine 12.9.2 (`limine-binary.tar.xz`, the same
 SHA-256), CBMC 6.11.0 and `tla2tools.jar` v1.7.4 (the SHA-256 values of
 `docs/phase1-plan.md`), QEMU 10.0.13, xorriso 1.5.6, OpenJDK 21.0.12.
 
-**It shares a host with VM 112.** A build or test run here competes with
-VM 112's four pinned CPUs for the machine: timing figures taken on VM 112
-while this VM is busy are disturbed (seen 2026-10-13: a virtual CPU of VM
-112 losing its host CPU for about a millisecond). Benchmarks on VM 112
-(step 8 on) are run with this VM idle.
+**It shares a host with VM 112**, and so do the host's own services
+(containers among them). What that does to timings on VM 112, and what is
+done about it (all found at Phase 3 steps 7 and 8, 2026-10-13):
+
+- A virtual CPU of VM 112 losing its host CPU for about a millisecond while
+  this VM was busy: this VM is now kept off VM 112's cores (the affinity
+  above), and benchmarks are run with it idle.
+- Proxmox pins VM 112 as a whole to its four CPUs; `tools/pve/boot.sh` now
+  also puts each virtual CPU on one of them, in order.
+- The CPU's clock moves between turbo steps (4.6 to 3.4 GHz seen) while
+  the time stamp counter runs at a fixed rate, so the same work takes 30 %
+  more or fewer counts from one run to the next. The benchmark measures in
+  CPU cycles against a ruler of its own (`user/ipcbench`).
+- For the first few tenths of a second after VM 112 starts, measurements
+  come out up to half as slow again in some runs; the benchmark waits a
+  second first.
+- Short stretches when everything is a quarter slower; the benchmark
+  reports the median of twenty segments, and the worst segment beside it.
 
 ## VM 112: the Joist kernel test VM
 

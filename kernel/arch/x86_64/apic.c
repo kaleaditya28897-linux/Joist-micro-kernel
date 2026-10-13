@@ -20,18 +20,21 @@
 
 #define PIT_HZ 1193182u
 
+#define NS_PER_10MS 10000000ull
+
 static volatile uint32_t *lapic;
 static volatile uint64_t ticks;
 static uint32_t counts_per_tick;
 static uint32_t counts_per_10ms;
 static uint64_t tsc_per_10ms;
 static uint64_t tsc_zero;
+static uint64_t ns_per_tsc_q32; /* nanoseconds per TSC count, times 2^32 */
 
 static uint64_t rdtsc(void)
 {
     uint32_t lo;
     uint32_t hi;
-    __asm__ volatile("lfence; rdtsc" : "=a"(lo), "=d"(hi));
+    __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
     return (uint64_t)hi << 32 | lo;
 }
 
@@ -103,6 +106,7 @@ const char *apic_init(uint64_t hhdm)
         return "the TSC didn't advance against the PIT";
     }
     counts_per_10ms = per10ms;
+    ns_per_tsc_q32 = (NS_PER_10MS << 32) / tsc_per_10ms;
     counts_per_tick = per10ms * (100u / APIC_TICK_HZ);
     wr(LAPIC_LVT_TMR, APIC_TIMER_VECTOR | (1u << 17)); /* periodic, unmasked */
     wr(LAPIC_TMR_INIT, counts_per_tick);
@@ -125,14 +129,15 @@ uint32_t apic_counts_per_tick(void)
     return counts_per_tick;
 }
 
-#define NS_PER_10MS 10000000ull
 
 uint64_t apic_clock_ns(void)
 {
-    /* Split so nothing overflows: whole 10 ms units, then the rest (less
-     * than tsc_per_10ms, a few times 10^7, times 10^7 fits 64 bits). */
+    /* One multiplication (128 bits wide, so nothing overflows) and a shift:
+     * this is read on every kernel entry. The rate is rounded to one part
+     * in 2^32, well inside what the calibration against the PIT is good
+     * for. */
     uint64_t d = rdtsc() - tsc_zero;
-    return d / tsc_per_10ms * NS_PER_10MS + d % tsc_per_10ms * NS_PER_10MS / tsc_per_10ms;
+    return (uint64_t)(((unsigned __int128)d * ns_per_tsc_q32) >> 32);
 }
 
 void apic_timer_oneshot(void)

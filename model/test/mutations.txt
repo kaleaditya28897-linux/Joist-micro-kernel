@@ -123,3 +123,11 @@ pick-charge-free @@ ../kernel/core/sched.c @@         sc->remaining -= used; @@ 
 pick-passive-runs @@ ../kernel/core/sched.c @@ if (r->state != JOIST_T_RUNNING || r->run_sc == 0) { @@ if (r->state != JOIST_T_RUNNING) {
 pick-wake-keeps-place @@ ../kernel/core/ipc.c @@ r->ready_seq = ++k->ready_seq; /* ready again: behind its equals */ @@ (void)0; /* ready again: behind its equals */
 pick-event-ignores-deadline @@ ../kernel/core/sched.c @@ next = r->deadline; /* a blocked thread's timeout */ @@ (void)r;
+# Phase 3 step 8: the direct switch (test_handover.c).
+handed-from-still-runs @@ ../kernel/core/sched.c @@ if (f->state != JOIST_T_BLOCKED_REPLY && f->state != JOIST_T_BLOCKED_RECV) { @@ if (f->state == JOIST_T_FREE) {
+handed-call-loses-turn @@ ../kernel/core/ipc.c @@ take_place(k, r, t); /* a call @@ (void)r; /* a call
+handed-reply-loses-turn @@ ../kernel/core/ipc.c @@ take_place(k, c, t); /* the context went back @@ (void)c; /* the context went back
+handed-place-copied @@ ../kernel/core/ipc.c @@ k->th[from].ready_seq = ++k->ready_seq; @@ (void)from;
+handed-ignores-budget @@ ../kernel/core/sched.c @@ if (k->obj[r->run_sc - 1u].remaining == 0) { @@ if (k->obj[r->run_sc - 1u].remaining == 0 && place == 0) {
+handed-ignores-timeout @@ ../kernel/core/sched.c @@ if (f->deadline != JOIST_FOREVER) { @@ if (f->deadline != JOIST_FOREVER && place == 0) {
+handed-ignores-place @@ ../kernel/core/sched.c @@ if (r->ready_seq != place) { @@ if (r->ready_seq != place && place == 0) {

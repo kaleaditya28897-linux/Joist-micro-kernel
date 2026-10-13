@@ -388,3 +388,65 @@ JT_TEST(abi_continue_is_bounded_by_the_preemption_limit)
     JT_CHECK(k.preempt == 2);
 }
 
+/* ---- Phase 3 step 8: the direct switch is reported, and only when sure ---- */
+
+JT_TEST(abi_reports_the_direct_switch)
+{
+    setup();
+    joist_thread c;
+    joist_thread s;
+    JT_REQUIRE(joist_thread_create(&k, root, &c) == JOIST_OK);
+    JT_REQUIRE(joist_thread_create(&k, root, &s) == JOIST_OK);
+    JT_REQUIRE(joist_obj_create(&k, root, JOIST_OBJ_ENDPOINT, 0) == JOIST_OK);
+    JT_REQUIRE(joist_sc_create(&k, root, 1, 5, 100, 100) == JOIST_OK &&
+               joist__sc_bind_thread(&k, k.cs[root].slot[1].obj - 1u, c) == JOIST_OK);
+    /* A call that finds nobody waiting: nobody to switch to. */
+    k.th[c].regs.r[ABI_R9] = 0;
+    env.handover = 7;
+    JT_CHECK(sys(c, ABI_CALL, 0, JOIST_FOREVER, 0, 0) == ABI_WAITING);
+    JT_CHECK(env.handover == JOIST_MAX_THREADS);
+    /* The passive server takes it: it goes on (no switch), on c's context. */
+    JT_CHECK(sys(s, ABI_RECV, 0, JOIST_FOREVER, 0, 0) == ABI_DONE);
+    JT_CHECK(env.handover == JOIST_MAX_THREADS);
+    /* Its ReplyRecv hands the context back: straight to c. */
+    k.th[s].regs.r[ABI_R9] = 0;
+    JT_CHECK(sys(s, ABI_REPLY_RECV, 0, JOIST_FOREVER, 0, 0) == ABI_WAITING);
+    JT_CHECK(env.handover == c);
+    abi_complete(&env, c);
+    /* And c's next call, with s waiting: straight to s. */
+    JT_CHECK(sys(c, ABI_CALL, 0, JOIST_FOREVER, 0, 0) == ABI_WAITING);
+    JT_CHECK(env.handover == s);
+    abi_complete(&env, s);
+    /* With a timeout on the wait, the scheduler is asked. */
+    JT_CHECK(sys(s, ABI_REPLY_RECV, 0, 1000, 0, 0) == ABI_WAITING);
+    JT_CHECK(env.handover == JOIST_MAX_THREADS);
+    /* Any other call clears it. */
+    env.handover = 7;
+    JT_CHECK(sys(c, ABI_CAP_DELETE, 9, 0, 0, 0) == ABI_DONE);
+    JT_CHECK(env.handover == JOIST_MAX_THREADS);
+    JT_CHECK(clean());
+}
+
+JT_TEST(abi_marks_threads_whose_registers_all_count)
+{
+    setup();
+    uint8_t *mem = with_user_memory();
+    joist_thread a;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE);
+    memset(env.exact, 0, sizeof env.exact);
+    JT_REQUIRE(sys(a, ABI_THREAD_SPAWN, 2, 3, 0x401000, 0x7000) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    uint32_t b = k.obj[k.cs[root].slot[3].obj - 1u].target - 1u;
+    JT_CHECK(env.exact[b] == 1 && env.exact[a] == 0); /* a new thread starts exactly as set */
+    env.exact[b] = 0; /* as if it had made a system call since */
+    memcpy(mem, &k.th[b].regs, sizeof k.th[b].regs);
+    /* A refused write changes nothing; a write that happens marks it. */
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 3, 0x1000, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE && env.exact[b] == 0);
+    JT_CHECK(sys(a, ABI_THREAD_READ_REGS, 3, UPAGE + 512, 0, 0) == ABI_DONE && env.exact[b] == 0);
+    JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 3, UPAGE, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK && env.exact[b] == 1 && env.exact[a] == 0);
+    JT_CHECK(clean());
+}
+

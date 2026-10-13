@@ -1,0 +1,80 @@
+run 1 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625128 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=471 p50=584 p99=632 worst-p50=584 max=19351 cycles (12000 cycles took 6573 to 8883 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1524 p50=1896 p99=2048 worst-p50=1896 max=1953550 cycles (12000 cycles took 6540 to 8876 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=941 p50=1292 p99=1404 worst-p50=1296 max=1770228 cycles (12000 cycles took 6546 to 8901 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6017 p50=10000 p99=10128 worst-p50=10016 max=1993755 cycles (12000 cycles took 6545 to 8877 counts; clock 35 counts, taken off)
+ipcbench: done
+run 2 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625139 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=472 p50=580 p99=628 worst-p50=584 max=49225 cycles (12000 cycles took 6567 to 8887 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1525 p50=1896 p99=2040 worst-p50=1896 max=1805252 cycles (12000 cycles took 6543 to 8884 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=1055 p50=1296 p99=1404 worst-p50=1296 max=2264381 cycles (12000 cycles took 6547 to 8874 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6048 p50=10016 p99=11248 worst-p50=10028 max=1837300 cycles (12000 cycles took 6542 to 8885 counts; clock 35 counts, taken off)
+ipcbench: done
+run 3 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625219 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=471 p50=580 p99=632 worst-p50=584 max=42780 cycles (12000 cycles took 6545 to 8882 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1533 p50=1896 p99=2032 worst-p50=1896 max=1807753 cycles (12000 cycles took 6547 to 8882 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=776 p50=1292 p99=1408 worst-p50=1296 max=1704066 cycles (12000 cycles took 6541 to 12080 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6035 p50=10004 p99=11316 worst-p50=10008 max=2128087 cycles (12000 cycles took 6541 to 9080 counts; clock 35 counts, taken off)
+ipcbench: done
+run 4 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625196 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=459 p50=580 p99=628 worst-p50=584 max=49192 cycles (12000 cycles took 7337 to 9054 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1526 p50=1896 p99=2068 worst-p50=1900 max=1827605 cycles (12000 cycles took 6541 to 8909 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=934 p50=1296 p99=1424 worst-p50=1300 max=1248427 cycles (12000 cycles took 6541 to 8883 counts; clock 31 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6025 p50=10008 p99=10276 worst-p50=10024 max=1831748 cycles (12000 cycles took 6545 to 8883 counts; clock 35 counts, taken off)
+ipcbench: done
+run 5 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625162 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=471 p50=584 p99=632 worst-p50=588 max=46861 cycles (12000 cycles took 6551 to 8878 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1522 p50=1896 p99=2036 worst-p50=1896 max=1805636 cycles (12000 cycles took 6545 to 8884 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=1031 p50=1292 p99=1404 worst-p50=1296 max=1820402 cycles (12000 cycles took 6547 to 9063 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6013 p50=10020 p99=10280 worst-p50=10028 max=1873719 cycles (12000 cycles took 6542 to 8899 counts; clock 35 counts, taken off)
+ipcbench: done
+run 6 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625086 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=471 p50=580 p99=632 worst-p50=588 max=36911 cycles (12000 cycles took 7337 to 8881 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1527 p50=1896 p99=2036 worst-p50=1900 max=1799833 cycles (12000 cycles took 6541 to 8883 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=1050 p50=1292 p99=1404 worst-p50=1296 max=1775805 cycles (12000 cycles took 7337 to 12045 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6000 p50=10008 p99=10288 worst-p50=10016 max=1867072 cycles (12000 cycles took 6541 to 8885 counts; clock 35 counts, taken off)
+ipcbench: done
+run 7 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625134 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=472 p50=584 p99=628 worst-p50=584 max=18370 cycles (12000 cycles took 7339 to 8885 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1525 p50=1896 p99=2040 worst-p50=1896 max=1732160 cycles (12000 cycles took 7339 to 8883 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=1053 p50=1292 p99=1404 worst-p50=1296 max=1785474 cycles (12000 cycles took 6543 to 8877 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6010 p50=10000 p99=10248 worst-p50=10008 max=1819717 cycles (12000 cycles took 6541 to 8907 counts; clock 35 counts, taken off)
+ipcbench: done
+run 8 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625058 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=474 p50=584 p99=628 worst-p50=584 max=26381 cycles (12000 cycles took 7337 to 8865 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1534 p50=1896 p99=2032 worst-p50=1896 max=1914950 cycles (12000 cycles took 6541 to 8864 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=1053 p50=1292 p99=1404 worst-p50=1296 max=1771504 cycles (12000 cycles took 6539 to 8869 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6012 p50=9992 p99=10284 worst-p50=9996 max=2064745 cycles (12000 cycles took 6541 to 9041 counts; clock 35 counts, taken off)
+ipcbench: done
+run 9 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625084 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=472 p50=580 p99=628 worst-p50=584 max=19388 cycles (12000 cycles took 6559 to 8877 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1369 p50=1896 p99=2064 worst-p50=1896 max=1981576 cycles (12000 cycles took 6541 to 8880 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=1050 p50=1292 p99=1404 worst-p50=1296 max=1901018 cycles (12000 cycles took 6542 to 8876 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=6008 p50=10012 p99=10152 worst-p50=10028 max=1949244 cycles (12000 cycles took 6542 to 8868 counts; clock 35 counts, taken off)
+ipcbench: done
+run 10 (status 1)
+joist: timer: 20 ticks at 100 Hz, 625169 LAPIC counts per tick
+joist: address spaces: PCID in use
+ipcbench: a system call that does nothing: n=20x100000 min=468 p50=580 p99=632 worst-p50=584 max=56532 cycles (12000 cycles took 7337 to 8879 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x100000 min=1528 p50=1896 p99=2044 worst-p50=1896 max=1771259 cycles (12000 cycles took 6545 to 8882 counts; clock 35 counts, taken off)
+ipcbench: one address space, passive server: n=20x100000 min=1047 p50=1292 p99=1404 worst-p50=1296 max=1779947 cycles (12000 cycles took 7339 to 8881 counts; clock 35 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x100000 min=5365 p50=10008 p99=10272 worst-p50=10012 max=1795020 cycles (12000 cycles took 6543 to 12040 counts; clock 35 counts, taken off)
+ipcbench: done

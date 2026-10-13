@@ -11,7 +11,7 @@ boot() { # ISO LOG: boot it, return QEMU's exit status
     if [ -n "${PVE:-}" ]; then
         ../tools/pve/boot.sh "$1" bios 60 "$2"
     else
-        timeout ${QEMU_TIMEOUT:-60} qemu-system-x86_64 -M q35 -m 256M -cdrom "$1" -display none -no-reboot \
+        timeout ${QEMU_TIMEOUT:-60} qemu-system-x86_64 -M q35 -m 256M ${cpu:+-cpu $cpu} -cdrom "$1" -display none -no-reboot \
             -serial file:"$2" -device isa-debug-exit,iobase=0xf4,iosize=0x04
     fi
 }
@@ -20,7 +20,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     n=$1; want=$2; shift 2
     b=build/selftest-$n
     ub="-fsanitize=undefined -fsanitize-trap=undefined"
-    mods=""; uextra=""; ubuild=build; ksizes=""
+    mods=""; uextra=""; ubuild=build; ksizes=""; cpu=""
     big="-DJOIST_MAX_OBJECTS=8192u -DJOIST_MAX_MAPPINGS=512u -DJOIST_MAX_CSPACES=64u -DROOT_BUDGET=16384u"
     case $n in
     # Phase 3 step 4: the root task loads pong and ping from boot modules.
@@ -37,6 +37,16 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     cascade) kextra=""; root=cascaderoot; mods="worker"; ksizes=$big ;;
     ubsan-cascade) kextra="$ub"; root=cascaderoot; mods="worker"; ksizes=$big ;;
     cascade-nopreempt) kextra="-DRUN_PREEMPT_SLOTS=0u"; root=cascaderoot; mods="worker"; ksizes=$big ;;
+    # Phase 3 step 8: the same tests on the real CPU through KVM, which has
+    # PCID (QEMU's emulated CPUs have none): there a switch of address space
+    # keeps the TLB. Skipped, and said so, where there is no /dev/kvm.
+    pcid-fault) kextra=""; root=faultroot; mods="faulter"; cpu="host -enable-kvm" ;;
+    pcid-pingpong) kextra=""; root=root; mods="pong ping"; cpu="host -enable-kvm" ;;
+    pcid-cascade) kextra=""; root=cascaderoot; mods="worker"; ksizes=$big; cpu="host -enable-kvm" ;;
+    # Phase 3 step 8: the IPC benchmark. Under emulation it only has to run;
+    # on the real CPU (KVM) its medians are held against the baseline.
+    bench) kextra=""; root=benchroot; mods="ipcbench" ;;
+    bench-gate) kextra=""; root=benchroot; mods="ipcbench"; cpu="host -enable-kvm" ;;
     # Phase 3 step 6: the fault test's root task and its faulters.
     fault) kextra=""; root=faultroot; mods="faulter" ;;
     ubsan-fault) kextra="$ub"; root=faultroot; mods="faulter" ;;
@@ -44,6 +54,9 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
     *) kextra=""; root=$n ;;
+    esac
+    case $cpu in *enable-kvm*)
+        [ -w /dev/kvm ] || { echo "selftest $n: SKIPPED (no /dev/kvm here; it needs the real CPU)"; return; } ;;
     esac
     make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root MODULES="$mods" UEXTRA="$uextra" \
         USER_BUILD=$ubuild ${ksizes:+KSIZES="$ksizes"} $b/joist.iso >/dev/null 2>&1 ||
@@ -54,7 +67,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -117,4 +130,29 @@ run ubsan-fault 1 "fault: all ok" "root task exited with code 0"
 run cascade 1 "cascade: preemption ok" "cascade: all ok" "root task exited with code 0"
 run ubsan-cascade 1 "cascade: all ok" "root task exited with code 0"
 run cascade-nopreempt 7 "cascade: FAILED: a higher priority waited for a whole cascade"
+# Phase 3 step 8: with PCID (the real CPU, through KVM), where switching
+# address spaces no longer flushes the TLB: the fault test (a page unmapped
+# from a task that isn't running must fault again), ping-pong, and the
+# cascade (spaces destroyed and their numbers reused).
+run pcid-fault 1 "address spaces: PCID in use" "fault: pager ok" "fault: all ok"
+run pcid-pingpong 1 "address spaces: PCID in use" "ping: 1000 round trips ok"
+run pcid-cascade 1 "address spaces: PCID in use" "cascade: all ok"
+# Phase 3 step 8: the IPC benchmark runs (four measurements, each in one
+# line), and on the real CPU no median is more than 25% above its baseline
+# (test/ipcbench.baseline): the regression gate.
+run bench 1 "ipcbench: a system call that does nothing: n=" "ipcbench: two address spaces, passive server: n=" \
+    "ipcbench: one address space, passive server: n=" "ipcbench: done" "root task exited with code 0"
+run bench-gate 1 "address spaces: PCID in use" "ipcbench: done"
+if [ -f build/selftest-bench-gate/serial.log ] && [ -w /dev/kvm ]; then
+    grep -v '^#' test/ipcbench.baseline | grep '|' | while IFS='|' read -r what base; do
+        got=$(grep -a "ipcbench: $what: " build/selftest-bench-gate/serial.log | sed -n 's/.* p50=\([0-9]*\) .*/\1/p')
+        if [ -z "$got" ] || [ "$got" -gt $((base + base / 4)) ]; then
+            echo "bench gate: FAILED: $what: median ${got:-missing}, baseline $base (limit $((base + base / 4)))"
+            echo 1 > build/selftest-bench-gate/failed
+        else
+            echo "bench gate: ok: $what: median $got cycles (baseline $base)"
+        fi
+    done
+    [ -f build/selftest-bench-gate/failed ] && { rm -f build/selftest-bench-gate/failed; fail=1; }
+fi
 exit $fail

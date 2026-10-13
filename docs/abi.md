@@ -385,6 +385,11 @@ length of time from the call, `FOREVER` for none). The rules:
   whole again; a period starts when the context is first used after the
   last one ended. Using a budget up, and waking, put a thread behind its
   equals.
+- A context's place in line goes with it (Phase 3 step 8). A server that
+  starts running on a caller's context takes the caller's place among its
+  equals, and the caller takes it back with the reply: a call to a passive
+  server and its answer don't give up the turn, which ends when the budget
+  does. (Before step 8 the server went behind its caller's equals.)
 - A higher-priority thread that becomes able to run (woken by a message, a
   timeout or a new period) runs at once: the kernel decides again on every
   entry, and its one timer is set for the next moment the answer can
@@ -395,6 +400,18 @@ starter binds a context of a priority above its own to the server's
 thread, which runs at once until it blocks; the starter, running again,
 unbinds it (`user/root/root.c`). This is enough on one CPU; with more
 (step 9) the server says when it is waiting.
+
+**The fast path (Phase 3 step 8)** changes nothing above; it is how the
+kernel gets there. After a `Call` that hands the caller's context to a
+waiting passive server, or a `ReplyRecv` that hands it back and finds no
+next caller, with no timeout on the wait and nothing due, the kernel runs
+the other thread at once without asking the scheduler or touching the
+timer: the core says when that is certain to be what the scheduler would
+choose (`joist_sched_handed`), and a test holds it to that
+(`model/test/test_handover.c`). A thread that entered by a system call
+leaves by `sysretq`, so `RCX` and `R11` come back clobbered, as *Encoding*
+says the `syscall` instruction leaves them; a thread interrupted, new, or
+whose registers were written gets every register back.
 
 The root task's own context is the capability in its slot 0: priority 128,
 a budget of the whole of a 10 ms period.

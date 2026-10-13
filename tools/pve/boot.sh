@@ -29,6 +29,19 @@ qm stop $vmid --skiplock 1 >/dev/null 2>&1
 rm -f /root/joist-test/serial.log
 qm set $vmid --bios $bios --ide2 local:iso/$name,media=cdrom --boot order=ide2 >/dev/null || exit 2
 qm start $vmid >/dev/null 2>&1 || { echo "boot.sh: qm start failed"; exit 2; }
+# Each virtual CPU on a host CPU of its own, in the order of the VM's
+# affinity list (Proxmox pins the VM as a whole to the set, and its virtual
+# CPUs would otherwise wander within it, which shows in the timings).
+pid=\$(cat /run/qemu-server/$vmid.pid 2>/dev/null)
+n=0
+for c in \$(qm config $vmid | sed -n 's/^affinity: //p' | tr ',' ' '); do
+    for comm in /proc/\$pid/task/*/comm; do
+        if [ "\$(cat \$comm 2>/dev/null)" = "CPU \$n/KVM" ]; then
+            taskset -pc \$c \$(echo \$comm | cut -d/ -f5) >/dev/null 2>&1
+        fi
+    done
+    n=\$((n + 1))
+done
 end=\$((\$(date +%s) + $limit)); state=timeout
 while [ \$(date +%s) -lt \$end ]; do
     qm status $vmid | grep -q stopped && { state=stopped; break; }

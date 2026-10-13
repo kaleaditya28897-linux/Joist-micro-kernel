@@ -137,6 +137,15 @@ static uint64_t ld_load(uint64_t index, uint64_t tslot)
     return im.entry;
 }
 
+/* A second stack in the task in tslot, for a second thread: STACK_PAGES
+ * pages below `top`. */
+static __attribute__((unused)) void ld_stack(uint64_t tslot, uint64_t top)
+{
+    for (unsigned i = 0; i < STACK_PAGES; i++) {
+        give_page(tslot, top - (uint64_t)(i + 1u) * J_PAGE, J_MAP_W, (const uint8_t *)"", 0, 0);
+    }
+}
+
 /* Start from what the kernel passed the root task (kernel/arch/x86_64/run.h). */
 static void ld_init(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t first_free)
 {

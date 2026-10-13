@@ -1054,3 +1054,105 @@ the new build VM. The core needed no change in this step.
 
 Step 7 is done.
 
+### Step 8: the fast path and `ipcbench` (2026-10-13)
+
+**The benchmark first.** `user/ipcbench` is both ends of a round trip;
+`user/benchroot` runs it in two tasks, in one task, and with a server that
+has a scheduling context of its own, and a system call that does nothing
+for comparison. The first figures, before any change, already said where
+the time went: a round trip in one address space cost twice a do-nothing
+system call and no more. The cost was the way into and out of the kernel,
+not the IPC.
+
+**The fast path, as the plan has it: the direct switch.** The core's IPC
+operations stay the only implementation of what a `Call` and a `ReplyRecv`
+do. What is fast is the decision after them: when the caller's scheduling
+context has gone to the other thread (to a waiting passive server; back to
+the caller with the reply, no next caller queued), no timeout was set and
+nothing is due, the kernel runs the other thread at once, with no scan for
+who should run and none for the next timer event.
+
+- `joist_sched_handed` (core) says when that is certain to be the
+  scheduler's own choice; it is never wrong, only sometimes unsure.
+- **A change of rule that this needed, model first:** a context's place in
+  line among its equals goes with it. A server starting on a caller's
+  context takes the caller's place, and the reply gives it back. Before, a
+  woken server went behind its caller's equals: a call to a passive server
+  gave up the turn, which nobody had intended. (`docs/abi.md`,
+  *Scheduling*.) All 149 earlier model tests pass unchanged.
+- **The differential test** (`model/test/test_handover.c`): random worlds
+  of clients at a few priorities with budgets that run out, passive
+  servers that also call each other, some timeouts; 80 037 operations;
+  whenever `joist_sched_handed` names a thread (20 112 calls, 16 134
+  replies), `joist_sched_pick`, the specification, must choose the same
+  one, and the next timer event must be no earlier than before. It found a
+  fault in my first version of the rule: the place was copied, so two
+  threads could hold the same one and the tie went the other way. Places
+  now move. Seven mutations, all caught; three more in the system-call
+  layer (`abi_env.handover`), caught by a host test.
+
+**The way in and out**, each measured before the next:
+
+| Change | Round trip in one address space, cycles |
+|---|---|
+| As step 7 left it (converted from counts; approximate) | about 1 700 |
+| The direct switch | about 1 590 |
+| The clock read as one multiplication, not two divisions; no `lfence`; the TLS base written only when it changes | about 1 100 |
+| `sysretq` for a thread that came in by `syscall` | 764 |
+
+and for two address spaces PCID (identifier = the task's number plus one;
+a space whose pages were unmapped while it wasn't current, or whose number
+was reused, is flushed at its next switch): about 1 800 to 1 700, then
+1 356 with `sysretq`.
+
+- `sysretq` needs what the ABI already says (the `syscall` instruction
+  clobbers `RCX` and `R11`): the kernel keeps, per thread, whether every
+  register counts (new, interrupted, faulted, or written through a
+  capability: then `iretq`). NMI and machine check now arrive on a stack
+  of their own, as the double fault did, since the `sysretq` exit runs
+  one instruction on the user's stack.
+- PCID exists only on a real CPU (QEMU's emulated ones have none), so
+  three self-tests run under KVM inside the build VM (`pcid-fault`,
+  `pcid-pingpong`, `pcid-cascade`), and say SKIPPED where there is no
+  `/dev/kvm`. The fault test gained the case PCID could break: a page
+  unmapped from a task that isn't running must fault at its next touch. A
+  kernel with the stale mark removed, tried once by hand, fails it.
+
+**Results** (VM 112, CPU cycles per round trip, medians; ten runs each;
+`docs/phase3-data`, *Step 8*):
+
+| | Slow path only | Fast path |
+|---|---|---|
+| A system call that does nothing | 580 | 372 |
+| Two address spaces, passive server | 1 896 | 1 356 |
+| One address space, passive server | 1 292 | 764 |
+| Two address spaces, server with its own context | about 10 000 | about 9 750 |
+
+Stable by the plan's measure: over ten runs the medians move 1.1 % at
+most and the 99th percentiles under 12 %.
+
+**Making the numbers mean something** took as long as the fast path. On
+this host the same kernel gave medians 30 % apart from run to run. In the
+order found: the CPU's clock moves between turbo steps while the time
+stamp counter doesn't (so the benchmark carries a ruler, a chain of
+multiplications of known length in CPU cycles, and reports in those); the
+first tenths of a second after the VM starts are slow in some runs (it
+waits a second); short slow stretches on a shared host (it reports the
+median of twenty segments). `docs/testbed.md` has the list. The build VM
+was moved off the test VM's cores.
+
+**The regression gate** (`kernel/test/ipcbench.baseline`, checked by
+`bench-gate` in `make selftest`): on a real CPU, no median more than 25 %
+above its baseline. The slow-path kernel's figures are 40 to 70 % above,
+so it would fail it.
+
+**Not done, and said so:** the case of a server with its own context is
+ten times slower than the others under KVM, because every change of
+context sets the timer and that leaves the virtual machine; a
+TSC-deadline timer, or bare metal, would tell how much of it is real. The
+kernel still copies every register twice on the way through. Neither is
+needed for the exit criterion; both are recorded for Phase 13.
+
+`make check` in `kernel/` passes: 49 host tests, 31 self-tests and the
+gate. `make test` in `model/`: 152.
+

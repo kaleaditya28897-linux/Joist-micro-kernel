@@ -106,6 +106,19 @@ struct abi_env {
     /* Set by exit from the root task: the run is over. */
     int finished;
     uint64_t exit_code;
+    /* The direct switch (step 8): set by every abi_syscall. After a Call or
+     * ReplyRecv that handed the caller's scheduling context to another
+     * thread, that thread, if the core is certain the scheduler would choose
+     * it (joist_sched_handed, whose conditions on the caller the kernel
+     * vouches for: see run.c); otherwise JOIST_MAX_THREADS. */
+    uint32_t handover;
+    /* A thread that must be resumed with every register as recorded: one
+     * just spawned, or whose registers were written through a capability.
+     * (A thread that entered by a system call may otherwise get RCX and R11
+     * back clobbered, as the `syscall` instruction itself leaves them; the
+     * kernel uses that for a quicker way out. It sets and clears this for
+     * the ways in it sees: run.c.) */
+    uint8_t exact[JOIST_MAX_THREADS];
     /* A blocked call per thread, waiting for abi_complete. */
     uint8_t pending[JOIST_MAX_THREADS];
 };

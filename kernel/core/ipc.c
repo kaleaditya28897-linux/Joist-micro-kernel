@@ -320,6 +320,17 @@ void joist__queue_wake_all(struct joist_kernel *k, uint32_t obj, joist_err r)
 
 /* ---- IPC ---- */
 
+/* A scheduling context's place in line among its equals goes with it:
+ * thread `to` has just begun to run on the context `from` ran on (lent by a
+ * call, or returned by the reply), and takes `from`'s place; `from` is left
+ * with a new one, so that no two threads ever hold the same (it gets a
+ * proper one when it next becomes ready). */
+static void take_place(struct joist_kernel *k, uint32_t to, uint32_t from)
+{
+    k->th[to].ready_seq = k->th[from].ready_seq;
+    k->th[from].ready_seq = ++k->ready_seq;
+}
+
 /* The body of a Call, once checked: rendezvous with a waiting receiver or
  * queue. Shared by joist_call and fault calls. */
 static joist_err call_on(struct joist_kernel *k, uint32_t t, uint32_t obj, joist_badge badge,
@@ -337,6 +348,9 @@ static joist_err call_on(struct joist_kernel *k, uint32_t t, uint32_t obj, joist
         joist__wake(k, r, JOIST_OK);
         mint_reply(k, r, t);
         joist__sc_donate(k, t, r);
+        if (me->sc_to == r + 1u) {
+            take_place(k, r, t); /* a call to a passive server doesn't give up the turn */
+        }
         return JOIST_BLOCKED;
     }
     me->msg = *m;
@@ -409,6 +423,9 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         me->result = JOIST_OK;
         mint_reply(k, t, s);
         joist__sc_donate(k, s, t);
+        if (k->th[s].sc_to == t + 1u) {
+            take_place(k, t, s); /* serving a caller that waited: on its context, in its place */
+        }
         return JOIST_OK;
     }
     if (timeout == 0) {
@@ -456,9 +473,15 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
     }
     uint32_t c = me->reply_to - 1u;
     uint32_t seq = me->reply_seq;
+    uint32_t ran_on = me->run_sc;
     me->reply_to = 0; /* consumed, whatever happens next (I6) */
     me->reply_seq = 0;
-    return deliver_reply(k, me->cs, c, seq, m);
+    e = deliver_reply(k, me->cs, c, seq, m);
+    if (e == JOIST_OK && ran_on != 0 && me->run_sc != ran_on &&
+        k->th[c].state == JOIST_T_RUNNING && k->th[c].run_sc == ran_on) {
+        take_place(k, c, t); /* the context went back with the reply: so does the turn */
+    }
+    return e;
 }
 
 /* Look up a reply object capability in t's space, needing SEND. */

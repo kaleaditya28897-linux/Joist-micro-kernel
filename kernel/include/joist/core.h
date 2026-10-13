@@ -664,6 +664,19 @@ joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t);
  * no context. */
 void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used);
 
+/* The direct switch (Phase 3 step 8: the fast path's scheduling decision).
+ * Thread `from` was joist_sched_pick's choice at k->now, in place `place`
+ * among its equals (its ready_seq then), with nothing due before k->now
+ * (joist_sched_next_event); it then made a Call or a ReplyRecv that may have
+ * handed the context it ran on to thread `to` (the receiver of the call;
+ * the caller replied to). Returns `to` if that is so and it is certain that
+ * joist_sched_pick would now choose `to`, and that the next event is no
+ * earlier than it was: the kernel may run `to` at once, the timer as it is.
+ * JOIST_MAX_THREADS otherwise: ask the scheduler. Never wrong, only
+ * sometimes unsure. O(1). */
+joist_thread joist_sched_handed(const struct joist_kernel *k, joist_thread from, uint64_t place,
+                                joist_thread to);
+
 /* The next time something changes without a system call, given that thread
  * `running` runs from k->now (JOIST_MAX_THREADS: nobody does): its budget
  * running out, a blocked thread's deadline, or a new period for a thread

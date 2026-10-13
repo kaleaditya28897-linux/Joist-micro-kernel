@@ -107,7 +107,23 @@ static void test_pager(void)
     sleep_ns(SHORT_NS);
     check(f.w->count == 2 && f.w->arg == 0xfeedu + 1u, "the faulter didn't go on after its page came");
     check(here[0] == 0xfeed, "the faulter's write isn't in the page it was given");
-    j_puts("fault: pager ok: a page fault resolved by mapping the page\n");
+    /* And taken away again, from a task that isn't the one running: its
+     * next touch must fault, not find the page through a translation the
+     * CPU kept (with PCID, switching to a task no longer forgets them). */
+    struct worker g = faulter_new(FAULT_PAGE2, 0, &badge);
+    go(&g);
+    fault_wait(&m, &regs, badge, J_FAULT_PAGE);
+    page = page_alloc();
+    must(j_map(page, g.task, FAULT_VA / J_PAGE, J_MAP_W), "map (pager, second faulter)");
+    fault_reply(J_FAULT_RESUME);
+    sleep_ns(SHORT_NS); /* it has written, and spins with the page in its TLB */
+    check(g.w->count == 1, "the second faulter isn't waiting");
+    must(j_unmap(g.task, FAULT_VA / J_PAGE), "unmap (from the faulter)");
+    g.w->aux = 1;
+    fault_wait(&m, &regs, badge, J_FAULT_PAGE);
+    check(m.r[1] == FAULT_VA && g.w->count == 1, "a write to an unmapped page went through");
+    fault_reply(1);
+    j_puts("fault: pager ok: a page fault resolved by mapping the page; unmapped, it faults again\n");
 }
 
 /* 3. The handler's other verdict: the thread ends. */

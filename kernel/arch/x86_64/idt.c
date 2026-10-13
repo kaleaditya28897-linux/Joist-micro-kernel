@@ -73,7 +73,13 @@ void idt_init(void)
         uint64_t a = isr_table[v];
         idt[v] = (struct idt_gate){.off0 = (uint16_t)a,
                                    .selector = GDT_KCODE,
-                                   .ist = v == 8u ? (uint8_t)IST_DOUBLE_FAULT : 0u,
+                                   /* What can't be masked arrives on a stack of
+                                    * its own, whatever RSP held: the double
+                                    * fault, and NMI and machine check, which
+                                    * could otherwise land in the instant the
+                                    * sysret exit runs on a user stack. All
+                                    * three end the run with a report. */
+                                   .ist = v == 8u || v == 2u || v == 18u ? (uint8_t)IST_DOUBLE_FAULT : 0u,
                                    .type = 0x8e, /* present, DPL 0, interrupt gate */
                                    .off1 = (uint16_t)(a >> 16),
                                    .off2 = (uint32_t)(a >> 32),

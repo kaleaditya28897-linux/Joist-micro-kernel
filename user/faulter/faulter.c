@@ -26,6 +26,12 @@ void _start(uint64_t a, uint64_t b)
         *(volatile uint64_t *)(uintptr_t)FAULT_VA = w->arg;
         w->arg = *(volatile uint64_t *)(uintptr_t)FAULT_VA + 1u;
         break;
+    case FAULT_PAGE2:
+        *(volatile uint64_t *)(uintptr_t)FAULT_VA = 1;
+        while (w->aux == 0) {
+        }
+        *(volatile uint64_t *)(uintptr_t)FAULT_VA = 2;
+        break;
     case FAULT_GP:
         __asm__ volatile("hlt");
         break;

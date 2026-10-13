@@ -1,0 +1,11 @@
+# The IPC benchmark's medians (user/ipcbench, CPU cycles by its ruler) as
+# measured at Phase 3 step 8, 2026-10-13, on the Intel Core i5-14400 through
+# KVM (VM 112, and the same figures under KVM inside joist-dev2). The gate
+# in test/selftest.sh fails a run whose median is more than 25% above these
+# (docs/phase3-plan.md, *Testing*). Change them only with a measurement and
+# a reason, recorded in docs/phase3-data.
+#
+# measurement (the start of the line ipcbench prints) | median
+a system call that does nothing|376
+two address spaces, passive server|1356
+one address space, passive server|764

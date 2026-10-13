@@ -89,6 +89,40 @@ resume_user:
     addq $16, %rsp         /* vector and error code */
     iretq
 
+/* resume_user_sysret(frame): the same, for a thread whose last entry was
+ * a system call and whose registers nobody has rewritten since: RCX and R11
+ * are the call's to clobber, so sysretq can carry the RIP and RFLAGS, and
+ * sysretq, unlike iretq, doesn't stop the pipeline. run.c has checked that
+ * RIP is a user address (sysretq to a non-canonical one faults in ring 0)
+ * and built RFLAGS itself. Between loading the user's RSP and sysretq the
+ * kernel runs on the user's stack: interrupts are off, and the exceptions
+ * that can't be masked (NMI, machine check, double fault) have a stack of
+ * their own (idt.c). */
+    .globl resume_user_sysret
+resume_user_sysret:
+    movq %rdi, %rsp
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    addq $8, %rsp          /* r11: RFLAGS goes there */
+    popq %r10
+    popq %r9
+    popq %r8
+    popq %rbp
+    popq %rdi
+    popq %rsi
+    popq %rdx
+    addq $8, %rsp          /* rcx: RIP goes there */
+    popq %rbx
+    popq %rax
+    addq $16, %rsp         /* vector and error code */
+    popq %rcx              /* RIP */
+    addq $8, %rsp          /* CS */
+    popq %r11              /* RFLAGS */
+    popq %rsp              /* the user's stack */
+    sysretq
+
 /* One stub per vector, generated with a counter (the assembler limits
  * macro recursion, so no recursive generator). */
     .altmacro

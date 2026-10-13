@@ -92,3 +92,48 @@ The VM's speed varied between runs by up to a factor of two (the build VM
 shares the host, `docs/testbed.md`); the test measures everything against
 the cascade's own length in the same run.
 
+## Step 8 (2026-10-13): `step8/`
+
+The IPC benchmark on VM 112 (KVM, Intel Core i5-14400, one virtual CPU on a
+P-core of its own), at the commit that adds these files; joist-dev2 idle.
+Two images built on joist-dev2 by
+`make BUILD=build/benchN USER_BUILD=build/bench UEXTRA=-DBENCH_CALLS=100000u
+KEXTRA=-DRUN_FAST_PATH=N ROOT_TASK=benchroot MODULES=ipcbench
+build/benchN/joist.iso` in `kernel/`; each booted ten times with
+`tools/pve/boot.sh ISO bios 180 LOG`.
+
+| Image | SHA-256 |
+|---|---|
+| fast path (`RUN_FAST_PATH=1`, the default kernel) | `5315a51cac92c30b6b361bc56ef0227802cafdc47cb5d9fe7c2d4faeca8c39fd` |
+| slow path only (`RUN_FAST_PATH=0`: the scheduler asked every time, `iretq` always) | `47a935560c817766fdcf44270b5753ece241d9fb7ad44a6778f81f93eaedbf05` |
+
+Files: `step8/vm112-ipcbench-fast-10runs.txt` and
+`step8/vm112-ipcbench-slow-10runs.txt` (the benchmark's lines of each run),
+`step8/vm112-ipcbench-fast-bios.txt` (one whole serial log).
+
+Each figure is a round trip (`Call` to its return) in **CPU cycles** by the
+benchmark's ruler, the clock reading's own cost taken off; 20 segments of
+100 000 calls; the range is over the ten runs.
+
+| Measurement | Fast path: median | 99th percentile | Slow path: median | 99th percentile |
+|---|---|---|---|---|
+| A system call that does nothing | 372-376 | 416-428 | 580-584 | 628-632 |
+| Two address spaces, passive server | 1 356 (all ten) | 1 480-1 508 | 1 896 (all ten) | 2 032-2 068 |
+| One address space, passive server | 764 (all ten) | 852-860 | 1 292-1 296 | 1 404-1 424 |
+| Two address spaces, server with its own context | 9 732-9 764 | 9 932-10 908 | 9 992-10 020 | 10 128-11 316 |
+
+Against the plan's meaning of *stable* (across 10 runs the median moves
+less than 5 % and the 99th percentile less than 20 %): medians move 1.1 %
+at most, 99th percentiles 9.8 % (fast, last row) and 11.7 % (slow, last
+row), under 2 % for the three passive measurements.
+
+At about 4.1 GHz (the turbo step most runs sat at) the fast figures are
+0.33 us and 0.19 us a round trip. The last row is as slow as it is because
+every switch between two scheduling contexts sets the timer, and a timer
+write leaves the virtual machine; it is not what the fast path is for, and
+on bare metal it would not cost this.
+
+Not bare metal: this is KVM on a shared host (`docs/testbed.md` lists what
+that did to the measurements and what the benchmark does about it). The
+unit and method are in `user/ipcbench/ipcbench.c`.
+

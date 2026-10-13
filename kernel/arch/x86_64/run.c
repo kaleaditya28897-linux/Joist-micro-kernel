@@ -56,6 +56,18 @@
 #define RUN_PREEMPT_SLOTS 32u
 #endif
 
+/* The direct switch after a Call or ReplyRecv (step 8). 0 builds a kernel
+ * that always asks the scheduler: the slow path, which is the
+ * specification, for the benchmark to compare against. */
+#ifndef RUN_FAST_PATH
+#define RUN_FAST_PATH 1
+#endif
+/* The sysretq way out for threads that came in by `syscall` (isr.S); 0:
+ * always iretq. */
+#ifndef RUN_SYSRET
+#define RUN_SYSRET RUN_FAST_PATH
+#endif
+
 #define MSR_EFER           0xc0000080u
 #define MSR_STAR           0xc0000081u
 #define MSR_LSTAR          0xc0000082u
@@ -71,12 +83,14 @@
 extern uint8_t kernel_stack[16384];
 void syscall_entry(void);
 __attribute__((noreturn)) void resume_user(struct trap_frame *tf);
+__attribute__((noreturn)) void resume_user_sysret(struct trap_frame *tf);
 
 static struct joist_kernel K;
 static struct abi_env env;
 static uint32_t cur; /* the thread running, or JOIST_MAX_THREADS */
 static uint64_t resumed_at; /* what it is charged from: the kernel entry before it was resumed (ns) */
 static uint32_t cur_space = JOIST_MAX_CSPACES;
+static uint64_t cur_tls = UINT64_MAX; /* what FS base holds; UINT64_MAX: not known */
 /* The moment the one-shot timer is set for (JOIST_FOREVER: off); 0 once it
  * has fired or idle has used it, so the next exit sets it again. */
 static uint64_t armed_for;
@@ -128,6 +142,57 @@ static __attribute__((noreturn)) void die(const char *why)
     kernel_finish(1);
 }
 
+/* ---- PCID: address spaces keep their TLB entries across switches ----
+ *
+ * With CR4.PCIDE each task's space has an identifier (its number plus one;
+ * 0 is the kernel's own tables) and a switch to it needn't flush anything.
+ * What then has to be flushed by hand is exactly what the old full flush
+ * did silently: entries of a space that isn't the current one when a page
+ * is unmapped from it, and whatever a destroyed space left under an
+ * identifier a new space takes. Both mark the space stale, and the next
+ * switch to a stale space is a flushing one. (The current space's unmaps
+ * are flushed at once with invlpg, as before.) Without PCID (an old CPU,
+ * QEMU's default model) every switch flushes, as before. */
+static int pcid_on;
+static uint8_t space_stale[JOIST_MAX_CSPACES];
+_Static_assert(JOIST_MAX_CSPACES < 4095u, "a space's PCID is its number plus one, in 12 bits");
+
+static void pcid_init(void)
+{
+    uint32_t a = 1;
+    uint32_t b;
+    uint32_t c = 0;
+    uint32_t d;
+    __asm__ volatile("cpuid" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
+    (void)b;
+    (void)d;
+#ifndef RUN_NO_PCID
+    if (c & (1u << 17)) {
+        uint64_t cr4;
+        __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+        __asm__ volatile("mov %0, %%cr4" : : "r"(cr4 | (1ull << 17)) : "memory"); /* PCIDE */
+        pcid_on = 1;
+    }
+#endif
+    kputs(pcid_on ? "joist: address spaces: PCID in use\n"
+                  : "joist: address spaces: no PCID, every switch flushes\n");
+}
+
+/* Make space s the current one. */
+static void space_switch(uint32_t s)
+{
+    uint64_t cr3 = vspace[s].root;
+    if (pcid_on) {
+        cr3 |= s + 1u;
+        if (!space_stale[s]) {
+            cr3 |= 1ull << 63; /* keep its entries */
+        }
+        space_stale[s] = 0;
+    }
+    __asm__ volatile("mov %0, %%cr3" : : "r"(cr3) : "memory");
+    cur_space = s;
+}
+
 /* ---- the core's hooks ---- */
 
 static void hk_space_new(void *ctx, uint32_t s)
@@ -138,6 +203,7 @@ static void hk_space_new(void *ctx, uint32_t s)
     }
     vspace[s].put_frame = pool_put;
     vm_share_upper(&vspace[s], paging_kernel_space());
+    space_stale[s] = 1; /* whatever had this number before left entries under its PCID */
 }
 
 static void hk_space_gone(void *ctx, uint32_t s)
@@ -170,6 +236,8 @@ static void hk_unmap(void *ctx, uint32_t s, uint64_t va, uint64_t npages)
         for (uint64_t i = 0; i < npages; i++) {
             __asm__ volatile("invlpg (%0)" : : "r"((va + i) * VM_PAGE) : "memory");
         }
+    } else {
+        space_stale[s] = 1; /* its entries for these pages go at the next switch to it */
     }
 }
 
@@ -322,6 +390,9 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
         return "the core refused to boot";
     }
     env = (struct abi_env){.k = &K, .space_of = space_of, .out = serial_sink, .ctx = NULL};
+    for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        env.exact[i] = 1; /* until a thread enters by a system call */
+    }
 
     const char *e = give_pool(fa, mm);
     if (e != NULL) {
@@ -374,6 +445,7 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     wrmsr(MSR_GS_BASE, 0);
     wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)(uintptr_t)&percpu);
 
+    pcid_init();
     kputs("joist: root task: ");
     kputu((uint64_t)RUN_POOL_FRAMES * RUN_POOL_PAGES * VM_PAGE / (1024ull * 1024ull));
     kputs(" MiB of memory, ");
@@ -516,7 +588,7 @@ static void sweep_pending(void)
 
 /* Run thread t: its pending call's outputs, its space, its TLS base, and a
  * frame from its record, entered with iretq. */
-static __attribute__((noreturn)) void enter(uint32_t t)
+static __attribute__((noreturn)) void enter(uint32_t t, int handed)
 {
     abi_complete(&env, t);
     /* The one-shot timer: the next thing that changes who should run.
@@ -524,7 +596,10 @@ static __attribute__((noreturn)) void enter(uint32_t t)
      * here: the kernel's time between an entry and the exit that follows
      * is paid for by the thread that exit resumes, so no time is free and
      * a thread that only makes system calls still spends its budget. */
-    uint64_t next = joist_sched_next_event(&K, t);
+    /* (After a direct switch the timer stays as it is: the core has
+     * vouched that the next event is no earlier than the one it is set
+     * for. At worst it fires early, and the next exit sets it right.) */
+    uint64_t next = handed ? armed_for : joist_sched_next_event(&K, t);
     if (next != armed_for) {
         /* Only when the moment changes: a budget's end stays where it is
          * from call to call while one context runs (as through a call to a
@@ -542,10 +617,15 @@ static __attribute__((noreturn)) void enter(uint32_t t)
     struct joist_regs *r = &K.th[t].regs;
     uint32_t s = K.th[t].cs;
     if (s != cur_space) {
-        __asm__ volatile("mov %0, %%cr3" : : "r"(vspace[s].root) : "memory");
-        cur_space = s;
+        space_switch(s);
     }
-    wrmsr(MSR_FS_BASE, r->tls < USER_TOP ? r->tls : 0);
+    /* The TLS base: written only when it changes (the write is slow, and
+     * a thread can't change it behind the kernel's back: FSGSBASE is off). */
+    uint64_t tls = r->tls < USER_TOP ? r->tls : 0;
+    if (tls != cur_tls) {
+        wrmsr(MSR_FS_BASE, tls);
+        cur_tls = tls;
+    }
     struct trap_frame *tf =
         (struct trap_frame *)(uintptr_t)(kernel_stack + sizeof kernel_stack - sizeof *tf);
     tf->rip = r->pc;
@@ -571,6 +651,9 @@ static __attribute__((noreturn)) void enter(uint32_t t)
     tf->r14 = r->r[ABI_R14];
     tf->r15 = r->r[ABI_R15];
     cur = t;
+    if (RUN_SYSRET && !env.exact[t]) {
+        resume_user_sysret(tf); /* it came in by `syscall`: out by sysretq */
+    }
     resume_user(tf);
 }
 
@@ -585,7 +668,15 @@ void run_user_trap(struct trap_frame *tf)
     }
     if (tf != NULL && t < JOIST_MAX_THREADS && K.th[t].state != JOIST_T_FREE) {
         save(t, tf);
+        env.exact[t] = tf->vector != SYSCALL_VECTOR; /* an interrupt or a fault: every register counts */
         if (tf->vector == SYSCALL_VECTOR) {
+            /* What the core's direct switch takes for granted about the
+             * caller, checked here before the call changes anything: it
+             * was the scheduler's choice (every thread the kernel resumes
+             * is), nothing has come due since (the clock hasn't reached
+             * what the timer is set for), and no destruction is pending
+             * (every entry owes that a piece, below). */
+            int may_hand = RUN_FAST_PATH && K.npending == 0 && armed_for != 0 && K.now < armed_for;
             int outcome = abi_syscall(&env, t);
             if (env.finished) {
                 kputs("joist: root task exited with code ");
@@ -596,6 +687,10 @@ void run_user_trap(struct trap_frame *tf)
                 kernel_finish(env.exit_code == 0 ? 0 : 3);
             }
             (void)outcome;
+            if (may_hand && env.handover < JOIST_MAX_THREADS && K.npending == 0 &&
+                K.th[env.handover].regs.pc < USER_TOP) {
+                enter(env.handover, 1); /* the fast path: no scheduler, no timer */
+            }
         } else if (tf->vector == APIC_TIMER_VECTOR) {
             run_tick();
         } else if (tf->vector < 32u) {
@@ -622,7 +717,7 @@ void run_user_trap(struct trap_frame *tf)
             fault(t, 13u, 0, 0, K.th[t].regs.pc);
             continue;
         }
-        enter(t);
+        enter(t, 0);
     }
 }
 

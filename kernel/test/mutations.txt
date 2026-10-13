@@ -49,4 +49,11 @@ abi-regs-read-bad-pointer @@ sys/abi.c @@ a1, &regs, sizeof regs) != KERR_OK @@ 
 # Phase 3 step 7: a caller's continue is bounded by the kernel's limit.
 abi-continue-unbounded @@ sys/abi.c @@ k->preempt != 0 && (a0 == 0 || a0 > k->preempt) ? k->preempt @@ k->preempt == 0 && (a0 == 0 || a0 > k->preempt) ? k->preempt
 abi-continue-zero-is-all @@ sys/abi.c @@ (a0 == 0 || a0 > k->preempt) ? k->preempt @@ (a0 > k->preempt) ? k->preempt
+# Phase 3 step 8: the direct switch as the system-call layer reports it.
+
+abi-handover-stale @@ sys/abi.c @@     env->handover = JOIST_MAX_THREADS; @@     (void)env->handover;
+abi-handover-wrong-thread @@ sys/abi.c @@ env->handover = joist_sched_handed(k, t, place, answered - 1u); @@ env->handover = joist_sched_handed(k, t, place, t);
+abi-handover-call-unreported @@ sys/abi.c @@ if (nr == ABI_CALL && k->th[t].sc_to != 0) { @@ if (nr == ABI_CALL && k->th[t].sc_to != 0 && nr == 0) {
+abi-spawn-not-exact @@ sys/abi.c @@             env->exact[nt] = 1; @@             (void)nt;
+abi-write-regs-not-exact @@ sys/abi.c @@ env->exact[k->obj[joist__slot_c(k, cs, slot_arg(a0))->obj - 1u].target - 1u] = 1; @@ (void)env->exact;
 

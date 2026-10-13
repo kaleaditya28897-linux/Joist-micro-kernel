@@ -22,6 +22,7 @@ enum {
 enum {
     FAULT_UD = 10, /* an invalid instruction (ud2, two bytes) */
     FAULT_PAGE,    /* writes arg to the unmapped address FAULT_VA, then reads it back into arg */
+    FAULT_PAGE2,   /* writes to FAULT_VA; waits for aux to be set; writes there again */
     FAULT_GP,      /* a privileged instruction (hlt) */
     FAULT_DIV,     /* a division by zero */
     FAULT_TLS,     /* reads the word at its TLS base into arg */

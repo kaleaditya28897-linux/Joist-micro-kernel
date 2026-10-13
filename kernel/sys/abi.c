@@ -1,6 +1,7 @@
 /* abi.c - the system-call ABI: registers to core operations. See abi.h. */
 #include "abi.h"
 
+#include "internal.h"
 #include "usercopy.h"
 
 /* A slot argument: anything past 32 bits is out of range, never truncated
@@ -87,6 +88,11 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     struct joist_msg m;
     joist_err e;
     uint64_t out = R->r[ABI_RDX]; /* RDX unless the call returns something */
+    /* For the direct switch: the caller's place in line before the call,
+     * and whom a ReplyRecv answers. */
+    uint64_t place = k->th[t].ready_seq;
+    uint32_t answered = k->th[t].reply_to;
+    env->handover = JOIST_MAX_THREADS;
 
     switch (nr) {
     case ABI_CALL:
@@ -170,6 +176,7 @@ int abi_syscall(struct abi_env *env, uint32_t t)
             k->th[nt].regs.pc = a2;
             k->th[nt].regs.sp = a3;
             k->th[nt].regs.flags = 0x202u;
+            env->exact[nt] = 1;
         }
         break;
     }
@@ -269,6 +276,10 @@ int abi_syscall(struct abi_env *env, uint32_t t)
                     ? joist_thread_write_regs(k, cs, slot_arg(a0), &regs)
                     : JOIST_E_RANGE;
         }
+        if (e == JOIST_OK) {
+            /* All of them count from here, RCX and R11 too. */
+            env->exact[k->obj[joist__slot_c(k, cs, slot_arg(a0))->obj - 1u].target - 1u] = 1;
+        }
         break;
     }
     default: {
@@ -294,6 +305,11 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     }
     if (e == JOIST_BLOCKED) {
         env->pending[t] = 1;
+        if (nr == ABI_CALL && k->th[t].sc_to != 0) {
+            env->handover = joist_sched_handed(k, t, place, k->th[t].sc_to - 1u);
+        } else if (nr == ABI_REPLY_RECV && answered != 0) {
+            env->handover = joist_sched_handed(k, t, place, answered - 1u);
+        }
         return ABI_WAITING;
     }
     /* Calls that receive return the message (Recv and ReplyRecv when a
