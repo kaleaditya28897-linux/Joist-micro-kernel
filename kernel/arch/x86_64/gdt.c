@@ -19,13 +19,16 @@ struct __attribute__((packed)) gdtr {
 };
 
 extern uint8_t kernel_stack[16384];
-static __attribute__((aligned(16))) uint8_t double_fault_stack[8192];
-static struct tss tss;
+/* A TSS per CPU (each has its own stack for entries from user mode, and its
+ * own for the exceptions that can't be masked), and so a TSS descriptor per
+ * CPU in the one GDT they share. */
+static __attribute__((aligned(16))) uint8_t double_fault_stack[GDT_MAX_CPUS][8192];
+static struct tss tss[GDT_MAX_CPUS];
 
 /* Null, kernel code, kernel data, user data, user code, TSS (two slots).
  * Code descriptors: present, S=1, executable, readable, L=1 (64-bit);
  * data: present, S=1, writable. Base and limit are ignored in long mode. */
-static uint64_t gdt[7] = {
+static uint64_t gdt[5 + 2 * GDT_MAX_CPUS] = {
     0,
     0x00af9a000000ffffull, /* kernel code, DPL 0 */
     0x00cf92000000ffffull, /* kernel data, DPL 0 */
@@ -37,17 +40,28 @@ static uint64_t gdt[7] = {
 
 void gdt_init(void)
 {
-    tss.rsp[0] = (uint64_t)(uintptr_t)(kernel_stack + sizeof kernel_stack);
-    tss.ist[IST_DOUBLE_FAULT - 1u] =
-        (uint64_t)(uintptr_t)(double_fault_stack + sizeof double_fault_stack);
-    tss.iomap_base = (uint16_t)sizeof tss;
+    gdt_init_cpu(0, (uint64_t)(uintptr_t)(kernel_stack + sizeof kernel_stack));
+}
+
+void gdt_set_stack(uint32_t cpu, uint64_t stack_top)
+{
+    tss[cpu].rsp[0] = stack_top;
+}
+
+void gdt_init_cpu(uint32_t cpu, uint64_t stack_top)
+{
+    struct tss *t = &tss[cpu];
+    t->rsp[0] = stack_top;
+    t->ist[IST_DOUBLE_FAULT - 1u] =
+        (uint64_t)(uintptr_t)(double_fault_stack[cpu] + sizeof double_fault_stack[cpu]);
+    t->iomap_base = (uint16_t)sizeof *t;
 
     /* The TSS descriptor: type 0x9 (available 64-bit TSS), present. */
-    uint64_t base = (uint64_t)(uintptr_t)&tss;
-    uint64_t limit = sizeof tss - 1u;
-    gdt[5] = (limit & 0xffffu) | ((base & 0xffffffu) << 16) | (0x89ull << 40) |
-             ((limit & 0xf0000u) << 32) | ((base & 0xff000000u) << 32);
-    gdt[6] = base >> 32;
+    uint64_t base = (uint64_t)(uintptr_t)t;
+    uint64_t limit = sizeof *t - 1u;
+    gdt[5u + 2u * cpu] = (limit & 0xffffu) | ((base & 0xffffffu) << 16) | (0x89ull << 40) |
+                         ((limit & 0xf0000u) << 32) | ((base & 0xff000000u) << 32);
+    gdt[6u + 2u * cpu] = base >> 32;
 
     struct gdtr r = {.limit = (uint16_t)(sizeof gdt - 1u), .base = (uint64_t)(uintptr_t)gdt};
     /* Load the GDT, reload the data segments, reload CS with a far return,
@@ -67,6 +81,6 @@ void gdt_init(void)
                      "ltr %w3"
                      :
                      : "m"(r), "r"((uint64_t)GDT_KDATA), "i"((uint64_t)GDT_KCODE),
-                       "r"((uint64_t)GDT_TSS)
+                       "r"((uint64_t)(GDT_TSS + 16u * cpu))
                      : "rax", "memory");
 }

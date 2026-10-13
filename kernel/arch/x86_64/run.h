@@ -15,7 +15,7 @@
  * first of RSI memory frames (RUN_POOL_FRAMES of RUN_POOL_PAGES pages each,
  * 2 MiB aligned), RDX the first of RCX boot-module frames (modules 1
  * onwards, in limine.conf's order; module 0 is the root task itself), R8 its
- * first free slot. Its own image and stack are frames in leaf 1 (slots 128-255): its
+ * first free slot, R9 the number of CPUs in use. Its own image and stack are frames in leaf 1 (slots 128-255): its
  * to keep. */
 #define RUN_ROOT_SC      0u /* its own scheduling context */
 #define RUN_POOL_FIRST   1u
@@ -29,13 +29,15 @@
  * (module 0). Returns only on failure, with what failed. */
 const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
                       const struct limine_memmap_response *mm,
-                      const struct limine_module_response *mods);
+                      const struct limine_module_response *mods,
+                      const struct limine_mp_response *mp);
 
 /* An interrupt or exception from user mode, or a system call: never returns
  * (the kernel goes back to user mode with resume_user). idt.c. */
 __attribute__((noreturn)) void run_user_trap(struct trap_frame *tf);
 
-/* A timer tick, from user or kernel mode. */
-void run_tick(void);
+/* A timer interrupt or one from another CPU, taken in kernel mode: while
+ * the boot waits for its ticks, or while a CPU sleeps. */
+void run_kernel_irq(uint64_t vector);
 
 #endif /* JOIST_ARCH_RUN_H */

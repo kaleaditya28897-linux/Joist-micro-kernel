@@ -138,3 +138,22 @@ kerr paging_map_device(uint64_t va, uint64_t pa, uint64_t len)
     }
     return k;
 }
+
+void paging_init_ap(void)
+{
+    /* What paging_init set on the first CPU, in the same order: NX, write
+     * protection in ring 0, global pages; then the kernel's own tables. */
+    uint32_t lo;
+    uint32_t hi;
+    __asm__ volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(0xc0000080u));
+    lo |= 1u << 11;
+    __asm__ volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(0xc0000080u));
+    uint64_t cr0;
+    uint64_t cr4;
+    __asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
+    __asm__ volatile("mov %0, %%cr0" : : "r"(cr0 | (1ull << 16)) : "memory");
+    __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+    __asm__ volatile("mov %0, %%cr4" : : "r"(cr4 | (1ull << 7)) : "memory");
+    __asm__ volatile("mov %0, %%cr3" : : "r"(kspace.root) : "memory");
+}
+

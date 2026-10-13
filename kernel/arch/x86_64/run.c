@@ -87,18 +87,107 @@ __attribute__((noreturn)) void resume_user_sysret(struct trap_frame *tf);
 
 static struct joist_kernel K;
 static struct abi_env env;
-static uint32_t cur; /* the thread running, or JOIST_MAX_THREADS */
-static uint64_t resumed_at; /* what it is charged from: the kernel entry before it was resumed (ns) */
-static uint32_t cur_space = JOIST_MAX_CSPACES;
-static uint64_t cur_tls = UINT64_MAX; /* what FS base holds; UINT64_MAX: not known */
-/* The moment the one-shot timer is set for (JOIST_FOREVER: off); 0 once it
- * has fired or idle has used it, so the next exit sets it again. */
-static uint64_t armed_for;
 
-static struct {
-    uint64_t kernel_rsp;
+/* ---- CPUs (step 9; decision 0016) ----
+ *
+ * Everything the kernel shares (K, env, the page-table pool) is used under
+ * one lock, taken on every entry and released on every exit and while a CPU
+ * sleeps. What follows is each CPU's own. Three fields are read or written
+ * by other CPUs, without the lock or while its holder waits for this CPU:
+ * in_kernel, leave_space and frame (see cpu_sync and hk_off_cpu). */
+#ifndef RUN_MAX_CPUS
+#define RUN_MAX_CPUS 4u
+#endif
+_Static_assert(RUN_MAX_CPUS <= JOIST_MAX_CPUS && RUN_MAX_CPUS <= GDT_MAX_CPUS, "CPUs");
+/* (The invariant-checking test build runs the core's checker in the
+ * kernel, and the checker keeps tables the size of the core's on its
+ * stack: tens of kilobytes with the larger table sizes. Found by that
+ * build overrunning the 16 KiB stack into the records below it; there is
+ * no guard page under a kernel stack yet.) */
+#ifdef RUN_CHECK_INVARIANTS
+#define CPU_STACK 262144u
+#else
+#define CPU_STACK 16384u
+#endif
+
+struct cpu {
+    uint64_t kernel_rsp; /* syscall.S reads these two through GS: offsets 0 and 8 */
     uint64_t user_rsp;
-} percpu;
+    uint32_t id;
+    uint32_t lapic_id;
+    uint32_t cur;        /* the thread running here, or JOIST_MAX_THREADS */
+    uint32_t cur_space;  /* whose page tables CR3 holds, or JOIST_MAX_CSPACES: the kernel's */
+    uint64_t cur_tls;    /* what FS base holds; UINT64_MAX: not known */
+    uint64_t resumed_at; /* what cur is charged from: the kernel entry before it was resumed (ns) */
+    /* The moment the one-shot timer is set for (JOIST_FOREVER: off); 0 once
+     * it has fired or idle has used it, so the next exit sets it again. */
+    uint64_t armed_for;
+    /* The user registers of the entry in progress, where another CPU can
+     * take them (hk_off_cpu). */
+    struct trap_frame *frame;
+    /* 0 only while this CPU is in user mode: set first thing on entry,
+     * cleared under the lock just before leaving. */
+    volatile uint32_t in_kernel;
+    /* Another CPU asks this one off its address space, on to the kernel's
+     * tables (pages unmapped from it, or the space going): answered by
+     * clearing it, wherever this CPU is (cpu_sync). */
+    volatile uint32_t leave_space;
+    uint32_t poked; /* a "choose again" interrupt is on its way here */
+    /* Spaces whose translations this CPU may hold stale: the next switch
+     * to one is a flushing one (PCID or not). */
+    uint8_t stale[JOIST_MAX_CSPACES];
+};
+static struct cpu cpus[RUN_MAX_CPUS];
+static uint32_t ncpus = 1;
+static volatile uint32_t cpus_online;
+static volatile uint32_t smp_running; /* past boot: interrupts in the kernel belong to a CPU's idle */
+static __attribute__((aligned(CPU_STACK))) uint8_t cpu_stack[RUN_MAX_CPUS][CPU_STACK];
+
+/* A CPU's kernel stack holds a pointer to its record in its top word, and
+ * every stack is aligned to its size: so "which CPU am I" is one mask of
+ * the stack pointer, with no GS and no MSR. (Not valid on the exception
+ * stacks of NMI, machine check and double fault, which only report.) */
+static inline struct cpu *this_cpu(void)
+{
+    uint64_t sp = (uint64_t)(uintptr_t)__builtin_frame_address(0);
+    return *(struct cpu **)(uintptr_t)((sp & ~(uint64_t)(CPU_STACK - 1u)) + CPU_STACK - 8u);
+}
+
+static uint64_t stack_top(const struct cpu *c)
+{
+    return (uint64_t)(uintptr_t)&cpu_stack[c->id][CPU_STACK - 16u];
+}
+
+/* The kernel lock (0016): a ticket lock, so CPUs get it in the order they
+ * asked. A CPU waiting for it has interrupts off and answers cpu_sync
+ * between looks, or the holder, waiting for that answer, would wait for
+ * ever. With one CPU there is nobody to keep out and it isn't taken. */
+static struct {
+    volatile uint32_t next;
+    volatile uint32_t owner;
+} klock;
+
+static void cpu_sync(struct cpu *c);
+
+static void lock(struct cpu *c)
+{
+    if (ncpus == 1) {
+        return;
+    }
+    uint32_t me = __atomic_fetch_add(&klock.next, 1, __ATOMIC_SEQ_CST);
+    while (__atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE) != me) {
+        cpu_sync(c);
+        __asm__ volatile("pause");
+    }
+}
+
+static void unlock(void)
+{
+    if (ncpus == 1) {
+        return;
+    }
+    __atomic_store_n(&klock.owner, klock.owner + 1u, __ATOMIC_RELEASE);
+}
 
 /* ---- the page-table pool ---- */
 
@@ -154,10 +243,9 @@ static __attribute__((noreturn)) void die(const char *why)
  * are flushed at once with invlpg, as before.) Without PCID (an old CPU,
  * QEMU's default model) every switch flushes, as before. */
 static int pcid_on;
-static uint8_t space_stale[JOIST_MAX_CSPACES];
 _Static_assert(JOIST_MAX_CSPACES < 4095u, "a space's PCID is its number plus one, in 12 bits");
 
-static void pcid_init(void)
+static void pcid_init(int report)
 {
     uint32_t a = 1;
     uint32_t b;
@@ -174,23 +262,63 @@ static void pcid_init(void)
         pcid_on = 1;
     }
 #endif
-    kputs(pcid_on ? "joist: address spaces: PCID in use\n"
-                  : "joist: address spaces: no PCID, every switch flushes\n");
+    if (report) {
+        kputs(pcid_on ? "joist: address spaces: PCID in use\n"
+                      : "joist: address spaces: no PCID, every switch flushes\n");
+    }
 }
 
-/* Make space s the current one. */
-static void space_switch(uint32_t s)
+/* Make space s this CPU's current one. */
+static void space_switch(struct cpu *c, uint32_t s)
 {
     uint64_t cr3 = vspace[s].root;
     if (pcid_on) {
         cr3 |= s + 1u;
-        if (!space_stale[s]) {
+        if (!c->stale[s]) {
             cr3 |= 1ull << 63; /* keep its entries */
         }
-        space_stale[s] = 0;
     }
+    c->stale[s] = 0;
     __asm__ volatile("mov %0, %%cr3" : : "r"(cr3) : "memory");
-    cur_space = s;
+    c->cur_space = s;
+}
+
+/* Answer another CPU's request to leave the address space this one is in:
+ * on to the kernel's own tables, which flushes what it held of the space
+ * (it is marked stale here, so the way back flushes too). Called wherever
+ * this CPU may be when asked: on every entry before the lock, while waiting
+ * for the lock, and from the interrupt that wakes it from sleep. Touches
+ * nothing shared. */
+static void cpu_sync(struct cpu *c)
+{
+    if (__atomic_load_n(&c->leave_space, __ATOMIC_ACQUIRE)) {
+        __asm__ volatile("mov %0, %%cr3" : : "r"(paging_kernel_space()->root) : "memory");
+        c->cur_space = JOIST_MAX_CSPACES;
+        __atomic_store_n(&c->leave_space, 0, __ATOMIC_RELEASE);
+    }
+}
+
+/* Every other CPU that is in space s leaves it, before this returns: for
+ * pages just unmapped from it (their translations must be gone before the
+ * frames are used again) and for a space whose tables are about to be
+ * freed. The caller holds the lock; the others answer wherever they are. */
+static void others_leave(const struct cpu *me, uint32_t s)
+{
+    for (uint32_t i = 0; i < ncpus; i++) {
+        struct cpu *o = &cpus[i];
+        if (o == me) {
+            continue;
+        }
+        o->stale[s] = 1;
+        if (o->cur_space != s) {
+            continue;
+        }
+        __atomic_store_n(&o->leave_space, 1, __ATOMIC_RELEASE);
+        apic_send_ipi(o->lapic_id, APIC_IPI_SYNC); /* in user mode, or asleep: come and look */
+        while (__atomic_load_n(&o->leave_space, __ATOMIC_ACQUIRE)) {
+            __asm__ volatile("pause");
+        }
+    }
 }
 
 /* ---- the core's hooks ---- */
@@ -203,17 +331,21 @@ static void hk_space_new(void *ctx, uint32_t s)
     }
     vspace[s].put_frame = pool_put;
     vm_share_upper(&vspace[s], paging_kernel_space());
-    space_stale[s] = 1; /* whatever had this number before left entries under its PCID */
+    for (uint32_t i = 0; i < ncpus; i++) {
+        cpus[i].stale[s] = 1; /* whatever had this number before left entries under its PCID */
+    }
 }
 
 static void hk_space_gone(void *ctx, uint32_t s)
 {
     (void)ctx;
-    if (cur_space == s) {
+    struct cpu *c = this_cpu();
+    if (c->cur_space == s) {
         /* Never free the tables CR3 points at: back to the kernel's. */
         __asm__ volatile("mov %0, %%cr3" : : "r"(paging_kernel_space()->root) : "memory");
-        cur_space = JOIST_MAX_CSPACES;
+        c->cur_space = JOIST_MAX_CSPACES;
     }
+    others_leave(c, s); /* nor the tables any other CPU's CR3 points at */
     vm_destroy(&vspace[s]);
 }
 
@@ -232,13 +364,54 @@ static void hk_unmap(void *ctx, uint32_t s, uint64_t va, uint64_t npages)
     if (vm_unmap(&vspace[s], va * VM_PAGE, npages * VM_PAGE) != KERR_OK) {
         die("an unmapping the core asked for was refused by the page tables");
     }
-    if (cur_space == s) {
+    struct cpu *c = this_cpu();
+    if (c->cur_space == s) {
         for (uint64_t i = 0; i < npages; i++) {
             __asm__ volatile("invlpg (%0)" : : "r"((va + i) * VM_PAGE) : "memory");
         }
     } else {
-        space_stale[s] = 1; /* its entries for these pages go at the next switch to it */
+        c->stale[s] = 1; /* its entries for these pages go at the next switch to it */
     }
+    others_leave(c, s); /* and no other CPU keeps them past this point */
+}
+
+static void save(uint32_t t, const struct trap_frame *tf);
+
+/* The core is about to stop or destroy thread t, or read or write its
+ * registers, and t is on CPU `cpu`. If that is another CPU, it must stop
+ * running t now and t's registers must be in its record: bring that CPU
+ * into the kernel (it stops before the lock, which this CPU holds, with
+ * its user registers in the frame it has published), take them, and leave
+ * it with nothing, to choose again when it gets the lock.
+ *
+ * What that CPU had come in for is undone, not lost: a system call it had
+ * not begun is backed up to the `syscall` instruction, and a fault happens
+ * again when the thread next runs. */
+static void hk_off_cpu(void *ctx, uint32_t t, uint32_t cpu)
+{
+    (void)ctx;
+    struct cpu *me = this_cpu();
+    if (cpu >= ncpus || cpu == me->id) {
+        return; /* this CPU's own thread: saved on the way in */
+    }
+    struct cpu *o = &cpus[cpu];
+    if (o->cur != t) {
+        return;
+    }
+    if (!__atomic_load_n(&o->in_kernel, __ATOMIC_ACQUIRE)) {
+        apic_send_ipi(o->lapic_id, APIC_IPI_SYNC);
+        while (!__atomic_load_n(&o->in_kernel, __ATOMIC_ACQUIRE)) {
+            __asm__ volatile("pause");
+        }
+    }
+    const struct trap_frame *tf = o->frame;
+    save(t, tf);
+    if (tf->vector == SYSCALL_VECTOR) {
+        K.th[t].regs.pc -= 2; /* back to the `syscall` instruction (0f 05) */
+    }
+    env.exact[t] = 1; /* (the instruction will clobber RCX and R11 again; until then they count) */
+    joist_sched_charge(&K, t, K.now > o->resumed_at ? K.now - o->resumed_at : 0);
+    o->cur = JOIST_MAX_THREADS;
 }
 
 /* ---- the ABI's environment ---- */
@@ -369,11 +542,106 @@ static const char *give_pool(struct frame_alloc *fa, const struct limine_memmap_
     return NULL;
 }
 
+static __attribute__((noreturn)) void schedule(struct cpu *c);
+
+/* What every CPU sets for itself: the system-call MSRs, GS (the user's 0;
+ * the kernel's, for syscall.S, this CPU's record), PCID. */
+static void cpu_setup(struct cpu *c, int first)
+{
+    /* syscall: EFER.SCE; STAR: kernel CS 0x08 (SS 0x10) on entry, and the
+     * sysret half (cpu.h); LSTAR the entry; SFMASK clears IF, TF, DF and AC
+     * on entry. */
+    wrmsr(MSR_EFER, rdmsr(MSR_EFER) | 1u);
+    wrmsr(MSR_STAR, ((uint64_t)GDT_KDATA << 48) | ((uint64_t)GDT_KCODE << 32));
+    wrmsr(MSR_LSTAR, (uint64_t)(uintptr_t)syscall_entry);
+    wrmsr(MSR_SFMASK, (1u << 9) | (1u << 8) | (1u << 10) | (1u << 18));
+    c->kernel_rsp = stack_top(c);
+    wrmsr(MSR_GS_BASE, 0);
+    wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)(uintptr_t)c);
+    pcid_init(first);
+}
+
+/* Move to a CPU's own kernel stack and go on there; never comes back. */
+static __attribute__((noreturn)) void on_own_stack(struct cpu *c, void (*fn)(struct cpu *))
+{
+    __asm__ volatile("movq %0, %%rsp\n\tcallq *%1" : : "r"(stack_top(c)), "r"(fn), "D"(c) : "memory");
+    __builtin_unreachable();
+}
+
+/* A CPU after the first, on its own stack: the same set-up the first had,
+ * then into the scheduler with nothing to run yet. */
+static __attribute__((noreturn)) void ap_run(struct cpu *c)
+{
+    paging_init_ap();
+    gdt_init_cpu(c->id, stack_top(c));
+    idt_load();
+    cpu_setup(c, 0);
+    apic_init_ap();
+    c->lapic_id = apic_id();
+    (void)__atomic_fetch_add(&cpus_online, 1, __ATOMIC_SEQ_CST);
+    while (!__atomic_load_n(&smp_running, __ATOMIC_ACQUIRE)) {
+        __asm__ volatile("pause");
+    }
+    lock(c);
+    schedule(c);
+}
+
+/* Where Limine starts a CPU (on Limine's stack and page tables). */
+static void ap_start(struct limine_mp_info *info)
+{
+    on_own_stack((struct cpu *)(uintptr_t)info->extra_argument, ap_run);
+}
+
+static __attribute__((noreturn)) void bsp_run(struct cpu *c)
+{
+    __atomic_store_n(&smp_running, 1, __ATOMIC_RELEASE);
+    lock(c);
+    schedule(c);
+}
+
 const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
                       const struct limine_memmap_response *mm,
-                      const struct limine_module_response *mods)
+                      const struct limine_module_response *mods,
+                      const struct limine_mp_response *mp)
 {
     hhdm_off = hhdm;
+    /* The CPUs: this one first, then as many of the others as there is
+     * room for. Each gets its record, a stack that leads back to it, and
+     * its place in Limine's table to start from. */
+    uint32_t found = mp != NULL ? (uint32_t)mp->cpu_count : 1u;
+    ncpus = 0;
+    for (uint32_t i = 0; i < found + 1u && ncpus < RUN_MAX_CPUS; i++) {
+        /* i == 0: the boot CPU, wherever it is in the table; then the rest. */
+        const struct limine_mp_info *info = NULL;
+        if (mp != NULL) {
+            if (i == 0) {
+                for (uint32_t j = 0; j < found; j++) {
+                    if (mp->cpus[j]->lapic_id == mp->bsp_lapic_id) {
+                        info = mp->cpus[j];
+                    }
+                }
+            } else if (mp->cpus[i - 1u]->lapic_id != mp->bsp_lapic_id) {
+                info = mp->cpus[i - 1u];
+            }
+            if (info == NULL) {
+                continue;
+            }
+        } else if (i != 0) {
+            break;
+        }
+        struct cpu *c = &cpus[ncpus];
+        *c = (struct cpu){.id = ncpus,
+                          .lapic_id = info != NULL ? info->lapic_id : 0,
+                          .cur = JOIST_MAX_THREADS,
+                          .cur_space = JOIST_MAX_CSPACES,
+                          .cur_tls = UINT64_MAX,
+                          .in_kernel = 1};
+        *(struct cpu **)(uintptr_t)&cpu_stack[ncpus][CPU_STACK - 8u] = c;
+        ncpus++;
+    }
+#ifdef RUN_ONE_CPU
+    ncpus = 1;
+#endif
     for (uint32_t i = 0; i < POOL_FRAMES; i++) {
         if (frame_get(fa, &pool[i]) != KERR_OK) {
             return "out of frames for the page-table pool";
@@ -384,7 +652,8 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     joist_init(&K);
     K.preempt = RUN_PREEMPT_SLOTS;
     K.hooks = (struct joist_hooks){
-        .space_new = hk_space_new, .space_gone = hk_space_gone, .map = hk_map, .unmap = hk_unmap};
+        .space_new = hk_space_new, .space_gone = hk_space_gone, .map = hk_map, .unmap = hk_unmap,
+        .off_cpu = hk_off_cpu};
     joist_cspace root;
     if (joist_boot(&K, ROOT_BUDGET, &root) != JOIST_OK) {
         return "the core refused to boot";
@@ -433,19 +702,34 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     r->r[ABI_RDX] = RUN_MODULE_FIRST;
     r->r[ABI_RCX] = nmods;
     r->r[ABI_R8] = RUN_FIRST_FREE;
+    r->r[ABI_R9] = ncpus;
 
-    /* syscall: EFER.SCE; STAR: kernel CS 0x08 (SS 0x10) on entry; LSTAR the
-     * entry; SFMASK clears IF, TF, DF and AC on entry. (The way back is
-     * iretq, so STAR's sysret half is unused.) */
-    wrmsr(MSR_EFER, rdmsr(MSR_EFER) | 1u);
-    wrmsr(MSR_STAR, ((uint64_t)GDT_KDATA << 48) | ((uint64_t)GDT_KCODE << 32));
-    wrmsr(MSR_LSTAR, (uint64_t)(uintptr_t)syscall_entry);
-    wrmsr(MSR_SFMASK, (1u << 9) | (1u << 8) | (1u << 10) | (1u << 18));
-    percpu.kernel_rsp = (uint64_t)(uintptr_t)(kernel_stack + sizeof kernel_stack);
-    wrmsr(MSR_GS_BASE, 0);
-    wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)(uintptr_t)&percpu);
-
-    pcid_init();
+    gdt_set_stack(0, stack_top(&cpus[0]));
+    cpu_setup(&cpus[0], 1);
+    apic_timer_oneshot(); /* from the boot tick to one-shot: armed on every exit */
+    cpus[0].lapic_id = apic_id();
+    cpus_online = 1;
+    /* Start the others (each waits at the gate, smp_running, once set up). */
+    if (mp != NULL) {
+        for (uint32_t i = 1; i < ncpus; i++) {
+            for (uint32_t j = 0; j < found; j++) {
+                struct limine_mp_info *info = mp->cpus[j];
+                if (info->lapic_id == cpus[i].lapic_id) {
+                    info->extra_argument = (uint64_t)(uintptr_t)&cpus[i];
+                    __atomic_store_n(&info->goto_address, ap_start, __ATOMIC_SEQ_CST);
+                }
+            }
+        }
+        for (uint64_t spin = 0; __atomic_load_n(&cpus_online, __ATOMIC_ACQUIRE) < ncpus; spin++) {
+            if (spin > 2000000000ull) {
+                return "a CPU didn't start";
+            }
+            __asm__ volatile("pause");
+        }
+    }
+    kputs("joist: cpus in use: ");
+    kputu(ncpus);
+    kputs(ncpus > 1 ? " (one kernel lock, decision 0016)\n" : "\n");
     kputs("joist: root task: ");
     kputu((uint64_t)RUN_POOL_FRAMES * RUN_POOL_PAGES * VM_PAGE / (1024ull * 1024ull));
     kputs(" MiB of memory, ");
@@ -453,11 +737,9 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     kputs(" module(s); entering it at ");
     kputx(entry);
     kputs("\n");
-    cur = t;
-    apic_timer_oneshot(); /* from the boot tick to one-shot: armed on every exit */
+    (void)t; /* the scheduler finds it */
     K.now = apic_clock_ns();
-    resumed_at = K.now;
-    run_user_trap(NULL); /* "return" to user mode: the root task starts */
+    on_own_stack(&cpus[0], bsp_run); /* into the scheduler: the root task starts */
 }
 
 /* ---- in and out of user mode ---- */
@@ -543,30 +825,73 @@ static void fault(uint32_t t, uint64_t vector, uint64_t addr, uint64_t code, uin
     }
 }
 
-/* Nothing can run: sleep until the next event the core names (a deadline,
- * a new period), unless there is none and no destruction is pending: then
- * no thread can ever run again, which is reported, not hidden. */
-static void idle(void)
+/* The clock only goes forward, whichever CPU reads it. */
+static void clock_now(void)
 {
+    uint64_t now = apic_clock_ns();
+    if (now > K.now) {
+        K.now = now;
+    }
+}
+
+/* After anything that may have changed who should run where (the core
+ * says so: K.resched): every other CPU that would now choose differently
+ * is interrupted, once, to choose again. */
+static void poke_others(const struct cpu *me)
+{
+    if (!K.resched) {
+        return;
+    }
+    K.resched = 0;
+    for (uint32_t i = 0; i < ncpus; i++) {
+        struct cpu *o = &cpus[i];
+        if (o != me && !o->poked && joist_sched_better(&K, o->id)) {
+            o->poked = 1;
+            apic_send_ipi(o->lapic_id, APIC_IPI_RESCHED);
+        }
+    }
+}
+
+/* Nothing for this CPU to run: sleep until the next event the core names
+ * (a deadline, a new period) or another CPU's interrupt, with the lock
+ * released. If nothing will ever happen (no event, no destruction pending,
+ * every other CPU idle too), no thread can ever run again, which is
+ * reported, not hidden. Returns with a thread chosen. */
+static uint32_t idle(struct cpu *c)
+{
+    c->cur = JOIST_MAX_THREADS;
     for (;;) {
         joist_thread t;
-        K.now = apic_clock_ns();
+        clock_now();
         joist_tick(&K, 0); /* deadlines that have passed */
-        if (joist_sched_pick(&K, &t) == JOIST_OK) {
-            return;
+        K.resched = 1;     /* and periods that have begun */
+        if (joist_sched_pick_on(&K, c->id, &t) == JOIST_OK) {
+            return t;
         }
         if (K.npending != 0) {
             (void)joist_continue(&K, RUN_PREEMPT_SLOTS); /* a piece; then look again */
             continue;
         }
+        poke_others(c);
         uint64_t next = joist_sched_next_event(&K, JOIST_MAX_THREADS);
         if (next == JOIST_FOREVER) {
-            kputs("joist: no thread can ever run again (every thread waits forever): stopping\n");
-            kernel_finish(6);
+            int alone = 1;
+            for (uint32_t i = 0; i < ncpus; i++) {
+                alone &= cpus[i].cur == JOIST_MAX_THREADS;
+            }
+            if (alone) {
+                kputs("joist: no thread can ever run again (every thread waits forever): stopping\n");
+                kernel_finish(6);
+            }
+            apic_timer_disarm(); /* another CPU's interrupt will wake this one */
+        } else {
+            apic_timer_arm(next > K.now ? next - K.now : 1);
         }
-        apic_timer_arm(next > K.now ? next - K.now : 1);
-        armed_for = 0;
+        c->armed_for = 0;
+        unlock();
         __asm__ volatile("sti; hlt; cli" : : : "memory");
+        lock(c);
+        c->poked = 0;
     }
 }
 
@@ -588,7 +913,7 @@ static void sweep_pending(void)
 
 /* Run thread t: its pending call's outputs, its space, its TLS base, and a
  * frame from its record, entered with iretq. */
-static __attribute__((noreturn)) void enter(uint32_t t, int handed)
+static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int handed)
 {
     abi_complete(&env, t);
     /* The one-shot timer: the next thing that changes who should run.
@@ -599,8 +924,8 @@ static __attribute__((noreturn)) void enter(uint32_t t, int handed)
     /* (After a direct switch the timer stays as it is: the core has
      * vouched that the next event is no earlier than the one it is set
      * for. At worst it fires early, and the next exit sets it right.) */
-    uint64_t next = handed ? armed_for : joist_sched_next_event(&K, t);
-    if (next != armed_for) {
+    uint64_t next = handed ? c->armed_for : joist_sched_next_event(&K, t);
+    if (next != c->armed_for) {
         /* Only when the moment changes: a budget's end stays where it is
          * from call to call while one context runs (as through a call to a
          * server on donated time), and a timer write is the dearest thing
@@ -611,23 +936,22 @@ static __attribute__((noreturn)) void enter(uint32_t t, int handed)
             uint64_t now = apic_clock_ns();
             apic_timer_arm(next > now ? next - now : 1);
         }
-        armed_for = next;
+        c->armed_for = next;
     }
-    resumed_at = K.now;
+    c->resumed_at = K.now;
     struct joist_regs *r = &K.th[t].regs;
     uint32_t s = K.th[t].cs;
-    if (s != cur_space) {
-        space_switch(s);
+    if (s != c->cur_space || c->stale[s]) {
+        space_switch(c, s);
     }
     /* The TLS base: written only when it changes (the write is slow, and
      * a thread can't change it behind the kernel's back: FSGSBASE is off). */
     uint64_t tls = r->tls < USER_TOP ? r->tls : 0;
-    if (tls != cur_tls) {
+    if (tls != c->cur_tls) {
         wrmsr(MSR_FS_BASE, tls);
-        cur_tls = tls;
+        c->cur_tls = tls;
     }
-    struct trap_frame *tf =
-        (struct trap_frame *)(uintptr_t)(kernel_stack + sizeof kernel_stack - sizeof *tf);
+    struct trap_frame *tf = (struct trap_frame *)(uintptr_t)(stack_top(c) - sizeof *tf);
     tf->rip = r->pc;
     tf->cs = GDT_UCODE | 3u;
     tf->rflags = (r->flags & USER_FLAGS) | 0x202u;
@@ -650,8 +974,63 @@ static __attribute__((noreturn)) void enter(uint32_t t, int handed)
     tf->r13 = r->r[ABI_R13];
     tf->r14 = r->r[ABI_R14];
     tf->r15 = r->r[ABI_R15];
-    cur = t;
-    if (RUN_SYSRET && !env.exact[t]) {
+    c->cur = t;
+#ifdef RUN_CHECK_INVARIANTS
+    /* A test build: the core's whole state checked before every exit to
+     * user mode, under the lock. Whatever two CPUs could do to it between
+     * them shows here, at the first exit after. */
+    {
+        static char why[160];
+        if (joist_check_invariants(&K, why, sizeof why) != 0) {
+            kputs("joist: INVARIANT VIOLATED on CPU ");
+            kputu(c->id);
+            kputs(": ");
+            kputs(why);
+            kputs("\n");
+            kernel_finish(2);
+        }
+        for (uint32_t i = 0; i < ncpus; i++) {
+            /* And the kernel's own record of who is where agrees with the
+             * core's (a CPU with nothing may still be marked: it has yet
+             * to choose). */
+            if (cpus[i].cur < JOIST_MAX_THREADS && K.on_cpu[i] != cpus[i].cur + 1u) {
+                kputs("joist: INVARIANT VIOLATED: CPU ");
+                kputu(i);
+                kputs(" runs thread ");
+                kputu(cpus[i].cur);
+                kputs(", and the core has ");
+                kputu(K.on_cpu[i]);
+                kputs(" (a thread plus one) there; seen from CPU ");
+                kputu(c->id);
+                kputs(", in the kernel: ");
+                kputu(cpus[i].in_kernel);
+                kputs("\n");
+                for (uint32_t j = 0; j < ncpus; j++) {
+                    kputs("  CPU ");
+                    kputu(j);
+                    kputs(": runs ");
+                    kputu(cpus[j].cur);
+                    kputs(", core has ");
+                    kputu(K.on_cpu[j]);
+                    kputs(", in kernel ");
+                    kputu(cpus[j].in_kernel);
+                    kputs("\n");
+                }
+                kputs("  entering thread ");
+                kputu(t);
+                kputs(handed ? " by the direct switch\n" : " by the scheduler\n");
+                kernel_finish(2);
+            }
+        }
+    }
+#endif
+    int quick = RUN_SYSRET && !env.exact[t];
+    /* Out of the kernel: said while the lock is still held (hk_off_cpu
+     * relies on that), then the lock goes, and nothing shared is touched
+     * after it. */
+    __atomic_store_n(&c->in_kernel, 0, __ATOMIC_RELEASE);
+    unlock();
+    if (quick) {
         resume_user_sysret(tf); /* it came in by `syscall`: out by sysretq */
     }
     resume_user(tf);
@@ -659,24 +1038,42 @@ static __attribute__((noreturn)) void enter(uint32_t t, int handed)
 
 void run_user_trap(struct trap_frame *tf)
 {
-    uint32_t t = cur;
+    struct cpu *c = this_cpu();
+    /* In the kernel, with the user's registers where another CPU can find
+     * them: before anything else, and before the lock. */
+    c->frame = tf;
+    __atomic_store_n(&c->in_kernel, 1, __ATOMIC_RELEASE);
+    cpu_sync(c);
+    lock(c);
+    c->poked = 0;
+    uint32_t t = c->cur; /* JOIST_MAX_THREADS: taken off this CPU meanwhile (hk_off_cpu) */
     /* Time first: the core's clock, and what the thread that ran used. */
-    K.now = apic_clock_ns();
+    clock_now();
     if (t < JOIST_MAX_THREADS) {
-        joist_sched_charge(&K, t, K.now - resumed_at);
-        resumed_at = K.now;
+        joist_sched_charge(&K, t, K.now - c->resumed_at);
+        c->resumed_at = K.now;
     }
-    if (tf != NULL && t < JOIST_MAX_THREADS && K.th[t].state != JOIST_T_FREE) {
+    uint64_t v = tf->vector;
+    if (v == APIC_TIMER_VECTOR) {
+        apic_timer_interrupt(); /* count it, and EOI */
+        c->armed_for = 0;
+        joist_tick(&K, 0); /* deadlines that have passed wake their threads */
+        K.resched = 1;     /* and a period that has begun may be anyone's */
+    } else if (v == APIC_IPI_RESCHED || v == APIC_IPI_SYNC) {
+        apic_eoi(); /* being here is the whole of it */
+    }
+    if (t < JOIST_MAX_THREADS && K.th[t].state != JOIST_T_FREE) {
         save(t, tf);
-        env.exact[t] = tf->vector != SYSCALL_VECTOR; /* an interrupt or a fault: every register counts */
-        if (tf->vector == SYSCALL_VECTOR) {
+        env.exact[t] = v != SYSCALL_VECTOR; /* an interrupt or a fault: every register counts */
+        if (v == SYSCALL_VECTOR) {
             /* What the core's direct switch takes for granted about the
              * caller, checked here before the call changes anything: it
              * was the scheduler's choice (every thread the kernel resumes
              * is), nothing has come due since (the clock hasn't reached
              * what the timer is set for), and no destruction is pending
              * (every entry owes that a piece, below). */
-            int may_hand = RUN_FAST_PATH && K.npending == 0 && armed_for != 0 && K.now < armed_for;
+            int may_hand =
+                RUN_FAST_PATH && K.npending == 0 && c->armed_for != 0 && K.now < c->armed_for;
             int outcome = abi_syscall(&env, t);
             if (env.finished) {
                 kputs("joist: root task exited with code ");
@@ -689,21 +1086,30 @@ void run_user_trap(struct trap_frame *tf)
             (void)outcome;
             if (may_hand && env.handover < JOIST_MAX_THREADS && K.npending == 0 &&
                 K.th[env.handover].regs.pc < USER_TOP) {
-                enter(env.handover, 1); /* the fast path: no scheduler, no timer */
+                /* The fast path: no scheduler, no timer. The other thread
+                 * takes this CPU in the caller's place, so no other CPU's
+                 * choice has changed either. */
+                joist_sched_on(&K, c->id, env.handover);
+                K.resched = 0;
+                enter(c, env.handover, 1);
             }
-        } else if (tf->vector == APIC_TIMER_VECTOR) {
-            run_tick();
-        } else if (tf->vector < 32u) {
-            fault(t, tf->vector, tf->vector == 14u ? read_cr2() : 0, tf->error, tf->rip);
+        } else if (v < 32u) {
+            fault(t, v, v == 14u ? read_cr2() : 0, tf->error, tf->rip);
         }
-        /* (Other vectors: spurious; nothing to do.) */
+        /* (Other vectors: an interrupt; dealt with above.) */
     }
     sweep_pending();
+    schedule(c);
+}
+
+/* Choose and run: the end of every kernel entry but the fast path's. */
+static __attribute__((noreturn)) void schedule(struct cpu *c)
+{
     for (;;) {
         /* Who runs is the core's decision, every time (step 5). */
-        if (joist_sched_pick(&K, &t) != JOIST_OK) {
-            idle();
-            continue;
+        joist_thread t;
+        if (joist_sched_pick_on(&K, c->id, &t) != JOIST_OK) {
+            t = idle(c);
         }
         /* The way out goes to a user-half address only: an address past it
          * would fault in the kernel (Phase 2's sysret hazard, kept). */
@@ -717,14 +1123,25 @@ void run_user_trap(struct trap_frame *tf)
             fault(t, 13u, 0, 0, K.th[t].regs.pc);
             continue;
         }
-        enter(t, 0);
+        poke_others(c); /* this CPU has chosen; who else should? */
+        enter(c, t, 0);
     }
 }
 
-void run_tick(void)
+void run_kernel_irq(uint64_t vector)
 {
-    apic_timer_interrupt(); /* count it, and EOI */
-    armed_for = 0;
-    K.now = apic_clock_ns();
-    joist_tick(&K, 0); /* deadlines that have passed wake their threads */
+    if (!__atomic_load_n(&smp_running, __ATOMIC_ACQUIRE)) {
+        apic_timer_interrupt(); /* the boot's own ticks */
+        return;
+    }
+    /* A sleeping CPU's interrupt: nothing shared is touched here (the lock
+     * isn't held); the sleeper looks at everything when it has it. */
+    struct cpu *c = this_cpu();
+    if (vector == APIC_TIMER_VECTOR) {
+        apic_timer_interrupt();
+        c->armed_for = 0;
+    } else {
+        apic_eoi();
+        cpu_sync(c);
+    }
 }

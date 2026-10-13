@@ -1,6 +1,7 @@
 /* ipcbench.c - the two ends of the IPC benchmark (Phase 3 step 8;
  * benchroot starts them, in one task or in two). What a thread is comes in
- * its start registers: RDI the role, RSI the name of the measurement.
+ * its start registers: RDI the role (0 the server, 1 the client, 2 a thread
+ * that does nothing but make system calls), RSI the name of the measurement.
  *
  * The server answers every call on the endpoint in slot 0 with the same
  * message (Recv once, then ReplyRecv: the server loop).
@@ -51,6 +52,7 @@ static const char *const names[] = {
     "two address spaces, passive server",
     "one address space, passive server",
     "two address spaces, server with its own context",
+    "two address spaces, passive server, every other CPU making system calls",
 };
 
 static __attribute__((noreturn)) void serve(void)
@@ -205,6 +207,11 @@ void _start(uint64_t role, uint64_t name)
 {
     if (role == 0) {
         serve();
+    }
+    if (role == 2) {
+        for (;;) { /* keep the kernel busy from another CPU (step 9: the lock) */
+            (void)j_cap_delete(J_SLOT_NONE);
+        }
     }
     struct j_msg m = {.r = {1, 2, 3, 4}};
     if (name == 0) {

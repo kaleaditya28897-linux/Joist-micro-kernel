@@ -22,7 +22,7 @@
 #endif
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
-            uint64_t first_free);
+            uint64_t first_free, uint64_t ncpus);
 
 /* Be busy without calling the kernel, for longer than the root's budget. */
 static void busy(void)
@@ -170,13 +170,14 @@ static void test_donation(void)
 }
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
-            uint64_t first_free)
+            uint64_t first_free, uint64_t ncpus)
 {
     ld_init(pool_first, pool_n, mod_first, first_free);
     if (nmods < 1) {
         die("needs one module: worker");
     }
     test_init();
+    occupy_other_cpus(ncpus); /* written for one CPU: lib/testroot.h */
     test_priority();
     test_budget();
     test_kernel_time();

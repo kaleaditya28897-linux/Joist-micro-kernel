@@ -19,4 +19,8 @@ const struct vm_space *paging_kernel_space(void);
  * paging_init. Then flushes the TLB entries for it. */
 kerr paging_map_device(uint64_t va, uint64_t pa, uint64_t len);
 
+/* The same control-register settings and the kernel's tables, on a CPU
+ * after the first (Phase 3 step 9). */
+void paging_init_ap(void);
+
 #endif /* JOIST_ARCH_PAGING_H */

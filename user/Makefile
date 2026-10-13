@@ -2,7 +2,8 @@
 # (docs/phase2-plan.md) and Phase 3's (the root task, ping, pong: step 4;
 # schedroot and worker, the scheduler test: step 5; faultroot and faulter,
 # the fault test: step 6; cascaderoot, the destruction test: step 7;
-# benchroot and ipcbench, the IPC benchmark: step 8;
+# benchroot and ipcbench, the IPC benchmark: step 8; smproot, the
+# multiprocessor test: step 9;
 # docs/phase3-plan.md),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
@@ -28,7 +29,7 @@ ASMPROGS := sysfuzz sysrethole
 # Phase 3 programs: lib/joist.h, plus the kernel's string functions (a
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
-LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot
+LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -58,6 +59,7 @@ $(eval $(call libprog,faultroot,$(BUILD)/elf.o))
 $(eval $(call libprog,cascaderoot,$(BUILD)/elf.o))
 $(eval $(call libprog,ipcbench,))
 $(eval $(call libprog,benchroot,$(BUILD)/elf.o))
+$(eval $(call libprog,smproot,$(BUILD)/elf.o))
 
 # One rule per program: a pattern can't use % twice (prog/prog.c).
 define prog

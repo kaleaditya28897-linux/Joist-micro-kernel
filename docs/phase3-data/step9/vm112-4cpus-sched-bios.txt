@@ -1,0 +1,22 @@
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe50000), direct map at 0xffff800000000000
+joist: frames: 64836 free of 65235 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64574 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625202 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+sched: priorities ok
+sched: budget ok: 2 ms in every 10 got 19% (counts 244331005, 977800265)
+sched: kernel time ok: beside 2 ms in every 10 of system calls, a spinner kept 79% (counts 977954037, 1223170896)
+sched: equals ok: one of two got 50% (counts 611403209, 611110176)
+sched: 1204 calls served;
+sched: donation ok: a passive server on its client's 2 ms in every 10 got 19% (counts 240835054, 977549062)
+sched: donation ok: and the spinner beside them kept 79% (counts 977549062, 1222842645)
+sched: all ok
+joist: root task exited with code 0 (timer ticks so far: 1292)
+joist: finish code 0

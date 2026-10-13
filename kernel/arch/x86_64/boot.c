@@ -233,7 +233,7 @@ void kmain(void)
         kputu(mp_req.response->cpu_count);
         kputs(" found, bsp lapic id ");
         kputu(mp_req.response->bsp_lapic_id);
-        kputs("; 1 in use, the rest parked until SMP bring-up\n");
+        kputs("\n");
     } else {
         kputs("joist: cpus: no MP response; 1 in use\n");
     }
@@ -273,7 +273,7 @@ void kmain(void)
     if (module_req.response == NULL || module_req.response->module_count == 0) {
         panic("no root task module");
     }
-    panic(run_start(&frames, hhdm_req.response->offset, mm, module_req.response));
+    panic(run_start(&frames, hhdm_req.response->offset, mm, module_req.response, mp_req.response));
 #endif
     kputs("joist: ok\n");
     kernel_finish(0);

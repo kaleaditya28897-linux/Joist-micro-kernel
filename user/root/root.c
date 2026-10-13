@@ -11,11 +11,11 @@
  *
  * Pong is a passive server: it runs only on the time each call lends it
  * (§5.3), at its caller's priority and on its caller's budget. But it needs
- * time of its own once, to reach its first Recv. So the root lends it a
- * context at a priority above its own: pong runs at once, until it blocks
- * waiting for a call, and the root, resuming, takes the context back and
- * gives it to ping. (One CPU: the priority does the sequencing. With more,
- * step 9, the server has to say when it is waiting.) */
+ * time of its own once, to reach its first Recv. So the root gives it a
+ * context for its start, calls it once to know that it is in its loop, and
+ * takes the context back. (Until step 9 the context's priority, above the
+ * root's, did the sequencing; with more than one CPU the root would go on
+ * while pong started.) */
 #include "../lib/loader.h"
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
@@ -53,8 +53,18 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     uint64_t ping_sc = slot_new();
     must(j_thread_spawn(pong_task, pong_thread, pong_entry, CHILD_LO), "thread_spawn (pong)");
     must(j_sc_create(init_sc, 200, 10 * J_MS, 10 * J_MS), "sc_create (init)");
-    must(j_sc_bind(init_sc, pong_thread), "sc_bind (pong)"); /* pong runs to its Recv */
-    must(j_sc_unbind(init_sc), "sc_unbind (pong)");          /* and is passive from here */
+    must(j_sc_bind(init_sc, pong_thread), "sc_bind (pong)");
+    /* Wait until pong is in its loop: one call of the root's own. Its
+     * answer comes from a ReplyRecv, which replies and waits in one step,
+     * so when the answer is here pong is waiting, on any number of CPUs. */
+    struct j_msg hello = {.r = {41}};
+    must(j_cap_mint(ep, tmp, J_R_SEND, 7), "cap_mint");
+    must(j_call(tmp, &hello, J_FOREVER), "call (pong, are you there)");
+    must(j_cap_delete(tmp), "cap_delete");
+    if (hello.r[0] != 42) {
+        die("pong's first answer is wrong");
+    }
+    must(j_sc_unbind(init_sc), "sc_unbind (pong)"); /* passive from here */
     must(j_thread_spawn(ping_task, ping_thread, ping_entry, CHILD_LO), "thread_spawn (ping)");
     must(j_sc_create(ping_sc, 100, 10 * J_MS, 10 * J_MS), "sc_create (ping)");
     must(j_sc_bind(ping_sc, ping_thread), "sc_bind (ping)");

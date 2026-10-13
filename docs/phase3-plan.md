@@ -1205,3 +1205,136 @@ which records make's own status per suite, counts caught and surviving
 mutations from the whole log, prints the lines that say CBMC and TLA+
 succeeded, and ends with one line that names any suite that failed.
 
+### Step 9, part 1: the model for more than one CPU (2026-10-13)
+
+Model first, as always. The core now records which thread is on which CPU
+(**I13**: recorded at both ends, a thread on at most one CPU), and:
+
+- `joist_sched_pick_on(cpu)` chooses for one CPU among the threads no other
+  CPU has (`joist_sched_pick` is that for CPU 0, so every earlier test
+  stands);
+- `joist_sched_better(cpu)` says whether that CPU would now choose
+  otherwise, and `k->resched` is set by every operation after which some
+  other CPU might (a wake, a resume, a thread created, a context bound,
+  taken away or deleted);
+- a thread that is suspended, destroyed, or whose registers are read or
+  written from outside is taken off its CPU first, and the kernel is told
+  through a hook (`off_cpu`) so that it can make that true of the machine;
+- the direct switch (step 8) never names a thread another CPU has.
+
+Scheduling is global (one set of threads, any CPU), which is the simplest
+thing that is right under one kernel lock.
+
+Tests (`model/test/test_smp.c`): 3 unit tests, and a simulation of 2 and 4
+CPUs taking turns under one lock, 81 000 operations (calls, replies, waits
+and signals, suspends and resumes, contexts taken and given back, aborts,
+time passing). Two properties: once every CPU that deserves to has chosen
+again, the threads on CPUs are the best that can run (no thread that can
+run waits while a CPU is idle or runs something no better); and an
+operation that leaves `k->resched` clear never leaves another CPU
+deserving a different thread, which is what lets the kernel interrupt
+other CPUs only when the flag is set. 13 mutations, all caught, most by
+the simulation. `make check`: 156 tests, six builds; CBMC 7 of 7.
+
+### Step 9, parts 2 and 3: the kernel on several CPUs, and its tests (2026-10-13)
+
+**What was built** (`kernel/arch/x86_64/run.c`, with pieces in `apic.c`,
+`gdt.c`, `idt.c`, `paging.c`):
+
+- **The other CPUs are started** through Limine's MP response, each on a
+  kernel stack of its own with its own TSS and exception stack; the same
+  control registers, system-call MSRs and LAPIC set-up as the first. Up to
+  4 (`RUN_MAX_CPUS`).
+- **Per-CPU state** is one record, found from the stack pointer (stacks are
+  aligned to their size and hold a pointer to the record in their top
+  word): no GS games in C code, no MSR read.
+- **The kernel lock** (0016): a ticket lock, taken on every entry, released
+  on every exit and while a CPU sleeps. With one CPU it isn't taken.
+- **Interrupts between CPUs**, two. *Choose again*: after an operation set
+  `k->resched`, each other CPU for which `joist_sched_better` says so. And
+  *come into the kernel now*, for the two things that can't wait:
+  - a thread on another CPU being stopped, read, written or destroyed: that
+    CPU is brought in (it stops before the lock, its user registers in the
+    frame it publishes on every entry), the registers are saved from
+    there, and it is left with nothing to run, to choose again. If it was
+    already on its way in for a system call, the call is backed up to the
+    `syscall` instruction and made again later; a fault recurs.
+  - pages unmapped from, or the page tables freed of, an address space
+    another CPU is in: that CPU moves to the kernel's own tables before
+    the unmapping CPU goes on (and comes back with a flush). A CPU answers
+    this wherever it is: on entry, while it waits for the lock (or the
+    lock's holder, waiting for the answer, would wait for ever), and from
+    its sleep.
+- **Time:** every CPU sets its own timer for the next event anywhere (a
+  deadline, a new period) and its own thread's budget end. Simple, and
+  every CPU wakes for every deadline; noted below.
+- The root task is told the number of CPUs (`R9`).
+
+**It ran on 2 and 4 CPUs the first time it booted**, emulated and under
+KVM, with the existing hello, ping-pong and fault tests passing. What the
+tests then found:
+
+1. *Tests that assumed one CPU.* The scheduler and destruction tests check
+   "a lower priority doesn't run while a higher can", false as written on
+   two CPUs. They now keep every other CPU busy with a spinner of the
+   highest priority (`occupy_other_cpus`, `user/lib/testroot.h`), and are
+   unchanged otherwise. And the start of a passive server by priority
+   (step 5) only sequences on one CPU: it is a handshake now
+   (`docs/abi.md`, *Scheduling*).
+2. *A stack overrun in the checking build* (below): the core's invariant
+   checker keeps tables on its stack, tens of kilobytes with the larger
+   table sizes, and ran through a 16 KiB kernel stack into the per-CPU
+   records under it. The checking build has a larger stack. **There is no
+   guard page under a kernel stack**; that is for the exit step.
+3. *Short fixed windows in my own test* failed once under emulation (a
+   virtual CPU losing its host thread for over a millisecond): the test
+   waits for a count to move, up to a limit, where it had looked after a
+   fixed millisecond.
+
+**Tests.** `user/smproot`: CPUs run threads at once (4 spinners together
+do 357 % of one alone on VM 112); with one thread more than CPUs the
+lowest doesn't run, and the root, waking, takes the CPU of the lowest that
+does and no other; a client and server with their own contexts on two CPUs
+(99 629 calls in 0.3 s on VM 112); a thread on another CPU suspended, read
+and resumed 50 times and killed, each taking effect before the call
+returns; 20 rounds of tasks destroyed while their threads run on other
+CPUs. The fault test already unmaps a page from a task that is running,
+which on several CPUs is the shootdown.
+
+Self-tests, now 56: the tests of earlier steps again on 2 and 4 CPUs
+(`smp2-`, `smp4-`), emulated and on the real CPU through KVM (`kvm-`),
+where they truly run at once; and four on a **checking kernel**
+(`chk-`, `-DRUN_CHECK_INVARIANTS`): every invariant of the core, and the
+kernel's own record of who is where against the core's, checked under the
+lock before every exit to user mode. A race between CPUs that damaged the
+core's state would show at the next exit. None has.
+
+**The lock's cost**, as 0016 asked (`docs/phase3-data`, *Step 9*): about 45
+cycles a kernel entry with nobody else wanting it (a round trip between
+address spaces goes from 1 356 cycles to 1 444), the same on 2 and 4 CPUs.
+With every other CPU doing nothing but system calls, that round trip takes
+about 4 300 cycles on 2 CPUs and 9 300 on 4. That is the worst case for
+one lock, under KVM, and it is steep. 0016 says "measured, then
+revisited": the numbers are there for that.
+
+**Not done, and said so:**
+
+- **Choice 9's O(1) run queues are still not built** (deferred from step 5
+  to here, and not done here either). Who runs is found by scanning the
+  thread table (32 entries), once per kernel exit that isn't the fast
+  path, and once more per other CPU when `k->resched` is set. The fast
+  path makes no scan. The scans are the specification the queues would be
+  checked against; with the lock's contended cost what it is, the queues
+  are not where the time goes. This is a departure from the plan as
+  accepted, for you to accept or not.
+- Every CPU wakes for every deadline. A single timekeeper would spare the
+  others; it needs a way to tell it when the earliest deadline moves.
+- No guard pages under kernel stacks (above).
+- The first CPU's timer calibration is used for all (alike on this
+  machine; not checked).
+
+`make check` in `kernel/` passes: 49 host tests, 56 self-tests and the
+benchmark gate (a do-nothing system call is at 416 cycles against a
+baseline of 376, from the per-CPU indirection: inside the gate, and
+noted).
+

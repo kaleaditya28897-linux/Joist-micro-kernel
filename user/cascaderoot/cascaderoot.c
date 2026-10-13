@@ -28,7 +28,7 @@
 #define ROUNDS 20u
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
-            uint64_t first_free);
+            uint64_t first_free, uint64_t ncpus);
 
 static uint64_t chain[TASKS];
 static uint64_t ep;
@@ -98,13 +98,14 @@ static void put(const char *what, uint64_t v)
 }
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
-            uint64_t first_free)
+            uint64_t first_free, uint64_t ncpus)
 {
     ld_init(pool_first, pool_n, mod_first, first_free);
     if (nmods < 1) {
         die("needs one module: worker");
     }
     test_init();
+    occupy_other_cpus(ncpus); /* written for one CPU: lib/testroot.h */
     ep = slot_new();
     for (unsigned i = 0; i < TASKS; i++) {
         chain[i] = slot_new();

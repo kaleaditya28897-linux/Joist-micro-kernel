@@ -71,6 +71,19 @@ static void check(int ok, const char *what)
     }
 }
 
+/* Tests written for one CPU (who runs is then a matter of priority alone)
+ * stay true on more if all but one are kept busy: a spinner of the highest
+ * priority, with its whole period for a budget, on each of the others.
+ * Everything else then shares the one that is left. `ncpus` is what the
+ * kernel passed the root task (kernel/arch/x86_64/run.h). */
+static __attribute__((unused)) void occupy_other_cpus(uint64_t ncpus)
+{
+    for (uint64_t i = 1; i < ncpus; i++) {
+        struct worker hog = worker_new(WORK_SPIN, 0);
+        worker_run(&hog, 255, 10 * J_MS, 10 * J_MS);
+    }
+}
+
 /* After ld_init. */
 static void test_init(void)
 {

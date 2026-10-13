@@ -137,3 +137,47 @@ Not bare metal: this is KVM on a shared host (`docs/testbed.md` lists what
 that did to the measurements and what the benchmark does about it). The
 unit and method are in `user/ipcbench/ipcbench.c`.
 
+## Step 9 (2026-10-13): `step9/`
+
+More than one CPU, on VM 112's four (KVM, four P-cores of the i5-14400, one
+virtual CPU pinned to each), at the commit that adds these files. Images
+built on joist-dev2 by `make check` in `kernel/` (the default kernel, which
+uses up to 4 CPUs); booted with `tools/pve/boot.sh ISO bios|uefi 180 LOG`.
+
+| Run | Serial log | Result |
+|---|---|---|
+| The multiprocessor test (`smproot`), SeaBIOS | `step9/vm112-4cpus-smp-bios.txt` | status 1: 4 spinners together do 357 % of what one does alone; priorities hold across CPUs; 99 629 calls answered between two CPUs in 0.3 s; a thread on another CPU stopped, read and resumed 50 times, and killed; 20 rounds of tasks destroyed while their threads ran |
+| The same, OVMF | `step9/vm112-4cpus-smp-uefi.txt` | status 1 |
+| Fault test | `step9/vm112-4cpus-fault-bios.txt` | status 1 (it includes a page unmapped from a task running on another CPU) |
+| Destruction test | `step9/vm112-4cpus-cascade-bios.txt` | status 1 |
+| Scheduler test | `step9/vm112-4cpus-sched-bios.txt` | status 1 (it keeps three CPUs busy and runs on the fourth) |
+| Ping-pong, 200 000 round trips | `step9/vm112-4cpus-pingpong-long-bios.txt` | status 1 |
+
+**The kernel lock's cost** (decision 0016 asks for it on 1, 2 and 4 CPUs):
+`step9/vm112-ipcbench-1-2-4-cpus.txt`, the benchmark of step 8 on kernels
+built with `KEXTRA=-DRUN_MAX_CPUS=1u`, `2u` and `4u`
+(`UEXTRA=-DBENCH_CALLS=100000u`), three runs each. Medians, CPU cycles per
+round trip:
+
+| | 1 CPU (no lock taken) | 2 CPUs | 4 CPUs |
+|---|---|---|---|
+| A system call that does nothing | 384 | 480 | 480 |
+| Two address spaces, passive server | 1 356 | 1 444 | 1 444 |
+| One address space, passive server | 772 | 864 | 860 |
+| Two address spaces, server with its own context | about 9 900 | about 9 990 | about 10 190 |
+| Two address spaces, passive server, **every other CPU making system calls as fast as it can** | | 4 220 to 4 440 | 9 010 to 9 600 |
+
+So: taking and releasing the lock with nobody else wanting it costs about
+45 cycles a kernel entry (6 % of a round trip between address spaces), the
+same on 2 and 4 CPUs. Fought over by CPUs that do nothing but enter the
+kernel, a round trip takes 3 times as long on 2 CPUs and 6.5 times on 4:
+the lock is fair, so each entry waits its turn behind every other CPU's,
+and the kernel's data moves between their caches each time. Under KVM a
+CPU waiting for a lock is also dearer than on bare metal. This is the worst
+case for one lock, measured as 0016 asked, for the decision to be looked
+at again with numbers.
+
+(Image SHA-256, in order: `fa87235c3d647b9b26b19f4f1082f7b7cabb13290ea569b4f907c3aa4f2293c9`,
+`f6f8fc892223a337f7c45e444eafc9a85a61470845c934229f611140da2e8aaa`,
+`b107fb0496e8c27d9a6740017557a6c2fd659e25f961dc3c0c5b75e7b1ae1623`.)
+

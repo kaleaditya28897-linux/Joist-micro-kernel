@@ -396,10 +396,33 @@ length of time from the call, `FOREVER` for none). The rules:
   change without a system call.
 
 A **passive server** needs time once, to reach its first `Recv`. Its
-starter binds a context of a priority above its own to the server's
-thread, which runs at once until it blocks; the starter, running again,
-unbinds it (`user/root/root.c`). This is enough on one CPU; with more
-(step 9) the server says when it is waiting.
+starter binds a context to the server's thread, calls the server once and,
+when the answer is back, unbinds the context (`user/root/root.c`). The
+answer comes from a `ReplyRecv`, which replies and waits in one step, so
+the server is waiting when the starter has it, on any number of CPUs.
+(Until step 9 a start-up context of higher priority did the sequencing,
+which only works on one CPU.)
+
+**More than one CPU (Phase 3 step 9; decision 0016).** Scheduling is
+global: any CPU runs any thread, a thread is on one CPU at a time, and the
+rules above hold across them all: the threads running are the best that
+can run, a thread that becomes better than one of them takes the CPU of
+the lowest, at once (the kernel interrupts that CPU), and an idle CPU
+takes whatever can run. There is no affinity to set. Every operation in
+this document is atomic as before: the kernel does one at a time, whichever
+CPU asks. What that means where one CPU acts on a thread another is
+running:
+
+- `thread_suspend`, `thread_kill`, destroying its task, and reading or
+  writing its registers take effect before the call returns: the thread is
+  off its CPU, its registers in its record. Whatever it was in the middle
+  of entering the kernel for at that instant is undone, not lost: a system
+  call it had not begun is made again when it next runs, and a fault
+  happens again.
+- A page unmapped from a task is gone from every CPU before `unmap`
+  returns.
+
+The root task is told the number of CPUs in use in `R9` at its start.
 
 **The fast path (Phase 3 step 8)** changes nothing above; it is how the
 kernel gets there. After a `Call` that hands the caller's context to a

@@ -11,7 +11,11 @@
 #include "paging.h"
 
 #define MSR_APIC_BASE  0x1bu
+#define LAPIC_ID       0x020u
+#define LAPIC_TPR      0x080u
 #define LAPIC_EOI      0x0b0u
+#define LAPIC_ICR_LO   0x300u
+#define LAPIC_ICR_HI   0x310u
 #define LAPIC_SVR      0x0f0u
 #define LAPIC_LVT_TMR  0x320u
 #define LAPIC_TMR_INIT 0x380u
@@ -115,13 +119,43 @@ const char *apic_init(uint64_t hhdm)
 
 void apic_timer_interrupt(void)
 {
-    ticks++;
+    (void)__atomic_fetch_add(&ticks, 1, __ATOMIC_RELAXED); /* every CPU's timer counts here */
     wr(LAPIC_EOI, 0);
+}
+
+void apic_eoi(void)
+{
+    wr(LAPIC_EOI, 0);
+}
+
+uint32_t apic_id(void)
+{
+    return rd(LAPIC_ID) >> 24;
+}
+
+void apic_init_ap(void)
+{
+    /* The same registers at the same address are this CPU's own. The
+     * timer's rate was measured on the first CPU; they are alike. */
+    wr(LAPIC_TPR, 0);
+    wr(LAPIC_SVR, 0x100u | APIC_SPURIOUS_VECTOR);
+    wr(LAPIC_TMR_DIV, 0x3);
+    wr(LAPIC_TMR_INIT, 0);
+    wr(LAPIC_LVT_TMR, APIC_TIMER_VECTOR); /* one-shot, unmasked */
+}
+
+void apic_send_ipi(uint32_t lapic_id, uint32_t vector)
+{
+    wr(LAPIC_ICR_HI, lapic_id << 24);
+    wr(LAPIC_ICR_LO, vector); /* fixed, edge, physical destination */
+    while (rd(LAPIC_ICR_LO) & (1u << 12)) { /* delivery pending */
+        __asm__ volatile("pause");
+    }
 }
 
 uint64_t apic_ticks(void)
 {
-    return ticks;
+    return __atomic_load_n(&ticks, __ATOMIC_RELAXED);
 }
 
 uint32_t apic_counts_per_tick(void)

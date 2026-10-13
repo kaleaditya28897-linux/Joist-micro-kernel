@@ -10,7 +10,9 @@
  * - the same with both threads in one task: no address-space switch;
  * - two tasks, the server with a scheduling context of its own, above the
  *   client's: every call and reply is a change of context for the
- *   scheduler to make. */
+ *   scheduler to make;
+ * - on more than one CPU, the first again while every other CPU makes
+ *   system calls as fast as it can: the kernel lock, contended. */
 #include "../lib/loader.h"
 
 #ifndef BENCH_SETTLE_MS
@@ -19,7 +21,7 @@
 #define STACK2_TOP 0x500000ull /* the second thread's stack, in one task */
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
-            uint64_t first_free);
+            uint64_t first_free, uint64_t ncpus);
 
 static uint64_t done;
 
@@ -98,7 +100,7 @@ static void measure(uint64_t name, int one_task, int passive)
 }
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
-            uint64_t first_free)
+            uint64_t first_free, uint64_t ncpus)
 {
     ld_init(pool_first, pool_n, mod_first, first_free);
     if (nmods < 1) {
@@ -117,6 +119,21 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     measure(0, 0, 1);
     measure(1, 1, 1);
     measure(2, 0, 0);
+    if (ncpus > 1) {
+        /* The kernel lock under contention (decision 0016 asks for its cost
+         * on 2 and 4 CPUs): the first measurement again while a thread on
+         * every other CPU does nothing but enter the kernel. */
+        for (uint64_t i = 1; i < ncpus; i++) {
+            uint64_t task = slot_new();
+            uint64_t thread = slot_new();
+            uint64_t sc = slot_new();
+            uint64_t entry = ld_load(0, task);
+            thread_start(task, thread, entry, CHILD_LO, 2, 0);
+            must(j_sc_create(sc, 100, 10 * J_MS, 10 * J_MS), "sc_create (busy)");
+            must(j_sc_bind(sc, thread), "sc_bind (busy)");
+        }
+        measure(3, 0, 1);
+    }
     j_puts("ipcbench: done\n");
     j_exit(0);
 }

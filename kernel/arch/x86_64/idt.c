@@ -85,6 +85,11 @@ void idt_init(void)
                                    .off2 = (uint32_t)(a >> 32),
                                    .zero = 0};
     }
+    idt_load();
+}
+
+void idt_load(void)
+{
     struct idtr r = {.limit = (uint16_t)(sizeof idt - 1u), .base = (uint64_t)(uintptr_t)idt};
     __asm__ volatile("lidt %0" : : "m"(r) : "memory");
 }
@@ -176,8 +181,8 @@ void isr_dispatch(struct trap_frame *tf)
     if ((tf->cs & 3u) == 3u) {
         run_user_trap(tf); /* from user mode, a system call included: never returns */
     }
-    if (v == APIC_TIMER_VECTOR) {
-        run_tick(); /* while the kernel idles */
+    if (v == APIC_TIMER_VECTOR || v == APIC_IPI_RESCHED || v == APIC_IPI_SYNC) {
+        run_kernel_irq(v); /* while the kernel idles (or, the timer, boots) */
         return;
     }
     if (v == APIC_SPURIOUS_VECTOR) {

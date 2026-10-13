@@ -1,0 +1,17 @@
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 6 ranges, 27 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe50000), direct map at 0xffff800000000000
+joist: frames: 64833 free of 65235 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64571 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625204 LAPIC counts per tick
+joist: modules: 3
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 2 module(s); entering it at 0x0000000000400000
+root: pong and ping started
+ping: 200000 round trips ok
+root: ping reported 200000 round trips
+joist: root task exited with code 0 (timer ticks so far: 26)
+joist: finish code 0

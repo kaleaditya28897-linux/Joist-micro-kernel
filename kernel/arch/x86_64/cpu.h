@@ -28,7 +28,14 @@ struct trap_frame {
     uint64_t rip, cs, rflags, rsp, ss;
 };
 
+/* CPUs the GDT has a TSS for. */
+#define GDT_MAX_CPUS 8u
+
+/* The first CPU, at boot; any CPU, with its kernel stack (step 9); and a
+ * new stack for a CPU's entries from user mode. */
 void gdt_init(void);
+void gdt_init_cpu(uint32_t cpu, uint64_t stack_top);
+void gdt_set_stack(uint32_t cpu, uint64_t stack_top);
 
 /* End the run: report code through QEMU's isa-debug-exit device (0 = success)
  * and halt. boot.c. */
@@ -37,6 +44,8 @@ __attribute__((noreturn)) void kernel_finish(uint8_t code);
 /* A trap's name, for reports (idt.c). */
 const char *trap_name(uint64_t vector);
 void idt_init(void);
+/* Load the table on a CPU after the first. */
+void idt_load(void);
 
 /* Called by isr.S for every interrupt and exception. */
 void isr_dispatch(struct trap_frame *tf);

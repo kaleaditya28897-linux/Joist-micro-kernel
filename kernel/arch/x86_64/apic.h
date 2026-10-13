@@ -5,6 +5,11 @@
 #include <stdint.h>
 
 #define APIC_TIMER_VECTOR    32u
+/* Between CPUs (Phase 3 step 9): "choose again" (another thread deserves
+ * this CPU), and "come into the kernel now" (to give up a thread, or to
+ * leave an address space whose pages or tables are going). */
+#define APIC_IPI_RESCHED     33u
+#define APIC_IPI_SYNC        34u
 #define APIC_SPURIOUS_VECTOR 0xffu
 #define APIC_TICK_HZ         100u
 
@@ -37,5 +42,14 @@ void apic_timer_arm(uint64_t ns);
 
 /* Don't fire (nothing is due). */
 void apic_timer_disarm(void);
+
+/* More than one CPU (Phase 3 step 9). End an interrupt other than the
+ * timer's; this CPU's LAPIC id; bring up the LAPIC of a CPU after the first
+ * (one-shot timer, the first CPU's calibration); send an interrupt to the
+ * CPU with that LAPIC id. */
+void apic_eoi(void);
+uint32_t apic_id(void);
+void apic_init_ap(void);
+void apic_send_ipi(uint32_t lapic_id, uint32_t vector);
 
 #endif /* JOIST_ARCH_APIC_H */
