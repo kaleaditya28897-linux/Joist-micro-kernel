@@ -175,7 +175,7 @@ What earlier phases hand to this one:
    `kernel/core/`. The root task (0013) starts two tasks that ping-pong.
 5. ~~**Scheduler and scheduling contexts**~~ (done 2026-10-10; see *Progress*)**,** one-shot timer, donation.
 6. ~~**Fault IPC and thread control.**~~ (done 2026-10-10; see *Progress*)
-7. **Preemptible cascades** in the kernel.
+7. ~~**Preemptible cascades** in the kernel.~~ (done 2026-10-13; see *Progress*)
 8. **Fast path**, with the differential test, and **`ipcbench`**.
 9. **SMP** under 0016: start the other CPUs (Limine's MP request), per-CPU
    state, the kernel lock, IPIs for remote wake-up; every test again with
@@ -1031,4 +1031,26 @@ moves a leaf at a time), and a self-test directory reused across builds
 with different table sizes (stale objects; the kernel crashed on boot).
 
 `make check` in `kernel/` passes: 47 host tests, 26 self-tests.
+
+### Step 7 done: full verification run (2026-10-13)
+
+On joist-dev2 (VM 114), the first full run there, at the step's commit;
+about 25 minutes, against about 70 on VM 113.
+
+| Suite | Result |
+|---|---|
+| `make check` (`model/`) | 149 tests, 0 failed, six builds |
+| `make mutate` | 112 of 112 caught |
+| `make cbmc` | 7 of 7 operations verified |
+| `make tla`, `make tla-mutate` | hold; every specification mutation caught |
+| `make fuzz`, `make fuzz-sanity` | clean; 7 of 7 seeded bugs found |
+| `make check` (`kernel/`) | passing: 47 host tests in five builds, freestanding, `clang-tidy`, `scan-build`, BIOS and UEFI boots, 26 self-tests |
+| `make mutate` (`kernel/`) | 45 of 45 caught |
+| `fuzz-abi`, `fuzz-elf`, `fuzz-syscall` | clean |
+| VM 112 | the destruction test passes under SeaBIOS and OVMF, and fails on the kernel that never preempts (`docs/phase3-data`, *Step 7*) |
+
+That every suite gives the results it gave on VM 113 is also the check of
+the new build VM. The core needed no change in this step.
+
+Step 7 is done.
 
