@@ -131,6 +131,7 @@ joist_err joist__sc_bind_thread(struct joist_kernel *k, uint32_t so, uint32_t t)
      * gives it back; then it runs on its own (giveback, reclaim). */
     if (r->run_sc == 0 && r->sc_from == 0 && r->sc_to == 0) {
         r->run_sc = so + 1u;
+        k->resched = 1; /* it can run now */
     }
     return JOIST_OK;
 }
@@ -152,6 +153,7 @@ joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc
     }
     if (r->run_sc == so + 1u) {
         r->run_sc = 0;
+        k->resched = 1; /* it can't run any more: its CPU wants another */
     }
     r->sc = 0;
     o->target = 0;
@@ -247,6 +249,7 @@ void joist__sc_thread_gone(struct joist_kernel *k, uint32_t t)
 void joist__sc_freed(struct joist_kernel *k, uint32_t obj)
 {
     struct joist_object *o = &k->obj[obj];
+    k->resched = 1; /* whoever ran on it can't; borrowers fall back to their own */
     if (o->target != 0) {
         k->th[o->target - 1u].sc = 0;
         o->target = 0;
@@ -288,13 +291,14 @@ static const struct joist_object *can_run(const struct joist_kernel *k, uint32_t
     return sc->remaining != 0 || sc->refill_at <= k->now ? sc : NULL;
 }
 
-joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t)
+/* The best thread CPU `cpu` could run: one that can run and is on no other
+ * CPU. JOIST_MAX_THREADS if none. */
+static uint32_t best_for(const struct joist_kernel *k, uint32_t cpu)
 {
     uint32_t best = JOIST_MAX_THREADS;
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
-        JOIST_WORK(k);
         const struct joist_object *sc = can_run(k, i);
-        if (sc == NULL) {
+        if (sc == NULL || (k->th[i].cpu != 0 && k->th[i].cpu != cpu + 1u)) {
             continue;
         }
         if (best == JOIST_MAX_THREADS) {
@@ -307,9 +311,41 @@ joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t)
             best = i;
         }
     }
-    if (best == JOIST_MAX_THREADS) {
+    return best;
+}
+
+void joist_sched_on(struct joist_kernel *k, uint32_t cpu, joist_thread t)
+{
+    if (cpu >= JOIST_MAX_CPUS) {
+        return;
+    }
+    uint32_t was = k->on_cpu[cpu];
+    if (was != 0 && was <= JOIST_MAX_THREADS) {
+        k->th[was - 1u].cpu = 0;
+    }
+    k->on_cpu[cpu] = 0;
+    if (t < JOIST_MAX_THREADS && k->th[t].state != JOIST_T_FREE) {
+        uint32_t other = k->th[t].cpu;
+        if (other != 0 && other <= JOIST_MAX_CPUS) {
+            k->on_cpu[other - 1u] = 0; /* (never, if the caller chose rightly: I13 holds anyway) */
+        }
+        k->th[t].cpu = (uint8_t)(cpu + 1u);
+        k->on_cpu[cpu] = t + 1u;
+    }
+}
+
+joist_err joist_sched_pick_on(struct joist_kernel *k, uint32_t cpu, joist_thread *t)
+{
+    if (cpu >= JOIST_MAX_CPUS) {
+        return JOIST_E_RANGE;
+    }
+    k->work += JOIST_MAX_THREADS; /* one scan (I9) */
+    uint32_t best = best_for(k, cpu);
+    if (best >= JOIST_MAX_THREADS) {
+        joist_sched_on(k, cpu, JOIST_MAX_THREADS);
         return JOIST_E_EMPTY;
     }
+    joist_sched_on(k, cpu, best);
     /* A period that is due starts now, when its context is first used. */
     struct joist_object *sc = &k->obj[k->th[best].run_sc - 1u];
     if (sc->refill_at <= k->now) {
@@ -318,6 +354,35 @@ joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t)
     }
     *t = best;
     return JOIST_OK;
+}
+
+joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t)
+{
+    return joist_sched_pick_on(k, 0, t);
+}
+
+int joist_sched_better(const struct joist_kernel *k, uint32_t cpu)
+{
+    if (cpu >= JOIST_MAX_CPUS) {
+        return 0;
+    }
+    uint32_t best = best_for(k, cpu);
+    return best != (k->on_cpu[cpu] != 0 ? k->on_cpu[cpu] - 1u : JOIST_MAX_THREADS);
+}
+
+void joist__off_cpu(struct joist_kernel *k, uint32_t t)
+{
+    struct joist_thread_rec *r = &k->th[t];
+    if (r->cpu == 0) {
+        return;
+    }
+    uint32_t cpu = r->cpu - 1u;
+    if (k->hooks.off_cpu != NULL) {
+        k->hooks.off_cpu(k->hooks.ctx, t, cpu);
+    }
+    k->on_cpu[cpu] = 0; /* off it, at both ends */
+    r->cpu = 0;
+    k->resched = 1; /* that CPU has nothing now */
 }
 
 void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used)
@@ -348,8 +413,8 @@ joist_thread joist_sched_handed(const struct joist_kernel *k, joist_thread from,
     if (f->deadline != JOIST_FOREVER) {
         return JOIST_MAX_THREADS; /* its wait can end by itself: a new timer event */
     }
-    if (r->state != JOIST_T_RUNNING || r->run_sc == 0) {
-        return JOIST_MAX_THREADS; /* `to` can't run */
+    if (r->state != JOIST_T_RUNNING || r->run_sc == 0 || r->cpu != 0) {
+        return JOIST_MAX_THREADS; /* `to` can't run, or is another CPU's */
     }
     if (r->ready_seq != place) {
         /* Not in `from`'s place in line: the context `from` ran on didn't
@@ -401,6 +466,22 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
         }                                                                                          \
     } while (0)
 
+    /* I13: who is on which CPU is recorded at both ends, and a thread on a
+     * CPU exists. */
+    for (uint32_t c = 0; c < JOIST_MAX_CPUS; c++) {
+        uint32_t t = k->on_cpu[c];
+        if (t != 0 && (t > JOIST_MAX_THREADS || k->th[t - 1u].state == JOIST_T_FREE ||
+                       k->th[t - 1u].cpu != c + 1u)) {
+            VIOLATION("I13: CPU %u has thread %u, which is free or doesn't say so", c, t - 1u);
+        }
+    }
+    for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+        uint32_t c = k->th[t].cpu;
+        if (c != 0 && (k->th[t].state == JOIST_T_FREE || c > JOIST_MAX_CPUS ||
+                       k->on_cpu[c - 1u] != t + 1u)) {
+            VIOLATION("I13: thread %u says CPU %u, which doesn't have it", t, c - 1u);
+        }
+    }
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
         const struct joist_object *ob = &k->obj[o];
         if (ob->type != JOIST_OBJ_SCHED) {

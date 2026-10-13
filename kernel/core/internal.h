@@ -107,6 +107,9 @@ void joist__sc_reclaim(struct joist_kernel *k, uint32_t x);
 void joist__sc_giveback(struct joist_kernel *k, uint32_t h);
 /* Thread t is being destroyed: unwind its donation links, unbind its own
  * context. */
+/* Thread t is about to be stopped, destroyed or have its registers touched
+ * from outside: off whatever CPU it is on (the kernel's hook first). */
+void joist__off_cpu(struct joist_kernel *k, uint32_t t);
 void joist__sc_thread_gone(struct joist_kernel *k, uint32_t t);
 /* Bind context object so to thread t (both valid and live): sc_bind's
  * effect once its capabilities are checked; tests use it for fixture

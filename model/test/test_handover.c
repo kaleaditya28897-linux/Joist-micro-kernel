@@ -75,12 +75,14 @@ JT_TEST(handover_a_call_keeps_the_turn_and_the_reply_returns_it)
     uint64_t place = k.th[a].ready_seq;
     JT_REQUIRE(joist_call(&k, a, 0, &hello, JOIST_FOREVER) == JOIST_BLOCKED);
     /* The server runs on a's context, in a's place: not behind b. */
-    JT_CHECK(k.th[s].run_sc == sc && picked() == s);
     JT_CHECK(joist_sched_handed(&k, a, place, s) == s);
     JT_CHECK(joist_sched_handed(&k, a, place + 1u, s) == JOIST_MAX_THREADS);
+    JT_CHECK(k.th[s].run_sc == sc && picked() == s);
+    /* (Once s is on a CPU, it is nobody's to switch to.) */
+    JT_CHECK(joist_sched_handed(&k, a, place, s) == JOIST_MAX_THREADS);
     JT_REQUIRE(joist_reply_recv(&k, s, &hello, 0, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_CHECK(k.th[a].run_sc == sc && picked() == a);
     JT_CHECK(joist_sched_handed(&k, s, place, a) == a);
+    JT_CHECK(k.th[a].run_sc == sc && picked() == a);
     /* No two threads hold one place. */
     JT_CHECK(k.th[s].ready_seq != k.th[a].ready_seq && k.th[b].ready_seq != k.th[a].ready_seq);
     /* A turn ends when its budget does, as before: then b. */

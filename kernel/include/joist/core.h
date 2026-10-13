@@ -43,6 +43,10 @@
 #define JOIST_MAX_LEAVES 64u
 #endif
 #define JOIST_CSPACE_SLOTS (JOIST_CNODE_ROOT * JOIST_CNODE_LEAF)
+/* CPUs the scheduler places threads on (Phase 3 step 9). */
+#ifndef JOIST_MAX_CPUS
+#define JOIST_MAX_CPUS 8u
+#endif
 #ifndef JOIST_MAX_THREADS
 #define JOIST_MAX_THREADS 32u
 #endif
@@ -281,6 +285,12 @@ struct joist_hooks {
     void (*map)(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t npages,
                 unsigned perms);
     void (*unmap)(void *ctx, uint32_t space, uint64_t va, uint64_t npages);
+    /* Thread t, on CPU `cpu`, is about to be stopped, destroyed, or have
+     * its registers read or written from elsewhere: get it off that CPU
+     * now, its registers in its record (step 9). Not called for a thread on
+     * no CPU; the kernel ignores it for its own CPU's thread, whose
+     * registers it has already. */
+    void (*off_cpu)(void *ctx, uint32_t t, uint32_t cpu);
 };
 /* Pages one mapping may span: one page table (x86_64: 512 pages, 2 MiB). A
  * mapping lies within one such aligned region, so it needs at most one table
@@ -361,6 +371,10 @@ struct joist_thread_rec {
      * is blocked in a fault call now. */
     uint32_t fault_slot;
     uint8_t faulting;
+    /* The CPU this thread is on, plus one (0: none): the one that last
+     * chose it and hasn't chosen another since. A thread is on at most one
+     * CPU, and no other CPU chooses it meanwhile (I13; step 9). */
+    uint8_t cpu;
 };
 
 struct joist_cspace_state {
@@ -406,6 +420,15 @@ struct joist_kernel {
     uint32_t objects_live;
     uint64_t now; /* model time: advanced only by joist_tick */
     uint64_t ready_seq; /* the last place given out among ready threads */
+    /* The thread on each CPU, plus one (0: none); the other side of every
+     * thread's `cpu` (I13). */
+    uint32_t on_cpu[JOIST_MAX_CPUS];
+    /* Set by any operation after which some CPU other than the one acting
+     * may deserve a different thread than it has (a thread became able to
+     * run, or one that runs no longer may): the kernel then asks
+     * joist_sched_better for each and interrupts those that do, and clears
+     * it. Never wrong when clear (test_smp.c holds it to that). */
+    uint8_t resched;
     /* Quota conservation (I3): every unit of quota entered through joist_boot
      * or a fixture space, and
      *   sum over live spaces of quota + sum over all spaces of charged == budget.
@@ -663,6 +686,27 @@ joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t);
  * that uses the budget up, t goes behind its equals. No effect if t runs on
  * no context. */
 void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used);
+
+/* ---- more than one CPU (Phase 3 step 9; decision 0016) ----
+ *
+ * Scheduling is global: any CPU may run any thread, one CPU per thread
+ * (I13). The kernel runs these under its one lock. */
+
+/* joist_sched_pick for CPU `cpu`: the best thread that can run and is on no
+ * other CPU. It is then on this CPU (and whatever was, isn't).
+ * JOIST_E_EMPTY: nothing for this CPU, which is then idle; JOIST_E_RANGE.
+ * joist_sched_pick(k, t) is this for CPU 0. */
+joist_err joist_sched_pick_on(struct joist_kernel *k, uint32_t cpu, joist_thread *t);
+
+/* Would joist_sched_pick_on(k, cpu) choose another thread than the one on
+ * that CPU now (or one, if it is idle)? Changes nothing. For deciding which
+ * other CPUs to interrupt after an operation set k->resched. */
+int joist_sched_better(const struct joist_kernel *k, uint32_t cpu);
+
+/* CPU `cpu` goes on with thread t without asking (the direct switch,
+ * below), or with none (t = JOIST_MAX_THREADS): the record of who is where
+ * follows. */
+void joist_sched_on(struct joist_kernel *k, uint32_t cpu, joist_thread t);
 
 /* The direct switch (Phase 3 step 8: the fast path's scheduling decision).
  * Thread `from` was joist_sched_pick's choice at k->now, in place `place`

@@ -31,6 +31,7 @@ joist_err joist_thread_read_regs(struct joist_kernel *k, joist_cspace cs, joist_
     uint32_t t;
     joist_err e = thread_of(k, cs, th_slot, &t);
     if (e == JOIST_OK) {
+        joist__off_cpu(k, t); /* while it runs, its record is behind it */
         *out = k->th[t].regs;
     }
     return e;
@@ -42,6 +43,7 @@ joist_err joist_thread_write_regs(struct joist_kernel *k, joist_cspace cs, joist
     uint32_t t;
     joist_err e = thread_of(k, cs, th_slot, &t);
     if (e == JOIST_OK) {
+        joist__off_cpu(k, t); /* it would go on with the old ones, and save them over these */
         k->th[t].regs = *in;
     }
     return e;
@@ -73,6 +75,7 @@ joist_err joist_thread_suspend(struct joist_kernel *k, joist_cspace cs, joist_sl
     if (blocked(&k->th[t])) {
         joist__cancel(k, t, JOIST_E_ABORTED);
     }
+    joist__off_cpu(k, t); /* stopped means not on a CPU either */
     k->th[t].state = JOIST_T_SUSPENDED;
     return JOIST_OK;
 }
@@ -88,6 +91,7 @@ joist_err joist_thread_resume(struct joist_kernel *k, joist_cspace cs, joist_slo
         return JOIST_E_STATE;
     }
     k->th[t].state = JOIST_T_RUNNING;
+    k->resched = 1; /* it can run again */
     return JOIST_OK;
 }
 

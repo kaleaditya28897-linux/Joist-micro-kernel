@@ -131,3 +131,18 @@ handed-place-copied @@ ../kernel/core/ipc.c @@ k->th[from].ready_seq = ++k->read
 handed-ignores-budget @@ ../kernel/core/sched.c @@ if (k->obj[r->run_sc - 1u].remaining == 0) { @@ if (k->obj[r->run_sc - 1u].remaining == 0 && place == 0) {
 handed-ignores-timeout @@ ../kernel/core/sched.c @@ if (f->deadline != JOIST_FOREVER) { @@ if (f->deadline != JOIST_FOREVER && place == 0) {
 handed-ignores-place @@ ../kernel/core/sched.c @@ if (r->ready_seq != place) { @@ if (r->ready_seq != place && place == 0) {
+# Phase 3 step 9: more than one CPU (test_smp.c).
+smp-pick-steals @@ ../kernel/core/sched.c @@ if (sc == NULL || (k->th[i].cpu != 0 && k->th[i].cpu != cpu + 1u)) { @@ if (sc == NULL || (k->th[i].cpu != 0 && k->th[i].cpu != cpu + 1u && cpu > JOIST_MAX_CPUS)) {
+smp-old-thread-stays-marked @@ ../kernel/core/sched.c @@         k->th[was - 1u].cpu = 0; @@         (void)was;
+
+smp-bind-no-flag @@ ../kernel/core/sched.c @@         k->resched = 1; /* it can run now */ @@         (void)0;
+smp-unbind-no-flag @@ ../kernel/core/sched.c @@         k->resched = 1; /* it can't run any more: its CPU wants another */ @@         (void)0;
+smp-off-cpu-no-flag @@ ../kernel/core/sched.c @@     k->resched = 1; /* that CPU has nothing now */ @@     (void)cpu;
+smp-handed-anothers-thread @@ ../kernel/core/sched.c @@ if (r->state != JOIST_T_RUNNING || r->run_sc == 0 || r->cpu != 0) { @@ if (r->state != JOIST_T_RUNNING || r->run_sc == 0) {
+smp-better-never @@ ../kernel/core/sched.c @@     return best != (k->on_cpu[cpu] != 0 ? k->on_cpu[cpu] - 1u : JOIST_MAX_THREADS); @@     return best != best + (k->on_cpu[cpu] & 0u);
+smp-no-hook @@ ../kernel/core/sched.c @@         k->hooks.off_cpu(k->hooks.ctx, t, cpu); @@         (void)cpu;
+smp-wake-no-flag @@ ../kernel/core/ipc.c @@     k->resched = 1; /* and some CPU may deserve it */ @@     (void)0;
+smp-resume-no-flag @@ ../kernel/core/fault.c @@     k->resched = 1; /* it can run again */ @@     (void)0;
+smp-off-cpu-keeps-mark @@ ../kernel/core/sched.c @@     k->on_cpu[cpu] = 0; /* off it, at both ends */ @@     (void)cpu;
+smp-suspend-stays-on-cpu @@ ../kernel/core/fault.c @@     joist__off_cpu(k, t); /* stopped means not on a CPU either */ @@     (void)t;
+

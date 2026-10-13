@@ -29,6 +29,7 @@ void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
     r->deadline = JOIST_FOREVER;
     r->result = result;
     r->ready_seq = ++k->ready_seq; /* ready again: behind its equals */
+    k->resched = 1; /* and some CPU may deserve it */
     if (r->sc_to != 0) {
         joist__sc_reclaim(k, t); /* a caller waking, however, takes its time back */
     }
@@ -261,6 +262,7 @@ joist_err joist_thread_create(struct joist_kernel *k, joist_cspace cs, joist_thr
             r->cs = cs;
             r->deadline = JOIST_FOREVER;
             r->ready_seq = ++k->ready_seq;
+            k->resched = 1;
             *out = i;
             return JOIST_OK;
         }
@@ -277,6 +279,7 @@ joist_err joist_thread_destroy(struct joist_kernel *k, joist_thread t)
     if (r->state == JOIST_T_FREE) {
         return JOIST_E_STATE;
     }
+    joist__off_cpu(k, t);
     if ((r->state == JOIST_T_BLOCKED_SEND || r->state == JOIST_T_BLOCKED_RECV ||
          r->state == JOIST_T_BLOCKED_WAIT) &&
         r->ep != 0) {
