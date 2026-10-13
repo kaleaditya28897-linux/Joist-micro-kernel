@@ -247,6 +247,17 @@ static inline uint64_t j_task_destroy(uint64_t task)
     return j_sys4(J_SYS_TASK_DESTROY, task, 0, 0, 0);
 }
 
+/* Go on with destruction left pending (docs/abi.md, *Task destruction*): at
+ * most `budget` slots, and never more than the kernel's own limit. *more is
+ * whether any is left. */
+static inline uint64_t j_continue(uint64_t budget, int *more)
+{
+    struct j_regs r = {.rax = J_SYS_CONTINUE, .rdi = budget};
+    j_syscall(&r);
+    *more = r.rdx != 0;
+    return r.rax;
+}
+
 /* Scheduling contexts: a priority (0-255) and a budget per period, in
  * nanoseconds. A thread runs only on one: its own, or one lent by a caller. */
 static inline uint64_t j_sc_create(uint64_t dst, uint64_t prio, uint64_t budget, uint64_t period)

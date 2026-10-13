@@ -1,0 +1,17 @@
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 252 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fd8b000), direct map at 0xffff800000000000
+joist: frames: 64640 free of 65235 covered (252 MiB)
+joist: page tables: the kernel's own, loaded (64377 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625132 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0; 1 in use, the rest parked until SMP bring-up
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+cascade: 20 cascades of 48 tasks, 4848 capabilities; alone one takes 976 us, beside the ticker 1168 us (median; 0 rounds set aside as stalled)
+cascade: ticker every 97 us: woke 213 times during them; its longest wait 126 us (115 us with the root asleep)
+cascade: preemption ok
+cascade: tasks the root can create: 62 before, 62 after
+cascade: all ok
+joist: root task exited with code 0 (timer ticks so far: 3121)
+joist: finish code 0

@@ -348,3 +348,43 @@ JT_TEST(abi_thread_regs_refusals)
              k.th[a].regs.r[ABI_RAX] == JOIST_E_RIGHTS);
     JT_CHECK(clean());
 }
+
+/* ---- Phase 3 step 7: continue never sweeps more than the kernel's limit ---- */
+
+JT_TEST(abi_continue_is_bounded_by_the_preemption_limit)
+{
+    setup();
+    joist_thread t;
+    JT_REQUIRE(joist_thread_create(&k, root, &t) == JOIST_OK);
+    JT_REQUIRE(sys(t, ABI_TASK_CREATE, 10, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(t, ABI_OBJ_CREATE, JOIST_OBJ_ENDPOINT, 1, 0, 0) == ABI_DONE &&
+               k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    for (uint64_t i = 0; i < 20u; i++) {
+        JT_REQUIRE(sys(t, ABI_CAP_GIVE, 0, 1, i, JOIST_R_SEND) == ABI_DONE &&
+                   k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    }
+    uint32_t victim = k.obj[k.cs[root].slot[0].obj - 1u].target - 1u;
+    k.preempt = 2;
+    JT_CHECK(sys(t, ABI_TASK_DESTROY, 0, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(k.npending == 1 && k.cs[victim].dying);
+    /* Whatever the caller asks for (0 would mean "all of it", and so would
+     * a large number), a call sweeps at most the limit; smaller is honoured. */
+    uint64_t asks[] = {0, 1000, UINT64_MAX, 1, 2, 3};
+    unsigned calls = 0;
+    while (k.npending != 0 && calls < 1000u) {
+        uint64_t ask = asks[calls % 6u];
+        uint32_t before = k.cs[victim].sweep;
+        JT_CHECK(sys(t, ABI_CONTINUE, ask, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+        /* (Within the first leaf the cursor counts slots; past it, an absent
+         * leaf is one unit of work and moves it by a whole leaf.) */
+        uint32_t swept = k.npending != 0 && k.cs[victim].sweep <= JOIST_CNODE_LEAF
+                             ? k.cs[victim].sweep - before : 0;
+        JT_CHECK(swept <= (ask == 1 ? 1u : 2u));
+        JT_CHECK(k.th[t].regs.r[ABI_RDX] == (k.npending != 0 ? 1u : 0u));
+        JT_CHECK(clean());
+        calls++;
+    }
+    JT_CHECK(k.npending == 0 && calls >= JOIST_CNODE_LEAF / 2u);
+    JT_CHECK(k.preempt == 2);
+}
+

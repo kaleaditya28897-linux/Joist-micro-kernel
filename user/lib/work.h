@@ -12,7 +12,9 @@ enum {
     WORK_SPIN = 1, /* count for ever, never calling the kernel */
     WORK_SERVE,    /* on the endpoint in slot 0: arg counts per request, then the reply */
     WORK_CLIENT,   /* call the endpoint in slot 0 for ever; count is the calls answered */
-    WORK_CALLS     /* make the cheapest system call for ever: nearly all its time is the kernel's */
+    WORK_CALLS,    /* make the cheapest system call for ever: nearly all its time is the kernel's */
+    WORK_TICK      /* sleep arg ns again and again (a Recv on slot 0 that times out); count the
+                    * wake-ups, and keep in aux the longest time from one to the next (TSC) */
 };
 
 /* The fault test's program (faulter; Phase 3 step 6). Each sets count to 1,
@@ -32,7 +34,17 @@ struct work {
     volatile uint64_t role;
     volatile uint64_t arg;
     volatile uint64_t count;
+    volatile uint64_t aux;
 };
+
+/* The time stamp counter: a clock user mode can read for itself. */
+static inline uint64_t work_tsc(void)
+{
+    uint32_t lo;
+    uint32_t hi;
+    __asm__ volatile("lfence; rdtsc" : "=a"(lo), "=d"(hi));
+    return (uint64_t)hi << 32 | lo;
+}
 
 /* The one loop every count comes from, never inlined: within a program
  * every count is made by the same instructions, so counts compare as time.

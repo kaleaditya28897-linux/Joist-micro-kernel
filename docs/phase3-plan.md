@@ -964,3 +964,71 @@ holding a fault, and faults under load.
 
 Step 6 is done.
 
+### Step 7: preemptible cascades in the kernel (2026-10-13)
+
+**The build VM moved.** pve1 went out of service, and VM 113 with it. A
+second build VM with the same pinned toolchain was made on pvehome (VM 114,
+`joist-dev2`; `docs/testbed.md`), and `tools/dev/remote.sh` uses it.
+
+**What changed in the kernel.** Until now the kernel ran the core with no
+preemption limit: destroying a task swept its whole capability table, and
+every task that made unreachable, in one go with interrupts off.
+
+- `run.c` sets the core's limit (`RUN_PREEMPT_SLOTS`, 32 slots): no
+  operation sweeps more.
+- Every kernel entry sweeps one more piece of what is pending; idle sweeps
+  the rest, a piece at a time, looking for wake-ups in between. So a
+  destruction always ends and nothing waits for more than a piece.
+- `continue` from user mode is bounded by the same limit whatever the
+  caller asks (it used to pass the caller's number through, and 0 meant
+  all of it): one host test, two mutations, both caught.
+
+**A rule tried first, and why it went.** The first version went on sweeping
+for as long as the thread that entered the kernel was still the one to run
+and no deadline or budget end was due, so that the caller of a destruction
+got it done at once. The test below found the hole in about one round in
+ten: when a timer interrupt landed while the *ticker* was running, the
+ticker was "the thread that entered", and the rest of the cascade was swept
+in its name. One piece per entry, and `continue` for whoever wants more,
+has no such case.
+
+**The test** (`user/cascaderoot`; three boot self-tests, 26 in all). The
+root builds a chain of 48 tasks, each holding 100 endpoints of its own and
+the only capability to the next, and destroys the first: 4 848 capabilities
+swept and as many objects destroyed. A ticker of higher priority sleeps a
+tenth of a cascade's length again and again and records its longest wait.
+Required: the ticker never waits as long as half a cascade, it wakes at
+least three times per cascade, and after 20 rounds the root can create as
+many tasks as before (62). It runs on a kernel built with larger tables
+than the default (8 192 objects, 64 tasks), because with the default ones a
+whole cascade is under half a millisecond and too short to measure
+against: preemption matters as the tables grow.
+
+`cascade-nopreempt` boots the same test on a kernel built never to preempt
+(`RUN_PREEMPT_SLOTS=0`) and requires it to **fail**: a standing check that
+the test can tell, which the scheduler and fault tests only had by hand.
+
+| | QEMU (TCG) on joist-dev2 | VM 112 (KVM) |
+|---|---|---|
+| A cascade alone | about 3.8 ms | 0.5 to 1.2 ms |
+| Ticker's period | about 380 us | 54 to 113 us |
+| Its longest wait during 20 cascades | 470 to 750 us | 71 to 149 us |
+| The same with nothing else running | 400 to 510 us | 71 to 123 us |
+| Kernel that never preempts: longest wait | 3.6 to 4.0 ms (fails, as required) | 1.3 ms (fails) |
+
+**What the real CPU found this time** was in the test, and in the test
+bed: VM 112 now shares its host with the build VM, and one run in five had
+a round where the virtual CPU lost its host CPU for about a millisecond.
+Such a round shows twice (the ticker waited and the cascade took that much
+longer), which a kernel hold-up doesn't, so the test sets aside rounds that
+took over one and a half times the median (four at most) and requires all
+the others to be good. The first rule's fault still fails it: there the
+cascade is no longer than usual.
+
+Two slips of my own on the way, both in the test's support: a host test
+that read the sweep cursor as a count of slots (past the first leaf it
+moves a leaf at a time), and a self-test directory reused across builds
+with different table sizes (stale objects; the kernel crashed on boot).
+
+`make check` in `kernel/` passes: 47 host tests, 26 self-tests.
+

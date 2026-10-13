@@ -33,6 +33,7 @@ static struct worker worker_new(uint64_t role, uint64_t arg)
     k.w->role = role;
     k.w->arg = arg;
     k.w->count = 0;
+    k.w->aux = 0;
     must(j_map(f, k.task, WORK_VA / J_PAGE, J_MAP_W), "map (work page, worker)");
     must(j_thread_spawn(k.task, k.thread, entry, CHILD_LO), "thread_spawn");
     return k;

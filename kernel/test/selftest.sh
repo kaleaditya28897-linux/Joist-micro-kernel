@@ -11,7 +11,7 @@ boot() { # ISO LOG: boot it, return QEMU's exit status
     if [ -n "${PVE:-}" ]; then
         ../tools/pve/boot.sh "$1" bios 60 "$2"
     else
-        timeout 30 qemu-system-x86_64 -M q35 -m 256M -cdrom "$1" -display none -no-reboot \
+        timeout ${QEMU_TIMEOUT:-60} qemu-system-x86_64 -M q35 -m 256M -cdrom "$1" -display none -no-reboot \
             -serial file:"$2" -device isa-debug-exit,iobase=0xf4,iosize=0x04
     fi
 }
@@ -20,7 +20,8 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     n=$1; want=$2; shift 2
     b=build/selftest-$n
     ub="-fsanitize=undefined -fsanitize-trap=undefined"
-    mods=""; uextra=""; ubuild=build
+    mods=""; uextra=""; ubuild=build; ksizes=""
+    big="-DJOIST_MAX_OBJECTS=8192u -DJOIST_MAX_MAPPINGS=512u -DJOIST_MAX_CSPACES=64u -DROOT_BUDGET=16384u"
     case $n in
     # Phase 3 step 4: the root task loads pong and ping from boot modules.
     pingpong) kextra=""; root=root; mods="pong ping" ;;
@@ -29,6 +30,13 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # Phase 3 step 5: the scheduler test's root task and its workers.
     sched) kextra=""; root=schedroot; mods="worker" ;;
     ubsan-sched) kextra="$ub"; root=schedroot; mods="worker" ;;
+    # Phase 3 step 7: the destruction test, and the same on a kernel built
+    # never to preempt a cascade, which must fail it.
+    # All three with larger tables than the default kernel's, so that a
+    # cascade is long enough to measure against ($big).
+    cascade) kextra=""; root=cascaderoot; mods="worker"; ksizes=$big ;;
+    ubsan-cascade) kextra="$ub"; root=cascaderoot; mods="worker"; ksizes=$big ;;
+    cascade-nopreempt) kextra="-DRUN_PREEMPT_SLOTS=0u"; root=cascaderoot; mods="worker"; ksizes=$big ;;
     # Phase 3 step 6: the fault test's root task and its faulters.
     fault) kextra=""; root=faultroot; mods="faulter" ;;
     ubsan-fault) kextra="$ub"; root=faultroot; mods="faulter" ;;
@@ -38,7 +46,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     *) kextra=""; root=$n ;;
     esac
     make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root MODULES="$mods" UEXTRA="$uextra" \
-        USER_BUILD=$ubuild $b/joist.iso >/dev/null 2>&1 ||
+        USER_BUILD=$ubuild ${ksizes:+KSIZES="$ksizes"} $b/joist.iso >/dev/null 2>&1 ||
         { echo "selftest $n: BUILD FAILED"; fail=1; return; }
     boot $b/joist.iso $b/serial.log
     st=$?
@@ -46,7 +54,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $b/serial.log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|fault: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|root task (fault|exited|refused)|refused|sysfuzz: done' $b/serial.log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $b/serial.log; fail=1
     fi
@@ -102,4 +110,11 @@ run fault 1 "fault: resume ok" "fault: pager ok" "fault: terminate ok" \
     "fault: no handler ok" "fault: unresolved ok" "fault: control ok" "fault: all ok" \
     "root task exited with code 0"
 run ubsan-fault 1 "fault: all ok" "root task exited with code 0"
+# Phase 3 step 7: destroying a chain of tasks with full capability tables
+# (user/cascaderoot) doesn't keep a higher priority waiting, and everything
+# comes back. On a kernel that sweeps a cascade in one piece the same test
+# fails (status 7: the root task exits 1), which shows it can tell.
+run cascade 1 "cascade: preemption ok" "cascade: all ok" "root task exited with code 0"
+run ubsan-cascade 1 "cascade: all ok" "root task exited with code 0"
+run cascade-nopreempt 7 "cascade: FAILED: a higher priority waited for a whole cascade"
 exit $fail

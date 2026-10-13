@@ -1,4 +1,4 @@
-/* worker.c - one program, four parts in the scheduler test (Phase 3 step
+/* worker.c - one program, five parts in the scheduler test (Phase 3 step
  * 5; schedroot loads it as several tasks): what it does is the role its
  * root wrote in the page they share (lib/work.h). */
 #include "../lib/joist.h"
@@ -47,6 +47,20 @@ void _start(void)
             (void)j_frame_pages(1); /* an empty slot: refused at once */
             w->count = w->count + 1u;
         }
+    case WORK_TICK: {
+        uint64_t last = work_tsc();
+        for (;;) {
+            if (j_recv(0, &m, w->arg) != J_E_TIMEOUT) {
+                fail("a sleep didn't time out");
+            }
+            uint64_t now = work_tsc();
+            if (now - last > w->aux) {
+                w->aux = now - last;
+            }
+            last = now;
+            w->count = w->count + 1u;
+        }
+    }
     default:
         fail("no role");
     }

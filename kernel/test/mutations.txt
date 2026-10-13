@@ -46,3 +46,7 @@ abi-regs-write-unchecked @@ sys/abi.c @@ e = joist_thread_read_regs(k, cs, slot_
 uc-write-no-half-check @@ sys/usercopy.c @@ if (uva >= USER_TOP || USER_TOP - uva < (uint64_t)len) { @@ if (0) {
 abi-regs-write-bad-pointer @@ sys/abi.c @@ &regs, a1, sizeof regs) == KERR_OK @@ &regs, a1, sizeof regs) != (kerr)99
 abi-regs-read-bad-pointer @@ sys/abi.c @@ a1, &regs, sizeof regs) != KERR_OK @@ a1, &regs, sizeof regs) == (kerr)99
+# Phase 3 step 7: a caller's continue is bounded by the kernel's limit.
+abi-continue-unbounded @@ sys/abi.c @@ k->preempt != 0 && (a0 == 0 || a0 > k->preempt) ? k->preempt @@ k->preempt == 0 && (a0 == 0 || a0 > k->preempt) ? k->preempt
+abi-continue-zero-is-all @@ sys/abi.c @@ (a0 == 0 || a0 > k->preempt) ? k->preempt @@ (a0 > k->preempt) ? k->preempt
+

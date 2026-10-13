@@ -41,6 +41,31 @@ parallel there (`MUTATE_JOBS`, default all CPUs): all 80 in 13 minutes,
 against about an hour one at a time on the workstation.
 
 
+## VM 114: `joist-dev2`, the build and test VM on pvehome
+
+Created 2026-10-13, when pve1 went out of service (and VM 113 with it). The
+same recipe as VM 113, on the host that also runs VM 112; `tools/dev/remote.sh`
+uses it by default from that date (`JOIST_DEV=joist-dev` goes back).
+
+| | |
+|---|---|
+| Host | pvehome: Intel Core i5-14400, 16 threads, 15 GB, LVM-thin |
+| VM | VMID **114**, `joist-dev2`; q35, `cpu host` (`/dev/kvm` works inside), 10 vCPUs (not pinned), 8 GB, 40 GB on `local-lvm`, `onboot 0` |
+| OS | Debian 13.7 from `debian-13-genericcloud-amd64.qcow2`, checked against Debian's `SHA512SUMS` (SHA-512 begins `f46f0671a6e5bdec5291ab8972bae2f1`); cloud-init user `aditya` with the workstation's key |
+| Address | DHCP on pvehome's LAN; reached as `ssh joist-dev2` by its link-local address, which follows from its MAC and doesn't change (`fe80::<link-local>%vmbr0`), jumping through `root@pvehome` (<pvehome-address>) |
+
+Toolchain: the same versions from the same sources as VM 113's table
+above, each verified the same way: clang and LLD 21.1.8 (apt.llvm.org, the
+same key fingerprint), Limine 12.9.2 (`limine-binary.tar.xz`, the same
+SHA-256), CBMC 6.11.0 and `tla2tools.jar` v1.7.4 (the SHA-256 values of
+`docs/phase1-plan.md`), QEMU 10.0.13, xorriso 1.5.6, OpenJDK 21.0.12.
+
+**It shares a host with VM 112.** A build or test run here competes with
+VM 112's four pinned CPUs for the machine: timing figures taken on VM 112
+while this VM is busy are disturbed (seen 2026-10-13: a virtual CPU of VM
+112 losing its host CPU for about a millisecond). Benchmarks on VM 112
+(step 8 on) are run with this VM idle.
+
 ## VM 112: the Joist kernel test VM
 
 Created 2026-10-06. It boots Joist ISOs under Proxmox's own QEMU, on a real

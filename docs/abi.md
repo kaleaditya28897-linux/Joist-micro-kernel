@@ -245,14 +245,20 @@ TLA+ model verified (`model/tla/IpcDelete.tla`):
    its children, unspent quota and the charges of objects it paid for that
    still live go to its parent.
 
-The sweep is the only part that can be long, and it is **preemptible**: an
-operation sweeps at most the kernel's preemption limit (`k->preempt`: the
-kernel stops when an interrupt is pending; 0 means no limit) and returns
-with the rest pending. **`continue`** (budget) resumes it: `OK` when nothing
-is left, `BLOCKED` when more remains. Meanwhile everything else runs and
-sees the dying task as dead. The operation that started the destruction
+The sweep is the only part that can be long, and it is **preemptible**: one
+operation sweeps at most the kernel's preemption limit (32 slots) and
+returns with the rest pending. The operation that started the destruction
 returns `OK` either way: its own effect, beginning the destruction, is
-done.
+done. Meanwhile everything else runs and sees the dying task as dead.
+
+**Who finishes it (Phase 3 step 7).** Every kernel entry, whatever it is
+for, sweeps one more piece of what is pending, and an idle kernel sweeps
+the rest; so a destruction always ends, and nothing, a wake-up by interrupt
+least of all, waits for more than a piece. Whoever wants it done sooner
+calls **`continue`** (budget): one more piece of at most `budget` slots,
+never more than the kernel's limit whatever is asked (0 asks for the
+limit); `OK`, and whether more remains. A caller that needs the memory back
+before it goes on loops on it, on its own time.
 
 ## Frames and mappings (0013, §5.5; Phase 3 step 3)
 

@@ -214,7 +214,10 @@ int abi_syscall(struct abi_env *env, uint32_t t)
         e = a1 > JOIST_PRIO_MAX ? JOIST_E_RIGHTS : joist_task_set_mcp(k, cs, slot_arg(a0), (uint8_t)a1);
         break;
     case ABI_CONTINUE:
-        e = joist_continue(k, u32_arg(a0));
+        /* No caller may ask for more at once than the kernel's own
+         * preemption limit allows (0 from a caller would mean all of it). */
+        e = joist_continue(k, k->preempt != 0 && (a0 == 0 || a0 > k->preempt) ? k->preempt
+                                                                              : u32_arg(a0));
         if (e == JOIST_BLOCKED) {
             out = 1; /* more remains: not a wait, just an answer */
             e = JOIST_OK;

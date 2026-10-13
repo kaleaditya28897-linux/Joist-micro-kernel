@@ -39,11 +39,22 @@
 #define USER_LO          0x400000ull
 #define USER_TOP         0x0000800000000000ull
 #define USER_STACK_PAGES 8u
-#define ROOT_BUDGET      4096u
+#ifndef ROOT_BUDGET
+#define ROOT_BUDGET      4096u /* the root task's quota of objects */
+#endif
 /* The root task's own scheduling context (in its slot RUN_ROOT_SC): the
  * middle priority, and the whole of a 10 ms period. */
 #define ROOT_PRIO        128u
 #define ROOT_PERIOD_NS   10000000ull
+
+/* Preemption points (0016; step 7): the slots of dying tasks one piece of
+ * kernel work sweeps before it looks whether something more urgent is due.
+ * This bounds how long the kernel keeps interrupts off for a destruction,
+ * however large. 0 would mean never: a whole cascade in one go (a self-test
+ * builds that kernel to show the difference). */
+#ifndef RUN_PREEMPT_SLOTS
+#define RUN_PREEMPT_SLOTS 32u
+#endif
 
 #define MSR_EFER           0xc0000080u
 #define MSR_STAR           0xc0000081u
@@ -303,6 +314,7 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     npool = POOL_FRAMES;
 
     joist_init(&K);
+    K.preempt = RUN_PREEMPT_SLOTS;
     K.hooks = (struct joist_hooks){
         .space_new = hk_space_new, .space_gone = hk_space_gone, .map = hk_map, .unmap = hk_unmap};
     joist_cspace root;
@@ -472,7 +484,7 @@ static void idle(void)
             return;
         }
         if (K.npending != 0) {
-            (void)joist_continue(&K, 0);
+            (void)joist_continue(&K, RUN_PREEMPT_SLOTS); /* a piece; then look again */
             continue;
         }
         uint64_t next = joist_sched_next_event(&K, JOIST_MAX_THREADS);
@@ -483,6 +495,22 @@ static void idle(void)
         apic_timer_arm(next > K.now ? next - K.now : 1);
         armed_for = 0;
         __asm__ volatile("sti; hlt; cli" : : : "memory");
+    }
+}
+
+/* Destruction left pending (a task's capability table is swept a piece at
+ * a time): every kernel entry does one piece and no more, so it always
+ * ends, and nothing (an interrupt's wake-up least of all) is held up by
+ * more than a piece. Whoever wants it done sooner calls `continue`, a piece
+ * a call, on its own time; idle does the rest.
+ *
+ * (Not: go on for as long as the thread that entered still runs. An
+ * interrupt that lands on a high-priority thread would then have the whole
+ * cascade swept in that thread's name. The destruction test found it.) */
+static void sweep_pending(void)
+{
+    if (K.npending != 0) {
+        (void)joist_continue(&K, RUN_PREEMPT_SLOTS);
     }
 }
 
@@ -575,6 +603,7 @@ void run_user_trap(struct trap_frame *tf)
         }
         /* (Other vectors: spurious; nothing to do.) */
     }
+    sweep_pending();
     for (;;) {
         /* Who runs is the core's decision, every time (step 5). */
         if (joist_sched_pick(&K, &t) != JOIST_OK) {
