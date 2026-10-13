@@ -177,7 +177,7 @@ What earlier phases hand to this one:
 6. ~~**Fault IPC and thread control.**~~ (done 2026-10-10; see *Progress*)
 7. ~~**Preemptible cascades** in the kernel.~~ (done 2026-10-13; see *Progress*)
 8. ~~**Fast path**, with the differential test, and **`ipcbench`**.~~ (done 2026-10-13; see *Progress*)
-9. **SMP** under 0016: start the other CPUs (Limine's MP request), per-CPU
+9. ~~**SMP**~~ (done 2026-10-13 but for the O(1) run queues of choice 9, which are not built: see *Progress*, a departure awaiting acceptance) under 0016: start the other CPUs (Limine's MP request), per-CPU
    state, the kernel lock, IPIs for remote wake-up; every test again with
    2 and 4 CPUs, locally (TCG, `-smp`) and on VM 112 (KVM, 4 pinned
    vCPUs), where the CPUs really run in parallel.
@@ -1337,4 +1337,26 @@ revisited": the numbers are there for that.
 benchmark gate (a do-nothing system call is at 416 cycles against a
 baseline of 376, from the per-CPU indirection: inside the gate, and
 noted).
+
+### Step 9: full verification run (2026-10-13)
+
+On joist-dev2 at the step's commit, by `tools/dev/fullrun.sh` (make's own
+exit status for each suite; the script's last line: `FULL RUN: all 12
+suites passed`); 43 minutes.
+
+| Suite | Exit | What its log says |
+|---|---|---|
+| `make check` (`model/`) | 0 | 156 tests, 0 failed, in each of six builds |
+| `make mutate` | 0 | 131 caught, 0 survived or stale |
+| `make cbmc` | 0 | `cbmc: all 7 operations verified` (0 of 7 762 checks failed in each) |
+| `make tla` | 0 | safe and large configurations hold; the unsafe one leaks, as expected |
+| `make tla-mutate` | 0 | |
+| `make fuzz`, `make fuzz-sanity` | 0, 0 | |
+| `make check` (`kernel/`) | 0 | 49 tests, 0 failed, in each of five builds; 56 self-tests ok, none failed or skipped; benchmark gate 412, 1 360 and 772 cycles against baselines of 376, 1 356 and 764 |
+| `make mutate` (`kernel/`) | 0 | 50 caught, 0 survived or stale |
+| `fuzz-abi`, `fuzz-elf`, `fuzz-syscall` | 0, 0, 0 | |
+| VM 112, 4 CPUs | | the multiprocessor, fault, destruction, scheduler and long ping-pong tests pass (`docs/phase3-data`, *Step 9*) |
+
+Step 9's work is done; whether the step is, turns on the O(1) run queues
+(above), which is a decision, not a test result.
 
