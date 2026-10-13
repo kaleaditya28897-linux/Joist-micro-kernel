@@ -176,7 +176,7 @@ What earlier phases hand to this one:
 5. ~~**Scheduler and scheduling contexts**~~ (done 2026-10-10; see *Progress*)**,** one-shot timer, donation.
 6. ~~**Fault IPC and thread control.**~~ (done 2026-10-10; see *Progress*)
 7. ~~**Preemptible cascades** in the kernel.~~ (done 2026-10-13; see *Progress*)
-8. **Fast path**, with the differential test, and **`ipcbench`**.
+8. ~~**Fast path**, with the differential test, and **`ipcbench`**.~~ (done 2026-10-13; see *Progress*)
 9. **SMP** under 0016: start the other CPUs (Limine's MP request), per-CPU
    state, the kernel lock, IPIs for remote wake-up; every test again with
    2 and 4 CPUs, locally (TCG, `-smp`) and on VM 112 (KVM, 4 pinned
@@ -1155,4 +1155,22 @@ needed for the exit criterion; both are recorded for Phase 13.
 
 `make check` in `kernel/` passes: 49 host tests, 31 self-tests and the
 gate. `make test` in `model/`: 152.
+
+### Step 8 done: full verification run (2026-10-13)
+
+On joist-dev2, at the step's commit, about 25 minutes:
+
+| Suite | Result |
+|---|---|
+| `make check` (`model/`) | 152 tests, 0 failed, six builds |
+| `make mutate` | 119 of 119 caught |
+| `make cbmc` | 7 of 7 operations verified |
+| `make tla`, `make tla-mutate` | hold; every specification mutation caught |
+| `make fuzz`, `make fuzz-sanity` | clean; 7 of 7 seeded bugs found |
+| `make check` (`kernel/`) | passing: 49 host tests in five builds, freestanding, `clang-tidy`, `scan-build`, BIOS and UEFI boots, 31 self-tests, the benchmark gate (376, 1 356 and 764 cycles against baselines of 376, 1 356 and 764) |
+| `make mutate` (`kernel/`) | 50 of 50 caught |
+| `fuzz-abi`, `fuzz-elf`, `fuzz-syscall` | clean |
+| VM 112 | the benchmark, ten runs each of the fast and the slow-path kernel (`docs/phase3-data`, *Step 8*) |
+
+Step 8 is done.
 
