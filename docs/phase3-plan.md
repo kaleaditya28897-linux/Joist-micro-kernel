@@ -1041,7 +1041,7 @@ about 25 minutes, against about 70 on VM 113.
 |---|---|
 | `make check` (`model/`) | 149 tests, 0 failed, six builds |
 | `make mutate` | 112 of 112 caught |
-| `make cbmc` | 7 of 7 operations verified |
+| `make cbmc` | **did not run** (see *Correction*, below, 2026-10-13); the core was unchanged since step 6, where it passed |
 | `make tla`, `make tla-mutate` | hold; every specification mutation caught |
 | `make fuzz`, `make fuzz-sanity` | clean; 7 of 7 seeded bugs found |
 | `make check` (`kernel/`) | passing: 47 host tests in five builds, freestanding, `clang-tidy`, `scan-build`, BIOS and UEFI boots, 26 self-tests |
@@ -1164,7 +1164,7 @@ On joist-dev2, at the step's commit, about 25 minutes:
 |---|---|
 | `make check` (`model/`) | 152 tests, 0 failed, six builds |
 | `make mutate` | 119 of 119 caught |
-| `make cbmc` | 7 of 7 operations verified |
+| `make cbmc` | **did not run** in this run (see *Correction*, below); run afterwards on this commit's tree: 7 of 7 operations verified |
 | `make tla`, `make tla-mutate` | hold; every specification mutation caught |
 | `make fuzz`, `make fuzz-sanity` | clean; 7 of 7 seeded bugs found |
 | `make check` (`kernel/`) | passing: 49 host tests in five builds, freestanding, `clang-tidy`, `scan-build`, BIOS and UEFI boots, 31 self-tests, the benchmark gate (376, 1 356 and 764 cycles against baselines of 376, 1 356 and 764) |
@@ -1173,4 +1173,35 @@ On joist-dev2, at the step's commit, about 25 minutes:
 | VM 112 | the benchmark, ten runs each of the fast and the slow-path kernel (`docs/phase3-data`, *Step 8*) |
 
 Step 8 is done.
+
+### Correction: CBMC did not run in the full runs of steps 7 and 8 (2026-10-13)
+
+The records of steps 7 and 8 above said "`make cbmc`: 7 of 7 operations
+verified" for their end-of-step runs. That was wrong when written. On the
+new build VM (joist-dev2, from step 7) CBMC could not start: it uses `gcc`
+as its preprocessor, the VM had none, and `make cbmc` failed in a second
+with a parsing error. I reported it as passing because the loop I ran the
+suites with printed the exit status of a pipe through `tail`, which is
+`tail`'s, always 0; and I looked for failure words, not for the line that
+says CBMC succeeded. The commit messages of `de76d0f` and `92d20da` carry
+the same claim and are left as they are (pushed); this section corrects
+them.
+
+What was and wasn't affected:
+
+- **CBMC** is the only suite that didn't run. Both saved logs were checked
+  again for any failing make target: only that one.
+- **Step 7** changed nothing in the core, which CBMC had verified at step
+  6 on the old VM.
+- **Step 8** changed the core (a context's place in line). CBMC was run
+  afterwards on exactly that commit's tree (`git archive 92d20da`): 7 of 7
+  operations verified. So the statement is true of the code, and was not
+  established when made.
+- Step 9's part 1 changes the thread record again; CBMC run on it: 7 of 7.
+
+What changed so it can't recur: `gcc` is installed on joist-dev2 and listed
+in `docs/testbed.md`; the suites are now run by `tools/dev/fullrun.sh`,
+which records make's own status per suite, counts caught and surviving
+mutations from the whole log, prints the lines that say CBMC and TLA+
+succeeded, and ends with one line that names any suite that failed.
 

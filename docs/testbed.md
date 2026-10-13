@@ -58,7 +58,9 @@ Toolchain: the same versions from the same sources as VM 113's table
 above, each verified the same way: clang and LLD 21.1.8 (apt.llvm.org, the
 same key fingerprint), Limine 12.9.2 (`limine-binary.tar.xz`, the same
 SHA-256), CBMC 6.11.0 and `tla2tools.jar` v1.7.4 (the SHA-256 values of
-`docs/phase1-plan.md`), QEMU 10.0.13, xorriso 1.5.6, OpenJDK 21.0.12.
+`docs/phase1-plan.md`), QEMU 10.0.13, xorriso 1.5.6, OpenJDK 21.0.12; and
+Debian's `gcc` 14.2.0, which CBMC runs as its preprocessor (missing until
+2026-10-13: `docs/phase3-plan.md`, *Correction*).
 
 **It shares a host with VM 112**, and so do the host's own services
 (containers among them). What that does to timings on VM 112, and what is
