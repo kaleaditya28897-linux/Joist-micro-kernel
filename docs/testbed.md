@@ -1,11 +1,78 @@
 # Testbeds
 
-Three live VMs. On **pvehome**: VM 111, the Debian GNU/Hurd testbed for
-measurements, and VM 112, which boots the Joist kernel itself (and runs the
-benchmarks). On **pve1**: VM 113, `joist-dev`, where everything is built and
-tested since 2026-10-09. A fourth, VM 110, is retired.
+**Since 2026-10-14 everything runs on the P53** (below), a machine kept for
+this project alone; the Proxmox hosts run none of it any more. The sections
+after it describe the Proxmox VMs the P53 replaced, kept for the record:
+the toolchain table of VM 113 still describes the build VM, whose disk was
+moved, not rebuilt.
 
-## VM 113: `joist-dev`, the build and test VM (pve1)
+## The P53 (`p53void`, <tailnet-address>)
+
+A Lenovo ThinkPad P53 running Void Linux, used as a server for this project
+only.
+
+| | |
+|---|---|
+| CPU | Intel Core i7-9850H (Coffee Lake), 6 cores, 12 threads (host CPUs 0-5 the first thread of each core, 6-11 the second); microcode 0x100; KVM with nested virtualisation on |
+| Memory, disk | 15 GB; 465 GB NVMe (ext4 on `/`) |
+| Software | Void's QEMU 11.1.2 (with its SeaBIOS and OVMF images), socat; runit |
+| Access | `ssh p53` (user `aditya`, in group `kvm`); root by key for administration |
+| Layout | `/srv/joist/vms/<vm>/` (disk, `run.sh`, console and monitor sockets), `/srv/joist/test/` (the test VM's runs), `/srv/joist/archive/`, `/srv/joist/iso/` |
+
+Three uses, each from `tools/p53/` in the repository:
+
+**The build VM, `joist-dev2`** (`tools/p53/joist-dev2.sh`, run as the runit
+service `joist-dev2`, `tools/p53/sv/`; started at boot; `sv down` asks the
+guest to power off). The disk of Proxmox VM 114, moved: Debian 13.7 with
+the toolchain listed under VM 113 and 114 below, unchanged. 8 virtual CPUs,
+8 GB; QEMU's user-mode network with the guest's SSH on the P53's loopback
+port 2222, reached as `ssh joist-dev2` (an alias that jumps through the
+P53); `tools/dev/remote.sh` uses it. KVM works inside it (for the
+self-tests that need a real CPU).
+
+**Booting Joist on the real CPU** (`tools/p53/boot.sh ISO bios|uefi TIMEOUT
+LOG`; `P53=1 make selftest`, `make p53-test`): what VM 112 was. QEMU is run
+on the P53 directly, 4 virtual CPUs, each pinned to one host CPU (2, 3, 4,
+5: four cores, whose second threads nothing of ours is pinned to), 256 MB,
+SeaBIOS or OVMF. Its exit status is QEMU's own, no longer rebuilt from the
+log; the script still requires the kernel's `joist: finish code` line
+before it trusts a status, since QEMU failing to start is also status 1.
+For benchmarks the build VM is to be idle.
+
+**The GNU/Hurd testbed** (`tools/p53/joist-hurd-amd64.sh`, run by hand): the
+disk of Proxmox VM 111, moved; AHCI disk and e1000 network as there, same
+MAC; SSH on loopback port 2223 (`ssh joist-amd64`). See *GNU/Hurd
+testbeds* below for what is in it.
+
+**Archive:** `/srv/joist/archive/joist-dev-vm113.qcow2`, the disk of the
+first build VM (VM 113 on pve1), kept but not set up to run: it boots
+(checked 2026-10-14), with `-machine q35,smm=off`.
+
+**Found in moving (2026-10-14).** On this machine, under KVM, SeaBIOS with
+SMM emulation resets a guest at the moment GRUB hands over to its kernel:
+Linux and Hurd alike, any CPU model, SeaBIOS from Void or from Proxmox
+(byte for byte the same). Without SMM (`-machine ...,smm=off`) they boot,
+and so does UEFI. Joist's own BIOS boot (Limine) is not affected. So the
+Hurd VM runs with `smm=off` and the build VM boots by UEFI; why the P53's
+KVM does this was not pursued (the host's microcode is reported as old).
+
+**The move** (2026-10-14): each disk exported on its Proxmox host with
+`qemu-img convert -O qcow2 -c` (the VMs stopped; joist-dev shut down for
+it), copied, and checked by SHA-256 at both ends and `qemu-img check`;
+then each booted on the P53.
+
+| Disk | From | SHA-256 of the copy |
+|---|---|---|
+| `vms/joist-dev2/disk.qcow2` | pvehome VM 114 | `3ff8f439aea09337ba57cf7273d3c4062ab4a1f2e46a9b319821c5e26d2e9695` |
+| `vms/joist-hurd-amd64/disk.qcow2` | pvehome VM 111 | `4b943c1377cc3aca6b4069d34ba0f8574ffd1f3b5af59f534883369012badb78` |
+| `archive/joist-dev-vm113.qcow2` | pve1 VM 113 | `e0ab906805061874579d08920aaca0fa8abe6c5f9beb8ae9bf58d9808be96e5e` |
+
+VM 112 had no disk: it was only a configuration, which `tools/p53/boot.sh`
+replaces. The Proxmox VMs 111, 112, 113 and 114 were then deleted.
+
+# The Proxmox VMs, until 2026-10-14
+
+## VM 113: `joist-dev`, the build and test VM (pve1; disk archived on the P53)
 
 Created 2026-10-09, when the workstation moved from Void (glibc) to Alpine
 (musl): Alpine has clang 21 but its sanitizer runtimes and `scan-build` only
@@ -41,7 +108,7 @@ parallel there (`MUTATE_JOBS`, default all CPUs): all 80 in 13 minutes,
 against about an hour one at a time on the workstation.
 
 
-## VM 114: `joist-dev2`, the build and test VM on pvehome
+## VM 114: `joist-dev2`, the build and test VM on pvehome (moved to the P53)
 
 Created 2026-10-13, when pve1 went out of service (and VM 113 with it). The
 same recipe as VM 113, on the host that also runs VM 112; `tools/dev/remote.sh`
@@ -81,7 +148,7 @@ done about it (all found at Phase 3 steps 7 and 8, 2026-10-13):
 - Short stretches when everything is a quarter slower; the benchmark
   reports the median of twenty segments, and the worst segment beside it.
 
-## VM 112: the Joist kernel test VM
+## VM 112: the Joist kernel test VM (replaced by `tools/p53/boot.sh`)
 
 Created 2026-10-06. It boots Joist ISOs under Proxmox's own QEMU, on a real
 Intel CPU through KVM, so tests run there on the hardware's behaviour rather
@@ -120,24 +187,28 @@ migrates between a P-core and an E-core would make IPC timings bimodal.
 ssh joist-amd64
 ```
 
-The alias is in `~/.ssh/config` on the workstation. The VM sits on pvehome's
-LAN (<lan-subnet>/24), which the office workstation (<lan-subnet>/24) cannot
-reach directly, so it jumps through pvehome:
+Since 2026-10-14 the VM runs on the P53 (above), started by hand with
+`/srv/joist/vms/joist-hurd-amd64/run.sh` as `aditya` there. Its SSH port is
+on the P53's loopback; the alias in `~/.ssh/config` on the workstation
+jumps through the P53:
 
 ```
 Host joist-amd64
-    HostName <lan-address>
+    HostName 127.0.0.1
+    Port 2223
     User aditya
-    ProxyJump root@<pvehome-address>
+    HostKeyAlias joist-amd64
+    ProxyJump p53
 ```
 
 | | |
 |---|---|
-| Proxmox VMID | **111**, name `joist-hurd-amd64` |
-| Guest IP | <lan-address> (DHCP lease — not reserved) |
+| Was | Proxmox VMID **111** on pvehome, name `joist-hurd-amd64` (until 2026-10-14) |
+| Guest network | QEMU user-mode, the guest 10.0.2.15 behind the P53 |
 | User | `aditya`, in `sudo` |
 | Auth | the workstation's `id_ed25519.pub` is in `authorized_keys`; `sudo` needs the password |
-| Console | Proxmox web UI (https://<pvehome-address>:8006) → 111 → Console |
+| Console | its serial and monitor are Unix sockets in `/srv/joist/vms/joist-hurd-amd64/` (`socat - UNIX-CONNECT:...`) |
+| Power off | it ignores ACPI power-off: `sudo halt` inside, or `quit` on its monitor after a `sync` |
 
 ## What it is
 

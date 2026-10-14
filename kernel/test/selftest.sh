@@ -4,12 +4,12 @@
 # built with -DJOIST_SELFTEST=N in its own build directory and booted under
 # BIOS; QEMU's exit status is (kernel code << 1) | 1.
 # usage: test/selftest.sh   (from kernel/)
-#        PVE=1 test/selftest.sh   boot each on the Proxmox test VM instead
-#                                 (../tools/pve/boot.sh, docs/testbed.md)
+#        P53=1 test/selftest.sh   boot each on the P53's own CPU instead
+#                                 (../tools/p53/boot.sh, docs/testbed.md)
 fail=0
 boot() { # ISO LOG: boot it, return QEMU's exit status
-    if [ -n "${PVE:-}" ]; then
-        ../tools/pve/boot.sh "$1" bios 60 "$2"
+    if [ -n "${P53:-}" ]; then
+        ../tools/p53/boot.sh "$1" bios 60 "$2"
     else
         timeout ${QEMU_TIMEOUT:-60} qemu-system-x86_64 -M q35 -m 256M ${cpu:+-cpu $cpu} ${smp:+-smp $smp} -cdrom "$1" -display none -no-reboot \
             -serial file:"$2" -device isa-debug-exit,iobase=0xf4,iosize=0x04

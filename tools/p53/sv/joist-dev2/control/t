@@ -1,0 +1,6 @@
+#!/bin/sh
+# `sv down joist-dev2`: ask the guest to power off (ACPI), rather than
+# killing QEMU, which would be pulling the plug. Exit 0: runit sends no
+# signal itself and waits for the guest to stop (sv -w 120 down).
+printf 'system_powerdown\n' | socat - UNIX-CONNECT:/srv/joist/vms/joist-dev2/monitor.sock >/dev/null 2>&1 || exit 1
+exit 0

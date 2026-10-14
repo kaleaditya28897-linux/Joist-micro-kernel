@@ -1,7 +1,7 @@
 #!/bin/sh
 # remote.sh - run a command in this working tree on the build and test VM
-# (docs/testbed.md: joist-dev2, VM 114 on pvehome, since 2026-10-13 while
-# pve1 is out of service; before that joist-dev, VM 113 on pve1).
+# (docs/testbed.md: joist-dev2, on the P53 since 2026-10-14; an alias in
+# ~/.ssh/config that jumps through the P53 to the VM's SSH port).
 #
 # usage: tools/dev/remote.sh 'make -C model check'
 #
@@ -9,7 +9,7 @@
 # directories and .git excluded) to ~/joist on the VM, then runs the command
 # there from the top of the tree; its output and exit status come back.
 # Edits, commits and pushes stay on the workstation. JOIST_DEV overrides the
-# SSH host (default joist-dev2, an alias in ~/.ssh/config).
+# SSH host (default joist-dev2).
 set -u
 host=${JOIST_DEV:-joist-dev2}
 top=$(cd "$(dirname "$0")/../.." && pwd)

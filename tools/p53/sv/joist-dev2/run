@@ -1,0 +1,4 @@
+#!/bin/sh
+# runit service for the build VM: install as /etc/sv/joist-dev2 and link
+# into /var/service to start it at boot.
+exec chpst -u aditya:aditya:kvm /srv/joist/vms/joist-dev2/run.sh 2>&1

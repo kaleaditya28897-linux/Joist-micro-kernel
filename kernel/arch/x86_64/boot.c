@@ -47,9 +47,9 @@ __attribute__((aligned(16))) uint8_t kernel_stack[16384];
 
 /* QEMU's isa-debug-exit device (iobase 0xf4): QEMU exits with status
  * (code << 1) | 1, so `make qemu-test` sees the kernel's verdict. The code is
- * also printed, for runs where QEMU's exit status can't be seen (a Proxmox
- * VM, tools/pve/boot.sh). On hardware the port is unused and this just
- * halts. */
+ * also printed, for runs where QEMU's exit status can't be seen (as on a
+ * Proxmox VM until 2026-10-14), and tools/p53/boot.sh requires it to trust
+ * a status. On hardware the port is unused and this just halts. */
 __attribute__((noreturn)) void kernel_finish(uint8_t code)
 {
     kputs("joist: finish code ");
