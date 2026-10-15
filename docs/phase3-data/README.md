@@ -181,3 +181,35 @@ at again with numbers.
 `f6f8fc892223a337f7c45e444eafc9a85a61470845c934229f611140da2e8aaa`,
 `b107fb0496e8c27d9a6740017557a6c2fd659e25f961dc3c0c5b75e7b1ae1623`.)
 
+## The benchmark gate's baseline moves to the P53 (2026-10-15)
+
+`kernel/test/ipcbench.baseline` was measured on the Intel Core i5-14400
+(Phase 3 step 8). After the move to the P53 (`docs/testbed.md`) the gate
+runs on an Intel Core i7-9850H, under KVM inside the build VM, and the first
+full run there gave 452, 1 336 and 880 cycles: the first within 5 points of
+the 25 % limit, from the change of CPU rather than of code. Measured again
+there (a hand-off to the P53's Claude Code; its report is kept on the P53 in
+`/srv/joist/handoff/smallbuild/findings.md`): 20 runs of the `bench-gate`
+entry, nothing else running on the build VM.
+
+| | Old baseline (i5-14400) | 20 runs on the P53 | New baseline |
+|---|---|---|---|
+| A system call that does nothing | 376 | 336-352 in 16 runs; 444-476 in 4 | 384 |
+| Two address spaces, passive server | 1 356 | 1 336-1 344 | 1 344 (their median) |
+| One address space, passive server | 764 | 876-880 | 880 (their median) |
+
+The system call's figure falls in two groups, about 30 % apart. In the
+low group the benchmark's ruler (the chain of multiplications that converts
+counts to CPU cycles) itself reads up to 39 000 counts against about 7 000
+otherwise, so a disturbed ruler is the first suspect; the cause is not
+established. Its baseline is the lowest whose limit (480) passes both
+groups, not the median, and the margin is thin (476 against 480): an open
+item, for the exit step's benchmarks.
+
+The same hand-off found that the fourth measurement (a server with its own
+scheduling context) had always printed the histogram's top edge, 16 388,
+as its median once it was slower than 16 384 cycles, as it is under KVM in
+the build VM. The histogram's buckets are now sized from the warm-up; the
+measurement reads about 93 000 cycles there (each change of context sets
+the timer, which under nested KVM is very dear).
+

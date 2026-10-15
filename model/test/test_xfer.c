@@ -40,7 +40,7 @@ static void setup(void)
         joist_cap_derive(&k, ccs, NOTE, BARE, JOIST_R_SEND | JOIST_R_RECV) != JOIST_OK ||
         joist_thread_create(&k, scs, &srv) != JOIST_OK ||
         joist_thread_create(&k, ccs, &cli) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
 }
 

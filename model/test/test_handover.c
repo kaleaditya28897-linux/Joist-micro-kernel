@@ -39,7 +39,7 @@ static joist_thread thread_with(joist_slot slot, uint8_t prio, uint64_t budget, 
     if (joist_thread_create(&k, root, &t) != JOIST_OK ||
         joist_sc_create(&k, root, slot, prio, budget, period) != JOIST_OK ||
         joist__sc_bind_thread(&k, k.cs[root].slot[slot].obj - 1u, t) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
     return t;
 }
@@ -62,7 +62,7 @@ static void two_clients_and_a_server(joist_thread *a, joist_thread *b, joist_thr
     if (joist_thread_create(&k, root, s) != JOIST_OK ||
         joist_obj_create(&k, root, JOIST_OBJ_ENDPOINT, 0) != JOIST_OK ||
         joist_recv(&k, *s, 0, JOIST_FOREVER) != JOIST_BLOCKED) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
 }
 
@@ -144,8 +144,15 @@ static uint32_t rnd(uint32_t n)
     return (uint32_t)((rng * 0x2545F4914F6CDD1DULL) >> 33) % n;
 }
 
+/* (The small-table build has 8 threads and 32 objects in all: fewer of
+ * each there, so that every world is set up as written.) */
+#if JOIST_MAX_THREADS >= 16u
 #define CLIENTS 6u
 #define SERVERS 4u /* each on the endpoint in the slot of its number */
+#else
+#define CLIENTS 3u
+#define SERVERS 2u
+#endif
 
 JT_TEST(props_handover_agrees_with_the_scheduler)
 {

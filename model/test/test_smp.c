@@ -42,7 +42,7 @@ static joist_thread thread_with(joist_slot slot, uint8_t prio, uint64_t budget, 
     if (joist_thread_create(&k, root, &t) != JOIST_OK ||
         joist_sc_create(&k, root, slot, prio, budget, period) != JOIST_OK ||
         joist__sc_bind_thread(&k, k.cs[root].slot[slot].obj - 1u, t) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
     return t;
 }

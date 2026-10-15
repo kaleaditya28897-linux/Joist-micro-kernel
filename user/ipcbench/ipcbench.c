@@ -151,12 +151,24 @@ static void measure(const char *what, struct j_msg *mp)
         uint64_t d = work_tsc() - t0;
         clock = d < clock ? d : clock;
     }
-    for (unsigned i = 0; i < BENCH_WARMUP; i++) {
-        (void)once(&m);
-    }
-    /* Buckets of 4 cycles: up to 16384, and one for everything longer. */
-    const uint64_t width = 4;
     const uint64_t cycles = 3u * BENCH_RULER;
+    uint64_t least = UINT64_MAX;
+    uint64_t r0 = ruler();
+    for (unsigned i = 0; i < BENCH_WARMUP; i++) {
+        uint64_t t = once(&m);
+        uint64_t d = (t > clock ? t - clock : 0) * cycles / r0;
+        least = d < least ? d : least;
+    }
+    /* Buckets of 4 cycles (up to 16384, and one for everything longer),
+     * wider by powers of two if the warm-up's least time is past an eighth
+     * of that: so the median and 99th percentile land inside the histogram
+     * whatever is measured. (Until 2026-10-15 the width was fixed at 4, and
+     * a measurement slower than 16384 cycles printed that edge as its
+     * median: the P53's hand-off found it.) */
+    uint64_t width = 4;
+    while (least / width > BUCKETS / 8u) {
+        width *= 2u;
+    }
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
     uint64_t ruler_min = UINT64_MAX;
@@ -195,7 +207,8 @@ static void measure(const char *what, struct j_msg *mp)
     put(" p99=", middle(p99, BENCH_SEGMENTS));
     put(" worst-p50=", worst);
     put(" max=", max);
-    put(" cycles (", cycles);
+    put(" cycles (bucket ", width);
+    put("; ", cycles);
     put(" cycles took ", ruler_min);
     put(" to ", ruler_max);
     put(" counts; clock ", clock);

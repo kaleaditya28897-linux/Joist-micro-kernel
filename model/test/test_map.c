@@ -25,7 +25,7 @@ static void setup(void)
     joist_init(&k);
     if (joist_boot(&k, 64, &root) != JOIST_OK || joist_boot_frame(&k, root, F, 0x100, 16) != JOIST_OK ||
         joist_task_create(&k, root, 20, TK) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
         return;
     }
     T = k.obj[k.cs[root].slot[TK].obj - 1u].target - 1u;

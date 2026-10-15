@@ -39,7 +39,7 @@ static void setup(void)
         joist_obj_create(&k, srv_cs, JOIST_OBJ_NOTIFICATION, NOTE) != JOIST_OK ||
         joist_thread_create(&k, srv_cs, &srv) != JOIST_OK ||
         joist_thread_create(&k, srv_cs, &cli) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
     cli_cs = srv_cs;
 }

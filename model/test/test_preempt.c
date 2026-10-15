@@ -29,7 +29,7 @@ static void setup(void)
 {
     joist_init(&k);
     if (joist_boot(&k, 64, &root) != JOIST_OK || joist_task_create(&k, root, 30, RA) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
         return;
     }
     A = k.obj[k.cs[root].slot[RA].obj - 1u].target - 1u;
@@ -38,7 +38,7 @@ static void setup(void)
         joist_obj_create(&k, A, JOIST_OBJ_ENDPOINT, A_EP2) != JOIST_OK ||
         joist_task_create(&k, A, 5, A_B) != JOIST_OK ||
         joist_thread_spawn(&k, root, RA, 1, &ta) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
     B = k.obj[k.cs[A].slot[A_B].obj - 1u].target - 1u;
 }

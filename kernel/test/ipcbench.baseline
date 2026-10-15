@@ -1,11 +1,17 @@
 # The IPC benchmark's medians (user/ipcbench, CPU cycles by its ruler) as
-# measured at Phase 3 step 8, 2026-10-13, on the Intel Core i5-14400 through
-# KVM (VM 112, and the same figures under KVM inside joist-dev2). The gate
-# in test/selftest.sh fails a run whose median is more than 25% above these
-# (docs/phase3-plan.md, *Testing*). Change them only with a measurement and
-# a reason, recorded in docs/phase3-data.
+# measured on 2026-10-14 on the P53's Intel Core i7-9850H, through KVM in
+# QEMU 10.0.13 inside the build VM (8 vCPUs), with nothing else running there:
+# 20 runs of the bench-gate entry of test/selftest.sh. (Before that, Phase 3
+# step 8, 2026-10-13, on the Intel Core i5-14400: 376, 1356, 764.)
+# The two IPC figures are the runs' median (1336-1344 and 876-880 in all 20).
+# The system call's median falls in two groups: 336-352 (16 runs) and 444-476
+# (4 runs). Its figure here is not that median but the lowest that passes
+# both groups (476 <= 384 + 384/4); see docs/phase3-data.
+# The gate in test/selftest.sh fails a run whose median is more than 25% above
+# these (docs/phase3-plan.md, *Testing*). Change them only with a measurement
+# and a reason, recorded in docs/phase3-data.
 #
 # measurement (the start of the line ipcbench prints) | median
-a system call that does nothing|376
-two address spaces, passive server|1356
-one address space, passive server|764
+a system call that does nothing|384
+two address spaces, passive server|1344
+one address space, passive server|880

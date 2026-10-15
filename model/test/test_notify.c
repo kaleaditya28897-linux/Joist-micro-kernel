@@ -31,7 +31,7 @@ static void setup(void)
         joist_cap_mint(&k, cs, NOTE, NOTE_SIG2, JOIST_R_SEND, 0x4) != JOIST_OK ||
         joist_thread_create(&k, cs, &a) != JOIST_OK ||
         joist_thread_create(&k, cs, &b) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
 }
 

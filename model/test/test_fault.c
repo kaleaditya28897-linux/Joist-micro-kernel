@@ -28,7 +28,7 @@ static void setup(void)
     joist_init(&k);
     const joist_slot rs[] = {HCAP};
     if (joist_boot(&k, 64, &root) != JOIST_OK || joist_task_create(&k, root, 30, R_TASK) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
         return;
     }
     T = k.obj[k.cs[root].slot[R_TASK].obj - 1u].target - 1u;
@@ -36,7 +36,7 @@ static void setup(void)
         joist_thread_spawn(&k, root, R_TASK, R_H, &h) != JOIST_OK ||
         joist_obj_create(&k, T, JOIST_OBJ_ENDPOINT, FEP) != JOIST_OK ||
         joist_recv_slots(&k, h, rs, 1) != JOIST_OK) {
-        fprintf(stderr, "  setup failed\n");
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
     }
 }
 
