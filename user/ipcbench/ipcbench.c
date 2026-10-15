@@ -53,17 +53,21 @@ static const char *const names[] = {
     "one address space, passive server",
     "two address spaces, server with its own context",
     "two address spaces, passive server, every other CPU making system calls",
+    "two address spaces, passive server, 4 KiB of IPC buffer each way",
 };
+
+static uint64_t buf[512] __attribute__((aligned(4096))); /* this thread's IPC buffer */
+static unsigned words; /* buffer words each call carries (and the reply brings back) */
 
 static __attribute__((noreturn)) void serve(void)
 {
     struct j_msg m = {0};
-    if (j_recv(0, &m, J_FOREVER) != J_OK) {
+    if (j_ipc_buffer(buf) != J_OK || j_recv(0, &m, J_FOREVER) != J_OK) {
         j_puts("ipcbench: recv failed\n");
         j_exit(1);
     }
     for (;;) {
-        m.caps = 0;
+        m.caps = J_WORDS_SET(J_WORDS(m.caps)); /* as many words back as came */
         if (j_reply_recv(0, &m, J_FOREVER) != J_OK) {
             j_puts("ipcbench: reply_recv failed\n");
             j_exit(1);
@@ -80,6 +84,7 @@ static uint64_t once(struct j_msg *m)
         (void)j_cap_delete(J_SLOT_NONE); /* refused at once: the way in and out */
         return work_tsc() - t0;
     }
+    m->caps = J_WORDS_SET(words);
     uint64_t t0 = work_tsc();
     uint64_t e = j_call(1, m, J_FOREVER);
     uint64_t t1 = work_tsc();
@@ -227,6 +232,13 @@ void _start(uint64_t role, uint64_t name)
         }
     }
     struct j_msg m = {.r = {1, 2, 3, 4}};
+    if (name == 4) {
+        words = 512;
+        if (j_ipc_buffer(buf) != J_OK) {
+            j_puts("ipcbench: ipc_buffer refused\n");
+            j_exit(1);
+        }
+    }
     if (name == 0) {
         nothing = 1;
         measure("a system call that does nothing", &m);

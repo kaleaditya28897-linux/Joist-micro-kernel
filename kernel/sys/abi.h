@@ -84,6 +84,7 @@ enum {
 
 #define ABI_THREAD_READ_REGS  70u /* thread, address of a struct joist_regs to fill */
 #define ABI_THREAD_WRITE_REGS 71u /* thread, address of a struct joist_regs to load */
+#define ABI_IPC_BUFFER        72u /* page-aligned address of the calling thread's IPC buffer, or 0 */
 
 /* Calls 1 and 2, and unknown numbers, use Phase 2's dispatcher and result
  * codes (syscall.h: SYS_E_*, DEBUG_WRITE_MAX), unchanged. */
@@ -91,6 +92,12 @@ enum {
 /* Capabilities in R9: bits 0-1 the count, then per position (16 bits slot,
  * 4 bits rights mask) at bits 2 and 22. A received slot that didn't arrive
  * reads ABI_CAPS_NONE. */
+/* The IPC buffer's words, in R9 beside the capabilities: their number in
+ * bits 48-57 (0 to JOIST_MSG_WORDS, sending and received), and on receipt
+ * bit 63 set if words were sent that couldn't be placed. */
+#define ABI_LEN_SHIFT 48u
+#define ABI_LEN_MASK  0x3ffu
+#define ABI_LOST_BIT  (1ull << 63)
 #define ABI_CAPS_SLOT_BITS 16u
 #define ABI_CAPS_NONE      0xffffu
 uint64_t abi_caps_pack(const struct joist_msg *m);

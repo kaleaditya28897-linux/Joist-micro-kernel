@@ -135,10 +135,14 @@ static joist_err ep_lookup(const struct joist_kernel *k, joist_thread t, joist_s
 /* Check, at send time, the capabilities message m names in space cs: at
  * most JOIST_MSG_CAPS, each slot in range, occupied and holding GRANT. A
  * failure here fails the whole operation before it changes anything. */
-static joist_err xfer_check(const struct joist_kernel *k, uint32_t cs, const struct joist_msg *m)
+static joist_err xfer_check(const struct joist_kernel *k, uint32_t cs, uint64_t buf,
+                            const struct joist_msg *m)
 {
     if (m->ncaps > JOIST_MSG_CAPS) {
         return JOIST_E_RANGE;
+    }
+    if (m->len > JOIST_MSG_WORDS || (m->len != 0 && buf == 0)) {
+        return JOIST_E_RANGE; /* more than a buffer holds, or words with no buffer */
     }
     for (uint32_t i = 0; i < m->ncaps; i++) {
         const struct joist_cap *c = joist__slot_c(k, cs, m->cap[i]);
@@ -162,10 +166,26 @@ static joist_err xfer_check(const struct joist_kernel *k, uint32_t cs, const str
  * space dead) is skipped, never an error: the sender has already been told
  * its message was fine, and the transfer must not block or allocate.
  * Bounded by JOIST_MSG_CAPS. */
-static void deliver(struct joist_kernel *k, uint32_t from, uint32_t to, const struct joist_msg *m)
+static void deliver(struct joist_kernel *k, uint32_t from, uint64_t from_buf, uint32_t to,
+                    const struct joist_msg *m)
 {
     struct joist_thread_rec *r = &k->th[to];
     struct joist_msg out = *m;
+    /* The buffer's words (Phase 3's exit), from the sender's buffer as it
+     * is now (a sender that queued may have changed it since: what is
+     * there at delivery is what goes) to the receiver's. */
+    out.lost = 0;
+    out.len = m->len <= JOIST_MSG_WORDS ? m->len : 0;
+    if (out.len != 0) {
+        int ok = from_buf != 0 && r->ipc_buf != 0 && joist__usable(k, r->cs);
+        if (ok && k->hooks.copy_msg != NULL) {
+            ok = k->hooks.copy_msg(k->hooks.ctx, from, from_buf, r->cs, r->ipc_buf, out.len);
+        }
+        if (!ok) {
+            out.len = 0;
+            out.lost = 1;
+        }
+    }
     uint32_t n = m->ncaps <= JOIST_MSG_CAPS ? m->ncaps : JOIST_MSG_CAPS;
     out.ncaps = n;
     for (uint32_t i = 0; i < JOIST_MSG_CAPS; i++) {
@@ -186,6 +206,19 @@ static void deliver(struct joist_kernel *k, uint32_t from, uint32_t to, const st
         }
     }
     r->msg = out;
+}
+
+joist_err joist_ipc_buffer(struct joist_kernel *k, joist_thread t, uint64_t va)
+{
+    joist_err e = running(k, t);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (va % JOIST_PAGE_SIZE != 0 || va / JOIST_PAGE_SIZE >= JOIST_USER_PAGES) {
+        return JOIST_E_RANGE;
+    }
+    k->th[t].ipc_buf = va;
+    return JOIST_OK;
 }
 
 joist_err joist_recv_slots(struct joist_kernel *k, joist_thread t, const joist_slot *slots,
@@ -343,7 +376,7 @@ static joist_err call_on(struct joist_kernel *k, uint32_t t, uint32_t obj, joist
     struct joist_thread_rec *me = &k->th[t];
     if (ep->qkind == JOIST_Q_RECEIVERS) {
         uint32_t r = joist__q_pop(k, obj);
-        deliver(k, me->cs, r, m);
+        deliver(k, me->cs, me->ipc_buf, r, m);
         if (me->faulting) {
             fault_cap(k, t, r);
         }
@@ -378,7 +411,7 @@ joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot slot,
     }
     e = ep_lookup(k, t, slot, JOIST_R_SEND, &obj, &badge);
     if (e == JOIST_OK) {
-        e = xfer_check(k, k->th[t].cs, m);
+        e = xfer_check(k, k->th[t].cs, k->th[t].ipc_buf, m);
     }
     if (e != JOIST_OK) {
         return e;
@@ -418,7 +451,7 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         uint32_t s = joist__q_pop(k, obj);
         /* The capabilities are taken from the sender's space now, as they
          * are at delivery; any gone since the send are skipped. */
-        deliver(k, k->th[s].cs, t, &k->th[s].msg);
+        deliver(k, k->th[s].cs, k->th[s].ipc_buf, t, &k->th[s].msg);
         if (k->th[s].faulting) {
             fault_cap(k, s, t);
         }
@@ -441,13 +474,14 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
 }
 
 /* Deliver a reply to caller c, if it still waits for the call numbered seq. */
-static joist_err deliver_reply(struct joist_kernel *k, uint32_t from, uint32_t c, uint32_t seq,
+static joist_err deliver_reply(struct joist_kernel *k, uint32_t from, uint64_t from_buf, uint32_t c,
+                               uint32_t seq,
                                const struct joist_msg *m)
 {
     if (k->th[c].state != JOIST_T_BLOCKED_REPLY || k->th[c].call_seq != seq) {
         return JOIST_E_PEER; /* the caller stopped waiting */
     }
-    deliver(k, from, c, m);
+    deliver(k, from, from_buf, c, m);
     k->th[c].badge = 0;
     joist__wake(k, c, JOIST_OK);
     if (k->th[c].faulting) {
@@ -470,7 +504,7 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
     if (me->reply_to == 0) {
         return JOIST_E_NOREPLY;
     }
-    e = xfer_check(k, me->cs, m);
+    e = xfer_check(k, me->cs, me->ipc_buf, m);
     if (e != JOIST_OK) {
         return e; /* the reply capability is kept: nothing changed */
     }
@@ -479,7 +513,7 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
     uint32_t ran_on = me->run_sc;
     me->reply_to = 0; /* consumed, whatever happens next (I6) */
     me->reply_seq = 0;
-    e = deliver_reply(k, me->cs, c, seq, m);
+    e = deliver_reply(k, me->cs, me->ipc_buf, c, seq, m);
     if (e == JOIST_OK && ran_on != 0 && me->run_sc != ran_on &&
         k->th[c].state == JOIST_T_RUNNING && k->th[c].run_sc == ran_on) {
         take_place(k, c, t); /* the context went back with the reply: so does the turn */
@@ -548,7 +582,7 @@ joist_err joist_reply_saved(struct joist_kernel *k, joist_thread t, joist_slot s
     if (o->target == 0) {
         return JOIST_E_NOREPLY;
     }
-    e = xfer_check(k, k->th[t].cs, m);
+    e = xfer_check(k, k->th[t].cs, k->th[t].ipc_buf, m);
     if (e != JOIST_OK) {
         return e; /* still bound: nothing changed */
     }
@@ -556,7 +590,7 @@ joist_err joist_reply_saved(struct joist_kernel *k, joist_thread t, joist_slot s
     uint32_t seq = o->rseq;
     o->target = 0; /* consumed (I6) */
     o->rseq = 0;
-    return deliver_reply(k, k->th[t].cs, c, seq, m);
+    return deliver_reply(k, k->th[t].cs, k->th[t].ipc_buf, c, seq, m);
 }
 
 /* A bound reply object's last capability is gone: its caller would wait
@@ -584,7 +618,7 @@ joist_err joist_reply_recv(struct joist_kernel *k, joist_thread t, const struct 
     if (k->th[t].reply_to != 0) {
         /* A bad capability in the reply fails the whole call, first, with
          * nothing changed; a caller that stopped waiting is not an error. */
-        e = xfer_check(k, k->th[t].cs, m);
+        e = xfer_check(k, k->th[t].cs, k->th[t].ipc_buf, m);
         if (e != JOIST_OK) {
             return e;
         }

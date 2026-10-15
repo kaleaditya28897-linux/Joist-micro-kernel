@@ -53,6 +53,11 @@ SAME(sizeof(struct j_counters), sizeof(struct abi_counters));
 SAME(offsetof(struct j_counters, frames_free), offsetof(struct abi_counters, frames_free));
 SAME(J_SYS_THREAD_READ_REGS, ABI_THREAD_READ_REGS);
 SAME(J_SYS_THREAD_WRITE_REGS, ABI_THREAD_WRITE_REGS);
+SAME(J_SYS_IPC_BUFFER, ABI_IPC_BUFFER);
+SAME(J_MSG_WORDS, JOIST_MSG_WORDS);
+SAME(J_WORDS_SET(1), 1ull << ABI_LEN_SHIFT);
+SAME(J_WORDS(ABI_LOST_BIT | J_WORDS_SET(512)), 512);
+SAME(J_LOST(ABI_LOST_BIT), 1);
 /* The register record, field for field. */
 SAME(sizeof(struct j_thread_regs), sizeof(struct joist_regs));
 SAME(offsetof(struct j_thread_regs, tls), offsetof(struct joist_regs, tls));

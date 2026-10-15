@@ -1405,3 +1405,34 @@ benchmark gate is unchanged by it (348, 1 352 and 888 cycles against 384,
 `make check` in `kernel/`: 50 host tests in five builds, freestanding,
 `clang-tidy`, `scan-build`, both boots, every self-test, the gate.
 
+### Step 10, part 2: the IPC buffer, which was missing (2026-10-15)
+
+Writing the exit record turned up a gap: the plan's scope (choice 8, and
+the table under *Scope*) has "the 4 KiB IPC buffer", from 0001's
+amendment (four registers, plus up to a page of words for MIG's inline
+data and path names), and it had not been built. Messages carried four
+registers and two capabilities, nothing more. Built now, model first
+(`docs/abi.md`, *Messages*):
+
+- **Core:** a thread's registered buffer (`joist_ipc_buffer`); a message's
+  word count, checked at the send (at most 512, and a buffer to take them
+  from) and copied at delivery through a new hook, `copy_msg`, since the
+  core holds no user memory; words that can't be placed arrive as none,
+  marked lost, never an error, as with capabilities. Five unit tests with a
+  hook that records what it was asked (`model/test/test_buffer.c`), six
+  mutations, all caught.
+- **Kernel:** call 72 (`ipc_buffer`); the word count in `R9`, bits 48-57,
+  and the lost mark in bit 63; the copy through the direct map, one page
+  each way, checked user-readable at the sender and user-writable at the
+  receiver. One host test, two mutations, both caught.
+- **Tests:** ping sends its whole buffer with every call and checks that
+  pong sent it back complemented: 20 000 round trips between two address
+  spaces, on one CPU, on 4 real ones, and on the checking kernel (three
+  self-tests). The benchmark gained a line: the same round trip with the
+  full 4 KiB each way, about 2 740 cycles against 1 370 without (on the
+  P53, under KVM in the build VM, measured while another job ran there).
+
+The copy is a loop of 64-bit words; a string move might be quicker, and
+the copy is skipped when there are no words. Bulk transfer beyond a page
+stays 0006's grants (Phase 5).
+

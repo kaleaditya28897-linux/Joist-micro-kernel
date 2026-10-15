@@ -59,4 +59,7 @@ abi-write-regs-not-exact @@ sys/abi.c @@ env->exact[k->obj[joist__slot_c(k, cs, 
 # Phase 3's exit: the counters.
 abi-counters-anyone @@ sys/abi.c @@         if (k->root != cs + 1u) { @@         if (k->root != cs + 1u && cs > JOIST_MAX_CSPACES) {
 abi-counters-threads-wrong @@ sys/abi.c @@             c.threads += k->th[i].state != JOIST_T_FREE; @@             c.threads += k->th[i].state == JOIST_T_RUNNING;
+# Phase 3's exit: the IPC buffer in the encoding, and the kernel's copy.
+abi-len-dropped @@ sys/abi.c @@     m->len = (uint32_t)((r->r[ABI_R9] >> ABI_LEN_SHIFT) & ABI_LEN_MASK); @@     m->len = 0;
+abi-lost-unreported @@ sys/abi.c @@                          (th->msg.lost ? ABI_LOST_BIT : 0); @@                          0;
 

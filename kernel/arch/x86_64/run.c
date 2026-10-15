@@ -375,6 +375,33 @@ static void hk_unmap(void *ctx, uint32_t s, uint64_t va, uint64_t npages)
     others_leave(c, s); /* and no other CPU keeps them past this point */
 }
 
+/* The IPC buffer's words, from one space to another (the core's copy_msg
+ * hook). Each buffer is one page-aligned page, and a message at most a
+ * page: the sender's must be mapped readable by user mode, the receiver's
+ * writable, or nothing is copied. Through the direct map, with no switch
+ * of address space. */
+static int hk_copy_msg(void *ctx, uint32_t from_space, uint64_t from_va, uint32_t to_space,
+                       uint64_t to_va, uint32_t words)
+{
+    (void)ctx;
+    uint64_t from_pa;
+    uint64_t to_pa;
+    unsigned from_perms;
+    unsigned to_perms;
+    if (words == 0 || words > JOIST_MSG_WORDS ||
+        vm_translate(&vspace[from_space], from_va, &from_pa, &from_perms) != KERR_OK ||
+        vm_translate(&vspace[to_space], to_va, &to_pa, &to_perms) != KERR_OK ||
+        (from_perms & VM_USER) == 0 || (to_perms & (VM_USER | VM_W)) != (VM_USER | VM_W)) {
+        return 0;
+    }
+    const uint64_t *from = to_ptr(NULL, from_pa);
+    uint64_t *to = to_ptr(NULL, to_pa);
+    for (uint32_t i = 0; i < words; i++) {
+        to[i] = from[i];
+    }
+    return 1;
+}
+
 static void save(uint32_t t, const struct trap_frame *tf);
 
 /* The core is about to stop or destroy thread t, or read or write its
@@ -702,7 +729,7 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     K.preempt = RUN_PREEMPT_SLOTS;
     K.hooks = (struct joist_hooks){
         .space_new = hk_space_new, .space_gone = hk_space_gone, .map = hk_map, .unmap = hk_unmap,
-        .off_cpu = hk_off_cpu};
+        .off_cpu = hk_off_cpu, .copy_msg = hk_copy_msg};
     joist_cspace root;
     if (joist_boot(&K, ROOT_BUDGET, &root) != JOIST_OK) {
         return "the core refused to boot";

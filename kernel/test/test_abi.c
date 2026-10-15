@@ -486,3 +486,51 @@ JT_TEST(abi_debug_counters)
     JT_CHECK(clean());
 }
 
+/* ---- Phase 3's exit: the IPC buffer's words, through the registers ---- */
+
+static int copy_calls;
+static int copy_ok(void *ctx, uint32_t fs, uint64_t fva, uint32_t ts, uint64_t tva, uint32_t words)
+{
+    (void)ctx;
+    (void)fs;
+    (void)fva;
+    (void)ts;
+    (void)tva;
+    (void)words;
+    copy_calls++;
+    return 1;
+}
+
+JT_TEST(abi_ipc_buffer_words_in_r9)
+{
+    setup();
+    k.hooks.copy_msg = copy_ok;
+    copy_calls = 0;
+    joist_thread c;
+    joist_thread s;
+    JT_REQUIRE(joist_thread_create(&k, root, &c) == JOIST_OK);
+    JT_REQUIRE(joist_thread_create(&k, root, &s) == JOIST_OK);
+    JT_REQUIRE(joist_obj_create(&k, root, JOIST_OBJ_ENDPOINT, 0) == JOIST_OK);
+    JT_CHECK(sys(c, ABI_IPC_BUFFER, 0x20001, 0, 0, 0) == ABI_DONE && k.th[c].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    JT_CHECK(sys(c, ABI_IPC_BUFFER, 0x20000, 0, 0, 0) == ABI_DONE && k.th[c].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(sys(s, ABI_IPC_BUFFER, 0x30000, 0, 0, 0) == ABI_DONE && k.th[s].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(s, ABI_RECV, 0, JOIST_FOREVER, 0, 0) == ABI_WAITING);
+    /* 513 words: more than a buffer holds; refused at the send. */
+    k.th[c].regs.r[ABI_R9] = 513ull << ABI_LEN_SHIFT;
+    JT_CHECK(sys(c, ABI_CALL, 0, JOIST_FOREVER, 0, 0) == ABI_DONE && k.th[c].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    /* 300 words: they go, and the receiver's R9 says how many. */
+    k.th[c].regs.r[ABI_R9] = 300ull << ABI_LEN_SHIFT;
+    JT_CHECK(sys(c, ABI_CALL, 0, JOIST_FOREVER, 0, 0) == ABI_WAITING && copy_calls == 1);
+    abi_complete(&env, s);
+    JT_CHECK(((k.th[s].regs.r[ABI_R9] >> ABI_LEN_SHIFT) & ABI_LEN_MASK) == 300 &&
+             (k.th[s].regs.r[ABI_R9] & ABI_LOST_BIT) == 0);
+    /* The reply's words lost (the caller dropped its buffer): bit 63. */
+    k.th[c].ipc_buf = 0;
+    k.th[s].regs.r[ABI_R9] = 5ull << ABI_LEN_SHIFT;
+    JT_CHECK(sys(s, ABI_REPLY, 0, 0, 0, 0) == ABI_DONE && k.th[s].regs.r[ABI_RAX] == JOIST_OK);
+    abi_complete(&env, c);
+    JT_CHECK((k.th[c].regs.r[ABI_R9] & ABI_LOST_BIT) != 0 &&
+             ((k.th[c].regs.r[ABI_R9] >> ABI_LEN_SHIFT) & ABI_LEN_MASK) == 0);
+    JT_CHECK(clean());
+}
+

@@ -50,7 +50,7 @@ enum {
     J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
-    J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS
+    J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER
 };
 
 /* Every register a call takes or returns. */
@@ -94,9 +94,20 @@ static inline uint64_t j_sys4(uint64_t nr, uint64_t a0, uint64_t a1, uint64_t a2
  * 4-bit rights mask). badge is set on receipt. */
 struct j_msg {
     uint64_t r[4];
-    uint64_t caps;
+    uint64_t caps;  /* the capabilities, and the buffer's word count (J_WORDS) */
     uint64_t badge;
 };
+/* The IPC buffer (docs/abi.md, *Messages*): up to J_MSG_WORDS words of the
+ * thread's buffer go with a message; their number shares R9 with the
+ * capabilities. On receipt, J_WORDS(caps) words arrived in the receiver's
+ * buffer, and J_LOST(caps) says words were sent that couldn't be placed. */
+#define J_MSG_WORDS       512u
+#define J_WORDS_SET(n)    ((uint64_t)(n) << 48)
+#define J_WORDS(caps)     ((unsigned)(((caps) >> 48) & 0x3ffu))
+#define J_LOST(caps)      ((unsigned)((caps) >> 63))
+/* Register this thread's IPC buffer: a page-aligned page of its own, or
+ * NULL for none. */
+static inline uint64_t j_ipc_buffer(void *page);
 #define J_CAPS1(slot, mask) (1u | (uint64_t)(slot) << 2 | (uint64_t)(mask) << 18)
 #define J_CAPS_COUNT(caps)  ((unsigned)((caps) & 3u))
 #define J_CAPS_SLOT(caps, i) ((unsigned)(((caps) >> (2u + 20u * (i))) & 0xffffu))
@@ -135,6 +146,11 @@ static inline uint64_t j_reply_recv(uint64_t ep, struct j_msg *m, uint64_t timeo
 static inline uint64_t j_recv_slots(uint64_t s0, uint64_t s1, uint64_t n)
 {
     return j_sys4(J_SYS_RECV_SLOTS, s0, s1, n, 0);
+}
+
+static inline uint64_t j_ipc_buffer(void *page)
+{
+    return j_sys4(J_SYS_IPC_BUFFER, (uint64_t)(uintptr_t)page, 0, 0, 0);
 }
 
 /* Capabilities and objects. */

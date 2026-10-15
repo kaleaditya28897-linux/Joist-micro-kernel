@@ -159,8 +159,22 @@ the thread that saved into it.
 
 **Messages** carry 4 message registers of 64 bits, and up to one 4 KiB page
 through the per-thread IPC buffer, which the kernel copies thread to thread;
-bulk data uses 0006's shared-memory grants (0001 amendment, item 1). The
-model carries the 4 registers.
+bulk data uses 0006's shared-memory grants (0001 amendment, item 1).
+
+**The IPC buffer** (Phase 3's exit). A thread registers one page of its own
+as its buffer (`ipc_buffer`, a page-aligned user address, or 0 for none;
+`E_RANGE` otherwise). A message then carries `len` words (0 to 512) from
+the start of the sender's buffer, copied by the kernel into the start of
+the receiver's at delivery, alongside the registers and capabilities; a
+reply the same way back. At the send, `len` over 512, or words with no
+buffer registered, are `E_RANGE` with nothing sent (like a bad capability,
+the reply capability kept). At delivery the words are read from the
+sender's buffer as it is then (a queued sender's included), and if they
+can't be placed (the receiver has no buffer, or either page isn't mapped as
+it must be: readable by the sender, writable by the receiver) the message
+still arrives, with `len` 0 and a *lost* mark: as with a capability that
+can't be placed, never an error for either side. Words beyond `len` in the
+receiver's buffer are left as they were.
 
 **Capability transfer** (Phase 3 step 3; closes open item 1). A message
 names up to **2** capabilities in the sender's space, each with a rights
@@ -450,14 +464,14 @@ the dispatcher works on that record alone.
 |---|---|
 | In | `RAX` the call number; `RDI`, `RSI`, `RDX`, `R10`, `R8` the arguments, in the order the tables above list them; `R12`-`R15` the four message registers; `R9` the capabilities a message carries |
 | Out | `RAX` the result code (0 is `OK`); `RDX` a badge or returned value (the badge of a received message, `Wait`'s bits, `cap_read`'s type and rights, `task_descendant`'s id, `nosenders_next`'s badge); `R12`-`R15` a received message; `R9` where received capabilities landed; every other register is the caller's (the `syscall` instruction itself clobbers `RCX` and `R11`) |
-| `R9` | bits 0-1 the count; per position *i* (0, 1) a 16-bit slot at bit 2 + 20*i* and a 4-bit rights mask at bit 18 + 20*i*; slot `0xffff` is "none" (`JOIST_SLOT_NONE` on receipt; out of range if sent) |
+| `R9` | bits 0-1 the count; per position *i* (0, 1) a 16-bit slot at bit 2 + 20*i* and a 4-bit rights mask at bit 18 + 20*i*; slot `0xffff` is "none" (`JOIST_SLOT_NONE` on receipt; out of range if sent). Bits 48-57 the IPC buffer's word count, sending and received; on receipt bit 63 the *lost* mark |
 
 Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
 `Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-27 capabilities and
 the table, 30-38 tasks and threads, 40-42 frames and mappings, 50-53
 scheduling contexts, 60-65 destruction, ancestry and lifetime
 notifications, 70-71 a thread's registers (`thread_read_regs`,
-`thread_write_regs`). `thread_spawn` takes the new thread's pc and sp, so it
+`thread_write_regs`), 72 `ipc_buffer`. `thread_spawn` takes the new thread's pc and sp, so it
 starts where its creator says; `cap_read` also returns a frame's size in
 pages in `R10`. A slot argument wider than 32 bits is out of range, never
 truncated into a valid slot. A call that blocks gets its outputs written

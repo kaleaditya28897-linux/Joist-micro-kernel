@@ -11,6 +11,8 @@
  * - two tasks, the server with a scheduling context of its own, above the
  *   client's: every call and reply is a change of context for the
  *   scheduler to make;
+ * - two tasks, the server passive, with the whole 4 KiB IPC buffer
+ *   carried both ways;
  * - on more than one CPU, the first again while every other CPU makes
  *   system calls as fast as it can: the kernel lock, contended. */
 #include "../lib/loader.h"
@@ -119,6 +121,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     measure(0, 0, 1);
     measure(1, 1, 1);
     measure(2, 0, 0);
+    measure(4, 0, 1); /* the IPC buffer, full, both ways (Phase 3's exit) */
     if (ncpus > 1) {
         /* The kernel lock under contention (decision 0016 asks for its cost
          * on 2 and 4 CPUs): the first measurement again while a thread on

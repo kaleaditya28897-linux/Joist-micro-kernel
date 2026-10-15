@@ -39,6 +39,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # Phase 3 step 4: the root task loads pong and ping from boot modules.
     pingpong) kextra=""; root=root; mods="pong ping" ;;
     pingpong-long) kextra=""; root=root; mods="pong ping"; uextra="-DPING_ROUNDS=200000u"; ubuild=build/long ;;
+    pingpong-buf) kextra=""; root=root; mods="pong ping"; uextra="-DPING_WORDS=512u -DPING_ROUNDS=20000u"; ubuild=build/buf ;;
     ubsan-pingpong) kextra="$ub"; root=root; mods="pong ping" ;;
     # Phase 3 step 5: the scheduler test's root task and its workers.
     sched) kextra=""; root=schedroot; mods="worker" ;;
@@ -206,6 +207,13 @@ run chk-kvm-smp4-smp 1 "smp: all ok"
 run chk-kvm-smp4-fault 1 "fault: all ok"
 run chk-kvm-smp2-pingpong 1 "ping: 1000 round trips ok"
 run chk-kvm-smp4-pingpong 1 "ping: 1000 round trips ok"
+# Phase 3's exit: the IPC buffer. Ping sends its whole buffer (512 words)
+# with every call and gets it back complemented, between two address
+# spaces: on one CPU, on 4 real ones, and on the checking kernel.
+run pingpong-buf 1 "ping: 20000 round trips ok, 512 words of the IPC buffer each way each time" \
+    "root task exited with code 0"
+run kvm-smp4-pingpong-buf 1 "ping: 20000 round trips ok, 512 words"
+run chk-kvm-smp2-pingpong-buf 1 "ping: 20000 round trips ok, 512 words"
 # Phase 3's exit: no kernel memory growth (user/growroot). Rounds of tasks,
 # threads, objects, capabilities and mappings made and destroyed, every
 # fixed table filled to E_NOMEM, cycles of tasks reaped, children making

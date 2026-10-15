@@ -146,3 +146,10 @@ smp-resume-no-flag @@ ../kernel/core/fault.c @@     k->resched = 1; /* it can ru
 smp-off-cpu-keeps-mark @@ ../kernel/core/sched.c @@     k->on_cpu[cpu] = 0; /* off it, at both ends */ @@     (void)cpu;
 smp-suspend-stays-on-cpu @@ ../kernel/core/fault.c @@     joist__off_cpu(k, t); /* stopped means not on a CPU either */ @@     (void)t;
 
+# Phase 3's exit: the IPC buffer (test_buffer.c).
+buf-no-length-check @@ ../kernel/core/ipc.c @@ if (m->len > JOIST_MSG_WORDS || (m->len != 0 && buf == 0)) { @@ if (m->len != 0 && buf == 0) {
+buf-words-without-buffer @@ ../kernel/core/ipc.c @@ if (m->len > JOIST_MSG_WORDS || (m->len != 0 && buf == 0)) { @@ if (m->len > JOIST_MSG_WORDS || (m->len != 0 && buf == 0 && m->len == 0)) {
+buf-receiver-unchecked @@ ../kernel/core/ipc.c @@ int ok = from_buf != 0 && r->ipc_buf != 0 && joist__usable(k, r->cs); @@ int ok = from_buf != 0 && joist__usable(k, r->cs);
+buf-unaligned-accepted @@ ../kernel/core/ipc.c @@     if (va % JOIST_PAGE_SIZE != 0 || va / JOIST_PAGE_SIZE >= JOIST_USER_PAGES) { @@     if (va / JOIST_PAGE_SIZE >= JOIST_USER_PAGES) {
+buf-sender-now-not-then @@ ../kernel/core/ipc.c @@ deliver(k, k->th[s].cs, k->th[s].ipc_buf, t, &k->th[s].msg); @@ deliver(k, k->th[s].cs, k->th[t].ipc_buf, t, &k->th[s].msg);
+buf-copy-failure-ignored @@ ../kernel/core/ipc.c @@             out.lost = 1; @@             (void)out;

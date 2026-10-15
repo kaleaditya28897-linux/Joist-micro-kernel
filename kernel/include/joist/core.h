@@ -66,6 +66,7 @@
 #endif
 /* Pages in the user half of an address space (x86_64: 2^47 bytes of 4 KiB). */
 #define JOIST_USER_PAGES (1ull << 35)
+#define JOIST_PAGE_SIZE 4096u /* bytes in a page: addresses that the core sees in bytes */
 #ifndef JOIST_MAX_DEADNAMES
 #define JOIST_MAX_DEADNAMES 32u
 #endif
@@ -291,6 +292,12 @@ struct joist_hooks {
      * no CPU; the kernel ignores it for its own CPU's thread, whose
      * registers it has already. */
     void (*off_cpu)(void *ctx, uint32_t t, uint32_t cpu);
+    /* Copy `words` 64-bit words of a message from the buffer at from_va in
+     * one space to the buffer at to_va in another: 1 if done, 0 if it
+     * can't be (a page not mapped as it must be), then nothing written.
+     * Bounded by JOIST_MSG_WORDS. NULL in the host model: copied. */
+    int (*copy_msg)(void *ctx, uint32_t from_space, uint64_t from_va, uint32_t to_space,
+                    uint64_t to_va, uint32_t words);
 };
 /* Pages one mapping may span: one page table (x86_64: 512 pages, 2 MiB). A
  * mapping lies within one such aligned region, so it needs at most one table
@@ -310,6 +317,11 @@ struct joist_hooks {
 #define JOIST_FAULT_OTHER  5u
 #define JOIST_FAULT_RESUME 0u
 
+/* The IPC buffer (0001 amendment, item 1; Phase 3's exit): a message can
+ * carry up to this many 64-bit words beyond its registers, from the
+ * sender's buffer to the receiver's, one 4 KiB page each. */
+#define JOIST_MSG_WORDS 512u
+
 struct joist_msg {
     uint64_t r[JOIST_MSG_REGS];
     /* Capability transfer. Sending: ncaps (at most JOIST_MSG_CAPS)
@@ -324,6 +336,14 @@ struct joist_msg {
     uint32_t ncaps;
     joist_slot cap[JOIST_MSG_CAPS];
     joist_rights mask[JOIST_MSG_CAPS];
+    /* The IPC buffer. Sending: len words (at most JOIST_MSG_WORDS) from the
+     * sender's buffer, which must be registered. Received: len the words
+     * that arrived in the receiver's buffer; lost set (and len 0) if words
+     * were sent and couldn't be placed (the receiver has no buffer, or one
+     * of the two isn't mapped as it must be). Like a capability that can't
+     * be placed, never an error for either side. */
+    uint32_t len;
+    uint8_t lost;
 };
 
 typedef uint32_t joist_thread;
@@ -371,6 +391,8 @@ struct joist_thread_rec {
      * is blocked in a fault call now. */
     uint32_t fault_slot;
     uint8_t faulting;
+    /* Its IPC buffer: a page-aligned user address, 0 for none. */
+    uint64_t ipc_buf;
     /* The CPU this thread is on, plus one (0: none): the one that last
      * chose it and hasn't chosen another since. A thread is on at most one
      * CPU, and no other CPU chooses it meanwhile (I13; step 9). */
@@ -533,6 +555,12 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot ep, uint
  * checked at delivery, where a bad or occupied one just means that
  * capability doesn't arrive. JOIST_E_RANGE (thread, or n too big),
  * JOIST_E_STATE (not running). O(1). */
+/* Thread t registers its IPC buffer: a page-aligned address in the user
+ * half (JOIST_USER_PAGES), or 0 for none. Checked again only when a
+ * message is copied (the hook). JOIST_E_RANGE (not aligned, or past the
+ * user half), JOIST_E_RANGE/JOIST_E_STATE (thread). O(1). */
+joist_err joist_ipc_buffer(struct joist_kernel *k, joist_thread t, uint64_t va);
+
 joist_err joist_recv_slots(struct joist_kernel *k, joist_thread t, const joist_slot *slots,
                            uint32_t n);
 joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist_msg *m);

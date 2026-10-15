@@ -48,6 +48,7 @@ static void msg_in(const struct joist_regs *r, struct joist_msg *m)
         m->r[i] = r->r[ABI_R12 + i];
     }
     abi_caps_unpack(r->r[ABI_R9], m);
+    m->len = (uint32_t)((r->r[ABI_R9] >> ABI_LEN_SHIFT) & ABI_LEN_MASK);
 }
 
 /* A finished receive's outputs, from the thread's record. */
@@ -59,7 +60,9 @@ static void outputs(struct joist_kernel *k, uint32_t t, joist_err e)
     for (uint32_t i = 0; i < JOIST_MSG_REGS; i++) {
         th->regs.r[ABI_R12 + i] = th->msg.r[i];
     }
-    th->regs.r[ABI_R9] = abi_caps_pack(&th->msg);
+    th->regs.r[ABI_R9] = abi_caps_pack(&th->msg) |
+                         (uint64_t)(th->msg.len & ABI_LEN_MASK) << ABI_LEN_SHIFT |
+                         (th->msg.lost ? ABI_LOST_BIT : 0);
 }
 
 void abi_complete(struct abi_env *env, uint32_t t)
@@ -284,6 +287,9 @@ int abi_syscall(struct abi_env *env, uint32_t t)
         }
         break;
     }
+    case ABI_IPC_BUFFER:
+        e = joist_ipc_buffer(k, t, a0);
+        break;
     case ABI_THREAD_READ_REGS: {
         /* The capability first, then the caller's memory: a record that
          * can't be written whole is E_RANGE and nothing is written. */
