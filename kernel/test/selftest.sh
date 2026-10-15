@@ -64,6 +64,9 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     fault) kextra=""; root=faultroot; mods="faulter" ;;
     ubsan-fault) kextra="$ub"; root=faultroot; mods="faulter" ;;
     smp) kextra=""; root=smproot; mods="worker" ;;
+    # Phase 3's exit: the memory-growth test (fewer rounds under emulation).
+    grow) kextra=""; root=growroot; mods="fuzzchild"; uextra="-DGROW_ROUNDS=8u"; ubuild=build/grow8 ;;
+    grow40) kextra=""; root=growroot; mods="fuzzchild" ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -83,7 +86,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $log; fail=1
     fi
@@ -108,6 +111,11 @@ run sysfuzz 1 "sysfuzz: done" "registers preserved" "root task exited with code 
 run sysrethole 7 "syscall returning to non-canonical 0x0000800000000000"
 # Step 8: the double fault arrives on its own stack (IST1).
 run 7 5 "EXCEPTION 8 (#DF double fault)"
+# Phase 3's exit: a kernel stack that overflows hits its guard page (the
+# fault, with no stack to be taken on, becomes the double fault); and the
+# stack protector catches a write past a protected function's array.
+run 8 5 "selftest: kernel stack overflow" "EXCEPTION 8 (#DF double fault)"
+run 9 5 "selftest: stack smash" "STACK SMASHED"
 # Step 8: the kernel's UBSan build (trap mode): a deliberate signed overflow is
 # named, and the normal root task and the fuzzer run clean under it.
 run ubsan-6 5 "UBSAN: signed add overflow (kind 0)"
@@ -198,4 +206,13 @@ run chk-kvm-smp4-smp 1 "smp: all ok"
 run chk-kvm-smp4-fault 1 "fault: all ok"
 run chk-kvm-smp2-pingpong 1 "ping: 1000 round trips ok"
 run chk-kvm-smp4-pingpong 1 "ping: 1000 round trips ok"
+# Phase 3's exit: no kernel memory growth (user/growroot). Rounds of tasks,
+# threads, objects, capabilities and mappings made and destroyed, every
+# fixed table filled to E_NOMEM, cycles of tasks reaped, children making
+# system calls at random; the kernel's counters (debug_counters) must be
+# where they were after the first round, every round. On one emulated CPU
+# (8 rounds), on 4 real ones (40), and on the checking kernel.
+run grow 1 "grow: all ok" "root task exited with code 0"
+run kvm-smp4-grow40 1 "cpus in use: 4" "grow: all ok"
+run chk-kvm-smp4-grow 1 "grow: all ok"
 exit $fail

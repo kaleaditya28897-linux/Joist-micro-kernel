@@ -47,7 +47,7 @@ KSIZES := -DJOIST_MAX_OBJECTS=1024u -DJOIST_MAX_MAPPINGS=512u
 
 # §13's kernel flags.
 KFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding -nostdlib -fno-builtin \
-          -fno-stack-protector -fno-pic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only \
+          -fstack-protector-strong -fno-pic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only \
           -O2 -g $(WARN) $(KSIZES)
 
 SANITIZERS := asan ubsan msan tsan

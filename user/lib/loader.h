@@ -58,8 +58,47 @@ static uint64_t slot_new(void)
     return next_slot++;
 }
 
-/* One page of memory, as a frame of its own: split off the pool. */
+/* Pages handed out, in order, and pages given back (ld_mark, ld_release):
+ * a root task that makes and destroys tasks over and over reuses their
+ * pages rather than splitting the pool further each time (the memory-growth
+ * test needs its own use to stay level). */
+#define LD_LOG 2048u
+static uint64_t ld_log[LD_LOG];
+static uint32_t ld_nlog;
+static uint64_t ld_free[LD_LOG];
+static uint32_t ld_nfree;
+
+static uint64_t page_split(void);
+
+/* One page of memory, as a frame of its own: one given back, or split off
+ * the pool. */
 static uint64_t page_alloc(void)
+{
+    uint64_t p = ld_nfree != 0 ? ld_free[--ld_nfree] : page_split();
+    if (ld_nlog == LD_LOG) {
+        die("more pages handed out than the loader keeps track of");
+    }
+    ld_log[ld_nlog++] = p;
+    return p;
+}
+
+/* Where the pages handed out so far end. */
+static __attribute__((unused)) uint32_t ld_mark(void)
+{
+    return ld_nlog;
+}
+
+/* Every page handed out since `mark` is free again. The caller has made
+ * sure none is mapped any more (the tasks they went to are destroyed, and
+ * its own mappings undone). */
+static __attribute__((unused)) void ld_release(uint32_t mark)
+{
+    while (ld_nlog > mark) {
+        ld_free[ld_nfree++] = ld_log[--ld_nlog];
+    }
+}
+
+static uint64_t page_split(void)
 {
     while (pool_left == 0) {
         if (pool_next == pool_end) {

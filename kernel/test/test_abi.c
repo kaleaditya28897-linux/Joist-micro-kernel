@@ -450,3 +450,39 @@ JT_TEST(abi_marks_threads_whose_registers_all_count)
     JT_CHECK(clean());
 }
 
+/* ---- Phase 3's exit: the counters, for the memory-growth test ---- */
+
+JT_TEST(abi_debug_counters)
+{
+    setup();
+    uint8_t *mem = with_user_memory();
+    joist_thread r;
+    joist_thread x;
+    JT_REQUIRE(joist_thread_create(&k, root, &r) == JOIST_OK);
+    JT_REQUIRE(sys(r, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE && k.th[r].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(r, ABI_THREAD_SPAWN, 2, 3, 0x401000, 0x7000) == ABI_DONE);
+    JT_REQUIRE(sys(r, ABI_OBJ_CREATE, JOIST_OBJ_ENDPOINT, 4, 0, 0) == ABI_DONE);
+    joist_thread y; /* one waiting, so that a thread in use isn't only a running one */
+    JT_REQUIRE(joist_thread_create(&k, root, &y) == JOIST_OK);
+    JT_REQUIRE(joist_recv(&k, y, 4, JOIST_FOREVER) == JOIST_BLOCKED);
+    struct abi_counters c;
+    /* Only the root task may ask (joist_boot made `root` the root). */
+    JT_CHECK(sys(r, ABI_DEBUG_COUNTERS, UPAGE, 0, 0, 0) == ABI_DONE && k.th[r].regs.r[ABI_RAX] == JOIST_OK);
+    memcpy(&c, mem, sizeof c);
+    JT_CHECK(c.objects == k.objects_live && c.threads == 3 && c.spaces == 2 && c.pending == 0);
+    JT_CHECK(c.table_pool == 0 && c.frames_free == 0); /* no machine here */
+    x = k.obj[k.cs[root].slot[3].obj - 1u].target - 1u;
+    memset(mem, 0x5a, 64);
+    JT_CHECK(sys(x, ABI_DEBUG_COUNTERS, UPAGE, 0, 0, 0) == ABI_DONE &&
+             k.th[x].regs.r[ABI_RAX] == JOIST_E_RIGHTS && mem[0] == 0x5a);
+    /* Where the record can't be written whole: E_RANGE, nothing written. */
+    JT_CHECK(sys(r, ABI_DEBUG_COUNTERS, UPAGE + 4096u - 8u, 0, 0, 0) == ABI_DONE &&
+             k.th[r].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    /* The counts follow: the task destroyed, everything it held goes. */
+    JT_REQUIRE(sys(r, ABI_TASK_DESTROY, 2, 0, 0, 0) == ABI_DONE);
+    JT_CHECK(sys(r, ABI_DEBUG_COUNTERS, UPAGE, 0, 0, 0) == ABI_DONE);
+    memcpy(&c, mem, sizeof c);
+    JT_CHECK(c.threads == 2 && c.spaces == 1 && c.objects == k.objects_live);
+    JT_CHECK(clean());
+}
+

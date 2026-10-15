@@ -41,6 +41,7 @@ enum {
 /* Call numbers. */
 #define ABI_DEBUG_WRITE      1u
 #define ABI_EXIT             2u
+#define ABI_DEBUG_COUNTERS   3u  /* address of a struct abi_counters to fill (the root task only) */
 #define ABI_CALL             10u /* ep, timeout; message, caps */
 #define ABI_RECV             11u /* ep, timeout */
 #define ABI_REPLY            12u /* message, caps */
@@ -95,11 +96,29 @@ enum {
 uint64_t abi_caps_pack(const struct joist_msg *m);
 void abi_caps_unpack(uint64_t v, struct joist_msg *m);
 
+/* What the kernel holds right now (Phase 3's exit: the memory-growth test).
+ * Counts of what is in use in the core's fixed tables, and what is free in
+ * the kernel's own pools. A test reads it before and after work that should
+ * leave nothing behind. */
+struct abi_counters {
+    uint64_t objects;     /* live objects */
+    uint64_t threads;     /* thread records in use */
+    uint64_t spaces;      /* capability spaces alive (tasks, the root, fixtures) */
+    uint64_t leaves;      /* capability-table leaves taken from the pool */
+    uint64_t mappings;    /* mapping records in use */
+    uint64_t pending;     /* destructions not yet finished */
+    uint64_t table_pool;  /* page-table frames free in the kernel's pool */
+    uint64_t frames_free; /* frames free in the boot frame allocator */
+};
+
 struct abi_env {
     struct joist_kernel *k;
     /* The address space of space s, for the checked copies of user memory
      * (debug_write's bytes, a register record). */
     const struct vm_space *(*space_of)(void *ctx, uint32_t s);
+    /* The machine's half of abi_counters (its page-table pool and frame
+     * allocator); NULL in the host tests, where those are 0. */
+    void (*machine_counters)(void *ctx, struct abi_counters *c);
     /* Where debug_write's bytes go. */
     void (*out)(void *ctx, const uint8_t *buf, size_t n);
     void *ctx;

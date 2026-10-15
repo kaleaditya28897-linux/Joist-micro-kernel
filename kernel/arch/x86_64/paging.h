@@ -23,4 +23,8 @@ kerr paging_map_device(uint64_t va, uint64_t pa, uint64_t len);
  * after the first (Phase 3 step 9). */
 void paging_init_ap(void);
 
+/* Unmap one page of the kernel image (VM_PAGE-aligned): a guard page, under
+ * a kernel stack (Phase 3's exit). */
+kerr paging_guard(uint64_t va);
+
 #endif /* JOIST_ARCH_PAGING_H */

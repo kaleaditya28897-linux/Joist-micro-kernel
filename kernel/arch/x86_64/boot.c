@@ -148,8 +148,61 @@ static uint8_t selftest_code[16];
 
 void kmain(void);
 
-void kmain(void)
+/* The stack protector (-fstack-protector-strong, Phase 3's exit): the canary
+ * every protected function keeps below its locals, and what happens when one
+ * comes back changed. The canary is chosen in kmain before any protected
+ * function has run (kmain itself isn't protected), from RDRAND when the CPU
+ * has it, else the time stamp counter. */
+/* (The two names are the compiler's, so reserved identifiers by design.) */
+uintptr_t __stack_chk_guard = 0x595e9fbd94fda766ull; // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+__attribute__((noreturn)) void __stack_chk_fail(void); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+
+void __stack_chk_fail(void) // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 {
+    kputs("joist: STACK SMASHED: a protected function's canary changed\n");
+    kernel_finish(2);
+}
+
+static __attribute__((no_stack_protector)) uint64_t canary(void)
+{
+    uint32_t a = 1;
+    uint32_t b;
+    uint32_t c = 0;
+    uint32_t d;
+    __asm__ volatile("cpuid" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
+    (void)b;
+    (void)d;
+    uint64_t v = 0;
+    if (c & (1u << 30)) { /* RDRAND */
+        for (int tries = 0; tries < 10; tries++) {
+            uint8_t ok;
+            __asm__ volatile("rdrand %0; setc %1" : "=r"(v), "=qm"(ok));
+            if (ok) {
+                return v;
+            }
+        }
+    }
+    uint32_t lo;
+    uint32_t hi;
+    __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+    v = ((uint64_t)hi << 32 | lo) * 0x9E3779B97F4A7C15ull;
+    return v ^ (v >> 29);
+}
+
+#if defined(JOIST_SELFTEST) && JOIST_SELFTEST == 9
+/* Self-test 9: a protected function writes past its array. */
+static __attribute__((noinline)) void smash(volatile size_t n)
+{
+    char buf[16];
+    for (size_t i = 0; i < n; i++) {
+        ((volatile char *)buf)[i] = 'A';
+    }
+}
+#endif
+
+__attribute__((no_stack_protector)) void kmain(void)
+{
+    __stack_chk_guard = (uintptr_t)canary();
     serial_init();
     kputs("\njoist: boot\n");
     gdt_init();
@@ -262,6 +315,11 @@ void kmain(void)
      * becomes a double fault, which must arrive on its own stack (IST1). */
     kputs("joist: selftest: double fault\n");
     __asm__ volatile("movq $0xffff900000000000, %%rsp\n\tpushq %%rax" : : : "memory");
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 8
+    run_selftest_stack_guard();
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 9
+    kputs("joist: selftest: stack smash\n");
+    smash(64);
 #elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 5
     kputs("joist: selftest: execute data\n");
     selftest_code[0] = 0xc3; /* ret */

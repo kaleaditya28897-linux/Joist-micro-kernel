@@ -40,4 +40,7 @@ __attribute__((noreturn)) void run_user_trap(struct trap_frame *tf);
  * the boot waits for its ticks, or while a CPU sleeps. */
 void run_kernel_irq(uint64_t vector);
 
+/* Self-test 8 (boot.c): overflow a kernel stack into its guard page. */
+void run_selftest_stack_guard(void);
+
 #endif /* JOIST_ARCH_RUN_H */

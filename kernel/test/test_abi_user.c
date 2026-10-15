@@ -48,6 +48,9 @@ SAME(J_SYS_TASK_DESCENDANT, ABI_TASK_DESCENDANT);
 SAME(J_SYS_NOSENDERS_NEXT, ABI_NOSENDERS_NEXT);
 SAME(J_SYS_BIND_NOSENDERS, ABI_BIND_NOSENDERS);
 SAME(J_SYS_REQUEST_DEADNAME, ABI_REQUEST_DEADNAME);
+SAME(J_SYS_DEBUG_COUNTERS, ABI_DEBUG_COUNTERS);
+SAME(sizeof(struct j_counters), sizeof(struct abi_counters));
+SAME(offsetof(struct j_counters, frames_free), offsetof(struct abi_counters, frames_free));
 SAME(J_SYS_THREAD_READ_REGS, ABI_THREAD_READ_REGS);
 SAME(J_SYS_THREAD_WRITE_REGS, ABI_THREAD_WRITE_REGS);
 /* The register record, field for field. */

@@ -56,4 +56,7 @@ abi-handover-wrong-thread @@ sys/abi.c @@ env->handover = joist_sched_handed(k, 
 abi-handover-call-unreported @@ sys/abi.c @@ if (nr == ABI_CALL && k->th[t].sc_to != 0) { @@ if (nr == ABI_CALL && k->th[t].sc_to != 0 && nr == 0) {
 abi-spawn-not-exact @@ sys/abi.c @@             env->exact[nt] = 1; @@             (void)nt;
 abi-write-regs-not-exact @@ sys/abi.c @@ env->exact[k->obj[joist__slot_c(k, cs, slot_arg(a0))->obj - 1u].target - 1u] = 1; @@ (void)env->exact;
+# Phase 3's exit: the counters.
+abi-counters-anyone @@ sys/abi.c @@         if (k->root != cs + 1u) { @@         if (k->root != cs + 1u && cs > JOIST_MAX_CSPACES) {
+abi-counters-threads-wrong @@ sys/abi.c @@             c.threads += k->th[i].state != JOIST_T_FREE; @@             c.threads += k->th[i].state == JOIST_T_RUNNING;
 

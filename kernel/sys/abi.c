@@ -253,6 +253,37 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_REQUEST_DEADNAME:
         e = joist_request_deadname(k, cs, slot_arg(a0), slot_arg(a1));
         break;
+    case ABI_DEBUG_COUNTERS: {
+        /* For the root task alone: it says how much of the machine is in
+         * use by everyone. joist_err results, unlike calls 1 and 2. */
+        struct abi_counters c = {0};
+        e = JOIST_OK;
+        if (k->root != cs + 1u) {
+            e = JOIST_E_RIGHTS;
+            break;
+        }
+        c.objects = k->objects_live;
+        for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+            c.threads += k->th[i].state != JOIST_T_FREE;
+        }
+        for (uint32_t i = 0; i < JOIST_MAX_CSPACES; i++) {
+            c.spaces += k->cs[i].live != 0;
+        }
+        for (uint32_t i = 0; i < JOIST_MAX_LEAVES; i++) {
+            c.leaves += k->leaf[i].owner != 0;
+        }
+        for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
+            c.mappings += k->map[i].space != 0;
+        }
+        c.pending = k->npending;
+        if (env->machine_counters != NULL) {
+            env->machine_counters(env->ctx, &c);
+        }
+        if (copy_to_user(env->space_of(env->ctx, cs), a0, &c, sizeof c) != KERR_OK) {
+            e = JOIST_E_RANGE;
+        }
+        break;
+    }
     case ABI_THREAD_READ_REGS: {
         /* The capability first, then the caller's memory: a record that
          * can't be written whole is E_RANGE and nothing is written. */

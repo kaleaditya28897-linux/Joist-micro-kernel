@@ -416,6 +416,15 @@ static void hk_off_cpu(void *ctx, uint32_t t, uint32_t cpu)
 
 /* ---- the ABI's environment ---- */
 
+static struct frame_alloc *boot_frames; /* for the counters: run_start's */
+
+static void machine_counters(void *ctx, struct abi_counters *c)
+{
+    (void)ctx;
+    c->table_pool = npool;
+    c->frames_free = boot_frames != NULL ? boot_frames->nfree : 0;
+}
+
 static const struct vm_space *space_of(void *ctx, uint32_t s)
 {
     (void)ctx;
@@ -592,6 +601,36 @@ static void ap_start(struct limine_mp_info *info)
     on_own_stack((struct cpu *)(uintptr_t)info->extra_argument, ap_run);
 }
 
+#if defined(JOIST_SELFTEST) && JOIST_SELFTEST == 8
+/* Self-test 8: a CPU's kernel stack overflows into its guard page. */
+static __attribute__((noinline)) uint64_t deeper(volatile uint64_t n)
+{
+    volatile uint8_t pad[256];
+    pad[0] = (uint8_t)n;
+    return n == 0 ? pad[0] : deeper(n + 1u) + pad[0]; /* (n never comes back to 0) */
+}
+
+static __attribute__((noreturn)) void overflow(struct cpu *c)
+{
+    (void)c;
+    (void)deeper(1);
+    kernel_finish(0); /* not reached: that would be the failure */
+}
+
+void run_selftest_stack_guard(void)
+{
+    struct cpu *c = &cpus[0];
+    *c = (struct cpu){.id = 0, .cur = JOIST_MAX_THREADS, .cur_space = JOIST_MAX_CSPACES};
+    *(struct cpu **)(uintptr_t)&cpu_stack[0][CPU_STACK - 8u] = c;
+    if (paging_guard((uint64_t)(uintptr_t)&cpu_stack[0][0]) != KERR_OK) {
+        kputs("joist: selftest: could not make the guard page\n");
+        kernel_finish(3);
+    }
+    kputs("joist: selftest: kernel stack overflow\n");
+    on_own_stack(c, overflow);
+}
+#endif
+
 static __attribute__((noreturn)) void bsp_run(struct cpu *c)
 {
     __atomic_store_n(&smp_running, 1, __ATOMIC_RELEASE);
@@ -642,6 +681,16 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
 #ifdef RUN_ONE_CPU
     ncpus = 1;
 #endif
+    /* A guard page under every kernel stack: an overflow faults, and, the
+     * fault having no stack to be taken on, becomes a double fault, which
+     * arrives on a stack of its own and is reported. (Found needed at step
+     * 9, when the checking build overran a stack into the CPU records.)
+     * The usable stack is the rest, above it. */
+    for (uint32_t i = 0; i < RUN_MAX_CPUS; i++) {
+        if (paging_guard((uint64_t)(uintptr_t)&cpu_stack[i][0]) != KERR_OK) {
+            return "could not unmap a guard page under a kernel stack";
+        }
+    }
     for (uint32_t i = 0; i < POOL_FRAMES; i++) {
         if (frame_get(fa, &pool[i]) != KERR_OK) {
             return "out of frames for the page-table pool";
@@ -658,7 +707,9 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     if (joist_boot(&K, ROOT_BUDGET, &root) != JOIST_OK) {
         return "the core refused to boot";
     }
-    env = (struct abi_env){.k = &K, .space_of = space_of, .out = serial_sink, .ctx = NULL};
+    env = (struct abi_env){.k = &K, .space_of = space_of, .out = serial_sink, .ctx = NULL,
+                           .machine_counters = machine_counters};
+    boot_frames = fa;
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
         env.exact[i] = 1; /* until a thread enters by a system call */
     }

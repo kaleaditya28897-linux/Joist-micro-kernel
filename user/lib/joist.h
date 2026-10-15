@@ -38,7 +38,7 @@ enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRA
 
 /* Call numbers. */
 enum {
-    J_SYS_DEBUG_WRITE = 1, J_SYS_EXIT = 2,
+    J_SYS_DEBUG_WRITE = 1, J_SYS_EXIT = 2, J_SYS_DEBUG_COUNTERS = 3,
     J_SYS_CALL = 10, J_SYS_RECV, J_SYS_REPLY, J_SYS_REPLY_RECV, J_SYS_SIGNAL, J_SYS_WAIT,
     J_SYS_RECV_SLOTS, J_SYS_REPLY_SAVE, J_SYS_REPLY_SAVED,
     J_SYS_OBJ_CREATE = 20, J_SYS_CAP_DERIVE, J_SYS_CAP_MINT, J_SYS_CAP_DELETE, J_SYS_CAP_READ,
@@ -271,6 +271,16 @@ static inline uint64_t j_sc_bind(uint64_t sc, uint64_t thread)
 static inline uint64_t j_sc_unbind(uint64_t sc)
 {
     return j_sys4(J_SYS_SC_UNBIND, sc, 0, 0, 0);
+}
+
+/* What the kernel has in use (the root task only; kernel/sys/abi.h,
+ * struct abi_counters). J_OK, J_E_RIGHTS or J_E_RANGE. */
+struct j_counters {
+    uint64_t objects, threads, spaces, leaves, mappings, pending, table_pool, frames_free;
+};
+static inline uint64_t j_debug_counters(struct j_counters *out)
+{
+    return j_sys4(J_SYS_DEBUG_COUNTERS, (uint64_t)(uintptr_t)out, 0, 0, 0);
 }
 
 /* Debug calls (Phase 2's convention: bytes written, or a negative code). */

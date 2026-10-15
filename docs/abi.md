@@ -461,7 +461,12 @@ notifications, 70-71 a thread's registers (`thread_read_regs`,
 starts where its creator says; `cap_read` also returns a frame's size in
 pages in `R10`. A slot argument wider than 32 bits is out of range, never
 truncated into a valid slot. A call that blocks gets its outputs written
-when its thread next runs. Calls 1 (`debug_write`) and 2 (`exit`) keep
+when its thread next runs. Call 3 (`debug_counters`, Phase 3's exit) is for the root task only
+(`E_RIGHTS` from any other): it writes what the kernel has in use (live
+objects, thread records, spaces, table leaves, mappings, destructions
+pending, free page-table frames, free boot frames) to a record in the
+caller's memory (`E_RANGE` if it can't be written whole), for tests that
+look for memory the kernel keeps. Calls 1 (`debug_write`) and 2 (`exit`) keep
 Phase 2's debug convention, and an unknown number returns `-3` and changes
 nothing else.
 

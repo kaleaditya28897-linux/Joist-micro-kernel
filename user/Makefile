@@ -29,7 +29,7 @@ ASMPROGS := sysfuzz sysrethole
 # Phase 3 programs: lib/joist.h, plus the kernel's string functions (a
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
-LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot
+LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot growroot fuzzchild
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -60,6 +60,8 @@ $(eval $(call libprog,cascaderoot,$(BUILD)/elf.o))
 $(eval $(call libprog,ipcbench,))
 $(eval $(call libprog,benchroot,$(BUILD)/elf.o))
 $(eval $(call libprog,smproot,$(BUILD)/elf.o))
+$(eval $(call libprog,growroot,$(BUILD)/elf.o))
+$(eval $(call libprog,fuzzchild,))
 
 # One rule per program: a pattern can't use % twice (prog/prog.c).
 define prog

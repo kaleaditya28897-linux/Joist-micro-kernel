@@ -157,3 +157,14 @@ void paging_init_ap(void)
     __asm__ volatile("mov %0, %%cr3" : : "r"(kspace.root) : "memory");
 }
 
+kerr paging_guard(uint64_t va)
+{
+    /* The page goes from the kernel's tables, so any access to it faults;
+     * those tables are every task's upper half too (vm_share_upper). */
+    kerr e = vm_unmap(&kspace, va, VM_PAGE);
+    if (e == KERR_OK) {
+        __asm__ volatile("invlpg (%0)" : : "r"(va) : "memory");
+    }
+    return e;
+}
+

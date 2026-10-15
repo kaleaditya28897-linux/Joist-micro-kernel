@@ -1360,3 +1360,48 @@ suites passed`); 43 minutes.
 Step 9's work is done; whether the step is, turns on the O(1) run queues
 (above), which is a decision, not a test result.
 
+### Step 10, part 1: memory growth, guard pages, the stack protector (2026-10-15)
+
+From here, work is split with the Claude Code on the P53 (the user's
+instruction of 2026-10-15): it builds the fault-injection test in its own
+copy of the tree, while this part is done here.
+
+**No kernel memory growth** (the exit criterion's third part). A root-only
+call, `debug_counters` (call 3, `docs/abi.md`), reports what the kernel has
+in use: live objects, thread records, spaces, table leaves, mapping
+records, destructions pending, and what is free in its page-table pool and
+its boot frame allocator. `user/growroot` then, round after round from a
+seed, makes and destroys tasks (some with threads making system calls at
+random: `user/fuzzchild`, every call number the ABI has and some it
+hasn't), endpoints, notifications, contexts, capabilities given into tasks,
+and cycles of tasks holding each other's capabilities (reaped through
+`task_descendant`/`task_reap`); and fills the object table, the space table
+and the mapping table each to `E_NOMEM` and empties them. After a first
+round at the largest size, every counter must read the same after every
+round. Its own use is kept level: fixed working slots, and pages given back
+by the loader (`ld_mark`, `ld_release`).
+
+Result: 41 rounds on 4 CPUs under KVM, 60 cycles reaped, every counter
+unchanged; also 9 rounds emulated and on the checking kernel. A kernel
+made to leak one page table in fifty, tried once by hand, fails it at the
+second round. Three self-tests (`grow`, `kvm-smp4-grow40`,
+`chk-kvm-smp4-grow`); one host test and two mutations for the call.
+
+**Guard pages under kernel stacks.** Each CPU's kernel stack has its
+lowest page unmapped from the kernel's tables (`paging_guard`). An overflow
+faults; the fault has no stack to be taken on, so it becomes the double
+fault, which has its own and is reported. Self-test 8 overflows one on
+purpose. (Step 9 found the need: the checking build ran through a stack
+into the CPU records below it.)
+
+**The stack protector.** The kernel is built with
+`-fstack-protector-strong` (it had `-fno-stack-protector`). The canary is
+chosen in `kmain` before any protected function runs, from RDRAND where
+the CPU has it; a changed canary is reported (`STACK SMASHED`) and ends the
+run. Self-test 9 writes past a protected function's array on purpose. The
+benchmark gate is unchanged by it (348, 1 352 and 888 cycles against 384,
+1 344 and 880).
+
+`make check` in `kernel/`: 50 host tests in five builds, freestanding,
+`clang-tidy`, `scan-build`, both boots, every self-test, the gate.
+
