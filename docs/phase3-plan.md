@@ -1436,3 +1436,39 @@ The copy is a loop of 64-bit words; a string move might be quicker, and
 the copy is skipped when there are no words. Bulk transfer beyond a page
 stays 0006's grants (Phase 5).
 
+### Step 10, part 3: fault injection (2026-10-15)
+
+Built by the Claude Code on the P53, as a hand-off in parallel with parts
+1 and 2 (its report: `/srv/joist/handoff/faultinj/findings.md` on the P53),
+reviewed and applied here.
+
+`user/faultinj` (root task), `user/fiworker` (the one program every peer
+task runs, driven command by command through a shared page, `user/lib/fi.h`)
+and new wrappers in `user/lib/joist.h` (`j_reply_save`, `j_reply_saved`,
+`j_signal`, `j_wait`, `j_bind_nosenders`, `j_nosenders_next`,
+`j_request_deadname`, `j_task_descendant`). Five scenarios (a client in a
+call, a server holding a reply, a saved reply, capabilities in transit, a
+thread signalling or waiting), thirteen kill points, and every way the ABI
+offers to kill (thread kill, last thread capability, task destroy, last task
+capability, reply object or capability deleted). After each kill, what every
+survivor gets is checked against `docs/abi.md`: `E_PEER`, `E_GONE`, a
+message withdrawn, a saved reply still answered, no-senders and dead names
+each exactly once, a capability skipped at delivery, signals exactly as
+sent; every wait is bounded (nothing hangs), and after every round the
+kernel's counters must read as after the first. Seeded: a failure prints
+the seed and round, which replay alone.
+
+Results: seven self-tests (seeds 1-7, 100 rounds each: 1 CPU twice, 2 and
+4 emulated, 2 and 4 under KVM, the checking kernel on 4 under KVM), all 13
+kill points covered in each; 9 000 more rounds in longer runs (seeds 11-16,
+300 rounds, five machine shapes). **No kernel or core bug found.** Six
+bugs planted in the core by hand, one at a time, were each caught at the
+first round to reach them.
+
+Not covered, and said so: `task_reap` as a kill, suspend and abort as
+kills, death by fault, two capabilities in one message, absent or occupied
+receive slots, the IPC buffer's words when a sender dies, passive servers in
+the saved and transfer scenarios, a `ReplyRecv` answering a dead caller; and
+the one order in which a capability is deleted before its Call starts was
+never observed, so its check has never run.
+

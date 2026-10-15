@@ -3,8 +3,8 @@
 # schedroot and worker, the scheduler test: step 5; faultroot and faulter,
 # the fault test: step 6; cascaderoot, the destruction test: step 7;
 # benchroot and ipcbench, the IPC benchmark: step 8; smproot, the
-# multiprocessor test: step 9;
-# docs/phase3-plan.md),
+# multiprocessor test: step 9; faultinj and fiworker, the fault-injection
+# test: the exit; docs/phase3-plan.md),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
 ifeq ($(origin CC),default)
@@ -29,7 +29,8 @@ ASMPROGS := sysfuzz sysrethole
 # Phase 3 programs: lib/joist.h, plus the kernel's string functions (a
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
-LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot growroot fuzzchild
+LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot growroot fuzzchild \
+            fiworker faultinj
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -42,7 +43,7 @@ $(BUILD)/elf.o: ../kernel/elf/elf.c ../kernel/elf/elf.h
 	$(CC) $(UFLAGS) -I../kernel/include -I../kernel/elf -c $< -o $@
 
 define libprog
-$(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h lib/loader.h lib/work.h lib/testroot.h ../kernel/elf/elf.h
+$(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h lib/loader.h lib/work.h lib/testroot.h lib/fi.h ../kernel/elf/elf.h
 	@mkdir -p $$(@D)
 	$$(CC) $$(UFLAGS) -I../kernel/include -I../kernel/elf -c $$< -o $$@
 $(BUILD)/$(1).elf: $(BUILD)/$(1).o $(BUILD)/string.o $(2) user.ld
@@ -62,6 +63,8 @@ $(eval $(call libprog,benchroot,$(BUILD)/elf.o))
 $(eval $(call libprog,smproot,$(BUILD)/elf.o))
 $(eval $(call libprog,growroot,$(BUILD)/elf.o))
 $(eval $(call libprog,fuzzchild,))
+$(eval $(call libprog,fiworker,))
+$(eval $(call libprog,faultinj,$(BUILD)/elf.o))
 
 # One rule per program: a pattern can't use % twice (prog/prog.c).
 define prog

@@ -153,6 +153,49 @@ static inline uint64_t j_ipc_buffer(void *page)
     return j_sys4(J_SYS_IPC_BUFFER, (uint64_t)(uintptr_t)page, 0, 0, 0);
 }
 
+/* Deferred replies: the reply capability into a reply object, and the
+ * answer through it later. */
+static inline uint64_t j_reply_save(uint64_t robj)
+{
+    return j_sys4(J_SYS_REPLY_SAVE, robj, 0, 0, 0);
+}
+static inline uint64_t j_reply_saved(uint64_t robj, struct j_msg *m)
+{
+    return j_ipc(J_SYS_REPLY_SAVED, robj, 0, m);
+}
+
+/* Notifications: *bits is the word a Wait returns. */
+static inline uint64_t j_signal(uint64_t n)
+{
+    return j_sys4(J_SYS_SIGNAL, n, 0, 0, 0);
+}
+static inline uint64_t j_wait(uint64_t n, uint64_t timeout, uint64_t *bits)
+{
+    struct j_msg m = {0};
+    uint64_t e = j_ipc(J_SYS_WAIT, n, timeout, &m);
+    *bits = e == J_OK ? m.badge : 0;
+    return e;
+}
+
+/* Lifetime notifications (docs/abi.md): no-senders on an endpoint one
+ * holds RECV on, the badges it queued one at a time (0 when none is), and
+ * a dead-name registration on any endpoint. */
+static inline uint64_t j_bind_nosenders(uint64_t ep, uint64_t n)
+{
+    return j_sys4(J_SYS_BIND_NOSENDERS, ep, n, 0, 0);
+}
+static inline uint64_t j_nosenders_next(uint64_t ep, uint64_t *badge)
+{
+    struct j_regs r = {.rax = J_SYS_NOSENDERS_NEXT, .rdi = ep};
+    j_syscall(&r);
+    *badge = r.rax == J_OK ? r.rdx : 0;
+    return r.rax;
+}
+static inline uint64_t j_request_deadname(uint64_t ep, uint64_t n)
+{
+    return j_sys4(J_SYS_REQUEST_DEADNAME, ep, n, 0, 0);
+}
+
 /* Capabilities and objects. */
 static inline uint64_t j_obj_create(uint64_t type, uint64_t dst)
 {
@@ -261,6 +304,16 @@ static inline uint64_t j_task_set_fault(uint64_t task, uint64_t handler)
 static inline uint64_t j_task_destroy(uint64_t task)
 {
     return j_sys4(J_SYS_TASK_DESTROY, task, 0, 0, 0);
+}
+
+/* The first live strict descendant of the caller with an id >= from, in
+ * *id; E_EMPTY if there is none. */
+static inline uint64_t j_task_descendant(uint64_t from, uint64_t *id)
+{
+    struct j_regs r = {.rax = J_SYS_TASK_DESCENDANT, .rdi = from};
+    j_syscall(&r);
+    *id = r.rdx;
+    return r.rax;
 }
 
 /* Go on with destruction left pending (docs/abi.md, *Task destruction*): at

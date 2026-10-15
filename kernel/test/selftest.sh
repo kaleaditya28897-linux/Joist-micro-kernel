@@ -68,6 +68,10 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # Phase 3's exit: the memory-growth test (fewer rounds under emulation).
     grow) kextra=""; root=growroot; mods="fuzzchild"; uextra="-DGROW_ROUNDS=8u"; ubuild=build/grow8 ;;
     grow40) kextra=""; root=growroot; mods="fuzzchild" ;;
+    # Phase 3's exit: the fault-injection test, a build per seed
+    # (faultinj-SEED).
+    faultinj-[0-9]*) kextra=""; root=faultinj; mods="fiworker"; uextra="-DFAULTINJ_SEED=${n#faultinj-}"
+        ubuild=build/faultinj-${n#faultinj-} ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -87,7 +91,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $log; fail=1
     fi
@@ -223,4 +227,19 @@ run chk-kvm-smp2-pingpong-buf 1 "ping: 20000 round trips ok, 512 words"
 run grow 1 "grow: all ok" "root task exited with code 0"
 run kvm-smp4-grow40 1 "cpus in use: 4" "grow: all ok"
 run chk-kvm-smp4-grow 1 "grow: all ok"
+# Phase 3's exit: fault injection (user/faultinj). Clients and servers
+# killed at points chosen from a seed (in a Call, holding a reply
+# capability or a saved reply, with a capability on its way, while
+# signalling or waiting), and the survivors checked against docs/abi.md:
+# E_PEER, E_GONE, no-senders and dead names when it says and once, nothing
+# hanging, nothing left. 100 rounds a seed, a seed a run: on one emulated
+# CPU, on 2 and 4, on 2 and 4 real ones, and on the checking kernel. The
+# kill points a seed reaches are the seed's choice, so each run must reach
+# them all.
+for t in faultinj-1 faultinj-2 smp2-faultinj-3 smp4-faultinj-4 kvm-smp2-faultinj-5 \
+    kvm-smp4-faultinj-6 chk-kvm-smp4-faultinj-7; do
+    run $t 1 "faultinj: call ok" "faultinj: server ok" "faultinj: saved ok" "faultinj: transfer ok" \
+        "faultinj: signal ok" "faultinj: 13 of 13 kill points covered" "faultinj: all ok" \
+        "root task exited with code 0"
+done
 exit $fail
