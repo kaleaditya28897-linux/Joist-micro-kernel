@@ -14,10 +14,12 @@ choice big enough for the journal, how the kernel is made preemptible and
 safe on more than one CPU, is decision **0016** (accepted 2026-10-06).
 
 **Status: accepted by the project owner, 2026-10-06**, with decision 0016.
-No bare-metal machine has been named yet. Since 2026-10-06 every boot test
-also runs on pvehome's VM 112 (`docs/testbed.md`): a real Intel CPU through
-KVM, 4 vCPUs pinned to P-cores. It is where SMP is tested and the
-benchmarks are recorded, until bare metal is available (*Risks*).
+No bare-metal machine has been named yet. From 2026-10-06 every boot test
+also ran on pvehome's VM 112 (`docs/testbed.md`): a real Intel CPU through
+KVM, 4 vCPUs pinned to P-cores. Since 2026-10-14 that is the P53 (an
+i7-9850H), which boots images on its own CPU through KVM, 4 vCPUs pinned to
+4 cores (`tools/p53/boot.sh`). It is where SMP is tested and the benchmarks
+are recorded, until bare metal is available (*Risks*).
 
 ## Inputs
 
@@ -163,7 +165,7 @@ What earlier phases hand to this one:
 ## Order of work
 
 1. ~~**Decision 0016**, and this plan, accepted.~~ Done 2026-10-06.
-2. **One object layer:** move `model/src` to `kernel/core/`; `model/` builds
+2. ~~**One object layer:**~~ (done 2026-10-06; see *Progress*) move `model/src` to `kernel/core/`; `model/` builds
    against it; it compiles freestanding. Nothing changes in behaviour.
 3. ~~**The model grows**~~ (done 2026-10-09; see *Progress*) (host only): capability transfer, the two-level
    table, scheduling contexts and donation, thread state and abort, fault
@@ -177,11 +179,11 @@ What earlier phases hand to this one:
 6. ~~**Fault IPC and thread control.**~~ (done 2026-10-10; see *Progress*)
 7. ~~**Preemptible cascades** in the kernel.~~ (done 2026-10-13; see *Progress*)
 8. ~~**Fast path**, with the differential test, and **`ipcbench`**.~~ (done 2026-10-13; see *Progress*)
-9. ~~**SMP**~~ (done 2026-10-13 but for the O(1) run queues of choice 9, which are not built: see *Progress*, a departure awaiting acceptance) under 0016: start the other CPUs (Limine's MP request), per-CPU
+9. ~~**SMP**~~ (done 2026-10-13; the O(1) run queues of choice 9 were built at step 10, after the project owner withdrew their acceptance of their absence on 2026-10-15; see *Progress*) under 0016: start the other CPUs (Limine's MP request), per-CPU
    state, the kernel lock, IPIs for remote wake-up; every test again with
    2 and 4 CPUs, locally (TCG, `-smp`) and on VM 112 (KVM, 4 pinned
    vCPUs), where the CPUs really run in parallel.
-10. **Exit:** fault injection, the memory-growth test, benchmarks over 10
+10. ~~**Exit:**~~ (done 2026-10-15; see *Progress* and `docs/phase3-exit.md`) fault injection, the memory-growth test, benchmarks over 10
     runs, `-fstack-protector-strong`, the exit record.
 
 ## Risks
@@ -1472,3 +1474,133 @@ the saved and transfer scenarios, a `ReplyRecv` answering a dead caller; and
 the one order in which a capability is deleted before its Call starts was
 never observed, so its check has never run.
 
+### Step 10's first full run, at `93fb28d` (2026-10-15)
+
+`tools/dev/fullrun.sh` on joist-dev2, with the build VM busy (other work
+ran beside it): **FAILED: model/mutate kernel/check**. Everything else passed:
+6 × 161 model tests (every sanitizer), 5 × 51 kernel host tests, 54 of 54
+kernel mutations, CBMC 7 of 7, TLA+ (safe, large; the unsafe configuration
+leaks as it must), both fuzzers and their sanity checks, three kernel
+fuzzers, 70 self-tests and the benchmark gate (472, 1 376 and 920 cycles
+against baselines of 384, 1 344 and 880).
+
+- *model/mutate*: 136 caught and one **stale**, `xfer-wrong-source-space`.
+  Part 2 (the IPC buffer) changed the line it mutates, and the per-part
+  cadence runs only a part's new mutations, so it was not seen until the
+  step's full run. Repaired. `model/test/mutate.sh` now checks every
+  mutation's text whenever `MUTATE_ONLY` limits a run to some of them, so a
+  part's own run reports what it made stale. Run over the list by hand, the
+  same check found two lines the run queues had changed (`sc-mcp-ignored`,
+  `pick-ignores-budget`), repaired too.
+- *kernel/check*: `chk-kvm-smp2-pingpong-buf` ran past its 60 seconds. The
+  checking kernel checks every invariant on every exit, and 20 000 round
+  trips with 4 KiB each way took longer than that on the busy VM. The
+  checking variant now makes 2 000 (7 seconds); the 20 000-round runs stay
+  on the normal kernels (`pingpong-buf`, `kvm-smp4-pingpong-buf`).
+
+The full run is repeated at the end of the step, on the final tree.
+
+### The run queues: to be built after all (2026-10-15)
+
+The project owner first accepted the departure from choice 9 (scans in
+place of the O(1) run queues), then withdrew that the same day: "Nothing
+can be allowed to compromise our goals." The queues are built at step 10,
+with the scan kept as their specification and a differential test holding
+them to it. The owner also asked to revisit decision 0016 in the light of
+step 9's measurements of the kernel lock (*0017*).
+
+How they are built (`kernel/core/sched.c`, `kernel/include/joist/core.h`):
+
+- One queue per CPU: for each of the 256 priorities a doubly linked list
+  through the thread records, in order of place (`ready_seq`, oldest
+  first), with a bitmap of the priorities that have any. A thread goes on
+  the queue of the CPU it last ran on (`home`).
+- **I14**: a thread is on a queue exactly when it can run (running, on a
+  context, and that context has budget or was due a new period at the last
+  tick) and is on no CPU. Every operation that can change any of that, or a
+  thread's place, files the thread again (`joist__rq_sync`): a wake, a
+  block in Call, Recv or Wait, suspend and resume, a context bound,
+  unbound, lent, reclaimed, given back or freed, a place taken (`take_place`),
+  a CPU choosing or letting go, a budget spent, a yield, and the tick that
+  makes a period due.
+- Choosing for a CPU compares its own thread (if it can still run) with
+  the best head of every CPU's queue: O(CPUs × 4 bitmap words), however
+  many threads there are. `k->work` is charged that, not a scan.
+- A spent budget's new period counts from the first tick at or after its
+  refill time (`k->tick_now`); the next timer event is set for it, so the
+  kernel gets that tick. Before, the scan read the clock directly; a thread
+  now waits for the tick, which the timer gives at the same moment.
+- An insert is O(1) at either end of its list: a new place is the newest
+  (the tail), and a place taken from a thread just running is the oldest
+  (the head). A place that is neither walks back from the tail, and every
+  step is counted (`k->rq_walks`, reported by call 3 and printed by
+  `growroot` and `faultinj`). In the model that is a Call from a thread
+  waiting for a CPU; in the kernel only the thread on a CPU calls, and its
+  place is older than every equal's that was waiting when it was chosen,
+  so a walk needs an equal with a still older place put back on the same
+  queue meanwhile (one that was on another CPU, say, and lost it to a
+  higher priority). The counts say how rare that is.
+- To keep inserts at the ends, a thread resumed, or bound to a context
+  while it had none, gets a new place (behind its equals), as a woken
+  thread already did. A thread falling back to its own context when a loan
+  is reclaimed keeps its place (the reply gives it the right one: the
+  direct switch depends on that).
+- **Held for a system call** (`joist_sched_hold`, `joist_sched_settle`):
+  the kernel holds the queues from the start of each system call until
+  after the direct switch (or before the scheduler, on the slow path).
+  Meanwhile a change only notes the thread, once; the settle takes out of
+  its list each noted thread no longer in its place, then files each where
+  it now belongs. A server woken by a Call and handed the CPU is never
+  queued at all. The rendezvous paths hold them too (holds nest). A choice
+  made while held files what is noted first (`pick`), or scans (`better`,
+  which can't change anything). Each entry files only the threads it
+  changed, so its time stays bounded by its own work. I14 adds: nothing
+  held or noted between operations. The property executor runs a third of
+  its operations held, and the handover property test does what the kernel
+  does (hold, call, direct switch, settle) before comparing with the
+  scheduler.
+- **The cost**, measured on the P53 against the scan
+  (`docs/phase3-data/README.md`, *Step 10: … the run queues' cost*): the
+  first version added 352 cycles to a round trip (+26 %), since the scan
+  cost the fast path nothing while queues are kept up to date at every
+  change of state. The hold, leaving a thread in place alone, and inline
+  noting bring it to **172 cycles (+12.5 %), and 24 on a do-nothing call**.
+  Several other suspects were measured and ruled out (record layout, jump
+  alignment, the system-call layer, the fast path not being taken). This is
+  the price of choice 9's bound; with today's 32 threads the scan was
+  cheap.
+
+The scan stays, as the specification: the invariant check (I14) compares
+the queues' choice with the scan's for every CPU, so every test, property
+test, fuzz run and kernel check build is also a differential test of the
+queues. `test_runq.c` adds eight tests (queued exactly when ready, another
+CPU's queue seen, the same cost for 2 and 24 threads, no walk for calls,
+replies and yields, a walk counted when a place in the middle is taken, a
+waiting thread yielding or spent filed again, a held Call handed over
+filing nothing (and holds nesting), and a white-box test that a queued thread
+whose place or home changed is moved), and 23 mutations (`rq-*`) each have
+to be caught. Five more were written and dropped as no-ops: filing a thread
+early, or twice, is never wrong, so no test can tell. For CBMC the model is
+built with two priorities (`JOIST_PRIOS=2`); a context's priority must be
+below `JOIST_PRIOS` (`sc_create` refuses others; I11 checks it).
+
+Still O(threads), and said so: the timer's scans (`joist_tick` for
+deadlines and due periods, `joist_sched_next_event`) and destruction's
+unwinding (`sc_freed`). Choice 9 is about the choice of thread, which is on
+every kernel exit; the timer scans run once per timer event.
+
+### Step 10's final full run, and the exit (2026-10-15)
+
+On the finished tree, every suite passed: 6 × 170 model tests, 162 of 162
+model mutations, CBMC 7 of 7, TLA+, the model and kernel fuzzers, `tidy`,
+5 × 52 kernel host tests, 71 of 71 self-tests, the bench gate on its new
+baseline, 54 of 54 kernel mutations. The first pass failed only on two
+`clang-tidy` findings in the run queues (two casts fixed them; the suites
+the casts could touch were run again). The suites were split between this
+session and the P53's Claude Code, in parallel, at the owner's request;
+`docs/phase3-exit.md`, *Verification*, has the table.
+
+The owner accepted decision 0017 on 2026-10-15. Its timer change (written
+after the unlock) is the next piece of work: argued, then made the default
+once every self-test passes with it. The exit record is
+`docs/phase3-exit.md`, for the owner's review.

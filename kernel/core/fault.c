@@ -77,6 +77,7 @@ joist_err joist_thread_suspend(struct joist_kernel *k, joist_cspace cs, joist_sl
     }
     joist__off_cpu(k, t); /* stopped means not on a CPU either */
     k->th[t].state = JOIST_T_SUSPENDED;
+    joist__rq_sync(k, t); /* stopped: off the queues */
     return JOIST_OK;
 }
 
@@ -91,7 +92,9 @@ joist_err joist_thread_resume(struct joist_kernel *k, joist_cspace cs, joist_slo
         return JOIST_E_STATE;
     }
     k->th[t].state = JOIST_T_RUNNING;
-    k->resched = 1; /* it can run again */
+    k->th[t].ready_seq = ++k->ready_seq; /* ready again: behind its equals */
+    k->resched = 1;                      /* it can run again */
+    joist__rq_sync(k, t);                /* on its queue */
     return JOIST_OK;
 }
 

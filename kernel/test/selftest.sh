@@ -78,6 +78,12 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     *) kextra=""; root=$n ;;
     esac
     case $full in chk-*) kextra="$kextra $chk" ;; esac
+    # The checking kernel checks every invariant on every exit: a tenth of
+    # the IPC-buffer round trips, or it outlives the time limit on a busy
+    # build VM (it did, 2026-10-15, at the full run of step 10).
+    case $full in chk-*pingpong-buf)
+        uextra="-DPING_WORDS=512u -DPING_ROUNDS=2000u"; ubuild=build/buf-chk ;;
+    esac
     n=$full
     case $cpu in *enable-kvm*)
         [ -w /dev/kvm ] || { echo "selftest $n: SKIPPED (no /dev/kvm here; it needs the real CPU)"; return; } ;;
@@ -217,7 +223,7 @@ run chk-kvm-smp4-pingpong 1 "ping: 1000 round trips ok"
 run pingpong-buf 1 "ping: 20000 round trips ok, 512 words of the IPC buffer each way each time" \
     "root task exited with code 0"
 run kvm-smp4-pingpong-buf 1 "ping: 20000 round trips ok, 512 words"
-run chk-kvm-smp2-pingpong-buf 1 "ping: 20000 round trips ok, 512 words"
+run chk-kvm-smp2-pingpong-buf 1 "ping: 2000 round trips ok, 512 words"
 # Phase 3's exit: no kernel memory growth (user/growroot). Rounds of tasks,
 # threads, objects, capabilities and mappings made and destroyed, every
 # fixed table filled to E_NOMEM, cycles of tasks reaped, children making

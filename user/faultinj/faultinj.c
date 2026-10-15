@@ -1058,6 +1058,7 @@ static void show(const char *what, const struct j_counters *c)
     put(", pending ", c->pending);
     put(", page-table frames free ", c->table_pool);
     put(", frames free ", c->frames_free);
+    put(", run-queue walks so far ", c->rq_walks); /* (grows: not compared) */
     j_puts("\n");
 }
 

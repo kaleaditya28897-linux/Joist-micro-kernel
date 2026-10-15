@@ -534,3 +534,14 @@ JT_TEST(abi_ipc_buffer_words_in_r9)
     JT_CHECK(clean());
 }
 
+JT_TEST(abi_yield)
+{
+    setup();
+    joist_thread a;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    uint64_t before = k.th[a].ready_seq;
+    JT_CHECK(sys(a, ABI_YIELD, 0, 0, 0, 0) == ABI_DONE && k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(k.th[a].ready_seq > before);
+    JT_CHECK(clean());
+}
+

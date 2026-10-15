@@ -1,0 +1,6 @@
+ipcbench: a system call that does nothing: n=20x5000 min=307 p50=480 p99=528 worst-p50=484 max=29617 cycles (bucket 4; 12000 cycles took 11126 to 39144 counts; clock 26 to 100 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x5000 min=1451 p50=1648 p99=1688 worst-p50=1648 max=113959 cycles (bucket 4; 12000 cycles took 6772 to 9764 counts; clock 16 to 24 counts, taken off)
+ipcbench: one address space, passive server: n=20x5000 min=1174 p50=1192 p99=1204 worst-p50=1196 max=127214 cycles (bucket 4; 12000 cycles took 6922 to 6954 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x5000 min=11333 p50=13280 p99=18944 worst-p50=13632 max=163648 cycles (bucket 32; 12000 cycles took 6922 to 7634 counts; clock 18 to 20 counts, taken off)
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=2850 p50=3000 p99=3024 worst-p50=3000 max=130499 cycles (bucket 8; 12000 cycles took 7078 to 7452 counts; clock 16 to 20 counts, taken off)
+ipcbench: done

@@ -258,6 +258,7 @@ joist_err joist_wait(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         return JOIST_E_TIMEOUT;
     }
     me->state = JOIST_T_BLOCKED_WAIT;
+    joist__rq_sync(k, t); /* waiting: off the queues */
     me->deadline = joist__deadline(k, timeout);
     joist__q_push(k, obj, JOIST_Q_WAITERS, t);
     return JOIST_BLOCKED;

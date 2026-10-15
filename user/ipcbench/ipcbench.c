@@ -1,7 +1,8 @@
 /* ipcbench.c - the two ends of the IPC benchmark (Phase 3 step 8;
  * benchroot starts them, in one task or in two). What a thread is comes in
  * its start registers: RDI the role (0 the server, 1 the client, 2 a thread
- * that does nothing but make system calls), RSI the name of the measurement.
+ * that does nothing but make system calls, 3 a client for a fixed time: the
+ * scaling test's, scaleroot), RSI the name of the measurement.
  *
  * The server answers every call on the endpoint in slot 0 with the same
  * message (Recv once, then ReplyRecv: the server loop).
@@ -9,11 +10,11 @@
  * The client makes BENCH_WARMUP calls on slot 1, then BENCH_CALLS more,
  * timing each from before the call to after its return with the time stamp
  * counter (lfence; rdtsc at both ends, so the figure includes one such
- * pair, measured and taken off). The times of a segment go into a
- * histogram, which gives the segment's median and 99th percentile; what is
- * printed is the median over the segments of each, with the worst
- * segment's median beside it, and the least and greatest single time.
- * Then it tells benchroot on slot 2.
+ * pair: measured with every batch, as the ruler is, and taken off). The
+ * times of a segment go into a histogram, which gives the segment's median
+ * and 99th percentile; what is printed is the median over the segments of
+ * each, with the worst segment's median beside it, and the least and
+ * greatest single time. Then it tells benchroot on slot 2.
  *
  * Why segments: the machine this is measured on is shared, and for a few
  * tenths of a second now and then everything on it is a quarter slower.
@@ -44,7 +45,17 @@
 #define BENCH_RULER  4000u
 #define BUCKETS      4096u
 
-void _start(uint64_t role, uint64_t name);
+void _start(uint64_t role, uint64_t name, uint64_t from, uint64_t to);
+
+#ifdef BENCH_LOCK_STATS
+/* The lock study's kernel call (run.c, RUN_LOCK_STATS): op 0 counts the
+ * kernel lock's acquisitions from TSC `from` to `to`, op 1 prints them.
+ * Any other kernel refuses the number and nothing happens. */
+static inline void lock_stats(uint64_t op, uint64_t from, uint64_t to)
+{
+    (void)j_sys4(99, op, from, to, 0);
+}
+#endif
 
 static uint32_t hist[BUCKETS + 1u]; /* the last: everything longer */
 
@@ -75,6 +86,7 @@ static __attribute__((noreturn)) void serve(void)
     }
 }
 
+static uint64_t bench_name; /* RSI: which measurement this is */
 static int nothing; /* measure a system call that does nothing instead */
 
 static uint64_t once(struct j_msg *m)
@@ -146,18 +158,25 @@ static void put(const char *what, uint64_t v)
     j_putu(v);
 }
 
+/* The clock's own cost in counts, now: the least of 200 back-to-back
+ * readings. */
+static uint64_t clock_cost(void)
+{
+    uint64_t least = UINT64_MAX;
+    for (unsigned i = 0; i < 200u; i++) {
+        uint64_t t0 = work_tsc();
+        uint64_t d = work_tsc() - t0;
+        least = d < least ? d : least;
+    }
+    return least;
+}
+
 static void measure(const char *what, struct j_msg *mp)
 {
 #define m (*mp)
-    /* The clock's own cost: the least of many back-to-back readings. */
-    uint64_t clock = UINT64_MAX;
-    for (unsigned i = 0; i < 1000u; i++) {
-        uint64_t t0 = work_tsc();
-        uint64_t d = work_tsc() - t0;
-        clock = d < clock ? d : clock;
-    }
     const uint64_t cycles = 3u * BENCH_RULER;
     uint64_t least = UINT64_MAX;
+    uint64_t clock = clock_cost();
     uint64_t r0 = ruler();
     for (unsigned i = 0; i < BENCH_WARMUP; i++) {
         uint64_t t = once(&m);
@@ -178,19 +197,37 @@ static void measure(const char *what, struct j_msg *mp)
     uint64_t max = 0;
     uint64_t ruler_min = UINT64_MAX;
     uint64_t ruler_max = 0;
+    uint64_t clock_min = UINT64_MAX;
+    uint64_t clock_max = 0;
     uint64_t r = 1;
     static uint64_t p50[BENCH_SEGMENTS];
     static uint64_t p99[BENCH_SEGMENTS];
     uint64_t worst = 0;
+#ifdef BENCH_LOCK_STATS
+    if (bench_name == 3) { /* the contended measurement: the kernel lock's figures for it */
+        lock_stats(0, work_tsc(), UINT64_MAX);
+    }
+#endif
     for (unsigned seg = 0; seg < BENCH_SEGMENTS; seg++) {
         for (unsigned b = 0; b <= BUCKETS; b++) {
             hist[b] = 0;
         }
         for (unsigned i = 0; i < BENCH_CALLS; i++) {
             if (i % BENCH_BATCH == 0) {
+                /* The ruler and the clock's own cost, both in counts, both
+                 * again for every batch: counts per CPU cycle change with
+                 * the CPU's speed, and the two must be taken at the same
+                 * one. (Until 2026-10-15 the clock's cost was taken once,
+                 * at the start, where the CPU can still be coming up to
+                 * speed from idle: five times too high, taken off every
+                 * sample after, it gave the do-nothing call two clusters
+                 * of results 30 % apart.) */
                 r = ruler();
+                clock = clock_cost();
                 ruler_min = r < ruler_min ? r : ruler_min;
                 ruler_max = r > ruler_max ? r : ruler_max;
+                clock_min = clock < clock_min ? clock : clock_min;
+                clock_max = clock > clock_max ? clock : clock_max;
             }
             uint64_t t = once(&m);
             uint64_t d = (t > clock ? t - clock : 0) * cycles / r;
@@ -203,6 +240,11 @@ static void measure(const char *what, struct j_msg *mp)
         p99[seg] = quantile(99, 100, width);
         worst = p50[seg] > worst ? p50[seg] : worst;
     }
+#ifdef BENCH_LOCK_STATS
+    if (bench_name == 3) {
+        lock_stats(1, 0, 0);
+    }
+#endif
     j_puts("ipcbench: ");
     j_puts(what);
     put(": n=", BENCH_SEGMENTS);
@@ -216,15 +258,55 @@ static void measure(const char *what, struct j_msg *mp)
     put("; ", cycles);
     put(" cycles took ", ruler_min);
     put(" to ", ruler_max);
-    put(" counts; clock ", clock);
+    put(" counts; clock ", clock_min);
+    put(" to ", clock_max);
     j_puts(" counts, taken off)\n");
 #undef m
 }
 
-void _start(uint64_t role, uint64_t name)
+/* Role 3: call as fast as possible until TSC `to`, counting the round
+ * trips that start from `from` on, then report to the root on slot 2: the
+ * count; the ruler's counts summed, and how many times it was read (once
+ * every 2^16 calls, from `from` on: the CPU's clock over the window);
+ * and whether this thread started only after `from`. */
+static __attribute__((noreturn)) void timed(uint64_t from, uint64_t to)
+{
+    struct j_msg m = {.r = {1, 2, 3, 4}};
+    uint64_t late = work_tsc() >= from;
+    while (work_tsc() < from) {
+        (void)once(&m);
+    }
+    uint64_t n = 0;
+    uint64_t rsum = 0;
+    uint64_t rn = 0;
+    while (work_tsc() < to) {
+        if ((n & 0xffffu) == 0) {
+            rsum += ruler();
+            rn++;
+        }
+        m.caps = 0;
+        if (j_call(1, &m, J_FOREVER) != J_OK) {
+            j_puts("ipcbench: call failed\n");
+            j_exit(1);
+        }
+        n++;
+    }
+    m.r[0] = n;
+    m.r[1] = rsum;
+    m.r[2] = rn;
+    m.r[3] = late;
+    m.caps = 0;
+    (void)j_call(2, &m, J_FOREVER); /* tell the root */
+    j_exit(0);
+}
+
+void _start(uint64_t role, uint64_t name, uint64_t from, uint64_t to)
 {
     if (role == 0) {
         serve();
+    }
+    if (role == 3) {
+        timed(from, to);
     }
     if (role == 2) {
         for (;;) { /* keep the kernel busy from another CPU (step 9: the lock) */
@@ -232,6 +314,7 @@ void _start(uint64_t role, uint64_t name)
         }
     }
     struct j_msg m = {.r = {1, 2, 3, 4}};
+    bench_name = name;
     if (name == 4) {
         words = 512;
         if (j_ipc_buffer(buf) != J_OK) {

@@ -39,6 +39,7 @@ void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
         r->faulting = 0;
         r->state = JOIST_T_SUSPENDED;
     }
+    joist__rq_sync(k, t); /* ready: on its queue (or not, if it stopped) */
 }
 
 /* ---- endpoint queues: doubly linked through thread records, O(1) ---- */
@@ -268,6 +269,7 @@ static void mint_reply(struct joist_kernel *k, uint32_t server, uint32_t c)
 {
     k->th[c].call_seq++;
     k->th[c].state = JOIST_T_BLOCKED_REPLY; /* the Call's deadline keeps running */
+    joist__rq_sync(k, c);                   /* waiting for the reply: off the queues */
     k->th[server].reply_to = c + 1u;
     k->th[server].reply_seq = k->th[c].call_seq;
 }
@@ -365,6 +367,8 @@ static void take_place(struct joist_kernel *k, uint32_t to, uint32_t from)
 {
     k->th[to].ready_seq = k->th[from].ready_seq;
     k->th[from].ready_seq = ++k->ready_seq;
+    joist__rq_sync(k, to); /* (an older place than its list's last: a walk, if queued) */
+    joist__rq_sync(k, from);
 }
 
 /* The body of a Call, once checked: rendezvous with a waiting receiver or
@@ -375,6 +379,7 @@ static joist_err call_on(struct joist_kernel *k, uint32_t t, uint32_t obj, joist
     struct joist_object *ep = &k->obj[obj];
     struct joist_thread_rec *me = &k->th[t];
     if (ep->qkind == JOIST_Q_RECEIVERS) {
+        joist_sched_hold(k); /* the server is woken, lent a context, given a place: filed once */
         uint32_t r = joist__q_pop(k, obj);
         deliver(k, me->cs, me->ipc_buf, r, m);
         if (me->faulting) {
@@ -387,11 +392,13 @@ static joist_err call_on(struct joist_kernel *k, uint32_t t, uint32_t obj, joist
         if (me->sc_to == r + 1u) {
             take_place(k, r, t); /* a call to a passive server doesn't give up the turn */
         }
+        joist_sched_settle(k);
         return JOIST_BLOCKED;
     }
     me->msg = *m;
     me->badge = badge;
     me->state = JOIST_T_BLOCKED_SEND;
+    joist__rq_sync(k, t); /* sending: off the queues */
     joist__q_push(k, obj, JOIST_Q_SENDERS, t);
     return JOIST_BLOCKED;
 }
@@ -448,6 +455,7 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
     }
     joist__sc_giveback(k, t); /* receiving again: done with any borrowed time */
     if (k->obj[obj].qkind == JOIST_Q_SENDERS) {
+        joist_sched_hold(k);
         uint32_t s = joist__q_pop(k, obj);
         /* The capabilities are taken from the sender's space now, as they
          * are at delivery; any gone since the send are skipped. */
@@ -462,12 +470,14 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         if (k->th[s].sc_to == t + 1u) {
             take_place(k, t, s); /* serving a caller that waited: on its context, in its place */
         }
+        joist_sched_settle(k);
         return JOIST_OK;
     }
     if (timeout == 0) {
         return JOIST_E_TIMEOUT;
     }
     me->state = JOIST_T_BLOCKED_RECV;
+    joist__rq_sync(k, t); /* waiting: off the queues */
     me->deadline = joist__deadline(k, timeout);
     joist__q_push(k, obj, JOIST_Q_RECEIVERS, t);
     return JOIST_BLOCKED;
@@ -513,11 +523,13 @@ joist_err joist_reply(struct joist_kernel *k, joist_thread t, const struct joist
     uint32_t ran_on = me->run_sc;
     me->reply_to = 0; /* consumed, whatever happens next (I6) */
     me->reply_seq = 0;
+    joist_sched_hold(k); /* the caller is woken, takes its context back, and its place: filed once */
     e = deliver_reply(k, me->cs, me->ipc_buf, c, seq, m);
     if (e == JOIST_OK && ran_on != 0 && me->run_sc != ran_on &&
         k->th[c].state == JOIST_T_RUNNING && k->th[c].run_sc == ran_on) {
         take_place(k, c, t); /* the context went back with the reply: so does the turn */
     }
+    joist_sched_settle(k);
     return e;
 }
 
@@ -630,9 +642,14 @@ joist_err joist_reply_recv(struct joist_kernel *k, joist_thread t, const struct 
 void joist_tick(struct joist_kernel *k, uint64_t dt)
 {
     k->now = (k->now > JOIST_FOREVER - dt) ? JOIST_FOREVER : k->now + dt;
+    k->tick_now = k->now; /* periods that have come due count from here */
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
         JOIST_WORK(k);
         struct joist_thread_rec *r = &k->th[i];
+        if (r->state == JOIST_T_RUNNING && r->rq_on == 0 && r->cpu == 0) {
+            joist__rq_sync(k, i); /* its period came due: on its queue now */
+            continue;
+        }
         if (r->state == JOIST_T_FREE || r->state == JOIST_T_RUNNING ||
             r->deadline == JOIST_FOREVER || r->deadline > k->now) {
             continue;

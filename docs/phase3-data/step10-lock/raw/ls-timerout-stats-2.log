@@ -1,0 +1,106 @@
+campaign: 2026-10-15T10:19:42Z build VM busy during run: 0.2 %
+runiso-status: 1
+pin: qemu-system-x86: 0-11
+pin: call_rcu: 0-11
+pin: worker: 0-11
+pin: CPU 0/KVM: 2
+pin: CPU 1/KVM: 3
+pin: CPU 2/KVM: 4
+pin: CPU 3/KVM: 5
+pin: kvm-nx-lpage-re: 0-11
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe1c000), direct map at 0xffff800000000000
+joist: frames: 64774 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64511 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625077 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+scale: cpus=4 tsc_per_ms=2593364 window_ms=2000
+scale: passive k=1 pair=0 n=3745816 late=0 ruler=6989
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 1 acq 7491632 wait 349392298 hold 3740301364 hold_p50 504 hold_p99 536 wait_p50 48 wait_p99 56 fast 7491432/3740081260 slow 200/220104 idle 0/0 pick_on 200/27540 next_event 200/19704 poke_others 200/44276 tick 0/0 abi_syscall 7491632/1086423024 timer_write 200/1331074 space_switch 7491631/1247556558
+lockstats: cpu 2 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 3 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: all acq 7491632 hold_p50 504 hold_p99 536 wait_p50 48 wait_p99 56 (bucket 8 tsc counts)
+scale: passive k=1 total=3745816 per_s=1872908 window=5186728000
+scale: passive k=2 pair=1 n=1504820 late=0 ruler=7154
+scale: passive k=2 pair=0 n=1504795 late=0 ruler=7150
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 1 acq 3009679 wait 2611201198 hold 1967232554 hold_p50 640 hold_p99 784 wait_p50 848 wait_p99 992 fast 3009444/1966361344 slow 235/871210 idle 0/0 pick_on 235/61740 next_event 235/33082 poke_others 235/74998 tick 90/23620 abi_syscall 3009589/550417248 timer_write 235/1428744 space_switch 3009588/630924108
+lockstats: cpu 2 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 3 acq 3009729 wait 2616546626 hold 1958634740 hold_p50 624 hold_p99 768 wait_p50 848 wait_p99 1000 fast 3009493/1957771872 slow 236/862868 idle 0/0 pick_on 236/63622 next_event 236/28926 poke_others 236/71724 tick 88/25366 abi_syscall 3009641/563798152 timer_write 236/1470062 space_switch 3009641/536076106
+lockstats: all acq 6019408 hold_p50 632 hold_p99 776 wait_p50 848 wait_p99 1000 (bucket 8 tsc counts)
+scale: passive k=2 total=3009615 per_s=1504807 window=5186728000
+scale: passive k=3 pair=2 n=950780 late=0 ruler=7302
+scale: passive k=3 pair=1 n=950648 late=0 ruler=7286
+scale: passive k=3 pair=0 n=950572 late=0 ruler=7278
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 1901581 wait 3414885272 hold 1446861788 hold_p50 744 hold_p99 896 wait_p50 1736 wait_p99 1984 fast 1901375/1446390158 slow 206/471630 idle 0/0 pick_on 206/66732 next_event 206/31192 poke_others 206/73066 tick 21/7132 abi_syscall 1901560/442804690 timer_write 206/1413542 space_switch 1901560/399031784
+lockstats: cpu 1 acq 1901373 wait 3422507440 hold 1328661706 hold_p50 680 hold_p99 816 wait_p50 1744 wait_p99 2016 fast 1901151/1327834868 slow 222/826838 idle 0/0 pick_on 222/67462 next_event 222/41568 poke_others 222/86754 tick 78/24248 abi_syscall 1901295/394044216 timer_write 222/1376104 space_switch 1901295/348967902
+lockstats: cpu 2 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 3 acq 1901270 wait 3522975172 hold 1346480598 hold_p50 688 hold_p99 856 wait_p50 1792 wait_p99 2032 fast 1901037/1345276506 slow 233/1204092 idle 0/0 pick_on 233/62506 next_event 233/35918 poke_others 233/84802 tick 128/35644 abi_syscall 1901143/368306242 timer_write 233/1372758 space_switch 1901143/421463374
+lockstats: all acq 5704224 hold_p50 696 hold_p99 872 wait_p50 1760 wait_p99 2016 (bucket 8 tsc counts)
+scale: passive k=3 total=2852000 per_s=1426000 window=5186728000
+scale: passive k=4 pair=2 n=649359 late=0 ruler=7338
+scale: passive k=4 pair=1 n=649357 late=0 ruler=7362
+scale: passive k=4 pair=0 n=649427 late=0 ruler=7350
+scale: passive k=4 pair=3 n=649409 late=0 ruler=7382
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 1298921 wait 3988980632 hold 972283122 hold_p50 728 hold_p99 896 wait_p50 2992 wait_p99 3464 fast 1298704/971471102 slow 217/812020 idle 0/0 pick_on 217/70626 next_event 217/46662 poke_others 217/104416 tick 68/23274 abi_syscall 1298853/293163068 timer_write 217/1505508 space_switch 1298853/264471378
+lockstats: cpu 1 acq 1298886 wait 3910094574 hold 974911176 hold_p50 728 hold_p99 920 wait_p50 2928 wait_p99 3352 fast 1298667/974043528 slow 219/867648 idle 0/0 pick_on 219/81482 next_event 219/54358 poke_others 219/119682 tick 69/23568 abi_syscall 1298817/303772916 timer_write 219/1527388 space_switch 1298817/240593110
+lockstats: cpu 2 acq 1298763 wait 3831404324 hold 1132689392 hold_p50 856 hold_p99 1032 wait_p50 2864 wait_p99 3344 fast 1298525/1131960720 slow 238/728672 idle 0/0 pick_on 238/100226 next_event 238/62210 poke_others 238/124816 tick 43/14832 abi_syscall 1298720/407991942 timer_write 238/1820816 space_switch 1298720/264259074
+lockstats: cpu 3 acq 1298760 wait 3906841476 hold 1060438084 hold_p50 800 hold_p99 984 wait_p50 2920 wait_p99 3392 fast 1298532/1059686592 slow 228/751492 idle 0/0 pick_on 228/87930 next_event 228/54182 poke_others 228/122350 tick 46/16458 abi_syscall 1298714/311565300 timer_write 228/1753076 space_switch 1298714/283141894
+lockstats: all acq 5195330 hold_p50 776 hold_p99 992 wait_p50 2920 wait_p99 3400 (bucket 8 tsc counts)
+scale: passive k=4 total=2597552 per_s=1298776 window=5186728000
+scale: own-context k=1 pair=0 n=533721 late=0 ruler=6934
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 1 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 2 acq 1067443 wait 49920328 hold 1033112532 hold_p50 952 hold_p99 1016 wait_p50 48 wait_p99 56 fast 0/0 slow 1067443/1033112532 idle 0/0 pick_on 1067443/91391548 next_event 1067443/85820228 poke_others 1067443/203844394 tick 0/0 abi_syscall 1067443/169300924 timer_write 1067427/3902707706 space_switch 1067443/176557340
+lockstats: cpu 3 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: all acq 1067443 hold_p50 952 hold_p99 1016 wait_p50 48 wait_p99 56 (bucket 8 tsc counts)
+scale: own-context k=1 total=533721 per_s=266860 window=5186728000
+scale: own-context k=2 pair=0 n=455995 late=0 ruler=7350
+scale: own-context k=2 pair=1 n=456616 late=0 ruler=7366
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 913233 wait 177992410 hold 1279336170 hold_p50 1384 hold_p99 1576 wait_p50 120 wait_p99 1304 fast 0/0 slow 913233/1279336170 idle 0/0 pick_on 913233/233019446 next_event 913234/88176666 poke_others 913233/219769208 tick 0/0 abi_syscall 913233/201200410 timer_write 913230/3515425774 space_switch 913234/177344294
+lockstats: cpu 1 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 2 acq 911990 wait 266515928 hold 1232303554 hold_p50 1328 hold_p99 1520 wait_p50 120 wait_p99 1496 fast 0/0 slow 911990/1232303554 idle 0/0 pick_on 911989/160973498 next_event 911989/80751650 poke_others 911989/229344946 tick 0/0 abi_syscall 911990/189626500 timer_write 911988/3502906470 space_switch 911989/199263200
+lockstats: cpu 3 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: all acq 1825223 hold_p50 1352 hold_p99 1560 wait_p50 120 wait_p99 1440 (bucket 8 tsc counts)
+scale: own-context k=2 total=912611 per_s=456305 window=5186728000
+scale: own-context k=3 pair=2 n=448529 late=0 ruler=7325
+scale: own-context k=3 pair=1 n=448518 late=0 ruler=7350
+scale: own-context k=3 pair=0 n=448683 late=0 ruler=7297
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 897366 wait 231533966 hold 1208674590 hold_p50 1312 hold_p99 1552 wait_p50 120 wait_p99 1584 fast 0/0 slow 897366/1208674590 idle 0/0 pick_on 897365/194277424 next_event 897365/83409266 poke_others 897365/222541588 tick 0/0 abi_syscall 897365/194781702 timer_write 897362/3532238184 space_switch 897365/180787874
+lockstats: cpu 1 acq 897037 wait 236805830 hold 1246408184 hold_p50 1360 hold_p99 1544 wait_p50 120 wait_p99 1544 fast 0/0 slow 897037/1246408184 idle 0/0 pick_on 897037/202382210 next_event 897037/87244318 poke_others 897037/219031338 tick 0/0 abi_syscall 897037/201573042 timer_write 897030/3467810236 space_switch 897037/169298790
+lockstats: cpu 2 acq 0 wait 0 hold 0 hold_p50 0 hold_p99 0 wait_p50 0 wait_p99 0 fast 0/0 slow 0/0 idle 0/0 pick_on 0/0 next_event 0/0 poke_others 0/0 tick 0/0 abi_syscall 0/0 timer_write 0/0 space_switch 0/0
+lockstats: cpu 3 acq 897058 wait 167918380 hold 1324730726 hold_p50 1440 hold_p99 1648 wait_p50 112 wait_p99 1424 fast 0/0 slow 897058/1324730726 idle 0/0 pick_on 897058/245673904 next_event 897058/88323938 poke_others 897058/237124436 tick 0/0 abi_syscall 897058/190404748 timer_write 897053/3497604320 space_switch 897058/196929200
+lockstats: all acq 2691461 hold_p50 1368 hold_p99 1616 wait_p50 112 wait_p99 1520 (bucket 8 tsc counts)
+scale: own-context k=3 total=1345730 per_s=672865 window=5186728000
+scale: own-context k=4 pair=1 n=353221 late=0 ruler=7618
+scale: own-context k=4 pair=2 n=353029 late=0 ruler=7626
+scale: own-context k=4 pair=0 n=353230 late=0 ruler=7625
+scale: own-context k=4 pair=3 n=353224 late=0 ruler=7627
+lockstats: window 5186728000 tsc counts, cpus 4, lock 0 (ticket)
+lockstats: cpu 0 acq 706460 wait 1057990662 hold 1087099216 hold_p50 1528 hold_p99 1768 wait_p50 1720 wait_p99 2424 fast 0/0 slow 706460/1087099216 idle 0/0 pick_on 706460/177288322 next_event 706460/71444148 poke_others 706460/194465326 tick 0/0 abi_syscall 706460/195708716 timer_write 706460/2846307240 space_switch 706460/151688154
+lockstats: cpu 1 acq 706443 wait 1087308240 hold 1063283040 hold_p50 1504 hold_p99 1720 wait_p50 1784 wait_p99 2512 fast 0/0 slow 706443/1063283040 idle 0/0 pick_on 706443/176039828 next_event 706443/73979480 poke_others 706443/205556460 tick 0/0 abi_syscall 706443/164409956 timer_write 706436/2831738994 space_switch 706443/139730190
+lockstats: cpu 2 acq 706058 wait 1035526594 hold 1113979712 hold_p50 1568 hold_p99 1848 wait_p50 1648 wait_p99 2336 fast 0/0 slow 706058/1113979712 idle 0/0 pick_on 706058/179990912 next_event 706058/74155246 poke_others 706058/201418222 tick 0/0 abi_syscall 706058/190609150 timer_write 706049/2857138726 space_switch 706058/142485992
+lockstats: cpu 3 acq 706447 wait 1033631262 hold 1147959624 hold_p50 1608 hold_p99 1928 wait_p50 1696 wait_p99 2368 fast 0/0 slow 706447/1147959624 idle 0/0 pick_on 706446/181217126 next_event 706447/77157774 poke_others 706447/206653390 tick 0/0 abi_syscall 706447/182013730 timer_write 706444/2822078998 space_switch 706447/161256322
+lockstats: all acq 2825408 hold_p50 1552 hold_p99 1872 wait_p50 1712 wait_p99 2424 (bucket 8 tsc counts)
+scale: own-context k=4 total=1412704 per_s=706352 window=5186728000
+scale: done
+joist: root task exited with code 0 (timer ticks so far: 748)
+joist: finish code 0

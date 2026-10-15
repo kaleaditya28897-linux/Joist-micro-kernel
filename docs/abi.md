@@ -1,6 +1,6 @@
 # Joist native ABI
 
-**Status: Phase 1 draft, written from the host model** (`model/`, plan §11's
+**Status: written from the host model in Phase 1, implemented in Phase 3** (`model/`, plan §11's
 exit deliverable). Every operation below exists in the model with unit,
 property and mutation tests (`docs/phase1-plan.md`, *Progress*). This
 document fixes the **semantics**: objects, rights, operations, result codes,
@@ -8,10 +8,11 @@ blocking and bounds. The machine encoding (which register carries what, the
 system-call numbers) is fixed in Phase 3 within the limits of decision 0001's
 2026-10-03 amendment (4 message registers, a 4 KiB IPC buffer).
 
-*Status (2026-10-06): unchanged by Phase 2. The Phase 2 kernel exposes only
-two temporary debug calls, `debug_write` and `exit` (`kernel/sys/syscall.h`),
-which this ABI replaces in Phase 3 (`docs/phase2-exit.md`, *Carried
-forward*).*
+*Status (2026-10-15): implemented. Phase 3 put the model's code into the
+kernel as its object layer (`kernel/core/`) and fixed the machine encoding
+(*Encoding*, below; `kernel/sys/abi.h`); the Phase 2 debug calls are
+calls 1 and 2 of it. The semantics above are still the model's, now the
+kernel's own.*
 
 Invariant numbers I1–I10 refer to `docs/phase1-plan.md`. Model function names
 are given as `joist_*` so every statement can be checked against the code.
@@ -42,7 +43,8 @@ are given as `joist_*` so every statement can be checked against the code.
   Operations that scan a table are bounded by the table's size; the measured
   worst cases are in `docs/phase1-plan.md`, work item 5. Only operations that
   can destroy objects can cascade, and a cascade is bounded by the tables,
-  not per operation (open: see the end).
+  not per operation; the kernel runs it in pieces between which it can be
+  interrupted (decision 0016; open item 2, settled, at the end).
 
 ## Objects
 
@@ -469,7 +471,8 @@ the dispatcher works on that record alone.
 Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
 `Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-27 capabilities and
 the table, 30-38 tasks and threads, 40-42 frames and mappings, 50-53
-scheduling contexts, 60-65 destruction, ancestry and lifetime
+scheduling contexts, 54 `yield` (decision 0014: the calling thread gives up
+the rest of its turn and goes behind its equals; its budget is untouched), 60-65 destruction, ancestry and lifetime
 notifications, 70-71 a thread's registers (`thread_read_regs`,
 `thread_write_regs`), 72 `ipc_buffer`. `thread_spawn` takes the new thread's pc and sp, so it
 starts where its creator says; `cap_read` also returns a frame's size in
@@ -478,7 +481,8 @@ truncated into a valid slot. A call that blocks gets its outputs written
 when its thread next runs. Call 3 (`debug_counters`, Phase 3's exit) is for the root task only
 (`E_RIGHTS` from any other): it writes what the kernel has in use (live
 objects, thread records, spaces, table leaves, mappings, destructions
-pending, free page-table frames, free boot frames) to a record in the
+pending, free page-table frames, free boot frames, and the run queues'
+insert steps past a list's end so far) to a record in the
 caller's memory (`E_RANGE` if it can't be written whole), for tests that
 look for memory the kernel keeps. Calls 1 (`debug_write`) and 2 (`exit`) keep
 Phase 2's debug convention, and an unknown number returns `-3` and changes

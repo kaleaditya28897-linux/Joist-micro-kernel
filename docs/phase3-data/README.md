@@ -1,9 +1,12 @@
 # Phase 3 data
 
 Raw evidence behind the numbers in `docs/phase3-plan.md` *Progress*, as for
-Phases 1 and 2. Environments are in `docs/testbed.md`: `joist-dev` (VM 113
-on pve1) builds and runs every host test and the QEMU (TCG) boots; VM 112 on
-pvehome boots images on a real Intel CPU through KVM.
+Phases 1 and 2. Environments are in `docs/testbed.md`. Until 2026-10-14,
+`joist-dev` (VM 113 on pve1) built and ran every host test and the QEMU (TCG)
+boots, and VM 112 on pvehome booted images on a real Intel CPU through KVM;
+the files below from before that date name those machines. Since then the
+build VM is `joist-dev2` on the P53, and images boot on the P53's own CPU
+through KVM (`tools/p53/boot.sh`).
 
 ## Step 4 (2026-10-10): `step4/`
 
@@ -213,3 +216,117 @@ the build VM. The histogram's buckets are now sized from the warm-up; the
 measurement reads about 93 000 cycles there (each change of context sets
 the timer, which under nested KVM is very dear).
 
+
+## Step 10: the two groups explained, and the run queues' cost (2026-10-15): `step10-runq/`
+
+**The two groups** of the do-nothing system call (above) had one cause,
+found in 20 logs of an earlier hand-off: `ipcbench` measured the cost of
+reading the clock once, at the start, while the CPU was still slow from
+idle (100 counts against 16-26 later), and took that off every sample. In
+the runs where that happened, every figure came out too low; the high
+group, 444-476, is the true one. `ipcbench` now measures the clock's cost
+with every batch, beside the ruler, and prints its range ("clock 16 to 26
+counts, taken off"). The baselines above, the system call's 384 in
+particular, were set with the old method and are measured again with the
+exit benchmark.
+
+**The run queues' cost.** Every image below was booted on the P53's own
+CPU through KVM (`tools/p53/boot.sh ISO bios 120 LOG` with `P53_SMP=1`, as
+the gate's `bench-gate` entry; QEMU 11.1.2, i7-9850H), alternating between
+images so that the machine's state is shared, from the workstation while
+the build VM was otherwise quiet. Images are the `bench-gate` entry
+(`ROOT_TASK=benchroot MODULES=ipcbench`), built on joist-dev2;
+`step10-runq/images.tsv` gives each one's SHA-256 and what it is, and
+`medians.tsv` each run's medians (`p50`, cycles). `<run>.txt` holds that
+run's `ipcbench` lines.
+
+| Image | Null call | Round trip, two spaces | One space | 4 KiB each way |
+|---|---|---|---|---|
+| A: the scan (`93fb28d`, fixed `ipcbench`) | 472 | 1 376 | 920 | 2 736 |
+| B: run queues, first version | 480 | 1 728 | 1 272 | 3 088 |
+| H: run queues, final version | 496 | 1 548 | 1 096 | 2 904 |
+
+The first version cost 352 cycles a round trip (+26 %). The scan cost the
+fast path nothing (it scanned only when the slow path chose), while queues
+are kept up to date at every change of state, and a Call moved the server
+onto a queue and off it again twice. What brought it down (C to H in
+`images.tsv`): a thread already in its place is left alone; the kernel
+holds the queues for a whole system call and files each changed thread
+once after the direct switch, so a thread handed the CPU never goes on a
+queue at all; the common case is inline. Ruled out on the way, each by a
+measurement: the larger records and their layout (X3: no change), the
+JCC-erratum alignment of jumps (Aj, Ej: the gap stays), the system-call
+layer (X6), and a fast path no longer taken (As, Ds: the gap is the same in
+the slow path). TSC probes (Pab, Prq) put most of what is left inside the
+core's operations.
+
+**What is left: 172 cycles a round trip (+12.5 %), 24 on a do-nothing
+call.** The price of choosing a thread in a time that doesn't depend on
+the number of threads (choice 9), which the project owner asked for on
+2026-10-15. With today's 32 threads the scan was cheap; the queues' gain
+is in the bound, not in today's speed.
+
+## Step 10: the kernel lock measured for decision 0017 (2026-10-15): `step10-lock/`
+
+The lock study asked for when decision 0016 was to be revisited, run on the
+P53 by its Claude Code: `findings.md` is its report (set-up, method, every
+figure with its range, what could not be measured); `analysis.txt` is
+`tools/parse.py` over `raw/`; `raw/` holds every kept serial log, the KVM
+statistics of the pause-loop runs and `images.sha256`; `tools/` the scripts
+that ran it (`runiso.sh` one boot, `campaign.sh` the rounds with the
+build-VM idle check, `qmpstats.py`, `parse.py`). The kernel and user changes
+it measured with (`RUN_LOCK_STATS`, `RUN_LOCK_MCS`, `RUN_LOCK_TIMER_OUT`,
+all off by default; `user/scaleroot`; ipcbench's role 3; benchroot's
+start-up handshake) are in the tree. The summary and what it decides are
+in `docs/decisions/0017-kernel-lock-revisited.md`.
+
+## Step 10: the exit benchmark (2026-10-15): `step10-exit/`, `step10-gate/`
+
+**The exit benchmark.** The `bench-gate` entry's image (`ROOT_TASK=benchroot
+MODULES=ipcbench`), built on joist-dev2 from the final step 10 tree with the
+fast path (`fast`) and without it (`slow`, `-DRUN_FAST_PATH=0`); SHA-256s in
+`step10-exit/images.sha256`. Booted 10 times each on the P53's own CPU
+through KVM, alternating, with `tools/p53/boot.sh ISO bios 120 LOG` (4 vCPUs
+pinned to host CPUs 2-5, QEMU 11.1.2, SeaBIOS), from the workstation, the
+build VM idle. Each run's `ipcbench` lines are `step10-exit/<kernel>-<n>.txt`;
+`summary.tsv` gives, per measurement, the median of the runs' medians, their
+range, and the range of their 99th percentiles, each as a share of its median.
+
+The plan's test (*Testing*): across 10 runs the median moves less than 5 %
+and the 99th percentile less than 20 %.
+
+| Measurement (cycles) | Fast: median (spread) | p99 spread | Slow: median (spread) | p99 spread |
+|---|---|---|---|---|
+| A system call that does nothing | 528 (0.8 %) | **29.4 %** | 836 (0.5 %) | 17.3 % |
+| Two address spaces, passive server | 1 624 (0.2 %) | 3.6 % | 3 168 (0.8 %) | 8.8 % |
+| One address space, passive server | 1 164 (0.0 %) | 6.4 % | 2 712 (0.9 %) | 2.6 % |
+| Two address spaces, server with its own context | 13 808 (2.1 %) | 15.1 % | 14 640 (1.7 %) | 16.0 % |
+| 4 KiB of IPC buffer each way | 2 976 (0.3 %) | 6.6 % | 4 532 (2.3 %) | 3.5 % |
+| Every other CPU making system calls | 9 072 (**8.5 %**) | 9.7 % | 10 768 (**7.9 %**) | 8.0 % |
+
+**Every uncontended round trip passes**, fast and slow. Two figures do not:
+the do-nothing call's 99th percentile on the fast path (two runs of ten read
+736 and 740 against 572 in the others), and the contended line's median,
+whose spread is the lock's (decision 0017's measurements show 75 % of CPU
+time waiting at 4 busy CPUs). These boots ran with 4 vCPUs, as `boot.sh`
+does by default; the gate runs with one, inside the build VM (below), which
+is why its figures are lower.
+
+**The gate's baseline** (`kernel/test/ipcbench.baseline`): 10 runs of the
+`bench-gate` entry inside the build VM, nothing else running there, on the
+same tree (image SHA-256
+`240764ba9bbd47639e5ea8eb40f1a6031f9449fb2247f6190c48463b920134f4`, QEMU
+10.0.13); each run's lines in `step10-gate/`. The do-nothing call read 492 to
+496 in all 10 runs, the round trips 1 548 and 1 088 to 1 092: the two groups
+seen on 2026-10-14 are gone with the clock-cost fix. New baseline 496, 1 548,
+1 092, from 384, 1 344, 880; why each moved is recorded in the file.
+
+## Step 10: fault injection (2026-10-15): `step10-faultinj/`
+
+`findings.md` is the report of the hand-off that built `user/faultinj` and
+`user/fiworker` (run by the P53's Claude Code; summarised in
+`docs/phase3-plan.md`, *Step 10, part 3*): the scenarios and kill points,
+the seven self-tests (seeds 1-7, 100 rounds each), the 9 000 further rounds
+(seeds 11-16, 300 rounds, five machine shapes), the six bugs planted in the
+core by hand and the round that caught each, and what is not covered. The
+self-tests themselves run in every `make check` in `kernel/`.

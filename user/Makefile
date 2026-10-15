@@ -4,7 +4,8 @@
 # the fault test: step 6; cascaderoot, the destruction test: step 7;
 # benchroot and ipcbench, the IPC benchmark: step 8; smproot, the
 # multiprocessor test: step 9; faultinj and fiworker, the fault-injection
-# test: the exit; docs/phase3-plan.md),
+# test: the exit; docs/phase3-plan.md; scaleroot, the lock study's scaling
+# test),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
 ifeq ($(origin CC),default)
@@ -29,7 +30,7 @@ ASMPROGS := sysfuzz sysrethole
 # Phase 3 programs: lib/joist.h, plus the kernel's string functions (a
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
-LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot growroot fuzzchild \
+LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot scaleroot growroot fuzzchild \
             fiworker faultinj
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
@@ -61,6 +62,7 @@ $(eval $(call libprog,cascaderoot,$(BUILD)/elf.o))
 $(eval $(call libprog,ipcbench,))
 $(eval $(call libprog,benchroot,$(BUILD)/elf.o))
 $(eval $(call libprog,smproot,$(BUILD)/elf.o))
+$(eval $(call libprog,scaleroot,$(BUILD)/elf.o))
 $(eval $(call libprog,growroot,$(BUILD)/elf.o))
 $(eval $(call libprog,fuzzchild,))
 $(eval $(call libprog,fiworker,))

@@ -78,6 +78,12 @@ static void measure(uint64_t name, int one_task, int passive)
     must(j_sc_create(ssc, 200, 10 * J_MS, 10 * J_MS), "sc_create (server)");
     must(j_sc_bind(ssc, sthread), "sc_bind (server)");
     if (passive) {
+        /* The start-up handshake (docs/abi.md): the server answers one
+         * call, so it is waiting in its Recv before its context goes. A
+         * higher priority alone sequences this only on one CPU; on 4 the
+         * server sometimes never got there (lock study, 2026-10-15). */
+        struct j_msg h = {0};
+        must(j_call(ep, &h, J_FOREVER), "call (server start)");
         must(j_sc_unbind(ssc), "sc_unbind (server)");
     }
     must(j_sc_create(csc, 100, 10 * J_MS, 10 * J_MS), "sc_create (client)");

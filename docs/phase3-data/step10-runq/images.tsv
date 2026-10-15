@@ -1,0 +1,18 @@
+image	sha256	what
+A	555975e859c15fa3b0a1b3d93f607d9c07e861ac510ae173ef4e60a6c08d017a	committed kernel (93fb28d) with the fixed ipcbench: the scan, no run queues
+Aj	7ff342eac7a3c735d0404c9b3ee412b9f685a49be2e7dc485c3c89be08007c86	A built with -mbranches-within-32B-boundaries (JCC erratum ruled out)
+As	0d1b4a2c8808523bd05a513e9356ac57bca275d459bec4687da049e62b82b612	A with RUN_FAST_PATH=0 (slow path)
+B	60133f926175747bcecf02911aa0e7438e5b9cca67d3e779199d14b22d21145b	run queues, first version: every re-filing a remove and an insert
+C	754df37411e0f27830648d788e82c1e9791599b5fe019b8876c2f1d2dbac4f62	B, plus: a thread already in place is left alone; the rendezvous paths file each thread once
+D	174a5d9fd105107019e733e75519f66e92f88f299c86f8cd5a922f4b002d6f99	C, plus: the queue arrays moved to the end of the kernel record
+Ds	2621734cae5b56e5af200431a34691fbddaf7a2a61f6ca5fc2a86ffe9dfc440f	D with RUN_FAST_PATH=0 (slow path): the gap is in both paths
+E	166c98e745432272566be380a7911e4f90c575371d7aa7bbd393b282d0b09f9f	D, plus: the kernel holds the queues for each system call, settled after the direct switch
+Ej	34b7bb1b4b5b2a445fe26c2980d618c8c517fbaeb5534e1d28d64fc1fc97040c	E built with -mbranches-within-32B-boundaries
+F	116d224e6ffd92d34c9beb222f5619aa2a5a791279ac99cab6f8e00e749025c5	E, plus: the noting case of a sync inline; explicit removes dropped
+G	8882cae31cced37666ff124153b303489fb265c32816f4cb404ff39763a2c221	F, plus: hold and settle inline; settle in two passes
+H	9c91b7bc2fe286ef42df16f51f808be5b14c43934294c8ee40ba3f95185649af	G, plus: settle skips threads on no list that plainly belong on none (the final version)
+Pab	d57cee5893bd47dfe85bd2110c7e7e2db2969731666c620299f3ccc1469d3679	A with TSC probes around abi_syscall and the direct switch (probe line)
+Prq	6c368fbd3bf2cc2b84f3e4e436d7810d43593707a77cc3ee1d20f439b140000e	F-era kernel with the same probes
+X	0bcecd3503426730cc0a97c699a8b5fac6d10554d83e9ba7ca131c8d9eb95987	experiment: C with re-filing a no-op and the scan choosing (cost of everything but the queue work)
+X3	795dabc3464108f200b57531c877f16ebc3ada372beec9fa467fb1e1c519d3cc	experiment: A with only the new core.h (record layout alone)
+X6	0c5f30f0ff994f063572f416af6799f4407e5247cc1235a3be8a8c238b1f4175	experiment: G with kernel/sys/abi.[ch] as committed (the system-call layer ruled out)

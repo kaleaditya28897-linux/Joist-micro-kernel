@@ -63,12 +63,12 @@ xfer-mask-ignored @@ ../kernel/core/ipc.c @@ r->recv_slot[i], m->mask[i]) @@ r->
 xfer-position-collapse @@ ../kernel/core/ipc.c @@ out.cap[i] = r->recv_slot[i]; @@ out.cap[i] = r->recv_slot[0];
 xfer-bad-reply-consumes @@ ../kernel/core/ipc.c @@ return e; /* the reply capability is kept: nothing changed */ @@ (void)0;
 xfer-ignores-nrecv @@ ../kernel/core/ipc.c @@ if (i >= r->nrecv) { @@ if (0) {
-xfer-wrong-source-space @@ ../kernel/core/ipc.c @@ deliver(k, k->th[s].cs, t, &k->th[s].msg); @@ deliver(k, me->cs, t, &k->th[s].msg);
+xfer-wrong-source-space @@ ../kernel/core/ipc.c @@ deliver(k, k->th[s].cs, k->th[s].ipc_buf, t, &k->th[s].msg); @@ deliver(k, me->cs, k->th[s].ipc_buf, t, &k->th[s].msg);
 # Scheduling contexts and donation (Phase 3 step 3; I11).
 sc-no-reclaim-on-wake @@ ../kernel/core/ipc.c @@ joist__sc_reclaim(k, t); /* a caller waking @@ (void)0; /* a caller waking
 sc-no-giveback-on-recv @@ ../kernel/core/ipc.c @@ joist__sc_giveback(k, t); /* receiving again @@ (void)0; /* receiving again
 sc-donate-to-active @@ ../kernel/core/sched.c @@ if (r->sc != 0 || r->run_sc != 0 || r->sc_from != 0 || r->sc_to != 0 || f->run_sc == 0 || @@ if (r->sc_from != 0 || r->sc_to != 0 || f->run_sc == 0 ||
-sc-mcp-ignored @@ ../kernel/core/sched.c @@ if (prio > s->mcp) { @@ if (0) {
+sc-mcp-ignored @@ ../kernel/core/sched.c @@ if (prio > s->mcp || !prio_ok(prio)) { @@ if (!prio_ok(prio)) {
 sc-thread-gone-skipped @@ ../kernel/core/ipc.c @@ joist__sc_thread_gone(k, t); @@ (void)0;
 sc-freed-skipped @@ ../kernel/core/notify.c @@ joist__sc_freed(k, obj); @@ (void)obj;
 sc-reclaim-keeps-links @@ ../kernel/core/sched.c @@ b->run_sc = b->sc; @@ (void)b;
@@ -115,7 +115,7 @@ map-span-ignored @@ ../kernel/core/map.c @@ if (f->npages > JOIST_MAP_SPAN - va 
 give-mask-ignored @@ ../kernel/core/task.c @@ return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, mask); @@ return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, (joist_rights)(mask | JOIST_R_ALL));
 give-no-control @@ ../kernel/core/task.c @@ e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj); @@ e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj); if (e == JOIST_E_RIGHTS) { obj = joist__slot_c(k, cs, task_slot)->obj - 1u; e = JOIST_OK; }
 # The scheduler's rules (Phase 3 step 5).
-pick-ignores-budget @@ ../kernel/core/sched.c @@ return sc->remaining != 0 || sc->refill_at <= k->now ? sc : NULL; @@ return sc;
+pick-ignores-budget @@ ../kernel/core/sched.c @@ return sc->remaining != 0 || sc->refill_at <= k->tick_now ? sc : NULL; @@ return sc;
 pick-lowest-priority @@ ../kernel/core/sched.c @@ if (sc->prio > bsc->prio || @@ if (sc->prio < bsc->prio ||
 pick-no-turns @@ ../kernel/core/sched.c @@ (sc->prio == bsc->prio && k->th[i].ready_seq < k->th[best].ready_seq)) { @@ (sc->prio == bsc->prio && k->th[i].ready_seq > k->th[best].ready_seq)) {
 pick-no-refill @@ ../kernel/core/sched.c @@         sc->remaining = sc->budget; @@         (void)sc->budget;
@@ -135,14 +135,14 @@ handed-ignores-place @@ ../kernel/core/sched.c @@ if (r->ready_seq != place) { @
 smp-pick-steals @@ ../kernel/core/sched.c @@ if (sc == NULL || (k->th[i].cpu != 0 && k->th[i].cpu != cpu + 1u)) { @@ if (sc == NULL || (k->th[i].cpu != 0 && k->th[i].cpu != cpu + 1u && cpu > JOIST_MAX_CPUS)) {
 smp-old-thread-stays-marked @@ ../kernel/core/sched.c @@         k->th[was - 1u].cpu = 0; @@         (void)was;
 
-smp-bind-no-flag @@ ../kernel/core/sched.c @@         k->resched = 1; /* it can run now */ @@         (void)0;
+smp-bind-no-flag @@ ../kernel/core/sched.c @@         k->resched = 1;                /* it can run now */ @@         (void)0;
 smp-unbind-no-flag @@ ../kernel/core/sched.c @@         k->resched = 1; /* it can't run any more: its CPU wants another */ @@         (void)0;
 smp-off-cpu-no-flag @@ ../kernel/core/sched.c @@     k->resched = 1; /* that CPU has nothing now */ @@     (void)cpu;
 smp-handed-anothers-thread @@ ../kernel/core/sched.c @@ if (r->state != JOIST_T_RUNNING || r->run_sc == 0 || r->cpu != 0) { @@ if (r->state != JOIST_T_RUNNING || r->run_sc == 0) {
 smp-better-never @@ ../kernel/core/sched.c @@     return best != (k->on_cpu[cpu] != 0 ? k->on_cpu[cpu] - 1u : JOIST_MAX_THREADS); @@     return best != best + (k->on_cpu[cpu] & 0u);
 smp-no-hook @@ ../kernel/core/sched.c @@         k->hooks.off_cpu(k->hooks.ctx, t, cpu); @@         (void)cpu;
 smp-wake-no-flag @@ ../kernel/core/ipc.c @@     k->resched = 1; /* and some CPU may deserve it */ @@     (void)0;
-smp-resume-no-flag @@ ../kernel/core/fault.c @@     k->resched = 1; /* it can run again */ @@     (void)0;
+smp-resume-no-flag @@ ../kernel/core/fault.c @@     k->resched = 1;                      /* it can run again */ @@     (void)0;
 smp-off-cpu-keeps-mark @@ ../kernel/core/sched.c @@     k->on_cpu[cpu] = 0; /* off it, at both ends */ @@     (void)cpu;
 smp-suspend-stays-on-cpu @@ ../kernel/core/fault.c @@     joist__off_cpu(k, t); /* stopped means not on a CPU either */ @@     (void)t;
 
@@ -153,3 +153,30 @@ buf-receiver-unchecked @@ ../kernel/core/ipc.c @@ int ok = from_buf != 0 && r->i
 buf-unaligned-accepted @@ ../kernel/core/ipc.c @@     if (va % JOIST_PAGE_SIZE != 0 || va / JOIST_PAGE_SIZE >= JOIST_USER_PAGES) { @@     if (va / JOIST_PAGE_SIZE >= JOIST_USER_PAGES) {
 buf-sender-now-not-then @@ ../kernel/core/ipc.c @@ deliver(k, k->th[s].cs, k->th[s].ipc_buf, t, &k->th[s].msg); @@ deliver(k, k->th[s].cs, k->th[t].ipc_buf, t, &k->th[s].msg);
 buf-copy-failure-ignored @@ ../kernel/core/ipc.c @@             out.lost = 1; @@             (void)out;
+# Decision 0014: Yield.
+yield-keeps-place @@ ../kernel/core/sched.c @@     k->th[t].ready_seq = ++k->ready_seq; /* behind its equals */ @@     (void)k->ready_seq; /* behind its equals */
+yield-no-flag @@ ../kernel/core/sched.c @@     k->resched = 1;                      /* an equal waiting elsewhere may want this CPU */ @@     (void)0;
+# Phase 3 step 10: the run queues (choice 9; test_runq.c, and I14 against the scan everywhere).
+rq-insert-no-bit @@ ../kernel/core/sched.c @@     q->bits[p / 64u] |= 1ull << (p % 64u); @@     (void)q;
+rq-remove-keeps-bit @@ ../kernel/core/sched.c @@         q->bits[p / 64u] &= ~(1ull << (p % 64u)); @@         (void)q;
+rq-head-lowest @@ ../kernel/core/sched.c @@ uint32_t p = w * 64u + (63u - (uint32_t)__builtin_clzll(b)); @@ uint32_t p = w * 64u + (uint32_t)__builtin_ctzll(b);
+rq-own-thread-ignored @@ ../kernel/core/sched.c @@     if (mine != 0 && mine <= JOIST_MAX_THREADS) { @@     if (mine != 0 && mine > JOIST_MAX_THREADS) {
+rq-other-queues-ignored @@ ../kernel/core/sched.c @@         uint32_t h = rq_head(k, q); @@         uint32_t h = q == cpu ? rq_head(k, q) : JOIST_MAX_THREADS;
+rq-no-walk @@ ../kernel/core/sched.c @@ k->th[after - 1u].ready_seq > r->ready_seq && n < JOIST_MAX_THREADS; @@ k->th[after - 1u].ready_seq > r->ready_seq && n < 0u;
+rq-head-always-tail @@ ../kernel/core/sched.c @@     if (h != 0 && k->th[h - 1u].ready_seq < r->ready_seq) { @@     if (h != 0) {
+rq-wake-not-queued @@ ../kernel/core/ipc.c @@     joist__rq_sync(k, t); /* ready: on its queue (or not, if it stopped) */ @@     (void)t;
+rq-recv-stays-queued @@ ../kernel/core/ipc.c @@     joist__rq_sync(k, t); /* waiting: off the queues */ @@     (void)t;
+rq-suspend-stays-queued @@ ../kernel/core/fault.c @@     joist__rq_sync(k, t); /* stopped: off the queues */ @@     (void)t;
+rq-resume-not-queued @@ ../kernel/core/fault.c @@     joist__rq_sync(k, t);                /* on its queue */ @@     (void)t;
+rq-yield-not-refiled @@ ../kernel/core/sched.c @@     joist__rq_sync(k, t);                /* to the back of its list */ @@     (void)t;
+rq-spent-not-refiled @@ ../kernel/core/sched.c @@         joist__rq_sync(k, t);                /* (if it is queued: the kernel's CPU drops it later) */ @@         (void)t;
+rq-off-cpu-not-queued @@ ../kernel/core/sched.c @@             joist__rq_sync(k, was - 1u); /* off this CPU: back on a queue, if it can run */ @@             (void)was;
+rq-chosen-stays-queued @@ ../kernel/core/sched.c @@         joist__rq_sync(k, t); /* on a CPU: off the queues */ @@         (void)t;
+rq-tick-no-refill @@ ../kernel/core/ipc.c @@             joist__rq_sync(k, i); /* its period came due: on its queue now */ @@             (void)i;
+rq-send-stays-queued @@ ../kernel/core/ipc.c @@     joist__rq_sync(k, t); /* sending: off the queues */ @@     (void)t;
+rq-caller-stays-queued @@ ../kernel/core/ipc.c @@     joist__rq_sync(k, c);                   /* waiting for the reply: off the queues */ @@     (void)c;
+rq-wait-stays-queued @@ ../kernel/core/notify.c @@     joist__rq_sync(k, t); /* waiting: off the queues */ @@     (void)t;
+rq-settle-forgets @@ ../kernel/include/joist/core.h @@         joist__sched_flush(k); @@         (void)k;
+rq-hold-not-noted @@ ../kernel/core/internal.h @@             k->rq_pend[k->rq_npend++] = t; @@             (void)0;
+rq-in-place-ignores-order @@ ../kernel/core/sched.c @@            (r->rq_prev == 0 || k->th[r->rq_prev - 1u].ready_seq < r->ready_seq) && @@            1 &&
+rq-in-place-ignores-cpu @@ ../kernel/core/sched.c @@     return r->rq_on == cpu + 1u && r->rq_prio == prio && @@     return (r->rq_on != 0 || cpu == 0) && r->rq_prio == prio &&

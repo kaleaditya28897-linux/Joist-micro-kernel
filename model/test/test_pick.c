@@ -281,3 +281,26 @@ JT_TEST(props_pick_simulation)
             refills);
     JT_CHECK(decisions > 5000 && idle > 100 && refills > 1000);
 }
+
+JT_TEST(pick_yield_lets_an_equal_run_and_nothing_lower)
+{
+    boot();
+    joist_thread a = thread_with(10, 5, 10, 10);
+    joist_thread b = thread_with(11, 5, 10, 10);
+    joist_thread lo = thread_with(12, 3, 10, 10);
+    JT_CHECK(picked() == a);
+    uint64_t left = k.obj[k.th[a].run_sc - 1u].remaining;
+    k.resched = 0;
+    JT_CHECK(joist_yield(&k, a) == JOIST_OK && k.resched == 1);
+    JT_CHECK(picked() == b); /* its equal goes first now */
+    JT_CHECK(joist_yield(&k, b) == JOIST_OK && picked() == a);
+    JT_CHECK(k.obj[k.th[a].run_sc - 1u].remaining == left); /* its budget is untouched */
+    /* With no equal, yielding changes nothing: the lower priority waits. */
+    JT_REQUIRE(joist_obj_create(&k, root, JOIST_OBJ_NOTIFICATION, 0) == JOIST_OK);
+    JT_REQUIRE(joist_wait(&k, b, 0, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(joist_yield(&k, a) == JOIST_OK && picked() == a && lo != a);
+    /* Only a running thread can. */
+    JT_CHECK(joist_yield(&k, b) == JOIST_E_STATE && joist_yield(&k, JOIST_MAX_THREADS) == JOIST_E_RANGE);
+    JT_CHECK(clean());
+}
+

@@ -162,23 +162,143 @@ static uint64_t stack_top(const struct cpu *c)
  * asked. A CPU waiting for it has interrupts off and answers cpu_sync
  * between looks, or the holder, waiting for that answer, would wait for
  * ever. With one CPU there is nobody to keep out and it isn't taken. */
-static struct {
-    volatile uint32_t next;
-    volatile uint32_t owner;
-} klock;
-
 static void cpu_sync(struct cpu *c);
+
+/* ---- The lock study (hand-off of 2026-10-15, for revisiting 0016) ----
+ *
+ * RUN_LOCK_STATS: every acquisition is timed with the TSC (asked, got,
+ * released), and so are the scheduler's scans under the lock; counted per
+ * CPU for acquisitions that fall in a window a root task sets with system
+ * call RUN_LS_SYSCALL (an unknown number to the ABI, which refuses it as
+ * usual after this has looked at it): RDI 0 sets the window [RSI, RDX) in
+ * TSC counts and clears the counts, 1 closes it now and prints them.
+ *
+ * RUN_LOCK_MCS: a queue lock (Mellor-Crummey and Scott) in place of the
+ * ticket lock: still first come, first served, but each waiter spins on a
+ * line of its own, and a release writes only the next waiter's. */
+#ifndef RUN_LOCK_MCS
+#define RUN_LOCK_MCS 0
+#endif
+/* RUN_LOCK_TIMER_OUT: the one-shot timer, which is this CPU's own and
+ * whose write leaves a virtual machine, is written after the lock is let
+ * go on the way out, not under it (the moment is still chosen under it). */
+#ifndef RUN_LOCK_TIMER_OUT
+#define RUN_LOCK_TIMER_OUT 0
+#endif
+#define RUN_LS_SYSCALL 99u
+
+#ifdef RUN_LOCK_STATS
+#define LS_WIDTH   8u    /* TSC counts a bucket */
+#define LS_BUCKETS 4096u /* and one more for everything longer */
+enum { LS_FAST, LS_SLOW, LS_IDLE, LS_KINDS };                  /* how the lock was let go */
+enum { LS_PICK, LS_NEXT, LS_POKE, LS_TICK, LS_SYS, LS_TIMER, LS_CR3, LS_SCANS }; /* timed under it */
+static const char *const ls_kind_name[LS_KINDS] = {"fast", "slow", "idle"};
+static const char *const ls_scan_name[LS_SCANS] = {"pick_on", "next_event", "poke_others",
+                                                   "tick", "abi_syscall", "timer_write",
+                                                   "space_switch"};
+struct lstat {
+    uint64_t asked, got; /* this acquisition */
+    uint32_t kind;       /* how it will be let go */
+    uint64_t n, wait, hold;
+    uint64_t kn[LS_KINDS], khold[LS_KINDS];
+    uint64_t sn[LS_SCANS], st[LS_SCANS];
+    uint32_t hold_hist[LS_BUCKETS + 1u];
+    uint32_t wait_hist[LS_BUCKETS + 1u];
+} __attribute__((aligned(64)));
+static struct lstat lstats[RUN_MAX_CPUS];
+static uint64_t ls_from = UINT64_MAX;
+static uint64_t ls_to = UINT64_MAX;
+
+static inline uint64_t ls_tsc(void)
+{
+    uint32_t lo;
+    uint32_t hi;
+    __asm__ volatile("lfence; rdtsc; lfence" : "=a"(lo), "=d"(hi) : : "memory");
+    return (uint64_t)hi << 32 | lo;
+}
+
+static inline int ls_in(uint64_t t)
+{
+    return t >= ls_from && t < ls_to;
+}
+
+static void ls_released(uint32_t cpu)
+{
+    uint64_t now = ls_tsc();
+    struct lstat *s = &lstats[cpu];
+    if (!ls_in(s->got)) {
+        return;
+    }
+    uint64_t w = s->got - s->asked;
+    uint64_t h = now - s->got;
+    s->n++;
+    s->wait += w;
+    s->hold += h;
+    s->kn[s->kind]++;
+    s->khold[s->kind] += h;
+    s->hold_hist[h / LS_WIDTH < LS_BUCKETS ? h / LS_WIDTH : LS_BUCKETS]++;
+    s->wait_hist[w / LS_WIDTH < LS_BUCKETS ? w / LS_WIDTH : LS_BUCKETS]++;
+}
+
+static void ls_scan(uint32_t cpu, unsigned which, uint64_t t0)
+{
+    if (ls_in(t0)) {
+        lstats[cpu].sn[which]++;
+        lstats[cpu].st[which] += ls_tsc() - t0;
+    }
+}
+#define LS_KIND(c, k) (lstats[(c)->id].kind = (k))
+#define LS_TIME(c, which, expr)                                                                \
+    __extension__({                                                                            \
+        uint64_t ls_t0_ = ls_tsc();                                                            \
+        __typeof__(expr) ls_r_ = (expr);                                                       \
+        ls_scan((c)->id, (which), ls_t0_);                                                     \
+        ls_r_;                                                                                 \
+    })
+#define LS_TIME_V(c, which, stmt)                                                              \
+    do {                                                                                       \
+        uint64_t ls_t0_ = ls_tsc();                                                            \
+        stmt;                                                                                  \
+        ls_scan((c)->id, (which), ls_t0_);                                                     \
+    } while (0)
+#else
+#define LS_KIND(c, k) ((void)0)
+#define LS_TIME(c, which, expr) (expr)
+#define LS_TIME_V(c, which, stmt) stmt
+#endif
+
+#if RUN_LOCK_MCS
+struct qnode {
+    struct qnode *volatile next;
+    volatile uint32_t locked;
+} __attribute__((aligned(64)));
+static struct qnode qnodes[RUN_MAX_CPUS];
+static struct {
+    struct qnode *volatile tail;
+} __attribute__((aligned(64))) klock;
 
 static void lock(struct cpu *c)
 {
     if (ncpus == 1) {
         return;
     }
-    uint32_t me = __atomic_fetch_add(&klock.next, 1, __ATOMIC_SEQ_CST);
-    while (__atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE) != me) {
-        cpu_sync(c);
-        __asm__ volatile("pause");
+#ifdef RUN_LOCK_STATS
+    lstats[c->id].asked = ls_tsc();
+#endif
+    struct qnode *n = &qnodes[c->id];
+    n->next = NULL;
+    n->locked = 1;
+    struct qnode *pred = __atomic_exchange_n(&klock.tail, n, __ATOMIC_ACQ_REL);
+    if (pred != NULL) {
+        __atomic_store_n(&pred->next, n, __ATOMIC_RELEASE);
+        while (__atomic_load_n(&n->locked, __ATOMIC_ACQUIRE)) {
+            cpu_sync(c);
+            __asm__ volatile("pause");
+        }
     }
+#ifdef RUN_LOCK_STATS
+    lstats[c->id].got = ls_tsc();
+#endif
 }
 
 static void unlock(void)
@@ -186,8 +306,62 @@ static void unlock(void)
     if (ncpus == 1) {
         return;
     }
+    uint32_t id = this_cpu()->id;
+    struct qnode *n = &qnodes[id];
+#ifdef RUN_LOCK_STATS
+    ls_released(id);
+#endif
+    struct qnode *next = __atomic_load_n(&n->next, __ATOMIC_ACQUIRE);
+    if (next == NULL) {
+        struct qnode *me = n;
+        if (__atomic_compare_exchange_n(&klock.tail, &me, NULL, 0, __ATOMIC_RELEASE,
+                                        __ATOMIC_RELAXED)) {
+            return; /* nobody waiting */
+        }
+        /* One is between its exchange and its link to this node: a few
+         * instructions, with its interrupts off. (Nothing to answer
+         * meanwhile: only the holder asks for cpu_sync.) */
+        while ((next = __atomic_load_n(&n->next, __ATOMIC_ACQUIRE)) == NULL) {
+            __asm__ volatile("pause");
+        }
+    }
+    __atomic_store_n(&next->locked, 0, __ATOMIC_RELEASE);
+}
+#else
+static struct {
+    volatile uint32_t next;
+    volatile uint32_t owner;
+} klock;
+
+static void lock(struct cpu *c)
+{
+    if (ncpus == 1) {
+        return;
+    }
+#ifdef RUN_LOCK_STATS
+    lstats[c->id].asked = ls_tsc();
+#endif
+    uint32_t me = __atomic_fetch_add(&klock.next, 1, __ATOMIC_SEQ_CST);
+    while (__atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE) != me) {
+        cpu_sync(c);
+        __asm__ volatile("pause");
+    }
+#ifdef RUN_LOCK_STATS
+    lstats[c->id].got = ls_tsc();
+#endif
+}
+
+static void unlock(void)
+{
+    if (ncpus == 1) {
+        return;
+    }
+#ifdef RUN_LOCK_STATS
+    ls_released(this_cpu()->id);
+#endif
     __atomic_store_n(&klock.owner, klock.owner + 1u, __ATOMIC_RELEASE);
 }
+#endif
 
 /* ---- the page-table pool ---- */
 
@@ -941,17 +1115,17 @@ static uint32_t idle(struct cpu *c)
     for (;;) {
         joist_thread t;
         clock_now();
-        joist_tick(&K, 0); /* deadlines that have passed */
+        LS_TIME_V(c, LS_TICK, joist_tick(&K, 0)); /* deadlines that have passed */
         K.resched = 1;     /* and periods that have begun */
-        if (joist_sched_pick_on(&K, c->id, &t) == JOIST_OK) {
+        if (LS_TIME(c, LS_PICK, joist_sched_pick_on(&K, c->id, &t)) == JOIST_OK) {
             return t;
         }
         if (K.npending != 0) {
             (void)joist_continue(&K, RUN_PREEMPT_SLOTS); /* a piece; then look again */
             continue;
         }
-        poke_others(c);
-        uint64_t next = joist_sched_next_event(&K, JOIST_MAX_THREADS);
+        LS_TIME_V(c, LS_POKE, poke_others(c));
+        uint64_t next = LS_TIME(c, LS_NEXT, joist_sched_next_event(&K, JOIST_MAX_THREADS));
         if (next == JOIST_FOREVER) {
             int alone = 1;
             for (uint32_t i = 0; i < ncpus; i++) {
@@ -966,6 +1140,7 @@ static uint32_t idle(struct cpu *c)
             apic_timer_arm(next > K.now ? next - K.now : 1);
         }
         c->armed_for = 0;
+        LS_KIND(c, LS_IDLE);
         unlock();
         __asm__ volatile("sti; hlt; cli" : : : "memory");
         lock(c);
@@ -1002,8 +1177,18 @@ static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int hande
     /* (After a direct switch the timer stays as it is: the core has
      * vouched that the next event is no earlier than the one it is set
      * for. At worst it fires early, and the next exit sets it right.) */
-    uint64_t next = handed ? c->armed_for : joist_sched_next_event(&K, t);
+    uint64_t next = handed ? c->armed_for : LS_TIME(c, LS_NEXT, joist_sched_next_event(&K, t));
+#if RUN_LOCK_TIMER_OUT
+    /* The lock study's variant: the moment is chosen under the lock, and
+     * the timer (this CPU's own) is written after it is let go. */
+    int rearm = next != c->armed_for;
+    if (0) {
+#else
     if (next != c->armed_for) {
+#endif
+#ifdef RUN_LOCK_STATS
+        uint64_t ls_t0 = ls_tsc();
+#endif
         /* Only when the moment changes: a budget's end stays where it is
          * from call to call while one context runs (as through a call to a
          * server on donated time), and a timer write is the dearest thing
@@ -1015,12 +1200,15 @@ static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int hande
             apic_timer_arm(next > now ? next - now : 1);
         }
         c->armed_for = next;
+#ifdef RUN_LOCK_STATS
+        ls_scan(c->id, LS_TIMER, ls_t0);
+#endif
     }
     c->resumed_at = K.now;
     struct joist_regs *r = &K.th[t].regs;
     uint32_t s = K.th[t].cs;
     if (s != c->cur_space || c->stale[s]) {
-        space_switch(c, s);
+        LS_TIME_V(c, LS_CR3, space_switch(c, s));
     }
     /* The TLS base: written only when it changes (the write is slow, and
      * a thread can't change it behind the kernel's back: FSGSBASE is off). */
@@ -1107,12 +1295,124 @@ static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int hande
      * relies on that), then the lock goes, and nothing shared is touched
      * after it. */
     __atomic_store_n(&c->in_kernel, 0, __ATOMIC_RELEASE);
+    LS_KIND(c, handed ? LS_FAST : LS_SLOW);
     unlock();
+#if RUN_LOCK_TIMER_OUT
+    if (rearm) {
+#ifdef RUN_LOCK_STATS
+        uint64_t ls_t0 = ls_tsc();
+#endif
+        if (next == JOIST_FOREVER) {
+            apic_timer_disarm();
+        } else {
+            uint64_t now = apic_clock_ns();
+            apic_timer_arm(next > now ? next - now : 1);
+        }
+        c->armed_for = next;
+#ifdef RUN_LOCK_STATS
+        ls_scan(c->id, LS_TIMER, ls_t0);
+#endif
+    }
+#endif
     if (quick) {
         resume_user_sysret(tf); /* it came in by `syscall`: out by sysretq */
     }
     resume_user(tf);
 }
+
+#ifdef RUN_LOCK_STATS
+/* The lock study's system call (above, RUN_LOCK_STATS); under the lock. */
+static void ls_put(const char *what, uint64_t v)
+{
+    kputs(what);
+    kputu(v);
+}
+
+static uint64_t ls_quantile(const uint32_t *h, uint64_t n, uint64_t part, uint64_t of)
+{
+    uint64_t want = n * part / of;
+    want = want == 0 ? 1 : want;
+    uint64_t seen = 0;
+    for (unsigned i = 0; i <= LS_BUCKETS; i++) {
+        seen += h[i];
+        if (seen >= want) {
+            return (i + 1u) * LS_WIDTH;
+        }
+    }
+    return 0;
+}
+
+static uint32_t ls_hold_all[LS_BUCKETS + 1u];
+static uint32_t ls_wait_all[LS_BUCKETS + 1u];
+
+static void ls_op(uint64_t op, uint64_t from, uint64_t to)
+{
+    if (op == 0) {
+        for (uint32_t i = 0; i < ncpus; i++) {
+            struct lstat *s = &lstats[i];
+            uint64_t asked = s->asked;
+            uint64_t got = s->got;
+            uint32_t kind = s->kind;
+            __builtin_memset(s, 0, sizeof *s);
+            s->asked = asked;
+            s->got = got;
+            s->kind = kind;
+        }
+        ls_from = from;
+        ls_to = to;
+        return;
+    }
+    uint64_t now = ls_tsc();
+    uint64_t end = now < ls_to ? now : ls_to;
+    uint64_t span = end > ls_from ? end - ls_from : 0;
+    ls_to = now < ls_to ? now : ls_to; /* closed */
+    uint64_t n = 0;
+    for (unsigned b = 0; b <= LS_BUCKETS; b++) {
+        ls_hold_all[b] = 0;
+        ls_wait_all[b] = 0;
+    }
+    ls_put("lockstats: window ", span);
+    ls_put(" tsc counts, cpus ", ncpus);
+    ls_put(", lock ", RUN_LOCK_MCS ? 1u : 0u);
+    kputs(RUN_LOCK_MCS ? " (mcs)\n" : " (ticket)\n");
+    for (uint32_t i = 0; i < ncpus; i++) {
+        struct lstat *s = &lstats[i];
+        ls_put("lockstats: cpu ", i);
+        ls_put(" acq ", s->n);
+        ls_put(" wait ", s->wait);
+        ls_put(" hold ", s->hold);
+        ls_put(" hold_p50 ", ls_quantile(s->hold_hist, s->n, 1, 2));
+        ls_put(" hold_p99 ", ls_quantile(s->hold_hist, s->n, 99, 100));
+        ls_put(" wait_p50 ", ls_quantile(s->wait_hist, s->n, 1, 2));
+        ls_put(" wait_p99 ", ls_quantile(s->wait_hist, s->n, 99, 100));
+        for (unsigned k = 0; k < LS_KINDS; k++) {
+            kputs(" ");
+            kputs(ls_kind_name[k]);
+            ls_put(" ", s->kn[k]);
+            ls_put("/", s->khold[k]);
+        }
+        for (unsigned k = 0; k < LS_SCANS; k++) {
+            kputs(" ");
+            kputs(ls_scan_name[k]);
+            ls_put(" ", s->sn[k]);
+            ls_put("/", s->st[k]);
+        }
+        kputs("\n");
+        n += s->n;
+        for (unsigned b = 0; b <= LS_BUCKETS; b++) {
+            ls_hold_all[b] += s->hold_hist[b];
+            ls_wait_all[b] += s->wait_hist[b];
+        }
+    }
+    ls_put("lockstats: all acq ", n);
+    ls_put(" hold_p50 ", ls_quantile(ls_hold_all, n, 1, 2));
+    ls_put(" hold_p99 ", ls_quantile(ls_hold_all, n, 99, 100));
+    ls_put(" wait_p50 ", ls_quantile(ls_wait_all, n, 1, 2));
+    ls_put(" wait_p99 ", ls_quantile(ls_wait_all, n, 99, 100));
+    ls_put(" (bucket ", LS_WIDTH);
+    kputs(" tsc counts)\n");
+}
+#endif
 
 void run_user_trap(struct trap_frame *tf)
 {
@@ -1135,7 +1435,7 @@ void run_user_trap(struct trap_frame *tf)
     if (v == APIC_TIMER_VECTOR) {
         apic_timer_interrupt(); /* count it, and EOI */
         c->armed_for = 0;
-        joist_tick(&K, 0); /* deadlines that have passed wake their threads */
+        LS_TIME_V(c, LS_TICK, joist_tick(&K, 0)); /* deadlines that have passed wake their threads */
         K.resched = 1;     /* and a period that has begun may be anyone's */
     } else if (v == APIC_IPI_RESCHED || v == APIC_IPI_SYNC) {
         apic_eoi(); /* being here is the whole of it */
@@ -1150,9 +1450,18 @@ void run_user_trap(struct trap_frame *tf)
              * is), nothing has come due since (the clock hasn't reached
              * what the timer is set for), and no destruction is pending
              * (every entry owes that a piece, below). */
+#ifdef RUN_LOCK_STATS
+            if (K.th[t].regs.r[ABI_RAX] == RUN_LS_SYSCALL) {
+                ls_op(K.th[t].regs.r[ABI_RDI], K.th[t].regs.r[ABI_RSI], K.th[t].regs.r[ABI_RDX]);
+            }
+#endif
             int may_hand =
                 RUN_FAST_PATH && K.npending == 0 && c->armed_for != 0 && K.now < c->armed_for;
-            int outcome = abi_syscall(&env, t);
+            /* The run queues are held for the call and settled after the
+             * choice (joist_sched_hold): a thread handed this CPU below
+             * never goes on a queue and off it again. */
+            joist_sched_hold(&K);
+            int outcome = LS_TIME(c, LS_SYS, abi_syscall(&env, t));
             if (env.finished) {
                 kputs("joist: root task exited with code ");
                 kputu(env.exit_code);
@@ -1168,9 +1477,11 @@ void run_user_trap(struct trap_frame *tf)
                  * takes this CPU in the caller's place, so no other CPU's
                  * choice has changed either. */
                 joist_sched_on(&K, c->id, env.handover);
+                joist_sched_settle(&K);
                 K.resched = 0;
                 enter(c, env.handover, 1);
             }
+            joist_sched_settle(&K);
         } else if (v < 32u) {
             fault(t, v, v == 14u ? read_cr2() : 0, tf->error, tf->rip);
         }
@@ -1186,7 +1497,7 @@ static __attribute__((noreturn)) void schedule(struct cpu *c)
     for (;;) {
         /* Who runs is the core's decision, every time (step 5). */
         joist_thread t;
-        if (joist_sched_pick_on(&K, c->id, &t) != JOIST_OK) {
+        if (LS_TIME(c, LS_PICK, joist_sched_pick_on(&K, c->id, &t)) != JOIST_OK) {
             t = idle(c);
         }
         /* The way out goes to a user-half address only: an address past it
@@ -1201,7 +1512,7 @@ static __attribute__((noreturn)) void schedule(struct cpu *c)
             fault(t, 13u, 0, 0, K.th[t].regs.pc);
             continue;
         }
-        poke_others(c); /* this CPU has chosen; who else should? */
+        LS_TIME_V(c, LS_POKE, poke_others(c)); /* this CPU has chosen; who else should? */
         enter(c, t, 0);
     }
 }

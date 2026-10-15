@@ -75,6 +75,7 @@ enum {
 #define ABI_SC_BIND          51u /* context, thread */
 #define ABI_SC_UNBIND        52u /* context */
 #define ABI_TASK_SET_MCP     53u /* task, mcp */
+#define ABI_YIELD            54u /* (decision 0014) */
 #define ABI_CONTINUE         60u /* budget */
 #define ABI_TASK_REAP        61u /* task id */
 #define ABI_TASK_DESCENDANT  62u /* from -> RDX the task id */
@@ -116,6 +117,7 @@ struct abi_counters {
     uint64_t pending;     /* destructions not yet finished */
     uint64_t table_pool;  /* page-table frames free in the kernel's pool */
     uint64_t frames_free; /* frames free in the boot frame allocator */
+    uint64_t rq_walks;    /* run-queue insert steps past a list's end, so far (choice 9) */
 };
 
 struct abi_env {

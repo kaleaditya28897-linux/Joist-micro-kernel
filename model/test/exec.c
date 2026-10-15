@@ -739,7 +739,16 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     k->preempt = ch(src, 3) == 0 ? 1u + ch(src, 4) : 0;
     uint64_t w0 = k->work;
     why[0] = '\0';
+    /* Every third operation runs with the run queues held, as the kernel
+     * runs a system call, and settled after. */
+    int held = st->steps % 3u == 0;
+    if (held) {
+        joist_sched_hold(k);
+    }
     joist_err e = apply(k, src, op, st->steps, &ls, &bad, why, whylen);
+    if (held) {
+        joist_sched_settle(k);
+    }
     uint64_t w = k->work - w0;
     st->steps++;
     if (bad) {

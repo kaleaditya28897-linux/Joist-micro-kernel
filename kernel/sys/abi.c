@@ -223,6 +223,9 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_TASK_SET_MCP:
         e = a1 > JOIST_PRIO_MAX ? JOIST_E_RIGHTS : joist_task_set_mcp(k, cs, slot_arg(a0), (uint8_t)a1);
         break;
+    case ABI_YIELD:
+        e = joist_yield(k, t);
+        break;
     case ABI_CONTINUE:
         /* No caller may ask for more at once than the kernel's own
          * preemption limit allows (0 from a caller would mean all of it). */
@@ -279,6 +282,7 @@ int abi_syscall(struct abi_env *env, uint32_t t)
             c.mappings += k->map[i].space != 0;
         }
         c.pending = k->npending;
+        c.rq_walks = k->rq_walks;
         if (env->machine_counters != NULL) {
             env->machine_counters(env->ctx, &c);
         }

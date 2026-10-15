@@ -1,0 +1,13 @@
+kernel	measurement	median_of_p50	p50_min	p50_max	p50_spread_pct	p99_min	p99_max	p99_spread_pct
+fast	a system call that does nothing	528	528	532	0.8	572	740	29.4
+fast	two address spaces, passive server	1624	1620	1624	0.2	1636	1696	3.6
+fast	one address space, passive server	1164	1164	1164	0.0	1172	1248	6.4
+fast	two address spaces, server with its own context	13808	13760	14048	2.1	19392	22368	15.1
+fast	two address spaces, passive server, 4 KiB of IPC buffer each way	2976	2968	2976	0.3	3000	3200	6.6
+fast	two address spaces, passive server, every other CPU making system calls	9072	8768	9536	8.5	9504	10464	9.7
+slow	a system call that does nothing	836	832	836	0.5	880	1032	17.3
+slow	two address spaces, passive server	3168	3168	3192	0.8	3184	3472	8.8
+slow	one address space, passive server	2712	2712	2736	0.9	2720	2792	2.6
+slow	two address spaces, server with its own context	14640	14528	14784	1.7	20032	23296	16.0
+slow	two address spaces, passive server, 4 KiB of IPC buffer each way	4532	4520	4624	2.3	4544	4704	3.5
+slow	two address spaces, passive server, every other CPU making system calls	10768	10416	11264	7.9	11424	12384	8.0

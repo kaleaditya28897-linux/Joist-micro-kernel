@@ -8,10 +8,11 @@
  * CPU and isr.S build for an interrupt from user mode (struct trap_frame,
  * cpu.h: SS, RSP, RFLAGS, CS, RIP, error 0, vector SYSCALL_VECTOR), swaps GS
  * back, and joins isr.S's common path, so system calls and interrupts enter
- * and leave the kernel the same way. The way back to user mode is always
- * resume_user (isr.S) with iretq, from the thread record of whichever thread
- * runs next; its RIP is checked to be in the user half first (run.c), which
- * also covers what Phase 2's sysret guard did.
+ * and leave the kernel the same way. The way back to user mode is
+ * resume_user (isr.S) with iretq, or resume_user_sysret with sysretq for a
+ * thread whose last entry was a `syscall` (run.c chooses), from the thread
+ * record of whichever thread runs next; its RIP is checked to be in the user
+ * half first (run.c), which also covers what Phase 2's sysret guard did.
  *
  * GS convention: GS base is the user's (0) everywhere but the five
  * instructions below; the kernel never uses GS otherwise. */

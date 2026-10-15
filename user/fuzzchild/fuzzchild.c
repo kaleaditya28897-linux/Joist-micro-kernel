@@ -24,7 +24,7 @@ static uint64_t next(void)
  * hasn't. Exit (2) is left out: it would end the thread at the first try. */
 static const uint8_t calls[] = {1, 3, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24,
                                 25, 26, 27, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40, 41, 42, 50,
-                                51, 52, 53, 60, 61, 62, 63, 64, 65, 70, 71, 0, 4, 9, 19, 99};
+                                51, 52, 53, 54, 60, 61, 62, 63, 64, 65, 70, 71, 72, 0, 4, 9, 19, 99};
 
 static uint8_t scratch[256];
 

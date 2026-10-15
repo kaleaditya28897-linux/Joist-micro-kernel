@@ -43,6 +43,13 @@
 #define JOIST_MAX_LEAVES 64u
 #endif
 #define JOIST_CSPACE_SLOTS (JOIST_CNODE_ROOT * JOIST_CNODE_LEAF)
+/* Priorities (§5.6: 256). A smaller number only for the bounded proofs
+ * (CBMC), which can't unwind loops over 256. */
+#ifndef JOIST_PRIOS
+#define JOIST_PRIOS 256u
+#endif
+#define JOIST_PRIO_WORDS ((JOIST_PRIOS + 63u) / 64u)
+
 /* CPUs the scheduler places threads on (Phase 3 step 9). */
 #ifndef JOIST_MAX_CPUS
 #define JOIST_MAX_CPUS 8u
@@ -393,6 +400,17 @@ struct joist_thread_rec {
     uint8_t faulting;
     /* Its IPC buffer: a page-aligned user address, 0 for none. */
     uint64_t ipc_buf;
+    /* The run queues (choice 9, Phase 3 step 10): the queue it is on (a CPU,
+     * plus one; 0 none), that list's priority, its neighbours in it (thread
+     * plus one), and the CPU whose queue it goes on when it next waits for
+     * one (the one it last ran on). On a queue exactly when it can run and
+     * is on no CPU (I14). */
+    uint8_t rq_on;
+    uint8_t home;
+    uint8_t rq_prio;  /* the priority whose list it is on */
+    uint8_t rq_dirty; /* noted, to be filed when the hold ends (k->rq_hold) */
+    uint32_t rq_prev;
+    uint32_t rq_next;
     /* The CPU this thread is on, plus one (0: none): the one that last
      * chose it and hasn't chosen another since. A thread is on at most one
      * CPU, and no other CPU chooses it meanwhile (I13; step 9). */
@@ -442,6 +460,21 @@ struct joist_kernel {
     uint32_t objects_live;
     uint64_t now; /* model time: advanced only by joist_tick */
     uint64_t ready_seq; /* the last place given out among ready threads */
+    /* While nonzero, joist__rq_sync only notes the threads to file (each
+     * once, in rq_pend; rq_dirty in the record) and joist__rq_settle files
+     * them: a path that changes a thread several times (a Call's rendezvous:
+     * woken, lent a context, given a place) moves it once. Zero between
+     * operations, with nothing noted (I14). */
+    uint32_t rq_hold;
+    uint32_t rq_npend;
+    /* k->now at the last joist_tick: a context whose budget is spent can run
+     * again from the first tick at or after its refill time (the kernel's
+     * timer is set for it). */
+    uint64_t tick_now;
+    /* Steps taken past a list's end to insert a thread in its place (a
+     * thread taking an older place than the last's): counted, since the
+     * queues are O(1) only where these are none. */
+    uint64_t rq_walks;
     /* The thread on each CPU, plus one (0: none); the other side of every
      * thread's `cpu` (I13). */
     uint32_t on_cpu[JOIST_MAX_CPUS];
@@ -470,6 +503,21 @@ struct joist_kernel {
     /* Loop iterations run by operations so far (I9; see JOIST_WORK). */
     uint64_t work;
     struct joist_hooks hooks; /* the kernel's; zero in the host model */
+    /* (Last: large, and apart from the fields every operation uses.)
+     * The run queues, one per CPU (choice 9): for each priority, a list of
+     * the threads that can run and are on no CPU, in their places in line
+     * (ready_seq, oldest first), and a bitmap of the priorities whose list
+     * isn't empty. Which CPU's queue a thread is on decides nothing: each
+     * CPU chooses from the best head of every queue and its own thread, so
+     * the choice is the scan's (joist_sched_pick_on), in a time bounded by
+     * the number of CPUs, not of threads. */
+    struct joist_runq {
+        uint64_t bits[JOIST_PRIO_WORDS];
+        struct {
+            uint32_t head, tail; /* thread plus one; together, one cache line */
+        } list[JOIST_PRIOS];
+    } rq[JOIST_MAX_CPUS];
+    uint32_t rq_pend[JOIST_MAX_THREADS]; /* (see rq_hold) */
 };
 
 /* Lifecycle. */
@@ -715,6 +763,12 @@ joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t);
  * no context. */
 void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used);
 
+/* Yield (decision 0014): thread t gives up the rest of its turn and goes
+ * behind its equals; its budget is untouched, and a thread of lower
+ * priority still doesn't run before it. JOIST_E_RANGE/JOIST_E_STATE (t not
+ * a running thread). O(1). */
+joist_err joist_yield(struct joist_kernel *k, joist_thread t);
+
 /* ---- more than one CPU (Phase 3 step 9; decision 0016) ----
  *
  * Scheduling is global: any CPU may run any thread, one CPU per thread
@@ -730,6 +784,30 @@ joist_err joist_sched_pick_on(struct joist_kernel *k, uint32_t cpu, joist_thread
  * that CPU now (or one, if it is idle)? Changes nothing. For deciding which
  * other CPUs to interrupt after an operation set k->resched. */
 int joist_sched_better(const struct joist_kernel *k, uint32_t cpu);
+
+/* Hold the run queues across several operations (they nest): until the
+ * matching joist_sched_settle, a thread whose state changes is only noted,
+ * and the settle files each noted thread once, where it then belongs. The
+ * kernel holds them for a whole system call, through the direct switch
+ * (joist_sched_on), so that a thread handed the CPU never goes on a queue
+ * and off it again. A choice made while they are held (pick, better) files
+ * what is noted first, or scans. Never held between kernel entries (I14). */
+void joist__sched_flush(struct joist_kernel *k); /* (files what is noted) */
+static inline void joist_sched_hold(struct joist_kernel *k)
+{
+    k->rq_hold++;
+}
+static inline void joist_sched_settle(struct joist_kernel *k)
+{
+    if (k->rq_hold > 1u) {
+        k->rq_hold--; /* an inner hold: the outer one settles */
+        return;
+    }
+    k->rq_hold = 0;
+    if (k->rq_npend != 0) {
+        joist__sched_flush(k);
+    }
+}
 
 /* CPU `cpu` goes on with thread t without asking (the direct switch,
  * below), or with none (t = JOIST_MAX_THREADS): the record of who is where

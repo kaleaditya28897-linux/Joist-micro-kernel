@@ -1,0 +1,34 @@
+campaign: 2026-10-15T10:06:13Z build VM busy during run: 0.2 %
+runiso-status: 1
+pin: qemu-system-x86: 0-11
+pin: call_rcu: 0-11
+pin: worker: 0-11
+pin: CPU 0/KVM: 2
+pin: CPU 1/KVM: 3
+pin: CPU 2/KVM: 4
+pin: CPU 3/KVM: 5
+pin: kvm-nx-lpage-re: 0-11
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe5c000), direct map at 0xffff800000000000
+joist: frames: 64838 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64576 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625148 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 1
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+scale: cpus=1 tsc_per_ms=2592911 window_ms=2000
+scale: passive k=1 pair=0 n=5867523 late=0 ruler=7433
+scale: passive k=1 total=5867523 per_s=2933761 window=5185822000
+scale: own-context k=1 pair=0 n=668456 late=1 ruler=7515
+scale: own-context k=1 total=668456 per_s=334228 window=5185822000
+scale: done
+joist: root task exited with code 0 (timer ticks so far: 22)
+joist: finish code 0

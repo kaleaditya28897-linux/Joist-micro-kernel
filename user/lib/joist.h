@@ -47,7 +47,7 @@ enum {
     J_SYS_THREAD_SUSPEND, J_SYS_THREAD_RESUME, J_SYS_THREAD_ABORT, J_SYS_THREAD_SET_FAULT,
     J_SYS_TASK_SET_FAULT,
     J_SYS_FRAME_SPLIT = 40, J_SYS_MAP, J_SYS_UNMAP,
-    J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP,
+    J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP, J_SYS_YIELD,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
     J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER
@@ -346,10 +346,17 @@ static inline uint64_t j_sc_unbind(uint64_t sc)
  * struct abi_counters). J_OK, J_E_RIGHTS or J_E_RANGE. */
 struct j_counters {
     uint64_t objects, threads, spaces, leaves, mappings, pending, table_pool, frames_free;
+    uint64_t rq_walks; /* run-queue insert steps past a list's end, so far */
 };
 static inline uint64_t j_debug_counters(struct j_counters *out)
 {
     return j_sys4(J_SYS_DEBUG_COUNTERS, (uint64_t)(uintptr_t)out, 0, 0, 0);
+}
+
+/* Give up the rest of this turn: behind equals (decision 0014). */
+static inline uint64_t j_yield(void)
+{
+    return j_sys4(J_SYS_YIELD, 0, 0, 0, 0);
 }
 
 /* Debug calls (Phase 2's convention: bytes written, or a negative code). */

@@ -110,6 +110,32 @@ void joist__sc_giveback(struct joist_kernel *k, uint32_t h);
 /* Thread t is about to be stopped, destroyed or have its registers touched
  * from outside: off whatever CPU it is on (the kernel's hook first). */
 void joist__off_cpu(struct joist_kernel *k, uint32_t t);
+
+/* The run queues (sched.c): put thread t where it belongs now, after
+ * anything that may have changed whether it can run, whether it is on a
+ * CPU, its context or its place in line. On a queue if and only if it can
+ * run and is on no CPU (I14). */
+void joist__rq_file(struct joist_kernel *k, uint32_t t);
+static inline void joist__rq_sync(struct joist_kernel *k, uint32_t t)
+{
+    /* Held (the kernel holds them for every system call): note it, once.
+     * Inline, since most calls are this, and most of those find it noted. */
+    if (k->rq_hold != 0 && t < JOIST_MAX_THREADS) {
+        if (k->th[t].rq_dirty != 0) {
+            return; /* noted already */
+        }
+        if (k->rq_npend < JOIST_MAX_THREADS) {
+            k->th[t].rq_dirty = 1;
+            k->rq_pend[k->rq_npend++] = t;
+            return;
+        }
+        /* (No room to note it, which a record cleared for reuse while noted
+         * could cause: filed now, which is never wrong.) */
+    }
+    joist__rq_file(k, t);
+}
+/* (joist_sched_hold and joist_sched_settle, core.h, hold the queues: the
+ * rendezvous paths in ipc.c use them too.) */
 void joist__sc_thread_gone(struct joist_kernel *k, uint32_t t);
 /* Bind context object so to thread t (both valid and live): sc_bind's
  * effect once its capabilities are checked; tests use it for fixture

@@ -214,6 +214,7 @@ JT_TEST(props_handover_agrees_with_the_scheduler)
             for (uint32_t i = 0; i < SERVERS; i++) {
                 is_server |= server[i] == t;
             }
+            joist_sched_hold(&k); /* as the kernel does, for the whole call */
             if (me->reply_to != 0 && rnd(10) < 7) {
                 /* A server answering: ReplyRecv on its own endpoint, now
                  * and then with a timeout on the wait. */
@@ -247,9 +248,13 @@ JT_TEST(props_handover_agrees_with_the_scheduler)
                 tried = 1;
             } /* else: it just ran */
             ops++;
+            uint32_t h = tried ? joist_sched_handed(&k, t, place, to) : JOIST_MAX_THREADS;
+            if (h != JOIST_MAX_THREADS) {
+                joist_sched_on(&k, 0, h); /* the direct switch, before the settle */
+            }
+            joist_sched_settle(&k);
             if (tried) {
-                uint32_t h = joist_sched_handed(&k, t, place, to);
-                uint32_t spec = picked();
+                uint32_t spec = picked(); /* (with h on the CPU: it must still choose h) */
                 if (h != JOIST_MAX_THREADS) {
                     uint64_t next = joist_sched_next_event(&k, h);
                     if (h != spec || next < armed) {

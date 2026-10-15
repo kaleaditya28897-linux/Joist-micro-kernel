@@ -51,6 +51,15 @@ joist_err joist__control_cap(const struct joist_kernel *k, joist_cspace cs, jois
     return JOIST_OK;
 }
 
+static void rq_remove(struct joist_kernel *k, uint32_t t);
+
+/* Has priority p a run queue? (All 256 have, unless the model is built
+ * with fewer: JOIST_PRIOS.) */
+static int prio_ok(uint32_t p)
+{
+    return p < JOIST_PRIOS;
+}
+
 joist_err joist_sc_create(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uint8_t prio,
                           uint64_t budget, uint64_t period)
 {
@@ -71,7 +80,7 @@ joist_err joist_sc_create(struct joist_kernel *k, joist_cspace cs, joist_slot ds
     if (budget == 0 || period == 0 || budget > period) {
         return JOIST_E_RANGE;
     }
-    if (prio > s->mcp) {
+    if (prio > s->mcp || !prio_ok(prio)) {
         return JOIST_E_RIGHTS; /* no more priority than this space may give */
     }
     if (s->quota == 0) {
@@ -131,7 +140,9 @@ joist_err joist__sc_bind_thread(struct joist_kernel *k, uint32_t so, uint32_t t)
      * gives it back; then it runs on its own (giveback, reclaim). */
     if (r->run_sc == 0 && r->sc_from == 0 && r->sc_to == 0) {
         r->run_sc = so + 1u;
-        k->resched = 1; /* it can run now */
+        r->ready_seq = ++k->ready_seq; /* ready on its own time: behind its equals */
+        k->resched = 1;                /* it can run now */
+        joist__rq_sync(k, t);
     }
     return JOIST_OK;
 }
@@ -154,6 +165,7 @@ joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc
     if (r->run_sc == so + 1u) {
         r->run_sc = 0;
         k->resched = 1; /* it can't run any more: its CPU wants another */
+        joist__rq_sync(k, o->target - 1u);
     }
     r->sc = 0;
     o->target = 0;
@@ -191,6 +203,8 @@ void joist__sc_donate(struct joist_kernel *k, uint32_t from, uint32_t to)
     f->run_sc = 0;
     f->sc_to = to + 1u;
     r->sc_from = from + 1u;
+    joist__rq_sync(k, from);
+    joist__rq_sync(k, to);
 }
 
 void joist__sc_reclaim(struct joist_kernel *k, uint32_t x)
@@ -208,12 +222,15 @@ void joist__sc_reclaim(struct joist_kernel *k, uint32_t x)
         if (next == 0) {
             sc = b->run_sc;
         }
+        uint32_t bt = y - 1u;
         b->sc_from = 0;
         b->sc_to = 0;
-        b->run_sc = b->sc;
+        b->run_sc = b->sc; /* (its place stays: the reply, ipc.c, gives it a new one) */
+        joist__rq_sync(k, bt);
         y = next;
     }
     r->run_sc = sc != 0 ? sc : r->sc;
+    joist__rq_sync(k, x);
 }
 
 void joist__sc_giveback(struct joist_kernel *k, uint32_t h)
@@ -225,11 +242,14 @@ void joist__sc_giveback(struct joist_kernel *k, uint32_t h)
     if (r->sc_to != 0) {
         joist__sc_reclaim(k, h); /* lent on: pull it back here first */
     }
-    struct joist_thread_rec *l = &k->th[r->sc_from - 1u];
+    uint32_t lt = r->sc_from - 1u;
+    struct joist_thread_rec *l = &k->th[lt];
     l->run_sc = r->run_sc;
     l->sc_to = 0;
     r->sc_from = 0;
     r->run_sc = r->sc;
+    joist__rq_sync(k, lt);
+    joist__rq_sync(k, h);
 }
 
 void joist__sc_thread_gone(struct joist_kernel *k, uint32_t t)
@@ -242,6 +262,7 @@ void joist__sc_thread_gone(struct joist_kernel *k, uint32_t t)
     if (r->sc != 0) {
         k->obj[r->sc - 1u].target = 0; /* the context outlives its thread, unbound */
     }
+    rq_remove(k, t);
     r->sc = 0;
     r->run_sc = 0;
 }
@@ -269,6 +290,8 @@ void joist__sc_freed(struct joist_kernel *k, uint32_t obj)
             b->sc_from = 0;
             b->sc_to = 0;
             b->run_sc = b->sc;
+            b->ready_seq = ++k->ready_seq; /* on its own again: behind its equals */
+            joist__rq_sync(k, y);
             if (from == 0) {
                 break;
             }
@@ -280,7 +303,9 @@ void joist__sc_freed(struct joist_kernel *k, uint32_t obj)
 
 /* ---- who runs (Phase 3 step 5) ---- */
 
-/* Can thread t run at k->now? Its context, if so. */
+/* Can thread t run? Its context, if so: it is running (not blocked or
+ * suspended), runs on a context, and that context has budget left or was
+ * due a new period at the last tick. */
 static const struct joist_object *can_run(const struct joist_kernel *k, uint32_t t)
 {
     const struct joist_thread_rec *r = &k->th[t];
@@ -288,11 +313,198 @@ static const struct joist_object *can_run(const struct joist_kernel *k, uint32_t
         return NULL;
     }
     const struct joist_object *sc = &k->obj[r->run_sc - 1u];
-    return sc->remaining != 0 || sc->refill_at <= k->now ? sc : NULL;
+    return sc->remaining != 0 || sc->refill_at <= k->tick_now ? sc : NULL;
+}
+
+/* Is (prio a, place sa) to go before (prio b, place sb)? */
+static int before(uint8_t a, uint64_t sa, uint8_t b, uint64_t sb)
+{
+    return a > b || (a == b && sa < sb);
+}
+
+/* ---- the run queues (choice 9; Phase 3 step 10) ---- */
+
+static void rq_remove(struct joist_kernel *k, uint32_t t)
+{
+    struct joist_thread_rec *r = &k->th[t];
+    if (r->rq_on == 0 || r->rq_on > JOIST_MAX_CPUS) {
+        return;
+    }
+    struct joist_runq *q = &k->rq[r->rq_on - 1u];
+    uint8_t p = r->rq_prio;
+    if (r->rq_prev != 0) {
+        k->th[r->rq_prev - 1u].rq_next = r->rq_next;
+    } else {
+        q->list[p].head = r->rq_next;
+    }
+    if (r->rq_next != 0) {
+        k->th[r->rq_next - 1u].rq_prev = r->rq_prev;
+    } else {
+        q->list[p].tail = r->rq_prev;
+    }
+    if (q->list[p].head == 0) {
+        q->bits[p / 64u] &= ~(1ull << (p % 64u));
+    }
+    r->rq_on = 0;
+    r->rq_prev = 0;
+    r->rq_next = 0;
+}
+
+/* Insert in its place: after every thread of its priority with an older
+ * place. Nearly always at the tail (a new place is the newest), or at the
+ * head (a place taken from a thread just running, which was first in line):
+ * both O(1). Anything else walks back from the tail, and every step is
+ * counted (k->rq_walks). */
+static void rq_insert(struct joist_kernel *k, uint32_t t)
+{
+    struct joist_thread_rec *r = &k->th[t];
+    uint32_t cpu = r->home < JOIST_MAX_CPUS ? r->home : 0;
+    struct joist_runq *q = &k->rq[cpu];
+    uint8_t p = k->obj[r->run_sc - 1u].prio;
+    uint32_t h = q->list[p].head;
+    uint32_t after = 0; /* insert after this one (thread plus one; 0: at the head) */
+    if (h != 0 && k->th[h - 1u].ready_seq < r->ready_seq) {
+        after = q->list[p].tail; /* not before the head: so from the tail back */
+        for (uint32_t n = 0; k->th[after - 1u].ready_seq > r->ready_seq && n < JOIST_MAX_THREADS;
+             n++) {
+            after = k->th[after - 1u].rq_prev;
+            k->rq_walks++;
+        }
+    }
+    r->rq_prev = after;
+    r->rq_next = after != 0 ? k->th[after - 1u].rq_next : q->list[p].head;
+    if (r->rq_prev != 0) {
+        k->th[r->rq_prev - 1u].rq_next = t + 1u;
+    } else {
+        q->list[p].head = t + 1u;
+    }
+    if (r->rq_next != 0) {
+        k->th[r->rq_next - 1u].rq_prev = t + 1u;
+    } else {
+        q->list[p].tail = t + 1u;
+    }
+    q->bits[p / 64u] |= 1ull << (p % 64u);
+    r->rq_on = (uint8_t)(cpu + 1u);
+    r->rq_prio = p;
+}
+
+/* Is queued thread t where it belongs: its CPU's queue, its priority's
+ * list, between an older place and a newer? */
+static int rq_in_place(const struct joist_kernel *k, uint32_t t, uint8_t prio)
+{
+    const struct joist_thread_rec *r = &k->th[t];
+    uint32_t cpu = r->home < JOIST_MAX_CPUS ? r->home : 0;
+    return r->rq_on == cpu + 1u && r->rq_prio == prio &&
+           (r->rq_prev == 0 || k->th[r->rq_prev - 1u].ready_seq < r->ready_seq) &&
+           (r->rq_next == 0 || k->th[r->rq_next - 1u].ready_seq > r->ready_seq);
+}
+
+static void rq_file(struct joist_kernel *k, uint32_t t)
+{
+    const struct joist_object *sc = k->th[t].cpu == 0 ? can_run(k, t) : NULL;
+    if (sc != NULL && k->th[t].rq_on != 0 && rq_in_place(k, t, sc->prio)) {
+        return; /* nothing to do: the common case for a thread already waiting */
+    }
+    rq_remove(k, t);
+    if (sc != NULL) {
+        rq_insert(k, t);
+    }
+}
+
+void joist__rq_file(struct joist_kernel *k, uint32_t t)
+{
+    if (t < JOIST_MAX_THREADS) {
+        rq_file(k, t);
+    }
+}
+
+/* File every noted thread (the hold, if any, stays): first out of the
+ * lists, each that is no longer where it belongs, so that the lists hold
+ * only threads in their places; then each where it belongs now. */
+static void rq_flush(struct joist_kernel *k)
+{
+    uint32_t n = k->rq_npend < JOIST_MAX_THREADS ? k->rq_npend : JOIST_MAX_THREADS;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t t = k->rq_pend[i];
+        if (k->th[t].rq_on == 0) {
+            continue;
+        }
+        const struct joist_object *sc = k->th[t].cpu == 0 ? can_run(k, t) : NULL;
+        if (sc == NULL || !rq_in_place(k, t, sc->prio)) {
+            rq_remove(k, t);
+        }
+    }
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t t = k->rq_pend[i];
+        struct joist_thread_rec *r = &k->th[t];
+        r->rq_dirty = 0;
+        if (r->rq_on == 0 && (r->cpu != 0 || r->state != JOIST_T_RUNNING)) {
+            continue; /* on a CPU, or waiting: on no list, as it should be (the direct switch) */
+        }
+        rq_file(k, t);
+    }
+    k->rq_npend = 0;
+}
+
+void joist__sched_flush(struct joist_kernel *k)
+{
+    rq_flush(k);
+}
+
+/* The first thread of the highest priority on CPU q's queue, or
+ * JOIST_MAX_THREADS. O(JOIST_PRIO_WORDS). */
+static uint32_t rq_head(const struct joist_kernel *k, uint32_t q)
+{
+    for (uint32_t w = JOIST_PRIO_WORDS; w-- > 0;) {
+        uint64_t b = k->rq[q].bits[w];
+        if (b != 0) {
+            uint32_t p = w * 64u + (63u - (uint32_t)__builtin_clzll(b));
+            return k->rq[q].list[p].head - 1u;
+        }
+    }
+    return JOIST_MAX_THREADS;
+}
+
+/* What CPU `cpu` should run: its own thread, if it can still run, or the
+ * best head of any queue, whichever goes first. The same as the scan
+ * (best_for), in O(CPUs x priority words). */
+static uint32_t best_for(const struct joist_kernel *k, uint32_t cpu);
+
+static uint32_t best_queued(const struct joist_kernel *k, uint32_t cpu)
+{
+    if (k->rq_npend != 0) {
+        return best_for(k, cpu); /* (held, and something noted: the queues aren't true yet) */
+    }
+    uint32_t best = JOIST_MAX_THREADS;
+    uint8_t bp = 0;
+    uint64_t bs = 0;
+    uint32_t mine = k->on_cpu[cpu];
+    if (mine != 0 && mine <= JOIST_MAX_THREADS) {
+        const struct joist_object *sc = can_run(k, mine - 1u);
+        if (sc != NULL) {
+            best = mine - 1u;
+            bp = sc->prio;
+            bs = k->th[best].ready_seq;
+        }
+    }
+    for (uint32_t q = 0; q < JOIST_MAX_CPUS; q++) {
+        uint32_t h = rq_head(k, q);
+        if (h >= JOIST_MAX_THREADS) {
+            continue;
+        }
+        uint8_t hp = k->obj[k->th[h].run_sc - 1u].prio;
+        if (best == JOIST_MAX_THREADS || before(hp, k->th[h].ready_seq, bp, bs)) {
+            best = h;
+            bp = hp;
+            bs = k->th[h].ready_seq;
+        }
+    }
+    return best;
 }
 
 /* The best thread CPU `cpu` could run: one that can run and is on no other
- * CPU. JOIST_MAX_THREADS if none. */
+ * CPU. JOIST_MAX_THREADS if none. The scan: the specification the run
+ * queues are held to (joist__check_sched, test_runq.c); not used to choose. */
 static uint32_t best_for(const struct joist_kernel *k, uint32_t cpu)
 {
     uint32_t best = JOIST_MAX_THREADS;
@@ -320,17 +532,22 @@ void joist_sched_on(struct joist_kernel *k, uint32_t cpu, joist_thread t)
         return;
     }
     uint32_t was = k->on_cpu[cpu];
+    k->on_cpu[cpu] = 0;
     if (was != 0 && was <= JOIST_MAX_THREADS) {
         k->th[was - 1u].cpu = 0;
+        if (was - 1u != t) {
+            joist__rq_sync(k, was - 1u); /* off this CPU: back on a queue, if it can run */
+        }
     }
-    k->on_cpu[cpu] = 0;
     if (t < JOIST_MAX_THREADS && k->th[t].state != JOIST_T_FREE) {
         uint32_t other = k->th[t].cpu;
         if (other != 0 && other <= JOIST_MAX_CPUS) {
             k->on_cpu[other - 1u] = 0; /* (never, if the caller chose rightly: I13 holds anyway) */
         }
         k->th[t].cpu = (uint8_t)(cpu + 1u);
+        k->th[t].home = (uint8_t)cpu;
         k->on_cpu[cpu] = t + 1u;
+        joist__rq_sync(k, t); /* on a CPU: off the queues */
     }
 }
 
@@ -339,8 +556,9 @@ joist_err joist_sched_pick_on(struct joist_kernel *k, uint32_t cpu, joist_thread
     if (cpu >= JOIST_MAX_CPUS) {
         return JOIST_E_RANGE;
     }
-    k->work += JOIST_MAX_THREADS; /* one scan (I9) */
-    uint32_t best = best_for(k, cpu);
+    rq_flush(k); /* (anything noted under a hold, first) */
+    k->work += (uint64_t)JOIST_MAX_CPUS * JOIST_PRIO_WORDS; /* the queues' heads (I9) */
+    uint32_t best = best_queued(k, cpu);
     if (best >= JOIST_MAX_THREADS) {
         joist_sched_on(k, cpu, JOIST_MAX_THREADS);
         return JOIST_E_EMPTY;
@@ -361,12 +579,26 @@ joist_err joist_sched_pick(struct joist_kernel *k, joist_thread *t)
     return joist_sched_pick_on(k, 0, t);
 }
 
+joist_err joist_yield(struct joist_kernel *k, joist_thread t)
+{
+    if (t >= JOIST_MAX_THREADS) {
+        return JOIST_E_RANGE;
+    }
+    if (k->th[t].state != JOIST_T_RUNNING) {
+        return JOIST_E_STATE;
+    }
+    k->th[t].ready_seq = ++k->ready_seq; /* behind its equals */
+    k->resched = 1;                      /* an equal waiting elsewhere may want this CPU */
+    joist__rq_sync(k, t);                /* to the back of its list */
+    return JOIST_OK;
+}
+
 int joist_sched_better(const struct joist_kernel *k, uint32_t cpu)
 {
     if (cpu >= JOIST_MAX_CPUS) {
         return 0;
     }
-    uint32_t best = best_for(k, cpu);
+    uint32_t best = best_queued(k, cpu);
     return best != (k->on_cpu[cpu] != 0 ? k->on_cpu[cpu] - 1u : JOIST_MAX_THREADS);
 }
 
@@ -383,6 +615,7 @@ void joist__off_cpu(struct joist_kernel *k, uint32_t t)
     k->on_cpu[cpu] = 0; /* off it, at both ends */
     r->cpu = 0;
     k->resched = 1; /* that CPU has nothing now */
+    joist__rq_sync(k, t);
 }
 
 void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used)
@@ -394,6 +627,7 @@ void joist_sched_charge(struct joist_kernel *k, joist_thread t, uint64_t used)
     if (used >= sc->remaining) {
         sc->remaining = 0;
         k->th[t].ready_seq = ++k->ready_seq; /* its turn is over: behind its equals */
+        joist__rq_sync(k, t);                /* (if it is queued: the kernel's CPU drops it later) */
     } else {
         sc->remaining -= used;
     }
@@ -446,8 +680,10 @@ uint64_t joist_sched_next_event(const struct joist_kernel *k, joist_thread runni
         }
         if (r->state == JOIST_T_RUNNING && r->run_sc != 0) {
             const struct joist_object *sc = &k->obj[r->run_sc - 1u];
-            if (sc->remaining == 0 && sc->refill_at > k->now && sc->refill_at < next) {
-                next = sc->refill_at; /* out of budget: its next period */
+            if (sc->remaining == 0 && sc->refill_at > k->tick_now && sc->refill_at < next) {
+                /* Out of budget: its next period, which a tick at or after
+                 * it makes count (it may be past already: then at once). */
+                next = sc->refill_at;
             }
         }
     }
@@ -490,6 +726,10 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
         if (ob->remaining > ob->budget) {
             VIOLATION("I11: context %u has %llu left of a budget of %llu", o,
                       (unsigned long long)ob->remaining, (unsigned long long)ob->budget);
+        }
+        if (!prio_ok(ob->prio)) {
+            VIOLATION("I11: context %u has priority %u, past the queues' %u", o, ob->prio,
+                      (unsigned)JOIST_PRIOS);
         }
         if (ob->budget == 0 || ob->budget > ob->period) {
             VIOLATION("I11: context %u budget %llu period %llu", o,
@@ -553,6 +793,86 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
             (r->sc_from > JOIST_MAX_THREADS || k->th[r->sc_from - 1u].sc_to != t + 1u)) {
             VIOLATION("I11: thread %u borrows from %u, which doesn't lend to it", t,
                       r->sc_from - 1u);
+        }
+    }
+    /* I14: the run queues. A thread is on a queue exactly when it can run
+     * and is on no CPU; each list is well linked, holds only its priority,
+     * in order of place, and its bit says whether it has any. And what the
+     * queues choose for each CPU is what the scan would. */
+    if (k->rq_hold != 0 || k->rq_npend != 0) {
+        VIOLATION("I14: between operations, a hold on the queues (%u, %u noted)", k->rq_hold,
+                  k->rq_npend);
+    }
+    uint32_t queued = 0;
+    for (uint32_t c = 0; c < JOIST_MAX_CPUS; c++) {
+        const struct joist_runq *q = &k->rq[c];
+        uint32_t used = JOIST_PRIOS - (JOIST_PRIO_WORDS - 1u) * 64u; /* bits of the last word */
+        if (used < 64u && (q->bits[JOIST_PRIO_WORDS - 1u] >> used) != 0) {
+            VIOLATION("I14: CPU %u has a bit for a priority past %u", c, (unsigned)JOIST_PRIOS);
+        }
+        for (uint32_t p = 0; p < JOIST_PRIOS; p++) {
+            int bit = (int)((q->bits[p / 64u] >> (p % 64u)) & 1u);
+            if (bit != (q->list[p].head != 0) || (q->list[p].head == 0) != (q->list[p].tail == 0)) {
+                VIOLATION("I14: CPU %u priority %u: bit, head and tail disagree", c, p);
+                continue;
+            }
+            uint32_t prev = 0;
+            uint32_t cur = q->list[p].head;
+            uint32_t n = 0;
+            while (cur != 0) {
+                if (cur > JOIST_MAX_THREADS || ++n > JOIST_MAX_THREADS) {
+                    VIOLATION("I14: CPU %u priority %u list is corrupt or cyclic", c, p);
+                    break;
+                }
+                const struct joist_thread_rec *r = &k->th[cur - 1u];
+                if (r->rq_on != c + 1u || r->rq_prio != p || r->rq_prev != prev) {
+                    VIOLATION("I14: thread %u's links disagree with CPU %u priority %u", cur - 1u,
+                              c, p);
+                }
+                if (r->run_sc == 0 || r->run_sc > JOIST_MAX_OBJECTS ||
+                    k->obj[r->run_sc - 1u].prio != p) {
+                    VIOLATION("I14: thread %u on priority %u's list runs at another", cur - 1u, p);
+                }
+                if (prev != 0 && k->th[prev - 1u].ready_seq >= r->ready_seq) {
+                    VIOLATION("I14: thread %u is ahead of %u in line, out of order", prev - 1u,
+                              cur - 1u);
+                }
+                prev = cur;
+                cur = r->rq_next;
+            }
+            if (cur == 0 && q->list[p].tail != prev) {
+                VIOLATION("I14: CPU %u priority %u: tail is not the last", c, p);
+            }
+            queued += n;
+        }
+    }
+    uint32_t eligible = 0;
+    for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+        const struct joist_thread_rec *r = &k->th[t];
+        if (r->run_sc > JOIST_MAX_OBJECTS || r->rq_on > JOIST_MAX_CPUS) {
+            VIOLATION("I14: thread %u's context or queue is out of range", t);
+            continue;
+        }
+        int want = r->state != JOIST_T_FREE && r->cpu == 0 && can_run(k, t) != NULL;
+        eligible += want != 0;
+        if (r->rq_dirty != 0) {
+            VIOLATION("I14: thread %u is still noted to be filed", t);
+        }
+        if (want != (r->rq_on != 0)) {
+            VIOLATION("I14: thread %u %s queued but %s", t, r->rq_on != 0 ? "is" : "isn't",
+                      want ? "can run on no CPU" : "can't run or is on a CPU");
+        }
+    }
+    if (queued != eligible) {
+        VIOLATION("I14: %u threads on the queues, %u that should be", queued, eligible);
+    }
+    /* (Only of a sound state: the choice reads the queues and the threads
+     * they name without checking them again.) */
+    for (uint32_t c = 0; c < JOIST_MAX_CPUS && bad == 0; c++) {
+        uint32_t a = best_queued(k, c);
+        uint32_t b = best_for(k, c);
+        if (a != b) {
+            VIOLATION("I14: for CPU %u the queues choose %u, the scan %u", c, a, b);
         }
     }
 #undef VIOLATION

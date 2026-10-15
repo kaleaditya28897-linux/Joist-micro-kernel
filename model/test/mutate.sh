@@ -60,6 +60,21 @@ count=$(wc -l < "$MUT_WORK/list")
 jobs=${MUTATE_JOBS:-$(nproc 2>/dev/null || echo 2)}
 [ "$count" -gt 0 ] && seq 1 "$count" | xargs -P "$jobs" -I{} sh "$0" --one {}
 fail=0
+# With MUTATE_ONLY, the mutations not run are still checked for text that is
+# no longer there (a part's own run would otherwise miss what it made stale:
+# step 10's full run found one).
+if [ -n "${MUTATE_ONLY:-}" ]; then
+    grep -v '^#' "$MUT_HERE/test/mutations.txt" | grep -v '^[[:space:]]*$' | sed 's/ @@ /\x1f/g' |
+        while IFS= read -r line; do
+            name=$(printf '%s' "$line" | awk -F '\037' '{print $1}' | sed 's/[[:space:]]*$//')
+            file=$(printf '%s' "$line" | awk -F '\037' '{print $2}' | tr -d ' ')
+            from=$(printf '%s' "$line" | awk -F '\037' '{print $3}' | sed 's/^ //; s/ $//')
+            python3 -c 'import sys; sys.exit(0 if sys.argv[2] in open(sys.argv[1]).read() else 1)' \
+                "$MUT_HERE/$file" "$from" || echo "STALE  $name: text not found in $file"
+        done > "$MUT_WORK/stale"
+    cat "$MUT_WORK/stale"
+    [ -s "$MUT_WORK/stale" ] && fail=1
+fi
 for r in "$MUT_WORK"/res/*; do
     [ -f "$r" ] || continue
     cat "$r"

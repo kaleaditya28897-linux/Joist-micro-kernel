@@ -7,12 +7,13 @@ aiming for QNX-level reliability and Minix 3-level resilience while staying POSI
 
 **Phases 0, 1 and 2 are closed** (exit records `docs/phase0-exit.md`, `docs/phase1-exit.md`,
 `docs/phase2-exit.md`, accepted 2026-10-01, 2026-10-04 and 2026-10-05). **Phase 3 (IPC and
-capabilities in the real kernel) is next**; its inputs are the *Carried forward* lists in
-those records. What exists:
+capabilities in the real kernel) is at its last step** (step 10, the exit criteria; plan and
+record in `docs/phase3-plan.md`, data in `docs/phase3-data/`). What exists:
 
 - `joist-microkernel-plan.md`: the authoritative design document.
-- `docs/decisions/`: the design journal, **0000–0015 all accepted** (index in its README;
-  0001 and 0004 carry accepted amendments, 0015 chose Limine).
+- `docs/decisions/`: the design journal, **0000–0017 all accepted** (index in its README;
+  0001 and 0004 carry accepted amendments, 0015 chose Limine, 0016 chose one kernel lock
+  with interrupts off and preemption points, 0017 kept it after measuring it).
 - Phase 0 evidence: `docs/mach-inventory.md`, `docs/clang-inventory.md`,
   `docs/client-recovery.md`, `docs/rpc-idempotency.md`, `docs/phase0-data/`.
 - Phase 1: `docs/phase1-plan.md`, `docs/phase1-data/`, `docs/abi.md` (the native API as the
@@ -26,10 +27,12 @@ those records. What exists:
   host tests under every sanitizer, `clang-tidy`, `scan-build`, BIOS and UEFI boots, and the
   self-tests.
 - `tools/phase0/`, `tools/phase1/`: the scripts and patches behind each phase's data.
-- `docs/testbed.md`: the Debian GNU/Hurd x86_64 VM used for measurements.
+- `docs/testbed.md`: the machines: since 2026-10-14 the P53 (a Void Linux server) runs the
+  build VM `joist-dev2`, boots kernel images on its own CPU through KVM (`tools/p53/boot.sh`),
+  and runs the Debian GNU/Hurd x86_64 VM used for measurements.
 
 `joist-microkernel-plan.md` is the source of truth. Keep it internally consistent: section
-numbers (§N), the phase roadmap (§11), the decision list (0000–0015), and the cross-references
+numbers (§N), the phase roadmap (§11), the decision list (0000–0017), and the cross-references
 between them are load-bearing. If you change a design commitment, update every place it is
 referenced, not just the local paragraph.
 
@@ -54,7 +57,7 @@ These are decided, not open questions. Do not silently reopen them:
 
 - **Decision journal.** Non-trivial design decisions become `docs/decisions/NNNN-title.md`
   using the template in §15 (Context / Options / Decision / Consequences / Priority check).
-  0000–0015 are **accepted**. A change of mind is a new, superseding entry, never an edit;
+  0000–0017 are **accepted**. A change of mind is a new, superseding entry, never an edit;
   amendments record new evidence or settle a decision's listed open items. 0001's five open
   parameters were settled by its 2026-10-03 amendment: 4 × 64-bit message registers plus a
   4 KiB IPC buffer, 64-bit server-chosen badges, a 64-bit notification word, a two-level
