@@ -1,0 +1,35 @@
+runiso-status: 1
+pin: qemu-system-x86: 0-11
+pin: call_rcu: 0-11
+pin: worker: 0-11
+pin: CPU 0/KVM: 2
+pin: CPU 1/KVM: 3
+pin: CPU 2/KVM: 4
+pin: CPU 3/KVM: 5
+pin: kvm-nx-lpage-re: 0-11
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/worker.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe40000), direct map at 0xffff800000000000
+joist: frames: 64820 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64558 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625023 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+sched: priorities ok
+sched: budget ok: 2 ms in every 10 got 20% (counts 45235679, 177564204)
+sched: kernel time ok: beside 2 ms in every 10 of system calls, a spinner kept 80% (counts 182586677, 226620546)
+sched: equals ok: one of two got 50% (counts 114256378, 114081748)
+sched: 227 calls served;
+sched: donation ok: a passive server on its client's 2 ms in every 10 got 20% (counts 45533958, 180382170)
+sched: donation ok: and the spinner beside them kept 80% (counts 180382170, 225413226)
+sched: all ok
+joist: root task exited with code 0 (timer ticks so far: 1282)
+joist: finish code 0

@@ -330,3 +330,12 @@ the seven self-tests (seeds 1-7, 100 rounds each), the 9 000 further rounds
 (seeds 11-16, 300 rounds, five machine shapes), the six bugs planted in the
 core by hand and the round that caught each, and what is not covered. The
 self-tests themselves run in every `make check` in `kernel/`.
+
+## Decision 0017's timer order, measured (2026-10-15): `step10-timerout/`
+
+The timer written after the lock's release (the new default) against the
+old order, by the P53's Claude Code with the lock study's method and tools:
+`findings.md` is its report (scaling with K = 1 to 4 pairs, uncontended
+`ipcbench`, 50 stress boots, image SHA-256s); `raw/` every kept log and
+`stress.txt`; `tools/` the scripts. Summary in `docs/phase3-plan.md`,
+*Decision 0017: the timer written after the unlock*.

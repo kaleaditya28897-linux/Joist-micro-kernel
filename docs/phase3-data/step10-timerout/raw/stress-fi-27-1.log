@@ -1,0 +1,62 @@
+runiso-status: 1
+pin: qemu-system-x86: 0-11
+pin: call_rcu: 0-11
+pin: worker: 0-11
+pin: CPU 0/KVM: 2
+pin: CPU 1/KVM: 3
+pin: CPU 2/KVM: 4
+pin: CPU 3/KVM: 5
+pin: kvm-nx-lpage-re: 0-11
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/fiworker.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe40000), direct map at 0xffff800000000000
+joist: frames: 64775 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64512 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625132 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+faultinj: seed 27, rounds 0 to 99, 4 CPUs
+faultinj: after the first round: objects 83, threads 1, spaces 1, leaves 2, mappings 29, pending 0, page-table frames free 1554, frames free 60874, run-queue walks so far 0
+faultinj: after the last round: objects 83, threads 1, spaces 1, leaves 2, mappings 29, pending 0, page-table frames free 1554, frames free 60874, run-queue walks so far 0
+faultinj: kill point: 9 x a client in a Call not yet received (thread_kill 4, last thread capability deleted 2, task_destroy 2, last task capability deleted 1)
+faultinj: kill point: 11 x a client in a Call its server holds (thread_kill 3, last thread capability deleted 2, task_destroy 2, last task capability deleted 4)
+faultinj: kill point: 3 x a server around its Recv (thread_kill 1, last thread capability deleted 1, task_destroy 1)
+faultinj: kill point: 7 x a server holding a reply capability (thread_kill 1, last thread capability deleted 4, task_destroy 1, last task capability deleted 1)
+faultinj: kill point: 10 x a passive server holding a reply capability, on its caller's time (thread_kill 1, last thread capability deleted 3, last task capability deleted 6)
+faultinj: kill point: 5 x a server holding a reply capability it hasn't saved yet (thread_kill 1, task_destroy 2, last task capability deleted 2)
+faultinj: kill point: 15 x a server holding a saved reply (thread_kill 1, last thread capability deleted 7, task_destroy 4, last task capability deleted 2, reply object deleted 1)
+faultinj: kill point: 8 x a sender with a capability in a queued Call (thread_kill 2, task_destroy 3, last task capability deleted 3)
+faultinj: kill point: 5 x a sender whose capability was delivered (thread_kill 1, task_destroy 1, last task capability deleted 3)
+faultinj: kill point: 3 x a receiver with a capability on its way to it (last thread capability deleted 1, task_destroy 1, last task capability deleted 1)
+faultinj: kill point: 4 x a capability deleted between its send and its delivery (capability deleted 4)
+faultinj: kill point: 10 x a thread while signalling (thread_kill 2, last thread capability deleted 4, task_destroy 1, last task capability deleted 3)
+faultinj: kill point: 10 x a thread waiting for signals (thread_kill 2, last thread capability deleted 5, task_destroy 1, last task capability deleted 2)
+faultinj: outcome: 47 x E_PEER
+faultinj: outcome: 41 x E_GONE
+faultinj: outcome: 17 x a killed caller's message withdrawn
+faultinj: outcome: 10 x a caller going on after E_PEER
+faultinj: outcome: 8 x a saved reply answered after its thread died
+faultinj: outcome: 40 x no-senders, each once
+faultinj: outcome: 33 x dead names, each once
+faultinj: outcome: 4 x a capability skipped at delivery
+faultinj: outcome: 0 x a Call failed at its send (the capability already gone)
+faultinj: outcome: 19 x signals exactly as sent
+faultinj: outcome: 1 x signals as sent, one in flight at the kill
+faultinj: outcome: 1 x threads left in a call for ever, aborted
+faultinj: 13 of 13 kill points covered
+faultinj: call ok: 20 rounds
+faultinj: server ok: 20 rounds
+faultinj: saved ok: 20 rounds
+faultinj: transfer ok: 20 rounds
+faultinj: signal ok: 20 rounds
+faultinj: all ok
+joist: root task exited with code 0 (timer ticks so far: 3432)
+joist: finish code 0

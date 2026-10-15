@@ -120,6 +120,11 @@ than an underestimate of it, and the run queues (172 cycles a round trip).
 - **SeaBIOS with SMM resets guests on the P53** under KVM, at GRUB's
   hand-over (`docs/testbed.md`). Linux and Hurd boot with `smm=off`.
   Joist's own BIOS boot (Limine) is not affected. Cause not pursued.
+- **A CPU's first exit overwrote its own stack frame** (found by 0017's
+  timer change): `on_own_stack()` started a CPU's code at the very top of
+  its stack, where `enter()` builds the frame it returns through. It worked
+  only while the compiler kept `enter()`'s thread number in a register.
+  Fixed: a fresh stack starts one trap frame below the top.
 - **The IPC buffer was missing until step 10.** It was in the scope table
   and choice 8 but not built; writing this record found it.
 
@@ -133,8 +138,10 @@ than an underestimate of it, and the run queues (172 cycles a round trip).
   cycles more uncontended); the timer is to be written after the unlock
   (servers with their own contexts then scale 3.04 times on 4 CPUs, against
   0.85), once its argument is written and every self-test passes with it.
-  At this record it is in the tree but off (`RUN_LOCK_TIMER_OUT`): the next
-  piece of work. 0017 also records where 0016's text and the code differ.
+  Done after this record's first version: the default since 2026-10-15,
+  measured at 2.91 times on 4 CPUs (old order 0.84), with the uncontended
+  cost unchanged; it found and fixed a latent stack bug (*Found along the
+  way*). 0017 also records where 0016's text and the code differ.
 - **The exit benchmark's two misses** (above): the do-nothing call's 99th
   percentile and the contended line's median. Whether the criterion is met
   is the owner's call; the figures are as measured.

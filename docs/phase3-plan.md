@@ -1604,3 +1604,48 @@ The owner accepted decision 0017 on 2026-10-15. Its timer change (written
 after the unlock) is the next piece of work: argued, then made the default
 once every self-test passes with it. The exit record is
 `docs/phase3-exit.md`, for the owner's review.
+
+### Decision 0017: the timer written after the unlock (2026-10-15)
+
+`RUN_LOCK_TIMER_OUT` is now 1 by default (`kernel/arch/x86_64/run.c`; 0
+builds the old order, for comparison). The moment is still chosen under the
+lock; only the write to this CPU's own LAPIC timer, and `c->armed_for`, move
+after `unlock()`, in one helper (`arm_timer`) for both orders.
+
+**Why it is safe**, as 0017 required before it became the default:
+
+- Only this CPU reads or writes its timer and `armed_for` (the exit path,
+  `may_hand`, idle, and the sleeping CPU's interrupt). No other CPU does.
+- The kernel runs with interrupts off until the return to user mode. An
+  interrupt, or a request from another CPU (`cpu_sync`, `hk_off_cpu`'s
+  IPI), that arrives between the unlock and the write waits. It is then an
+  ordinary kernel entry that recomputes everything under the lock.
+  `in_kernel` is still cleared under the lock, as `hk_off_cpu` requires.
+- An earlier event made due by another CPU after the unlock is that CPU's
+  to arm (each CPU arms for the next event anywhere, computed under the
+  lock), as it always was: the old order had the same window after its
+  unlock.
+
+**What it found: a latent kernel bug.** The first kernel check with it
+failed `chk-kvm-smp4-grow` with a #GP in `enter()`, the same instruction
+every time (6 of 6; the old order passed). `enter()` builds the frame it
+returns through at the top of the CPU's stack, where an entry from user
+mode puts it. But `on_own_stack()`, which starts the boot CPU's and each
+AP's code, set `rsp` to that very top. So on a CPU's first exit (`ap_run` →
+`schedule` → `enter`), `enter()`'s own frame lay where it wrote the trap
+frame. It had worked because the compiler kept the thread number in a
+register; the new order keeps two more values alive, the thread number was
+spilled there, and `enter()` read back a user register as the thread
+number. `on_own_stack()` now starts one trap frame below the top. Six runs
+then passed, and so did the whole kernel check (`tidy`, 5 × 52 host tests,
+71 of 71 self-tests, the gate).
+
+**Measured** by the P53's Claude Code (`docs/phase3-data/step10-timerout/`,
+`findings.md` first): new order against old, 7 interleaved boots each, on the
+P53 with the build VM idle. Servers with their own contexts: 4 pairs make
+**2.91 times** one pair's throughput (old order 0.84), 19 083 cycles a round
+trip at K = 4 against 67 879. Passive: 0.59 at K = 4 in both. Uncontended
+costs unchanged within run-to-run ranges (null call 528 both; round trips
++4 and +8 cycles). Stress: 50 of 50 boots on 4 CPUs passed (fault injection
+seeds 21-30 on the normal and the checking kernel, `smp` and `sched` 5
+times each).

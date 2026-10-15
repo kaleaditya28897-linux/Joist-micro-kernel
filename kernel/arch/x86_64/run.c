@@ -179,11 +179,18 @@ static void cpu_sync(struct cpu *c);
 #ifndef RUN_LOCK_MCS
 #define RUN_LOCK_MCS 0
 #endif
-/* RUN_LOCK_TIMER_OUT: the one-shot timer, which is this CPU's own and
- * whose write leaves a virtual machine, is written after the lock is let
- * go on the way out, not under it (the moment is still chosen under it). */
+/* The one-shot timer, which is this CPU's own and whose write leaves a
+ * virtual machine (about 6 300 cycles on the P53), is written after the
+ * lock is let go on the way out; the moment is still chosen under it
+ * (decision 0017; 0 builds the old order, for comparison). Why that is
+ * safe: only this CPU reads or writes its timer and `armed_for`; it runs
+ * with interrupts off until the return to user mode, so an interrupt or a
+ * request from another CPU that comes meanwhile waits, and is then an
+ * ordinary kernel entry that recomputes everything under the lock; and an
+ * earlier event made due by another CPU after the unlock is that CPU's to
+ * arm, as it always was (each CPU arms for the next event anywhere). */
 #ifndef RUN_LOCK_TIMER_OUT
-#define RUN_LOCK_TIMER_OUT 0
+#define RUN_LOCK_TIMER_OUT 1
 #endif
 #define RUN_LS_SYSCALL 99u
 
@@ -771,10 +778,18 @@ static void cpu_setup(struct cpu *c, int first)
     pcid_init(first);
 }
 
-/* Move to a CPU's own kernel stack and go on there; never comes back. */
+/* Move to a CPU's own kernel stack and go on there; never comes back.
+ * Below the trap frame's place, not at the very top: the top is where
+ * enter() builds the frame it leaves through (as the CPU does on an entry
+ * from user mode), and a function running there would have its own frame
+ * overwritten. That happened on the first exit of a CPU started here
+ * (ap_run, bsp_run -> schedule -> enter), once a change made the compiler
+ * keep enter's thread number on the stack (decision 0017's timer order;
+ * the checking kernel's growth test, every time). */
 static __attribute__((noreturn)) void on_own_stack(struct cpu *c, void (*fn)(struct cpu *))
 {
-    __asm__ volatile("movq %0, %%rsp\n\tcallq *%1" : : "r"(stack_top(c)), "r"(fn), "D"(c) : "memory");
+    uint64_t sp = (stack_top(c) - sizeof(struct trap_frame)) & ~(uint64_t)15;
+    __asm__ volatile("movq %0, %%rsp\n\tcallq *%1" : : "r"(sp), "r"(fn), "D"(c) : "memory");
     __builtin_unreachable();
 }
 
@@ -1164,6 +1179,24 @@ static void sweep_pending(void)
     }
 }
 
+/* Set this CPU's one-shot timer for `next` (JOIST_FOREVER: off). */
+static void arm_timer(struct cpu *c, uint64_t next)
+{
+#ifdef RUN_LOCK_STATS
+    uint64_t ls_t0 = ls_tsc();
+#endif
+    if (next == JOIST_FOREVER) {
+        apic_timer_disarm();
+    } else {
+        uint64_t now = apic_clock_ns();
+        apic_timer_arm(next > now ? next - now : 1);
+    }
+    c->armed_for = next;
+#ifdef RUN_LOCK_STATS
+    ls_scan(c->id, LS_TIMER, ls_t0);
+#endif
+}
+
 /* Run thread t: its pending call's outputs, its space, its TLS base, and a
  * frame from its record, entered with iretq. */
 static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int handed)
@@ -1178,31 +1211,14 @@ static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int hande
      * vouched that the next event is no earlier than the one it is set
      * for. At worst it fires early, and the next exit sets it right.) */
     uint64_t next = handed ? c->armed_for : LS_TIME(c, LS_NEXT, joist_sched_next_event(&K, t));
-#if RUN_LOCK_TIMER_OUT
-    /* The lock study's variant: the moment is chosen under the lock, and
-     * the timer (this CPU's own) is written after it is let go. */
+    /* Only when the moment changes: a budget's end stays where it is from
+     * call to call while one context runs (as through a call to a server on
+     * donated time), and a timer write is the dearest thing on this path.
+     * Written here, under the lock, only in the old order; normally after
+     * the unlock, below (RUN_LOCK_TIMER_OUT). */
     int rearm = next != c->armed_for;
-    if (0) {
-#else
-    if (next != c->armed_for) {
-#endif
-#ifdef RUN_LOCK_STATS
-        uint64_t ls_t0 = ls_tsc();
-#endif
-        /* Only when the moment changes: a budget's end stays where it is
-         * from call to call while one context runs (as through a call to a
-         * server on donated time), and a timer write is the dearest thing
-         * on this path (it leaves a virtual machine). */
-        if (next == JOIST_FOREVER) {
-            apic_timer_disarm();
-        } else {
-            uint64_t now = apic_clock_ns();
-            apic_timer_arm(next > now ? next - now : 1);
-        }
-        c->armed_for = next;
-#ifdef RUN_LOCK_STATS
-        ls_scan(c->id, LS_TIMER, ls_t0);
-#endif
+    if (!RUN_LOCK_TIMER_OUT && rearm) {
+        arm_timer(c, next);
     }
     c->resumed_at = K.now;
     struct joist_regs *r = &K.th[t].regs;
@@ -1297,23 +1313,9 @@ static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int hande
     __atomic_store_n(&c->in_kernel, 0, __ATOMIC_RELEASE);
     LS_KIND(c, handed ? LS_FAST : LS_SLOW);
     unlock();
-#if RUN_LOCK_TIMER_OUT
-    if (rearm) {
-#ifdef RUN_LOCK_STATS
-        uint64_t ls_t0 = ls_tsc();
-#endif
-        if (next == JOIST_FOREVER) {
-            apic_timer_disarm();
-        } else {
-            uint64_t now = apic_clock_ns();
-            apic_timer_arm(next > now ? next - now : 1);
-        }
-        c->armed_for = next;
-#ifdef RUN_LOCK_STATS
-        ls_scan(c->id, LS_TIMER, ls_t0);
-#endif
+    if (RUN_LOCK_TIMER_OUT && rearm) {
+        arm_timer(c, next);
     }
-#endif
     if (quick) {
         resume_user_sysret(tf); /* it came in by `syscall`: out by sysretq */
     }

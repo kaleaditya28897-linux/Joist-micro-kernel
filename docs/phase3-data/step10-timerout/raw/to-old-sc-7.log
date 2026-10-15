@@ -1,0 +1,58 @@
+campaign: 2026-10-15T14:00:29Z build VM busy during run: 0.1 %
+runiso-status: 1
+pin: qemu-system-x86: 0-11
+pin: call_rcu: 0-11
+pin: worker: 0-11
+pin: CPU 0/KVM: 2
+pin: CPU 1/KVM: 3
+pin: CPU 2/KVM: 4
+pin: CPU 3/KVM: 5
+pin: kvm-nx-lpage-re: 0-11
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe40000), direct map at 0xffff800000000000
+joist: frames: 64809 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64546 frames free after)
+joist: timer: 20 ticks at 100 Hz, 624966 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+scale: cpus=4 tsc_per_ms=2592647 window_ms=2000
+scale: passive k=1 pair=0 n=5192124 late=0 ruler=6978
+scale: passive k=1 total=5192124 per_s=2596062 window=5185294000
+scale: passive k=2 pair=1 n=1792533 late=0 ruler=7140
+scale: passive k=2 pair=0 n=1792541 late=0 ruler=7138
+scale: passive k=2 total=3585074 per_s=1792537 window=5185294000
+scale: passive k=3 pair=0 n=1122398 late=0 ruler=7312
+scale: passive k=3 pair=2 n=1122378 late=0 ruler=7323
+scale: passive k=3 pair=1 n=1122406 late=0 ruler=7310
+scale: passive k=3 total=3367182 per_s=1683591 window=5185294000
+scale: passive k=4 pair=1 n=733559 late=0 ruler=7435
+scale: passive k=4 pair=0 n=733549 late=0 ruler=7437
+scale: passive k=4 pair=3 n=733557 late=0 ruler=7447
+scale: passive k=4 pair=2 n=733540 late=0 ruler=7447
+scale: passive k=4 total=2934205 per_s=1467102 window=5185294000
+scale: own-context k=1 pair=0 n=586540 late=0 ruler=7084
+scale: own-context k=1 total=586540 per_s=293270 window=5185294000
+scale: own-context k=2 pair=1 n=263406 late=0 ruler=7182
+scale: own-context k=2 pair=0 n=263404 late=0 ruler=7182
+scale: own-context k=2 total=526810 per_s=263405 window=5185294000
+scale: own-context k=3 pair=1 n=168278 late=0 ruler=7331
+scale: own-context k=3 pair=0 n=168275 late=0 ruler=7336
+scale: own-context k=3 pair=2 n=168276 late=0 ruler=7339
+scale: own-context k=3 total=504829 per_s=252414 window=5185294000
+scale: own-context k=4 pair=0 n=122847 late=0 ruler=7458
+scale: own-context k=4 pair=3 n=122846 late=0 ruler=7464
+scale: own-context k=4 pair=1 n=122846 late=0 ruler=7460
+scale: own-context k=4 pair=2 n=122847 late=0 ruler=7467
+scale: own-context k=4 total=491386 per_s=245693 window=5185294000
+scale: done
+joist: root task exited with code 0 (timer ticks so far: 876)
+joist: finish code 0
