@@ -180,3 +180,7 @@ rq-settle-forgets @@ ../kernel/include/joist/core.h @@         joist__sched_flus
 rq-hold-not-noted @@ ../kernel/core/internal.h @@             k->rq_pend[k->rq_npend++] = t; @@             (void)0;
 rq-in-place-ignores-order @@ ../kernel/core/sched.c @@            (r->rq_prev == 0 || k->th[r->rq_prev - 1u].ready_seq < r->ready_seq) && @@            1 &&
 rq-in-place-ignores-cpu @@ ../kernel/core/sched.c @@     return r->rq_on == cpu + 1u && r->rq_prio == prio && @@     return (r->rq_on != 0 || cpu == 0) && r->rq_prio == prio &&
+# joist_sched_stays: a thread that changes nothing goes on without the scheduler (test_runq.c).
+stays-ignores-resched @@ ../kernel/core/sched.c @@ k->resched != 0 || @@ 0 ||
+stays-ignores-better @@ ../kernel/core/sched.c @@ sc->refill_at > k->now && best_queued(k, cpu) == t; @@ sc->refill_at > k->now;
+stays-ignores-refill @@ ../kernel/core/sched.c @@ return sc != NULL && sc->refill_at > k->now && @@ return sc != NULL &&

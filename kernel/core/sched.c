@@ -593,6 +593,19 @@ joist_err joist_yield(struct joist_kernel *k, joist_thread t)
     return JOIST_OK;
 }
 
+int joist_sched_stays(const struct joist_kernel *k, uint32_t cpu, joist_thread t)
+{
+    if (cpu >= JOIST_MAX_CPUS || t >= JOIST_MAX_THREADS || k->resched != 0 ||
+        k->on_cpu[cpu] != t + 1u) {
+        return 0;
+    }
+    const struct joist_object *sc = can_run(k, t);
+    /* No new period due (pick would start it, and skipping pick must
+     * change nothing): then the budget is not spent either, since can_run
+     * takes a spent context only with its period due at the last tick. */
+    return sc != NULL && sc->refill_at > k->now && best_queued(k, cpu) == t;
+}
+
 int joist_sched_better(const struct joist_kernel *k, uint32_t cpu)
 {
     if (cpu >= JOIST_MAX_CPUS) {

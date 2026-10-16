@@ -1484,6 +1484,20 @@ void run_user_trap(struct trap_frame *tf)
                 enter(c, env.handover, 1);
             }
             joist_sched_settle(&K);
+            if (may_hand && K.npending == 0 && c->cur == t && K.th[t].regs.pc < USER_TOP &&
+                joist_sched_stays(&K, c->id, t)) {
+                /* The same thread goes on: the core says the scheduler
+                 * would choose it again and change nothing, no CPU need
+                 * choose again, and so the call made nothing that could
+                 * bring the next event sooner. (What other CPUs made since this one set its
+                 * timer is theirs: each sets its own for the next event
+                 * anywhere when it leaves, as after a direct switch.) So
+                 * no scheduler, no timer: a call that changes
+                 * nothing (a refused one, a signal nobody waits for) holds
+                 * the lock for its own work only (decision 0017's
+                 * measurements: the scheduler was 43 % of such a hold). */
+                enter(c, t, 1);
+            }
         } else if (v < 32u) {
             fault(t, v, v == 14u ? read_cr2() : 0, tf->error, tf->rip);
         }

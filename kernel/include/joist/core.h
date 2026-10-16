@@ -785,6 +785,22 @@ joist_err joist_sched_pick_on(struct joist_kernel *k, uint32_t cpu, joist_thread
  * other CPUs to interrupt after an operation set k->resched. */
 int joist_sched_better(const struct joist_kernel *k, uint32_t cpu);
 
+/* Thread t, the one on CPU `cpu`, has made a call and is still there: may
+ * it simply go on, without the scheduler choosing again and with the timer
+ * as the kernel last set it? Only if the scheduler would choose t again and
+ * change nothing in choosing it (t can run, no new period is due, no thread
+ * is better for this CPU), and no CPU is asked to choose again (k->resched
+ * clear: the kernel then pokes none). k->resched also stands for the next
+ * event: a call that leaves its caller running can bring that sooner only
+ * by making some thread ready, or by binding, freeing or taking back a
+ * context, and each of those sets k->resched. (A thread blocking with a
+ * timeout is the caller itself, which then isn't running.) So when t stays,
+ * joist_sched_pick_on would choose t and change nothing, and
+ * joist_sched_next_event(t) is no sooner than when the timer was set, but
+ * for what other CPUs made meanwhile, which each covers with its own timer.
+ * test_runq.c holds it to all three. O(CPUs). */
+int joist_sched_stays(const struct joist_kernel *k, uint32_t cpu, joist_thread t);
+
 /* Hold the run queues across several operations (they nest): until the
  * matching joist_sched_settle, a thread whose state changes is only noted,
  * and the settle files each noted thread once, where it then belongs. The

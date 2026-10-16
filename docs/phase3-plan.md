@@ -1649,3 +1649,70 @@ costs unchanged within run-to-run ranges (null call 528 both; round trips
 +4 and +8 cycles). Stress: 50 of 50 boots on 4 CPUs passed (fault injection
 seeds 21-30 on the normal and the checking kernel, `smp` and `sched` 5
 times each).
+
+### A call that changes nothing skips the scheduler (2026-10-16)
+
+The exit benchmark's contended line (one pair's round trip, every other CPU
+making refused system calls) varied 7.9 % from boot to boot. The P53's
+Claude Code found why (`docs/phase3-data/step10-contended/`): those CPUs'
+holds of the lock were 43 % scheduler (the pick, `joist_sched_next_event`'s
+scan of every thread, the poke) for calls that changed nothing, and that
+much time on the lock's line made the plateau depend on where the host put
+the guest's memory.
+
+Now, after a system call that is not a direct switch, the kernel asks the
+core `joist_sched_stays(k, cpu, t)` (`kernel/core/sched.c`); if it says yes,
+the same thread goes on at once (`enter(c, t, 1)`, `run.c`): no pick, no
+timer, no poke. Yes only if t is still on this CPU and can run, no new
+period of its context is due (pick would start one), no queued thread is
+better for this CPU, and `k->resched` is clear. That last condition carries
+the argument for the timer as well as for the poke. Within one call, the
+next event (`joist_sched_next_event`) can come sooner only through a thread
+made ready (`joist__wake`, resume), a context bound, freed or taken back, or
+a thread blocking with a timeout. The first two set `k->resched`, and a
+thread that blocks is the caller itself, which then isn't running. So when t
+stays, the timer as last set is no later than anything the call made. Events
+other CPUs made meanwhile are covered by their own timers, as after a direct
+switch.
+
+**Changed from the first draft.** The first version (written by another
+session) also kept a count of filings, ticks and refills, `k->events`, and
+asked that it hadn't moved. Its mutations survived. That was not because the
+tests were weak: as argued above, `k->resched` already covers everything the
+count did, so the count was dropped, and with it a check on the budget that
+the other conditions imply. Three other mutations had survived because the
+tests were weak, and they are caught now.
+
+- `props_a_thread_that_stays_is_the_schedulers_choice` (`test_runq.c`) now
+  asks that the scheduler, run when t stays, chooses t **and changes
+  nothing** (the whole kernel state compared, but the work count). Asking
+  only that it chose t let a skipped refill through. Sometimes, before the
+  call, a thread on another CPU signals first, with that CPU's interrupt
+  still on its way (`k->resched` already clear). A thread it made better
+  must then stop t staying.
+- `props_every_event_is_on_some_cpus_timer` now asks, after every stay,
+  that no CPU would choose otherwise (none was poked). Its timer entry now
+  sets `k->resched` after the tick, as `run.c` does. Without that, the
+  model left an idle CPU unpoked when a period began, a gap in the test,
+  not in the kernel.
+- Mutations: `stays-ignores-resched`, `stays-ignores-better`,
+  `stays-ignores-refill`, all caught.
+
+**Verified** (build VM, this tree): `make -C model check`, 172 tests under
+plain, ASan + UBSan, MSan, TSan and small (coverage: 74 322 stays in 92 169
+calls; 13 761 stays, 745 hand-overs and 21 844 timer entries in 45 347
+multi-CPU steps). Mutations `stays-|rq-|yield-`: 28 caught, none survived
+or stale. CBMC: all 7 operations verified. `make -C kernel check`: tidy
+(22 sources), 5 × 52 host tests, 71 of 71 self-tests, the bench gate
+(medians 376, 1 560, 1 104 against 496, 1 548, 1 092), with the VM as
+below.
+
+**The build VM's two cores.** The first kernel check failed `smp4-smp`, the
+emulated 4-CPU test that four spinners run at once ("spinners on separate
+CPUs didn't run at the same time"), with this change and without it alike
+(3 of 3 boots each). The benchmark pinning (`docs/testbed.md`, *Benchmark
+CPUs*) puts the build VM on host CPUs 0, 1, 6 and 7, which are two cores'
+two threads each (0/6, 1/7). That is too few for four emulated CPUs to spin
+in parallel. With the VM's threads let onto all 12 host CPUs for the run,
+both pass (363-378 % of one spinner). The kernel check was run that way,
+and the pinning was restored after.
