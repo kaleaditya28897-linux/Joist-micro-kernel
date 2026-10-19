@@ -1,0 +1,26 @@
+# rc.local-bench - appended to the P53's /etc/rc.local (2026-10-15;
+# docs/testbed.md, *Benchmark CPUs*). runit runs rc.local at boot, before the
+# services. The previous /etc/rc.local is kept as /etc/rc.local.before-bench.
+#
+# Joist benchmarks: host CPUs 2-5 are where tools/p53/boot.sh pins test boots.
+# Keep them at full speed and free of the host's device interrupts (the build
+# VM pins itself to 0,1,6,7 in its run.sh, tools/p53/joist-dev2.sh). Without
+# this, a benchmark's first measurement ran on a CPU still slow from idle,
+# and host interrupts put bursts into the 99th percentiles.
+for c in 2 3 4 5; do
+    echo performance > /sys/devices/system/cpu/cpu$c/cpufreq/scaling_governor 2>/dev/null
+done
+echo c3 > /proc/irq/default_smp_affinity 2>/dev/null
+for d in /proc/irq/[0-9]*; do
+    echo 0,1,6,7 > "$d/smp_affinity_list" 2>/dev/null # (managed queue IRQs refuse: fine)
+done
+# Everything else off them too (added 2026-10-15, the same day): every
+# process now and, through init's own affinity, every process to come; the
+# kernel's unbound work queues; and the per-CPU memory statistics, updated
+# every 120 s instead of every second. Per-CPU kernel threads stay where
+# they must.
+for p in /proc/[0-9]*; do
+    taskset -a -cp 0,1,6,7 "${p#/proc/}" >/dev/null 2>&1
+done
+echo c3 > /sys/devices/virtual/workqueue/cpumask 2>/dev/null
+sysctl -q -w vm.stat_interval=120

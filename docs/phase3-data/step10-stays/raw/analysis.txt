@@ -1,0 +1,7 @@
+a system call that does nothing                            p50     412 (408-412) all  1.0% worst-10  1.0% | p99 all  2.9% worst-10  2.9%  ok
+two address spaces, passive server                         p50    1632 (1628-1632) all  0.2% worst-10  0.2% | p99 all  2.4% worst-10  2.4%  ok
+one address space, passive server                          p50    1176 (1172-1176) all  0.3% worst-10  0.3% | p99 all  3.7% worst-10  3.7%  ok
+two address spaces, server with its own context            p50   14096 (13952-14176) all  1.6% worst-10  1.6% | p99 all 10.0% worst-10 10.0%  ok
+two address spaces, passive server, 4 KiB of IPC buffer ea p50    2984 (2984-2984) all  0.0% worst-10  0.0% | p99 all  3.4% worst-10  3.2%  ok
+two address spaces, passive server, every other CPU making p50    6864 (6480-7312) all 12.1% worst-10 12.1% | p99 all 14.0% worst-10 14.0%  FAIL
+criterion NOT met in some 10-run window

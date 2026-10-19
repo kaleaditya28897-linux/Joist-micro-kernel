@@ -1,0 +1,1169 @@
+runiso-status: 1
+runiso-cpus: 2 3 4 5
+pin-1s: qemu-system-x86: 0,1,6,7 last 1
+pin-1s: call_rcu: 0,1,6,7 last 6
+pin-1s: worker: 0,1,6,7 last 0
+pin-1s: CPU 0/KVM: 2 last -1
+pin-1s: CPU 1/KVM: 3 last -1
+pin-1s: CPU 2/KVM: 4 last -1
+pin-1s: CPU 3/KVM: 5 last -1
+pin-1s: kvm-nx-lpage-re: 0,1,6,7 last 7
+pin-1s: build VM:      18 0,1,6,7 
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe3c000), direct map at 0xffff800000000000
+joist: frames: 64807 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64544 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625103 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+ipcbench: a system call that does nothing: n=20x5000 min=395 p50=416 p99=420 worst-p50=416 max=129267 cycles (bucket 4; 12000 cycles took 6922 to 7106 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x5000 min=1597 p50=1648 p99=1688 worst-p50=1652 max=134476 cycles (bucket 4; 12000 cycles took 6922 to 7090 counts; clock 16 to 18 counts, taken off)
+ipcbench: one address space, passive server: n=20x5000 min=1167 p50=1188 p99=1196 worst-p50=1188 max=128991 cycles (bucket 4; 12000 cycles took 6922 to 6950 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x5000 min=13037 p50=14720 p99=20544 worst-p50=15008 max=143421 cycles (bucket 32; 12000 cycles took 6922 to 7096 counts; clock 18 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=2962 p50=3000 p99=3024 worst-p50=3000 max=86898 cycles (bucket 8; 12000 cycles took 6922 to 6950 counts; clock 16 to 18 counts, taken off)
+lockdepth: caller cpu 3
+placement: 0 enter cpu 0 tag 1 a 0
+placement: 1 enter cpu 1 tag 1 a 32
+placement: 2 enter cpu 2 tag 1 a 32
+placement: 3 enter cpu 3 tag 1 a 32
+placement: 4 mark cpu 0 tag 0 a 0
+placement: 5 poke cpu 1 tag 0 a 0
+placement: 6 poke cpu 0 tag 0 a 0
+placement: 7 poke cpu 0 tag 0 a 2
+placement: 8 mark cpu 0 tag 11 a 0
+placement: 9 poke cpu 1 tag 0 a 0
+placement: 10 enter cpu 1 tag 0 a 1
+placement: 11 poke cpu 0 tag 0 a 0
+placement: 12 poke cpu 0 tag 0 a 4
+placement: 13 mark cpu 0 tag 12 a 0
+placement: 14 poke cpu 2 tag 0 a 0
+placement: 15 enter cpu 2 tag 0 a 2
+placement: 16 poke cpu 0 tag 0 a 0
+placement: 17 poke cpu 0 tag 0 a 8
+placement: 18 mark cpu 0 tag 13 a 0
+placement: 19 poke cpu 3 tag 0 a 0
+placement: 20 enter cpu 3 tag 0 a 3
+placement: 21 poke cpu 0 tag 0 a 0
+placement: 22 poke cpu 0 tag 0 a 0
+placement: 23 mark cpu 0 tag 30 a 0
+placement: 24 poke cpu 0 tag 0 a 8
+placement: 25 enter cpu 0 tag 0 a 4
+placement: 26 poke cpu 3 tag 0 a 0
+placement: 27 enter cpu 3 tag 0 a 0
+placement: 28 enter cpu 0 tag 0 a 3
+placement: 29 poke cpu 3 tag 0 a 0
+placement: 30 enter cpu 3 tag 0 a 4
+placement: 31 poke cpu 3 tag 0 a 0
+placement: 32 enter cpu 3 tag 0 a 0
+placement: 33 poke cpu 3 tag 0 a 0
+placement: 34 mark cpu 3 tag 31 a 0
+placement: 35 poke cpu 3 tag 0 a 0
+placement: 36 mark cpu 3 tag 32 a 0
+placement: 37 enter cpu 3 tag 0 a 5
+placement: 38 enter cpu 3 tag 0 a 4
+placement: 39 enter cpu 3 tag 0 a 5
+placement: 40 enter cpu 3 tag 0 a 4
+placement: 41 enter cpu 3 tag 0 a 5
+placement: 42 enter cpu 3 tag 0 a 4
+placement: 43 enter cpu 3 tag 0 a 5
+placement: 44 enter cpu 3 tag 0 a 4
+placement: 45 enter cpu 3 tag 0 a 5
+placement: 46 enter cpu 3 tag 0 a 4
+placement: 47 enter cpu 3 tag 0 a 5
+placement: 48 enter cpu 3 tag 0 a 4
+placement: 49 enter cpu 3 tag 0 a 5
+placement: 50 enter cpu 3 tag 0 a 4
+placement: 51 enter cpu 3 tag 0 a 5
+placement: 52 enter cpu 3 tag 0 a 4
+placement: 53 enter cpu 3 tag 0 a 5
+placement: 54 enter cpu 3 tag 0 a 4
+placement: 55 enter cpu 3 tag 0 a 5
+placement: 56 enter cpu 3 tag 0 a 4
+placement: 57 enter cpu 3 tag 0 a 5
+placement: 58 enter cpu 3 tag 0 a 4
+placement: 59 enter cpu 3 tag 0 a 5
+placement: 60 enter cpu 3 tag 0 a 4
+placement: 61 enter cpu 3 tag 0 a 5
+placement: 62 enter cpu 3 tag 0 a 4
+placement: 63 enter cpu 3 tag 0 a 5
+placement: 64 enter cpu 3 tag 0 a 4
+placement: 65 enter cpu 3 tag 0 a 5
+placement: 66 enter cpu 3 tag 0 a 4
+placement: 67 enter cpu 3 tag 0 a 5
+placement: 68 enter cpu 3 tag 0 a 4
+placement: 69 enter cpu 3 tag 0 a 5
+placement: 70 enter cpu 3 tag 0 a 4
+placement: 71 enter cpu 3 tag 0 a 5
+placement: 72 enter cpu 3 tag 0 a 4
+placement: 73 enter cpu 3 tag 0 a 5
+placement: 74 enter cpu 3 tag 0 a 4
+placement: 75 enter cpu 3 tag 0 a 5
+placement: 76 enter cpu 3 tag 0 a 4
+placement: 77 enter cpu 3 tag 0 a 5
+placement: 78 enter cpu 3 tag 0 a 4
+placement: 79 enter cpu 3 tag 0 a 5
+placement: 80 enter cpu 3 tag 0 a 4
+placement: 81 enter cpu 3 tag 0 a 5
+placement: 82 enter cpu 3 tag 0 a 4
+placement: 83 enter cpu 3 tag 0 a 5
+placement: 84 enter cpu 3 tag 0 a 4
+placement: 85 enter cpu 3 tag 0 a 5
+placement: 86 enter cpu 3 tag 0 a 4
+placement: 87 enter cpu 3 tag 0 a 5
+placement: 88 enter cpu 3 tag 0 a 4
+placement: 89 enter cpu 3 tag 0 a 5
+placement: 90 enter cpu 3 tag 0 a 4
+placement: 91 enter cpu 3 tag 0 a 5
+placement: 92 enter cpu 3 tag 0 a 4
+placement: 93 enter cpu 3 tag 0 a 5
+placement: 94 enter cpu 3 tag 0 a 4
+placement: 95 enter cpu 3 tag 0 a 5
+placement: 96 enter cpu 3 tag 0 a 4
+placement: 97 enter cpu 3 tag 0 a 5
+placement: 98 enter cpu 3 tag 0 a 4
+placement: 99 enter cpu 3 tag 0 a 5
+placement: 100 enter cpu 3 tag 0 a 4
+placement: 101 enter cpu 3 tag 0 a 5
+placement: 102 enter cpu 3 tag 0 a 4
+placement: 103 enter cpu 3 tag 0 a 5
+placement: 104 enter cpu 3 tag 0 a 4
+placement: 105 enter cpu 3 tag 0 a 5
+placement: 106 enter cpu 3 tag 0 a 4
+placement: 107 enter cpu 3 tag 0 a 5
+placement: 108 enter cpu 3 tag 0 a 4
+placement: 109 enter cpu 3 tag 0 a 5
+placement: 110 enter cpu 3 tag 0 a 4
+placement: 111 enter cpu 3 tag 0 a 5
+placement: 112 enter cpu 3 tag 0 a 4
+placement: 113 enter cpu 3 tag 0 a 5
+placement: 114 enter cpu 3 tag 0 a 4
+placement: 115 enter cpu 3 tag 0 a 5
+placement: 116 enter cpu 3 tag 0 a 4
+placement: 117 enter cpu 3 tag 0 a 5
+placement: 118 enter cpu 3 tag 0 a 4
+placement: 119 enter cpu 3 tag 0 a 5
+placement: 120 enter cpu 3 tag 0 a 4
+placement: 121 enter cpu 3 tag 0 a 5
+placement: 122 enter cpu 3 tag 0 a 4
+placement: 123 enter cpu 3 tag 0 a 5
+placement: 124 enter cpu 3 tag 0 a 4
+placement: 125 enter cpu 3 tag 0 a 5
+placement: 126 enter cpu 3 tag 0 a 4
+placement: 127 enter cpu 3 tag 0 a 5
+placement: 128 enter cpu 3 tag 0 a 4
+placement: 129 enter cpu 3 tag 0 a 5
+placement: 130 enter cpu 3 tag 0 a 4
+placement: 131 enter cpu 3 tag 0 a 5
+placement: 132 enter cpu 3 tag 0 a 4
+placement: 133 enter cpu 3 tag 0 a 5
+placement: 134 enter cpu 3 tag 0 a 4
+placement: 135 enter cpu 3 tag 0 a 5
+placement: 136 enter cpu 3 tag 0 a 4
+placement: 137 enter cpu 3 tag 0 a 5
+placement: 138 enter cpu 3 tag 0 a 4
+placement: 139 enter cpu 3 tag 0 a 5
+placement: 140 enter cpu 3 tag 0 a 4
+placement: 141 enter cpu 3 tag 0 a 5
+placement: 142 enter cpu 3 tag 0 a 4
+placement: 143 enter cpu 3 tag 0 a 5
+placement: 144 enter cpu 3 tag 0 a 4
+placement: 145 enter cpu 3 tag 0 a 5
+placement: 146 enter cpu 3 tag 0 a 4
+placement: 147 enter cpu 3 tag 0 a 5
+placement: 148 enter cpu 3 tag 0 a 4
+placement: 149 enter cpu 3 tag 0 a 5
+placement: 150 enter cpu 3 tag 0 a 4
+placement: 151 enter cpu 3 tag 0 a 5
+placement: 152 enter cpu 3 tag 0 a 4
+placement: 153 enter cpu 3 tag 0 a 5
+placement: 154 enter cpu 3 tag 0 a 4
+placement: 155 enter cpu 3 tag 0 a 5
+placement: 156 enter cpu 3 tag 0 a 4
+placement: 157 enter cpu 3 tag 0 a 5
+placement: 158 enter cpu 3 tag 0 a 4
+placement: 159 enter cpu 3 tag 0 a 5
+placement: 160 enter cpu 3 tag 0 a 4
+placement: 161 enter cpu 3 tag 0 a 5
+placement: 162 enter cpu 3 tag 0 a 4
+placement: 163 enter cpu 3 tag 0 a 5
+placement: 164 enter cpu 3 tag 0 a 4
+placement: 165 enter cpu 3 tag 0 a 5
+placement: 166 enter cpu 3 tag 0 a 4
+placement: 167 enter cpu 3 tag 0 a 5
+placement: 168 enter cpu 3 tag 0 a 4
+placement: 169 enter cpu 3 tag 0 a 5
+placement: 170 enter cpu 3 tag 0 a 4
+placement: 171 enter cpu 3 tag 0 a 5
+placement: 172 enter cpu 3 tag 0 a 4
+placement: 173 enter cpu 3 tag 0 a 5
+placement: 174 enter cpu 3 tag 0 a 4
+placement: 175 enter cpu 3 tag 0 a 5
+placement: 176 enter cpu 3 tag 0 a 4
+placement: 177 enter cpu 3 tag 0 a 5
+placement: 178 enter cpu 3 tag 0 a 4
+placement: 179 enter cpu 3 tag 0 a 5
+placement: 180 enter cpu 3 tag 0 a 4
+placement: 181 enter cpu 3 tag 0 a 5
+placement: 182 enter cpu 3 tag 0 a 4
+placement: 183 enter cpu 3 tag 0 a 5
+placement: 184 enter cpu 3 tag 0 a 4
+placement: 185 enter cpu 3 tag 0 a 5
+placement: 186 enter cpu 3 tag 0 a 4
+placement: 187 enter cpu 3 tag 0 a 5
+placement: 188 enter cpu 3 tag 0 a 4
+placement: 189 enter cpu 3 tag 0 a 5
+placement: 190 enter cpu 3 tag 0 a 4
+placement: 191 enter cpu 3 tag 0 a 5
+placement: 192 enter cpu 3 tag 0 a 4
+placement: 193 enter cpu 3 tag 0 a 5
+placement: 194 enter cpu 3 tag 0 a 4
+placement: 195 enter cpu 3 tag 0 a 5
+placement: 196 enter cpu 3 tag 0 a 4
+placement: 197 enter cpu 3 tag 0 a 5
+placement: 198 enter cpu 3 tag 0 a 4
+placement: 199 enter cpu 3 tag 0 a 5
+placement: 200 enter cpu 3 tag 0 a 4
+placement: 201 enter cpu 3 tag 0 a 5
+placement: 202 enter cpu 3 tag 0 a 4
+placement: 203 enter cpu 3 tag 0 a 5
+placement: 204 enter cpu 3 tag 0 a 4
+placement: 205 enter cpu 3 tag 0 a 5
+placement: 206 enter cpu 3 tag 0 a 4
+placement: 207 enter cpu 3 tag 0 a 5
+placement: 208 enter cpu 3 tag 0 a 4
+placement: 209 enter cpu 3 tag 0 a 5
+placement: 210 enter cpu 3 tag 0 a 4
+placement: 211 enter cpu 3 tag 0 a 5
+placement: 212 enter cpu 3 tag 0 a 4
+placement: 213 enter cpu 3 tag 0 a 5
+placement: 214 enter cpu 3 tag 0 a 4
+placement: 215 enter cpu 3 tag 0 a 5
+placement: 216 enter cpu 3 tag 0 a 4
+placement: 217 enter cpu 3 tag 0 a 5
+placement: 218 enter cpu 3 tag 0 a 4
+placement: 219 enter cpu 3 tag 0 a 5
+placement: 220 enter cpu 3 tag 0 a 4
+placement: 221 enter cpu 3 tag 0 a 5
+placement: 222 enter cpu 3 tag 0 a 4
+placement: 223 enter cpu 3 tag 0 a 5
+placement: 224 enter cpu 3 tag 0 a 4
+placement: 225 enter cpu 3 tag 0 a 5
+placement: 226 enter cpu 3 tag 0 a 4
+placement: 227 enter cpu 3 tag 0 a 5
+placement: 228 enter cpu 3 tag 0 a 4
+placement: 229 enter cpu 3 tag 0 a 5
+placement: 230 enter cpu 3 tag 0 a 4
+placement: 231 enter cpu 3 tag 0 a 5
+placement: 232 enter cpu 3 tag 0 a 4
+placement: 233 enter cpu 3 tag 0 a 5
+placement: 234 enter cpu 3 tag 0 a 4
+placement: 235 enter cpu 3 tag 0 a 5
+placement: 236 enter cpu 3 tag 0 a 4
+placement: 237 enter cpu 3 tag 0 a 5
+placement: 238 enter cpu 3 tag 0 a 4
+placement: 239 enter cpu 3 tag 0 a 5
+placement: 240 enter cpu 3 tag 0 a 4
+placement: 241 enter cpu 3 tag 0 a 5
+placement: 242 enter cpu 3 tag 0 a 4
+placement: 243 enter cpu 3 tag 0 a 5
+placement: 244 enter cpu 3 tag 0 a 4
+placement: 245 enter cpu 3 tag 0 a 5
+placement: 246 enter cpu 3 tag 0 a 4
+placement: 247 enter cpu 3 tag 0 a 5
+placement: 248 enter cpu 3 tag 0 a 4
+placement: 249 enter cpu 3 tag 0 a 5
+placement: 250 enter cpu 3 tag 0 a 4
+placement: 251 enter cpu 3 tag 0 a 5
+placement: 252 enter cpu 3 tag 0 a 4
+placement: 253 enter cpu 3 tag 0 a 5
+placement: 254 enter cpu 3 tag 0 a 4
+placement: 255 enter cpu 3 tag 0 a 5
+placement: 256 enter cpu 3 tag 0 a 4
+placement: 257 enter cpu 3 tag 0 a 5
+placement: 258 enter cpu 3 tag 0 a 4
+placement: 259 enter cpu 3 tag 0 a 5
+placement: 260 enter cpu 3 tag 0 a 4
+placement: 261 enter cpu 3 tag 0 a 5
+placement: 262 enter cpu 3 tag 0 a 4
+placement: 263 enter cpu 3 tag 0 a 5
+placement: 264 enter cpu 3 tag 0 a 4
+placement: 265 enter cpu 3 tag 0 a 5
+placement: 266 enter cpu 3 tag 0 a 4
+placement: 267 enter cpu 3 tag 0 a 5
+placement: 268 enter cpu 3 tag 0 a 4
+placement: 269 enter cpu 3 tag 0 a 5
+placement: 270 enter cpu 3 tag 0 a 4
+placement: 271 enter cpu 3 tag 0 a 5
+placement: 272 enter cpu 3 tag 0 a 4
+placement: 273 enter cpu 3 tag 0 a 5
+placement: 274 enter cpu 3 tag 0 a 4
+placement: 275 enter cpu 3 tag 0 a 5
+placement: 276 enter cpu 3 tag 0 a 4
+placement: 277 enter cpu 3 tag 0 a 5
+placement: 278 enter cpu 3 tag 0 a 4
+placement: 279 enter cpu 3 tag 0 a 5
+placement: 280 enter cpu 3 tag 0 a 4
+placement: 281 enter cpu 3 tag 0 a 5
+placement: 282 enter cpu 3 tag 0 a 4
+placement: 283 enter cpu 3 tag 0 a 5
+placement: 284 enter cpu 3 tag 0 a 4
+placement: 285 enter cpu 3 tag 0 a 5
+placement: 286 enter cpu 3 tag 0 a 4
+placement: 287 enter cpu 3 tag 0 a 5
+placement: 288 enter cpu 3 tag 0 a 4
+placement: 289 enter cpu 3 tag 0 a 5
+placement: 290 enter cpu 3 tag 0 a 4
+placement: 291 enter cpu 3 tag 0 a 5
+placement: 292 enter cpu 3 tag 0 a 4
+placement: 293 enter cpu 3 tag 0 a 5
+placement: 294 enter cpu 3 tag 0 a 4
+placement: 295 enter cpu 3 tag 0 a 5
+placement: 296 enter cpu 3 tag 0 a 4
+placement: 297 enter cpu 3 tag 0 a 5
+placement: 298 enter cpu 3 tag 0 a 4
+placement: 299 enter cpu 3 tag 0 a 5
+placement: 300 enter cpu 3 tag 0 a 4
+placement: 301 enter cpu 3 tag 0 a 5
+placement: 302 enter cpu 3 tag 0 a 4
+placement: 303 enter cpu 3 tag 0 a 5
+placement: 304 enter cpu 3 tag 0 a 4
+placement: 305 enter cpu 3 tag 0 a 5
+placement: 306 enter cpu 3 tag 0 a 4
+placement: 307 enter cpu 3 tag 0 a 5
+placement: 308 enter cpu 3 tag 0 a 4
+placement: 309 enter cpu 3 tag 0 a 5
+placement: 310 enter cpu 3 tag 0 a 4
+placement: 311 enter cpu 3 tag 0 a 5
+placement: 312 enter cpu 3 tag 0 a 4
+placement: 313 enter cpu 3 tag 0 a 5
+placement: 314 enter cpu 3 tag 0 a 4
+placement: 315 enter cpu 3 tag 0 a 5
+placement: 316 enter cpu 3 tag 0 a 4
+placement: 317 enter cpu 3 tag 0 a 5
+placement: 318 enter cpu 3 tag 0 a 4
+placement: 319 enter cpu 3 tag 0 a 5
+placement: 320 enter cpu 3 tag 0 a 4
+placement: 321 enter cpu 3 tag 0 a 5
+placement: 322 enter cpu 3 tag 0 a 4
+placement: 323 enter cpu 3 tag 0 a 5
+placement: 324 enter cpu 3 tag 0 a 4
+placement: 325 enter cpu 3 tag 0 a 5
+placement: 326 enter cpu 3 tag 0 a 4
+placement: 327 enter cpu 3 tag 0 a 5
+placement: 328 enter cpu 3 tag 0 a 4
+placement: 329 enter cpu 3 tag 0 a 5
+placement: 330 enter cpu 3 tag 0 a 4
+placement: 331 enter cpu 3 tag 0 a 5
+placement: 332 enter cpu 3 tag 0 a 4
+placement: 333 enter cpu 3 tag 0 a 5
+placement: 334 enter cpu 3 tag 0 a 4
+placement: 335 enter cpu 3 tag 0 a 5
+placement: 336 enter cpu 3 tag 0 a 4
+placement: 337 enter cpu 3 tag 0 a 5
+placement: 338 enter cpu 3 tag 0 a 4
+placement: 339 enter cpu 3 tag 0 a 5
+placement: 340 enter cpu 3 tag 0 a 4
+placement: 341 enter cpu 3 tag 0 a 5
+placement: 342 enter cpu 3 tag 0 a 4
+placement: 343 enter cpu 3 tag 0 a 5
+placement: 344 enter cpu 3 tag 0 a 4
+placement: 345 enter cpu 3 tag 0 a 5
+placement: 346 enter cpu 3 tag 0 a 4
+placement: 347 enter cpu 3 tag 0 a 5
+placement: 348 enter cpu 3 tag 0 a 4
+placement: 349 enter cpu 3 tag 0 a 5
+placement: 350 enter cpu 3 tag 0 a 4
+placement: 351 enter cpu 3 tag 0 a 5
+placement: 352 enter cpu 3 tag 0 a 4
+placement: 353 enter cpu 3 tag 0 a 5
+placement: 354 enter cpu 3 tag 0 a 4
+placement: 355 enter cpu 3 tag 0 a 5
+placement: 356 enter cpu 3 tag 0 a 4
+placement: 357 enter cpu 3 tag 0 a 5
+placement: 358 enter cpu 3 tag 0 a 4
+placement: 359 enter cpu 3 tag 0 a 5
+placement: 360 enter cpu 3 tag 0 a 4
+placement: 361 enter cpu 3 tag 0 a 5
+placement: 362 enter cpu 3 tag 0 a 4
+placement: 363 enter cpu 3 tag 0 a 5
+placement: 364 enter cpu 3 tag 0 a 4
+placement: 365 enter cpu 3 tag 0 a 5
+placement: 366 enter cpu 3 tag 0 a 4
+placement: 367 enter cpu 3 tag 0 a 5
+placement: 368 enter cpu 3 tag 0 a 4
+placement: 369 enter cpu 3 tag 0 a 5
+placement: 370 enter cpu 3 tag 0 a 4
+placement: 371 enter cpu 3 tag 0 a 5
+placement: 372 enter cpu 3 tag 0 a 4
+placement: 373 enter cpu 3 tag 0 a 5
+placement: 374 enter cpu 3 tag 0 a 4
+placement: 375 enter cpu 3 tag 0 a 5
+placement: 376 enter cpu 3 tag 0 a 4
+placement: 377 enter cpu 3 tag 0 a 5
+placement: 378 enter cpu 3 tag 0 a 4
+placement: 379 enter cpu 3 tag 0 a 5
+placement: 380 enter cpu 3 tag 0 a 4
+placement: 381 enter cpu 3 tag 0 a 5
+placement: 382 enter cpu 3 tag 0 a 4
+placement: 383 enter cpu 3 tag 0 a 5
+placement: 384 enter cpu 3 tag 0 a 4
+placement: 385 enter cpu 3 tag 0 a 5
+placement: 386 enter cpu 3 tag 0 a 4
+placement: 387 enter cpu 3 tag 0 a 5
+placement: 388 enter cpu 3 tag 0 a 4
+placement: 389 enter cpu 3 tag 0 a 5
+placement: 390 enter cpu 3 tag 0 a 4
+placement: 391 enter cpu 3 tag 0 a 5
+placement: 392 enter cpu 3 tag 0 a 4
+placement: 393 enter cpu 3 tag 0 a 5
+placement: 394 enter cpu 3 tag 0 a 4
+placement: 395 enter cpu 3 tag 0 a 5
+placement: 396 enter cpu 3 tag 0 a 4
+placement: 397 enter cpu 3 tag 0 a 5
+placement: 398 enter cpu 3 tag 0 a 4
+placement: 399 enter cpu 3 tag 0 a 5
+placement: 400 enter cpu 3 tag 0 a 4
+placement: 401 enter cpu 3 tag 0 a 5
+placement: 402 enter cpu 3 tag 0 a 4
+placement: 403 enter cpu 3 tag 0 a 5
+placement: 404 enter cpu 3 tag 0 a 4
+placement: 405 enter cpu 3 tag 0 a 5
+placement: 406 enter cpu 3 tag 0 a 4
+placement: 407 enter cpu 3 tag 0 a 5
+placement: 408 enter cpu 3 tag 0 a 4
+placement: 409 enter cpu 3 tag 0 a 5
+placement: 410 enter cpu 3 tag 0 a 4
+placement: 411 enter cpu 3 tag 0 a 5
+placement: 412 enter cpu 3 tag 0 a 4
+placement: 413 enter cpu 3 tag 0 a 5
+placement: 414 enter cpu 3 tag 0 a 4
+placement: 415 enter cpu 3 tag 0 a 5
+placement: 416 enter cpu 3 tag 0 a 4
+placement: 417 enter cpu 3 tag 0 a 5
+placement: 418 enter cpu 3 tag 0 a 4
+placement: 419 enter cpu 3 tag 0 a 5
+placement: 420 enter cpu 3 tag 0 a 4
+placement: 421 enter cpu 3 tag 0 a 5
+placement: 422 enter cpu 3 tag 0 a 4
+placement: 423 enter cpu 3 tag 0 a 5
+placement: 424 enter cpu 3 tag 0 a 4
+placement: 425 enter cpu 3 tag 0 a 5
+placement: 426 enter cpu 3 tag 0 a 4
+placement: 427 enter cpu 3 tag 0 a 5
+placement: 428 enter cpu 3 tag 0 a 4
+placement: 429 enter cpu 3 tag 0 a 5
+placement: 430 enter cpu 3 tag 0 a 4
+placement: 431 enter cpu 3 tag 0 a 5
+placement: 432 enter cpu 3 tag 0 a 4
+placement: 433 enter cpu 3 tag 0 a 5
+placement: 434 enter cpu 3 tag 0 a 4
+placement: 435 enter cpu 3 tag 0 a 5
+placement: 436 enter cpu 3 tag 0 a 4
+placement: 437 enter cpu 3 tag 0 a 5
+placement: 438 enter cpu 3 tag 0 a 4
+placement: 439 enter cpu 3 tag 0 a 5
+placement: 440 enter cpu 3 tag 0 a 4
+placement: 441 enter cpu 3 tag 0 a 5
+placement: 442 enter cpu 3 tag 0 a 4
+placement: 443 enter cpu 3 tag 0 a 5
+placement: 444 enter cpu 3 tag 0 a 4
+placement: 445 enter cpu 3 tag 0 a 5
+placement: 446 enter cpu 3 tag 0 a 4
+placement: 447 enter cpu 3 tag 0 a 5
+placement: 448 enter cpu 3 tag 0 a 4
+placement: 449 enter cpu 3 tag 0 a 5
+placement: 450 enter cpu 3 tag 0 a 4
+placement: 451 enter cpu 3 tag 0 a 5
+placement: 452 enter cpu 3 tag 0 a 4
+placement: 453 enter cpu 3 tag 0 a 5
+placement: 454 enter cpu 3 tag 0 a 4
+placement: 455 enter cpu 3 tag 0 a 5
+placement: 456 enter cpu 3 tag 0 a 4
+placement: 457 enter cpu 3 tag 0 a 5
+placement: 458 enter cpu 3 tag 0 a 4
+placement: 459 enter cpu 3 tag 0 a 5
+placement: 460 enter cpu 3 tag 0 a 4
+placement: 461 enter cpu 3 tag 0 a 5
+placement: 462 enter cpu 3 tag 0 a 4
+placement: 463 enter cpu 3 tag 0 a 5
+placement: 464 enter cpu 3 tag 0 a 4
+placement: 465 enter cpu 3 tag 0 a 5
+placement: 466 enter cpu 3 tag 0 a 4
+placement: 467 enter cpu 3 tag 0 a 5
+placement: 468 enter cpu 3 tag 0 a 4
+placement: 469 enter cpu 3 tag 0 a 5
+placement: 470 enter cpu 3 tag 0 a 4
+placement: 471 enter cpu 3 tag 0 a 5
+placement: 472 enter cpu 3 tag 0 a 4
+placement: 473 enter cpu 3 tag 0 a 5
+placement: 474 enter cpu 3 tag 0 a 4
+placement: 475 enter cpu 3 tag 0 a 5
+placement: 476 enter cpu 3 tag 0 a 4
+placement: 477 enter cpu 3 tag 0 a 5
+placement: 478 enter cpu 3 tag 0 a 4
+placement: 479 enter cpu 3 tag 0 a 5
+placement: 480 enter cpu 3 tag 0 a 4
+placement: 481 enter cpu 3 tag 0 a 5
+placement: 482 enter cpu 3 tag 0 a 4
+placement: 483 enter cpu 3 tag 0 a 5
+placement: 484 enter cpu 3 tag 0 a 4
+placement: 485 enter cpu 3 tag 0 a 5
+placement: 486 enter cpu 3 tag 0 a 4
+placement: 487 enter cpu 3 tag 0 a 5
+placement: 488 enter cpu 3 tag 0 a 4
+placement: 489 enter cpu 3 tag 0 a 5
+placement: 490 enter cpu 3 tag 0 a 4
+placement: 491 enter cpu 3 tag 0 a 5
+placement: 492 enter cpu 3 tag 0 a 4
+placement: 493 enter cpu 3 tag 0 a 5
+placement: 494 enter cpu 3 tag 0 a 4
+placement: 495 enter cpu 3 tag 0 a 5
+placement: 496 enter cpu 3 tag 0 a 4
+placement: 497 enter cpu 3 tag 0 a 5
+placement: 498 enter cpu 3 tag 0 a 4
+placement: 499 enter cpu 3 tag 0 a 5
+placement: 500 enter cpu 3 tag 0 a 4
+placement: 501 enter cpu 3 tag 0 a 5
+placement: 502 enter cpu 3 tag 0 a 4
+placement: 503 enter cpu 3 tag 0 a 5
+placement: 504 enter cpu 3 tag 0 a 4
+placement: 505 enter cpu 3 tag 0 a 5
+placement: 506 enter cpu 3 tag 0 a 4
+placement: 507 enter cpu 3 tag 0 a 5
+placement: 508 enter cpu 3 tag 0 a 4
+placement: 509 enter cpu 3 tag 0 a 5
+placement: 510 enter cpu 3 tag 0 a 4
+placement: 511 enter cpu 3 tag 0 a 5
+placement: 512 enter cpu 3 tag 0 a 4
+placement: 513 enter cpu 3 tag 0 a 5
+placement: 514 enter cpu 3 tag 0 a 4
+placement: 515 enter cpu 3 tag 0 a 5
+placement: 516 enter cpu 3 tag 0 a 4
+placement: 517 enter cpu 3 tag 0 a 5
+placement: 518 enter cpu 3 tag 0 a 4
+placement: 519 enter cpu 3 tag 0 a 5
+placement: 520 enter cpu 3 tag 0 a 4
+placement: 521 enter cpu 3 tag 0 a 5
+placement: 522 enter cpu 3 tag 0 a 4
+placement: 523 enter cpu 3 tag 0 a 5
+placement: 524 enter cpu 3 tag 0 a 4
+placement: 525 enter cpu 3 tag 0 a 5
+placement: 526 enter cpu 3 tag 0 a 4
+placement: 527 enter cpu 3 tag 0 a 5
+placement: 528 enter cpu 3 tag 0 a 4
+placement: 529 enter cpu 3 tag 0 a 5
+placement: 530 enter cpu 3 tag 0 a 4
+placement: 531 enter cpu 3 tag 0 a 5
+placement: 532 enter cpu 3 tag 0 a 4
+placement: 533 enter cpu 3 tag 0 a 5
+placement: 534 enter cpu 3 tag 0 a 4
+placement: 535 enter cpu 3 tag 0 a 5
+placement: 536 enter cpu 3 tag 0 a 4
+placement: 537 enter cpu 3 tag 0 a 5
+placement: 538 enter cpu 3 tag 0 a 4
+placement: 539 enter cpu 3 tag 0 a 5
+placement: 540 enter cpu 3 tag 0 a 4
+placement: 541 enter cpu 3 tag 0 a 5
+placement: 542 enter cpu 3 tag 0 a 4
+placement: 543 enter cpu 3 tag 0 a 5
+placement: 544 enter cpu 3 tag 0 a 4
+placement: 545 enter cpu 3 tag 0 a 5
+placement: 546 enter cpu 3 tag 0 a 4
+placement: 547 enter cpu 3 tag 0 a 5
+placement: 548 enter cpu 3 tag 0 a 4
+placement: 549 enter cpu 3 tag 0 a 5
+placement: 550 enter cpu 3 tag 0 a 4
+placement: 551 enter cpu 3 tag 0 a 5
+placement: 552 enter cpu 3 tag 0 a 4
+placement: 553 enter cpu 3 tag 0 a 5
+placement: 554 enter cpu 3 tag 0 a 4
+placement: 555 enter cpu 3 tag 0 a 5
+placement: 556 enter cpu 3 tag 0 a 4
+placement: 557 enter cpu 3 tag 0 a 5
+placement: 558 enter cpu 3 tag 0 a 4
+placement: 559 enter cpu 3 tag 0 a 5
+placement: 560 enter cpu 3 tag 0 a 4
+placement: 561 enter cpu 3 tag 0 a 5
+placement: 562 enter cpu 3 tag 0 a 4
+placement: 563 enter cpu 3 tag 0 a 5
+placement: 564 enter cpu 3 tag 0 a 4
+placement: 565 enter cpu 3 tag 0 a 5
+placement: 566 enter cpu 3 tag 0 a 4
+placement: 567 enter cpu 3 tag 0 a 5
+placement: 568 enter cpu 3 tag 0 a 4
+placement: 569 enter cpu 3 tag 0 a 5
+placement: 570 enter cpu 3 tag 0 a 4
+placement: 571 enter cpu 3 tag 0 a 5
+placement: 572 enter cpu 3 tag 0 a 4
+placement: 573 enter cpu 3 tag 0 a 5
+placement: 574 enter cpu 3 tag 0 a 4
+placement: 575 enter cpu 3 tag 0 a 5
+placement: 576 enter cpu 3 tag 0 a 4
+placement: 577 enter cpu 3 tag 0 a 5
+placement: 578 enter cpu 3 tag 0 a 4
+placement: 579 enter cpu 3 tag 0 a 5
+placement: 580 enter cpu 3 tag 0 a 4
+placement: 581 enter cpu 3 tag 0 a 5
+placement: 582 enter cpu 3 tag 0 a 4
+placement: 583 enter cpu 3 tag 0 a 5
+placement: 584 enter cpu 3 tag 0 a 4
+placement: 585 enter cpu 3 tag 0 a 5
+placement: 586 enter cpu 3 tag 0 a 4
+placement: 587 enter cpu 3 tag 0 a 5
+placement: 588 enter cpu 3 tag 0 a 4
+placement: 589 enter cpu 3 tag 0 a 5
+placement: 590 enter cpu 3 tag 0 a 4
+placement: 591 enter cpu 3 tag 0 a 5
+placement: 592 enter cpu 3 tag 0 a 4
+placement: 593 enter cpu 3 tag 0 a 5
+placement: 594 enter cpu 3 tag 0 a 4
+placement: 595 enter cpu 3 tag 0 a 5
+placement: 596 enter cpu 3 tag 0 a 4
+placement: 597 enter cpu 3 tag 0 a 5
+placement: 598 enter cpu 3 tag 0 a 4
+placement: 599 enter cpu 3 tag 0 a 5
+placement: 600 enter cpu 3 tag 0 a 4
+placement: 601 enter cpu 3 tag 0 a 5
+placement: 602 enter cpu 3 tag 0 a 4
+placement: 603 enter cpu 3 tag 0 a 5
+placement: 604 enter cpu 3 tag 0 a 4
+placement: 605 enter cpu 3 tag 0 a 5
+placement: 606 enter cpu 3 tag 0 a 4
+placement: 607 enter cpu 3 tag 0 a 5
+placement: 608 enter cpu 3 tag 0 a 4
+placement: 609 enter cpu 3 tag 0 a 5
+placement: 610 enter cpu 3 tag 0 a 4
+placement: 611 enter cpu 3 tag 0 a 5
+placement: 612 enter cpu 3 tag 0 a 4
+placement: 613 enter cpu 3 tag 0 a 5
+placement: 614 enter cpu 3 tag 0 a 4
+placement: 615 enter cpu 3 tag 0 a 5
+placement: 616 enter cpu 3 tag 0 a 4
+placement: 617 enter cpu 3 tag 0 a 5
+placement: 618 enter cpu 3 tag 0 a 4
+placement: 619 enter cpu 3 tag 0 a 5
+placement: 620 enter cpu 3 tag 0 a 4
+placement: 621 enter cpu 3 tag 0 a 5
+placement: 622 enter cpu 3 tag 0 a 4
+placement: 623 enter cpu 3 tag 0 a 5
+placement: 624 enter cpu 3 tag 0 a 4
+placement: 625 enter cpu 3 tag 0 a 5
+placement: 626 enter cpu 3 tag 0 a 4
+placement: 627 enter cpu 3 tag 0 a 5
+placement: 628 enter cpu 3 tag 0 a 4
+placement: 629 enter cpu 3 tag 0 a 5
+placement: 630 enter cpu 3 tag 0 a 4
+placement: 631 enter cpu 3 tag 0 a 5
+placement: 632 enter cpu 3 tag 0 a 4
+placement: 633 enter cpu 3 tag 0 a 5
+placement: 634 enter cpu 3 tag 0 a 4
+placement: 635 enter cpu 3 tag 0 a 5
+placement: 636 enter cpu 3 tag 0 a 4
+placement: 637 enter cpu 3 tag 0 a 5
+placement: 638 enter cpu 3 tag 0 a 4
+placement: 639 enter cpu 3 tag 0 a 5
+placement: 640 enter cpu 3 tag 0 a 4
+placement: 641 enter cpu 3 tag 0 a 5
+placement: 642 enter cpu 3 tag 0 a 4
+placement: 643 enter cpu 3 tag 0 a 5
+placement: 644 enter cpu 3 tag 0 a 4
+placement: 645 enter cpu 3 tag 0 a 5
+placement: 646 enter cpu 3 tag 0 a 4
+placement: 647 enter cpu 3 tag 0 a 5
+placement: 648 enter cpu 3 tag 0 a 4
+placement: 649 enter cpu 3 tag 0 a 5
+placement: 650 enter cpu 3 tag 0 a 4
+placement: 651 enter cpu 3 tag 0 a 5
+placement: 652 enter cpu 3 tag 0 a 4
+placement: 653 enter cpu 3 tag 0 a 5
+placement: 654 enter cpu 3 tag 0 a 4
+placement: 655 enter cpu 3 tag 0 a 5
+placement: 656 enter cpu 3 tag 0 a 4
+placement: 657 enter cpu 3 tag 0 a 5
+placement: 658 enter cpu 3 tag 0 a 4
+placement: 659 enter cpu 3 tag 0 a 5
+placement: 660 enter cpu 3 tag 0 a 4
+placement: 661 enter cpu 3 tag 0 a 5
+placement: 662 enter cpu 3 tag 0 a 4
+placement: 663 enter cpu 3 tag 0 a 5
+placement: 664 enter cpu 3 tag 0 a 4
+placement: 665 enter cpu 3 tag 0 a 5
+placement: 666 enter cpu 3 tag 0 a 4
+placement: 667 enter cpu 3 tag 0 a 5
+placement: 668 enter cpu 3 tag 0 a 4
+placement: 669 enter cpu 3 tag 0 a 5
+placement: 670 enter cpu 3 tag 0 a 4
+placement: 671 enter cpu 3 tag 0 a 5
+placement: 672 enter cpu 3 tag 0 a 4
+placement: 673 enter cpu 3 tag 0 a 5
+placement: 674 enter cpu 3 tag 0 a 4
+placement: 675 enter cpu 3 tag 0 a 5
+placement: 676 enter cpu 3 tag 0 a 4
+placement: 677 enter cpu 3 tag 0 a 5
+placement: 678 enter cpu 3 tag 0 a 4
+placement: 679 enter cpu 3 tag 0 a 5
+placement: 680 enter cpu 3 tag 0 a 4
+placement: 681 enter cpu 3 tag 0 a 5
+placement: 682 enter cpu 3 tag 0 a 4
+placement: 683 enter cpu 3 tag 0 a 5
+placement: 684 enter cpu 3 tag 0 a 4
+placement: 685 enter cpu 3 tag 0 a 5
+placement: 686 enter cpu 3 tag 0 a 4
+placement: 687 enter cpu 3 tag 0 a 5
+placement: 688 enter cpu 3 tag 0 a 4
+placement: 689 enter cpu 3 tag 0 a 5
+placement: 690 enter cpu 3 tag 0 a 4
+placement: 691 enter cpu 3 tag 0 a 5
+placement: 692 enter cpu 3 tag 0 a 4
+placement: 693 enter cpu 3 tag 0 a 5
+placement: 694 enter cpu 3 tag 0 a 4
+placement: 695 enter cpu 3 tag 0 a 5
+placement: 696 enter cpu 3 tag 0 a 4
+placement: 697 enter cpu 3 tag 0 a 5
+placement: 698 enter cpu 3 tag 0 a 4
+placement: 699 enter cpu 3 tag 0 a 5
+placement: 700 enter cpu 3 tag 0 a 4
+placement: 701 enter cpu 3 tag 0 a 5
+placement: 702 enter cpu 3 tag 0 a 4
+placement: 703 enter cpu 3 tag 0 a 5
+placement: 704 enter cpu 3 tag 0 a 4
+placement: 705 enter cpu 3 tag 0 a 5
+placement: 706 enter cpu 3 tag 0 a 4
+placement: 707 enter cpu 3 tag 0 a 5
+placement: 708 enter cpu 3 tag 0 a 4
+placement: 709 enter cpu 3 tag 0 a 5
+placement: 710 enter cpu 3 tag 0 a 4
+placement: 711 enter cpu 3 tag 0 a 5
+placement: 712 enter cpu 3 tag 0 a 4
+placement: 713 enter cpu 3 tag 0 a 5
+placement: 714 enter cpu 3 tag 0 a 4
+placement: 715 enter cpu 3 tag 0 a 5
+placement: 716 enter cpu 3 tag 0 a 4
+placement: 717 enter cpu 3 tag 0 a 5
+placement: 718 enter cpu 3 tag 0 a 4
+placement: 719 enter cpu 3 tag 0 a 5
+placement: 720 enter cpu 3 tag 0 a 4
+placement: 721 enter cpu 3 tag 0 a 5
+placement: 722 enter cpu 3 tag 0 a 4
+placement: 723 enter cpu 3 tag 0 a 5
+placement: 724 enter cpu 3 tag 0 a 4
+placement: 725 enter cpu 3 tag 0 a 5
+placement: 726 enter cpu 3 tag 0 a 4
+placement: 727 enter cpu 3 tag 0 a 5
+placement: 728 enter cpu 3 tag 0 a 4
+placement: 729 enter cpu 3 tag 0 a 5
+placement: 730 enter cpu 3 tag 0 a 4
+placement: 731 enter cpu 3 tag 0 a 5
+placement: 732 enter cpu 3 tag 0 a 4
+placement: 733 enter cpu 3 tag 0 a 5
+placement: 734 enter cpu 3 tag 0 a 4
+placement: 735 enter cpu 3 tag 0 a 5
+placement: 736 enter cpu 3 tag 0 a 4
+placement: 737 enter cpu 3 tag 0 a 5
+placement: 738 enter cpu 3 tag 0 a 4
+placement: 739 enter cpu 3 tag 0 a 5
+placement: 740 enter cpu 3 tag 0 a 4
+placement: 741 enter cpu 3 tag 0 a 5
+placement: 742 enter cpu 3 tag 0 a 4
+placement: 743 enter cpu 3 tag 0 a 5
+placement: 744 enter cpu 3 tag 0 a 4
+placement: 745 enter cpu 3 tag 0 a 5
+placement: 746 enter cpu 3 tag 0 a 4
+placement: 747 enter cpu 3 tag 0 a 5
+placement: 748 enter cpu 3 tag 0 a 4
+placement: 749 enter cpu 3 tag 0 a 5
+placement: 750 enter cpu 3 tag 0 a 4
+placement: 751 enter cpu 3 tag 0 a 5
+placement: 752 enter cpu 3 tag 0 a 4
+placement: 753 enter cpu 3 tag 0 a 5
+placement: 754 enter cpu 3 tag 0 a 4
+placement: 755 enter cpu 3 tag 0 a 5
+placement: 756 enter cpu 3 tag 0 a 4
+placement: 757 enter cpu 3 tag 0 a 5
+placement: 758 enter cpu 3 tag 0 a 4
+placement: 759 enter cpu 3 tag 0 a 5
+placement: 760 enter cpu 3 tag 0 a 4
+placement: 761 enter cpu 3 tag 0 a 5
+placement: 762 enter cpu 3 tag 0 a 4
+placement: 763 enter cpu 3 tag 0 a 5
+placement: 764 enter cpu 3 tag 0 a 4
+placement: 765 enter cpu 3 tag 0 a 5
+placement: 766 enter cpu 3 tag 0 a 4
+placement: 767 enter cpu 3 tag 0 a 5
+placement: 768 enter cpu 3 tag 0 a 4
+placement: 769 enter cpu 3 tag 0 a 5
+placement: 770 enter cpu 3 tag 0 a 4
+placement: 771 enter cpu 3 tag 0 a 5
+placement: 772 enter cpu 3 tag 0 a 4
+placement: 773 enter cpu 3 tag 0 a 5
+placement: 774 enter cpu 3 tag 0 a 4
+placement: 775 enter cpu 3 tag 0 a 5
+placement: 776 enter cpu 3 tag 0 a 4
+placement: 777 enter cpu 3 tag 0 a 5
+placement: 778 enter cpu 3 tag 0 a 4
+placement: 779 enter cpu 3 tag 0 a 5
+placement: 780 enter cpu 3 tag 0 a 4
+placement: 781 enter cpu 3 tag 0 a 5
+placement: 782 enter cpu 3 tag 0 a 4
+placement: 783 enter cpu 3 tag 0 a 5
+placement: 784 enter cpu 3 tag 0 a 4
+placement: 785 enter cpu 3 tag 0 a 5
+placement: 786 enter cpu 3 tag 0 a 4
+placement: 787 enter cpu 3 tag 0 a 5
+placement: 788 enter cpu 3 tag 0 a 4
+placement: 789 enter cpu 3 tag 0 a 5
+placement: 790 enter cpu 3 tag 0 a 4
+placement: 791 enter cpu 3 tag 0 a 5
+placement: 792 enter cpu 3 tag 0 a 4
+placement: 793 enter cpu 3 tag 0 a 5
+placement: 794 enter cpu 3 tag 0 a 4
+placement: 795 enter cpu 3 tag 0 a 5
+placement: 796 enter cpu 3 tag 0 a 4
+placement: 797 enter cpu 3 tag 0 a 5
+placement: 798 enter cpu 3 tag 0 a 4
+placement: 799 enter cpu 3 tag 0 a 5
+placement: 800 enter cpu 3 tag 0 a 4
+placement: 801 enter cpu 3 tag 0 a 5
+placement: 802 enter cpu 3 tag 0 a 4
+placement: 803 enter cpu 3 tag 0 a 5
+placement: 804 enter cpu 3 tag 0 a 4
+placement: 805 enter cpu 3 tag 0 a 5
+placement: 806 enter cpu 3 tag 0 a 4
+placement: 807 enter cpu 3 tag 0 a 5
+placement: 808 enter cpu 3 tag 0 a 4
+placement: 809 enter cpu 3 tag 0 a 5
+placement: 810 enter cpu 3 tag 0 a 4
+placement: 811 enter cpu 3 tag 0 a 5
+placement: 812 enter cpu 3 tag 0 a 4
+placement: 813 enter cpu 3 tag 0 a 5
+placement: 814 enter cpu 3 tag 0 a 4
+placement: 815 enter cpu 3 tag 0 a 5
+placement: 816 enter cpu 3 tag 0 a 4
+placement: 817 enter cpu 3 tag 0 a 5
+placement: 818 enter cpu 3 tag 0 a 4
+placement: 819 enter cpu 3 tag 0 a 5
+placement: 820 enter cpu 3 tag 0 a 4
+placement: 821 enter cpu 3 tag 0 a 5
+placement: 822 enter cpu 3 tag 0 a 4
+placement: 823 enter cpu 3 tag 0 a 5
+placement: 824 enter cpu 3 tag 0 a 4
+placement: 825 enter cpu 3 tag 0 a 5
+placement: 826 enter cpu 3 tag 0 a 4
+placement: 827 enter cpu 3 tag 0 a 5
+placement: 828 enter cpu 3 tag 0 a 4
+placement: 829 enter cpu 3 tag 0 a 5
+placement: 830 enter cpu 3 tag 0 a 4
+placement: 831 enter cpu 3 tag 0 a 5
+placement: 832 enter cpu 3 tag 0 a 4
+placement: 833 enter cpu 3 tag 0 a 5
+placement: 834 enter cpu 3 tag 0 a 4
+placement: 835 enter cpu 3 tag 0 a 5
+placement: 836 enter cpu 3 tag 0 a 4
+placement: 837 enter cpu 3 tag 0 a 5
+placement: 838 enter cpu 3 tag 0 a 4
+placement: 839 enter cpu 3 tag 0 a 5
+placement: 840 enter cpu 3 tag 0 a 4
+placement: 841 enter cpu 3 tag 0 a 5
+placement: 842 enter cpu 3 tag 0 a 4
+placement: 843 enter cpu 3 tag 0 a 5
+placement: 844 enter cpu 3 tag 0 a 4
+placement: 845 enter cpu 3 tag 0 a 5
+placement: 846 enter cpu 3 tag 0 a 4
+placement: 847 enter cpu 3 tag 0 a 5
+placement: 848 enter cpu 3 tag 0 a 4
+placement: 849 enter cpu 3 tag 0 a 5
+placement: 850 enter cpu 3 tag 0 a 4
+placement: 851 enter cpu 3 tag 0 a 5
+placement: 852 enter cpu 3 tag 0 a 4
+placement: 853 enter cpu 3 tag 0 a 5
+placement: 854 enter cpu 3 tag 0 a 4
+placement: 855 enter cpu 3 tag 0 a 5
+placement: 856 enter cpu 3 tag 0 a 4
+placement: 857 enter cpu 3 tag 0 a 5
+placement: 858 enter cpu 3 tag 0 a 4
+placement: 859 enter cpu 3 tag 0 a 5
+placement: 860 enter cpu 3 tag 0 a 4
+placement: 861 enter cpu 3 tag 0 a 5
+placement: 862 enter cpu 3 tag 0 a 4
+placement: 863 enter cpu 3 tag 0 a 5
+placement: 864 enter cpu 3 tag 0 a 4
+placement: 865 enter cpu 3 tag 0 a 5
+placement: 866 enter cpu 3 tag 0 a 4
+placement: 867 enter cpu 3 tag 0 a 5
+placement: 868 enter cpu 3 tag 0 a 4
+placement: 869 enter cpu 3 tag 0 a 5
+placement: 870 enter cpu 3 tag 0 a 4
+placement: 871 enter cpu 3 tag 0 a 5
+placement: 872 enter cpu 3 tag 0 a 4
+placement: 873 enter cpu 3 tag 0 a 5
+placement: 874 enter cpu 3 tag 0 a 4
+placement: 875 enter cpu 3 tag 0 a 5
+placement: 876 enter cpu 3 tag 0 a 4
+placement: 877 enter cpu 3 tag 0 a 5
+placement: 878 enter cpu 3 tag 0 a 4
+placement: 879 enter cpu 3 tag 0 a 5
+placement: 880 enter cpu 3 tag 0 a 4
+placement: 881 enter cpu 3 tag 0 a 5
+placement: 882 enter cpu 3 tag 0 a 4
+placement: 883 enter cpu 3 tag 0 a 5
+placement: 884 enter cpu 3 tag 0 a 4
+placement: 885 enter cpu 3 tag 0 a 5
+placement: 886 enter cpu 3 tag 0 a 4
+placement: 887 enter cpu 3 tag 0 a 5
+placement: 888 enter cpu 3 tag 0 a 4
+placement: 889 enter cpu 3 tag 0 a 5
+placement: 890 enter cpu 3 tag 0 a 4
+placement: 891 enter cpu 3 tag 0 a 5
+placement: 892 enter cpu 3 tag 0 a 4
+placement: 893 enter cpu 3 tag 0 a 5
+placement: 894 enter cpu 3 tag 0 a 4
+placement: 895 enter cpu 3 tag 0 a 5
+placement: 896 enter cpu 3 tag 0 a 4
+placement: 897 enter cpu 3 tag 0 a 5
+placement: 898 enter cpu 3 tag 0 a 4
+placement: 899 enter cpu 3 tag 0 a 5
+placement: 900 enter cpu 3 tag 0 a 4
+placement: 901 enter cpu 3 tag 0 a 5
+placement: 902 enter cpu 3 tag 0 a 4
+placement: 903 enter cpu 3 tag 0 a 5
+placement: 904 enter cpu 3 tag 0 a 4
+placement: 905 enter cpu 3 tag 0 a 5
+placement: 906 enter cpu 3 tag 0 a 4
+placement: 907 enter cpu 3 tag 0 a 5
+placement: 908 enter cpu 3 tag 0 a 4
+placement: 909 enter cpu 3 tag 0 a 5
+placement: 910 enter cpu 3 tag 0 a 4
+placement: 911 enter cpu 3 tag 0 a 5
+placement: 912 enter cpu 3 tag 0 a 4
+placement: 913 enter cpu 3 tag 0 a 5
+placement: 914 enter cpu 3 tag 0 a 4
+placement: 915 enter cpu 3 tag 0 a 5
+placement: 916 enter cpu 3 tag 0 a 4
+placement: 917 enter cpu 3 tag 0 a 5
+placement: 918 enter cpu 3 tag 0 a 4
+placement: 919 enter cpu 3 tag 0 a 5
+placement: 920 enter cpu 3 tag 0 a 4
+placement: 921 enter cpu 3 tag 0 a 5
+placement: 922 enter cpu 3 tag 0 a 4
+placement: 923 enter cpu 3 tag 0 a 5
+placement: 924 enter cpu 3 tag 0 a 4
+placement: 925 enter cpu 3 tag 0 a 5
+placement: 926 enter cpu 3 tag 0 a 4
+placement: 927 enter cpu 3 tag 0 a 5
+placement: 928 enter cpu 3 tag 0 a 4
+placement: 929 enter cpu 3 tag 0 a 5
+placement: 930 enter cpu 3 tag 0 a 4
+placement: 931 enter cpu 3 tag 0 a 5
+placement: 932 enter cpu 3 tag 0 a 4
+placement: 933 enter cpu 3 tag 0 a 5
+placement: 934 enter cpu 3 tag 0 a 4
+placement: 935 enter cpu 3 tag 0 a 5
+placement: 936 enter cpu 3 tag 0 a 4
+placement: 937 enter cpu 3 tag 0 a 5
+placement: 938 enter cpu 3 tag 0 a 4
+placement: 939 enter cpu 3 tag 0 a 5
+placement: 940 enter cpu 3 tag 0 a 4
+placement: 941 enter cpu 3 tag 0 a 5
+placement: 942 enter cpu 3 tag 0 a 4
+placement: 943 enter cpu 3 tag 0 a 5
+placement: 944 enter cpu 3 tag 0 a 4
+placement: 945 enter cpu 3 tag 0 a 5
+placement: 946 enter cpu 3 tag 0 a 4
+placement: 947 enter cpu 3 tag 0 a 5
+placement: 948 enter cpu 3 tag 0 a 4
+placement: 949 enter cpu 3 tag 0 a 5
+placement: 950 enter cpu 3 tag 0 a 4
+placement: 951 enter cpu 3 tag 0 a 5
+placement: 952 enter cpu 3 tag 0 a 4
+placement: 953 enter cpu 3 tag 0 a 5
+placement: 954 enter cpu 3 tag 0 a 4
+placement: 955 enter cpu 3 tag 0 a 5
+placement: 956 enter cpu 3 tag 0 a 4
+placement: 957 enter cpu 3 tag 0 a 5
+placement: 958 enter cpu 3 tag 0 a 4
+placement: 959 enter cpu 3 tag 0 a 5
+placement: 960 enter cpu 3 tag 0 a 4
+placement: 961 enter cpu 3 tag 0 a 5
+placement: 962 enter cpu 3 tag 0 a 4
+placement: 963 enter cpu 3 tag 0 a 5
+placement: 964 enter cpu 3 tag 0 a 4
+placement: 965 enter cpu 3 tag 0 a 5
+placement: 966 enter cpu 3 tag 0 a 4
+placement: 967 enter cpu 3 tag 0 a 5
+placement: 968 enter cpu 3 tag 0 a 4
+placement: 969 enter cpu 3 tag 0 a 5
+placement: 970 enter cpu 3 tag 0 a 4
+placement: 971 enter cpu 3 tag 0 a 5
+placement: 972 enter cpu 3 tag 0 a 4
+placement: 973 enter cpu 3 tag 0 a 5
+placement: 974 enter cpu 3 tag 0 a 4
+placement: 975 enter cpu 3 tag 0 a 5
+placement: 976 enter cpu 3 tag 0 a 4
+placement: 977 enter cpu 3 tag 0 a 5
+placement: 978 enter cpu 3 tag 0 a 4
+placement: 979 enter cpu 3 tag 0 a 5
+placement: 980 enter cpu 3 tag 0 a 4
+placement: 981 enter cpu 3 tag 0 a 5
+placement: 982 enter cpu 3 tag 0 a 4
+placement: 983 enter cpu 3 tag 0 a 5
+placement: 984 enter cpu 3 tag 0 a 4
+placement: 985 enter cpu 3 tag 0 a 5
+placement: 986 enter cpu 3 tag 0 a 4
+placement: 987 enter cpu 3 tag 0 a 5
+placement: 988 enter cpu 3 tag 0 a 4
+placement: 989 enter cpu 3 tag 0 a 5
+placement: 990 enter cpu 3 tag 0 a 4
+placement: 991 enter cpu 3 tag 0 a 5
+placement: 992 enter cpu 3 tag 0 a 4
+placement: 993 enter cpu 3 tag 0 a 5
+placement: 994 enter cpu 3 tag 0 a 4
+placement: 995 enter cpu 3 tag 0 a 5
+placement: 996 enter cpu 3 tag 0 a 4
+placement: 997 enter cpu 3 tag 0 a 5
+placement: 998 enter cpu 3 tag 0 a 4
+placement: 999 enter cpu 3 tag 0 a 5
+placement: 1000 enter cpu 3 tag 0 a 4
+placement: 1001 enter cpu 3 tag 0 a 5
+placement: 1002 enter cpu 3 tag 0 a 4
+placement: 1003 enter cpu 3 tag 0 a 5
+placement: 1004 enter cpu 3 tag 0 a 4
+placement: 1005 enter cpu 3 tag 0 a 5
+placement: 1006 enter cpu 3 tag 0 a 4
+placement: 1007 enter cpu 3 tag 0 a 5
+placement: 1008 enter cpu 3 tag 0 a 4
+placement: 1009 enter cpu 3 tag 0 a 5
+placement: 1010 enter cpu 3 tag 0 a 4
+placement: 1011 enter cpu 3 tag 0 a 5
+placement: 1012 enter cpu 3 tag 0 a 4
+placement: 1013 enter cpu 3 tag 0 a 5
+placement: 1014 enter cpu 3 tag 0 a 4
+placement: 1015 enter cpu 3 tag 0 a 5
+placement: 1016 enter cpu 3 tag 0 a 4
+placement: 1017 enter cpu 3 tag 0 a 5
+placement: 1018 enter cpu 3 tag 0 a 4
+placement: 1019 enter cpu 3 tag 0 a 5
+placement: 1020 enter cpu 3 tag 0 a 4
+placement: 1021 enter cpu 3 tag 0 a 5
+placement: 1022 enter cpu 3 tag 0 a 4
+placement: 1023 enter cpu 3 tag 0 a 5
+placement: now cpu 0 runs 3
+placement: now cpu 1 runs 1
+placement: now cpu 2 runs 2
+placement: now cpu 3 runs 5
+lockdepth: seg 0 cpu 0 n 10250 depth 0 9 249 9992
+lockdepth: seg 0 cpu 1 n 10245 depth 0 0 252 9993
+lockdepth: seg 0 cpu 2 n 10250 depth 0 8 249 9993
+lockdepth: seg 0 cpu 3 n 10001 depth 1 0 147 9853
+lockdepth: seg 1 cpu 0 n 10252 depth 0 0 262 9990
+lockdepth: seg 1 cpu 1 n 10252 depth 0 0 263 9989
+lockdepth: seg 1 cpu 2 n 10251 depth 0 0 259 9992
+lockdepth: seg 1 cpu 3 n 10001 depth 1 0 132 9868
+lockdepth: seg 2 cpu 0 n 10251 depth 0 0 259 9992
+lockdepth: seg 2 cpu 1 n 10252 depth 0 0 262 9990
+lockdepth: seg 2 cpu 2 n 10250 depth 0 0 258 9992
+lockdepth: seg 2 cpu 3 n 10001 depth 1 0 124 9876
+lockdepth: seg 3 cpu 0 n 10262 depth 0 0 270 9992
+lockdepth: seg 3 cpu 1 n 10262 depth 0 1 269 9992
+lockdepth: seg 3 cpu 2 n 10263 depth 0 0 271 9992
+lockdepth: seg 3 cpu 3 n 10001 depth 1 0 140 9860
+lockdepth: seg 4 cpu 0 n 10261 depth 0 0 271 9990
+lockdepth: seg 4 cpu 1 n 10261 depth 0 0 269 9992
+lockdepth: seg 4 cpu 2 n 10260 depth 0 1 269 9990
+lockdepth: seg 4 cpu 3 n 10001 depth 0 0 149 9852
+lockdepth: seg 5 cpu 0 n 10261 depth 0 0 260 10001
+lockdepth: seg 5 cpu 1 n 10261 depth 0 1 261 9999
+lockdepth: seg 5 cpu 2 n 10261 depth 0 0 261 10000
+lockdepth: seg 5 cpu 3 n 10001 depth 1 0 67 9933
+lockdepth: seg 6 cpu 0 n 10242 depth 1 0 251 9990
+lockdepth: seg 6 cpu 1 n 10242 depth 0 0 251 9991
+lockdepth: seg 6 cpu 2 n 10241 depth 0 0 251 9990
+lockdepth: seg 6 cpu 3 n 10001 depth 1 0 34 9966
+lockdepth: seg 7 cpu 0 n 10257 depth 0 0 267 9990
+lockdepth: seg 7 cpu 1 n 10254 depth 0 0 266 9988
+lockdepth: seg 7 cpu 2 n 10257 depth 0 0 269 9988
+lockdepth: seg 7 cpu 3 n 10001 depth 0 0 128 9873
+lockdepth: seg 8 cpu 0 n 10261 depth 0 0 270 9991
+lockdepth: seg 8 cpu 1 n 10261 depth 0 0 270 9991
+lockdepth: seg 8 cpu 2 n 10261 depth 0 0 271 9990
+lockdepth: seg 8 cpu 3 n 10001 depth 2 0 168 9831
+lockdepth: seg 9 cpu 0 n 10252 depth 0 0 260 9992
+lockdepth: seg 9 cpu 1 n 10252 depth 0 0 260 9992
+lockdepth: seg 9 cpu 2 n 10252 depth 0 0 260 9992
+lockdepth: seg 9 cpu 3 n 10001 depth 1 0 106 9894
+lockdepth: seg 10 cpu 0 n 10255 depth 0 0 264 9991
+lockdepth: seg 10 cpu 1 n 10255 depth 0 0 263 9992
+lockdepth: seg 10 cpu 2 n 10255 depth 0 0 263 9992
+lockdepth: seg 10 cpu 3 n 10001 depth 1 0 86 9914
+lockdepth: seg 11 cpu 0 n 10246 depth 1 0 254 9991
+lockdepth: seg 11 cpu 1 n 10245 depth 0 0 253 9992
+lockdepth: seg 11 cpu 2 n 10245 depth 0 0 254 9991
+lockdepth: seg 11 cpu 3 n 10001 depth 0 0 34 9967
+lockdepth: seg 12 cpu 0 n 10244 depth 0 0 253 9991
+lockdepth: seg 12 cpu 1 n 10245 depth 0 0 254 9991
+lockdepth: seg 12 cpu 2 n 10244 depth 0 0 252 9992
+lockdepth: seg 12 cpu 3 n 10001 depth 1 0 83 9917
+lockdepth: seg 13 cpu 0 n 10256 depth 1 0 266 9989
+lockdepth: seg 13 cpu 1 n 10256 depth 0 0 265 9991
+lockdepth: seg 13 cpu 2 n 10255 depth 0 0 263 9992
+lockdepth: seg 13 cpu 3 n 10001 depth 1 0 134 9866
+lockdepth: seg 14 cpu 0 n 10260 depth 0 0 281 9979
+lockdepth: seg 14 cpu 1 n 10260 depth 0 0 281 9979
+lockdepth: seg 14 cpu 2 n 10262 depth 0 0 283 9979
+lockdepth: seg 14 cpu 3 n 10002 depth 0 0 113 9889
+lockdepth: seg 15 cpu 0 n 10263 depth 0 0 282 9981
+lockdepth: seg 15 cpu 1 n 10262 depth 0 0 277 9985
+lockdepth: seg 15 cpu 2 n 10261 depth 0 0 278 9983
+lockdepth: seg 15 cpu 3 n 10002 depth 0 0 121 9881
+lockdepth: seg 16 cpu 0 n 10263 depth 0 0 277 9986
+lockdepth: seg 16 cpu 1 n 10262 depth 0 0 279 9983
+lockdepth: seg 16 cpu 2 n 10261 depth 0 0 276 9985
+lockdepth: seg 16 cpu 3 n 10002 depth 0 0 153 9849
+lockdepth: seg 17 cpu 0 n 10258 depth 0 0 270 9988
+lockdepth: seg 17 cpu 1 n 10252 depth 1 0 266 9985
+lockdepth: seg 17 cpu 2 n 10251 depth 0 0 264 9987
+lockdepth: seg 17 cpu 3 n 10001 depth 0 0 127 9874
+lockdepth: seg 18 cpu 0 n 10258 depth 0 0 263 9995
+lockdepth: seg 18 cpu 1 n 10264 depth 0 0 268 9996
+lockdepth: seg 18 cpu 2 n 10263 depth 0 0 266 9997
+lockdepth: seg 18 cpu 3 n 10002 depth 0 0 127 9875
+lockdepth: seg 19 cpu 0 n 10257 depth 0 0 275 9982
+lockdepth: seg 19 cpu 1 n 10253 depth 0 0 273 9980
+lockdepth: seg 19 cpu 2 n 10255 depth 0 1 272 9982
+lockdepth: seg 19 cpu 3 n 10002 depth 0 1 43 9958
+ipcbench-rounds: p50 7296 7232 7264 7040 6944 7168 7344 7248 7056 7184 7536 7392 7344 7200 7152 7072 6864 6992 7152 7584
+ipcbench-rounds: p99 8144 8464 8256 7888 7856 8304 8160 8208 8016 8176 8416 8240 8432 7952 8128 8144 8176 7792 7808 8480
+ipcbench-hist: width 128 from 4992 to 32896 then above
+ipcbench-hist: seg 0 0 1 1 1 1 0 0 0 0 1 7 21 101 288 439 600 539 540 587 684 523 341 190 66 30 6 3 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 2 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 17 | 0
+ipcbench-hist: seg 1 0 0 0 1 0 1 0 0 0 1 1 5 40 189 423 717 787 657 568 478 408 304 168 118 38 30 15 6 6 2 0 0 0 0 1 0 0 0 1 0 1 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 2 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 22 | 0
+ipcbench-hist: seg 2 0 0 0 0 0 1 0 0 0 1 1 7 31 138 395 674 794 640 577 540 468 349 210 80 34 17 7 3 1 1 0 0 0 0 0 0 0 0 0 0 2 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 1 0 1 1 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 18 | 0
+ipcbench-hist: seg 3 0 0 0 0 1 0 0 0 0 1 14 58 256 520 782 915 894 657 419 243 126 47 28 6 2 1 2 0 1 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 1 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 15 | 0
+ipcbench-hist: seg 4 0 0 1 0 1 0 0 0 2 2 21 112 372 701 998 1060 754 477 204 121 74 38 24 5 0 2 1 1 0 0 0 1 1 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 1 1 1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 16 | 0
+ipcbench-hist: seg 5 0 0 0 0 0 0 0 0 0 0 0 9 56 175 464 840 1040 880 650 410 183 85 64 51 28 17 9 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 1 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 26 | 0
+ipcbench-hist: seg 6 0 0 1 0 0 1 0 0 0 1 0 0 1 8 36 247 648 1135 1273 848 412 184 98 38 24 5 2 1 1 0 0 0 0 0 1 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 1 0 1 0 1 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 22 | 0
+ipcbench-hist: seg 7 0 0 0 0 0 0 0 2 0 2 5 23 54 125 379 585 855 929 791 530 337 175 94 43 20 14 4 0 1 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 2 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 20 | 0
+ipcbench-hist: seg 8 0 1 0 0 0 0 2 0 1 0 1 29 138 443 803 1050 902 614 388 256 178 96 36 16 6 6 3 0 1 0 0 1 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 2 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 17 | 0
+ipcbench-hist: seg 9 0 0 0 0 0 0 2 0 1 0 1 18 110 333 657 675 695 531 477 492 430 287 150 64 30 10 3 3 1 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 1 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 18 | 0
+ipcbench-hist: seg 10 0 0 0 0 0 1 1 0 0 0 0 4 21 84 199 305 315 422 587 677 793 644 422 253 133 68 24 12 3 2 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 1 0 0 0 1 0 1 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 19 | 0
+ipcbench-hist: seg 11 0 0 0 1 0 1 0 0 1 1 1 4 17 46 140 308 506 793 976 877 591 379 185 90 28 12 4 2 1 2 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 1 0 0 1 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 21 | 0
+ipcbench-hist: seg 12 0 0 0 1 1 0 0 0 0 1 2 18 72 199 366 475 537 608 659 616 518 347 222 156 82 43 29 16 1 1 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0 2 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 17 | 0
+ipcbench-hist: seg 13 0 0 0 0 1 0 1 0 0 0 0 7 72 209 459 752 891 791 717 515 330 147 57 10 9 2 2 0 0 1 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 1 0 0 2 1 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 14 | 0
+ipcbench-hist: seg 14 0 0 0 1 1 1 2 0 1 1 1 3 41 143 486 913 1102 934 647 303 153 114 62 25 30 9 5 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 2 0 1 2 1 0 0 1 0 0 0 1 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 5 | 0
+ipcbench-hist: seg 15 0 0 0 0 1 1 1 1 0 1 7 32 166 401 746 939 819 616 429 293 167 146 107 56 31 14 6 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 1 0 0 0 1 0 0 3 1 0 0 0 1 1 0 0 0 1 0 0 1 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 | 0
+ipcbench-hist: seg 16 0 0 0 1 0 1 2 1 4 23 150 415 706 816 619 418 267 222 224 296 243 222 163 114 44 21 9 1 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 1 0 0 1 2 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 | 0
+ipcbench-hist: seg 17 1 0 1 0 1 2 0 0 0 0 5 41 204 571 1034 1125 871 529 281 171 76 40 24 6 1 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 1 0 0 1 0 3 0 0 0 0 0 0 0 0 0 0 1 0 1 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0
+ipcbench-hist: seg 18 0 0 0 0 0 0 0 0 1 0 2 9 63 218 481 861 978 969 705 403 188 76 22 9 2 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 1 0 1 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 1 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 | 0
+ipcbench-hist: seg 19 1 0 0 1 1 1 1 1 0 0 0 5 43 132 323 449 409 320 295 407 585 558 545 426 259 123 57 33 4 2 2 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 1 0 0 1 0 0 0 1 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 | 0
+ipcbench-hist: all 2 2 4 7 9 11 12 5 11 36 219 820 2564 5739 10229 13908 14603 13264 11454 9160 6783 4579 2871 1632 831 402 185 85 24 11 5 5 2 6 3 4 1 0 1 0 4 0 1 1 1 1 0 3 1 1 2 1 1 0 0 1 3 0 0 1 2 2 0 1 8 5 9 6 3 7 16 9 7 6 11 7 7 2 4 2 2 5 4 5 1 4 3 2 1 2 3 3 2 0 3 1 2 2 1 1 5 3 0 5 2 3 1 2 4 2 1 4 3 3 1 0 1 1 1 0 1 1 2 1 3 2 0 0 1 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 271 | 0
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=4998 p50=7200 p99=8176 worst-p50=7584 max=102574 cycles (bucket 16; 12000 cycles took 7242 to 7446 counts; clock 18 to 20 counts, taken off)
+ipcbench: done
+joist: root task exited with code 0 (timer ticks so far: 96)
+joist: finish code 0

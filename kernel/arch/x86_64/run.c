@@ -132,7 +132,13 @@ struct cpu {
      * tables (pages unmapped from it, or the space going): answered by
      * clearing it, wherever this CPU is (cpu_sync). */
     volatile uint32_t leave_space;
-    uint32_t poked; /* a "choose again" interrupt is on its way here */
+    /* A "choose again" interrupt was sent here and this CPU hasn't taken
+     * the lock since (cleared at every entry, which may come first: a
+     * system call already waiting for the lock). The interrupt itself is
+     * still pending then, so a CPU that leaves without choosing (the fast
+     * path, or a call that changes nothing) takes it on the way out and
+     * chooses; meanwhile others may ask it again, and the two merge. */
+    uint32_t poked;
     /* Spaces whose translations this CPU may hold stale: the next switch
      * to one is a flushing one (PCID or not). */
     uint8_t stale[JOIST_MAX_CSPACES];
@@ -1102,17 +1108,25 @@ static void clock_now(void)
 }
 
 /* After anything that may have changed who should run where (the core
- * says so: K.resched): every other CPU that would now choose differently
- * is interrupted, once, to choose again. */
+ * says so: K.resched), or a choice made while other CPUs' interrupts were
+ * still on their way (this CPU may have taken a thread one of them was
+ * sent for): the core says which CPUs to interrupt, one for each thread
+ * that should now run, idle CPUs first, lowest first (decision 0018), and
+ * each is interrupted once. */
 static void poke_others(const struct cpu *me)
 {
-    if (!K.resched) {
+    uint32_t inflight = 0;
+    for (uint32_t i = 0; i < ncpus; i++) {
+        inflight |= (uint32_t)(cpus[i].poked != 0) << i;
+    }
+    if (!K.resched && inflight == 0) {
         return;
     }
     K.resched = 0;
+    uint32_t mask = joist_sched_pokes(&K, me->id, inflight, ncpus);
     for (uint32_t i = 0; i < ncpus; i++) {
         struct cpu *o = &cpus[i];
-        if (o != me && !o->poked && joist_sched_better(&K, o->id)) {
+        if ((mask >> i & 1u) != 0) {
             o->poked = 1;
             apic_send_ipi(o->lapic_id, APIC_IPI_RESCHED);
         }

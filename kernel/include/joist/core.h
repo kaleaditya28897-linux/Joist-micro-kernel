@@ -785,6 +785,23 @@ joist_err joist_sched_pick_on(struct joist_kernel *k, uint32_t cpu, joist_thread
  * other CPUs to interrupt after an operation set k->resched. */
 int joist_sched_better(const struct joist_kernel *k, uint32_t cpu);
 
+/* Which CPUs to interrupt, as a mask (decision 0018), after CPU `me` has
+ * chosen: of `ncpus`, those in `inflight` have been interrupted already
+ * and will choose before anything else. Each thread on the queues that
+ * some CPU should now run is left to one CPU only: first to one in
+ * `inflight` that would take it, then to an idle CPU, lowest first, then
+ * to a busy one, the one running the thread that goes last first, each
+ * choosing as joist_sched_pick_on would
+ * with the threads already left to others taken out. A CPU whose thread
+ * can't run any more is in the mask too. So a thread made ready with
+ * several CPUs idle wakes the lowest of them, and only it; and whatever
+ * order the interrupted CPUs then choose in, no thread that should run is
+ * left waiting (test_smp.c), provided the kernel asks again after each
+ * choice made while any are on their way. O(CPUs x (CPUs + priority
+ * words)), but the scan while the queues are held with something noted. */
+uint32_t joist_sched_pokes(const struct joist_kernel *k, uint32_t me, uint32_t inflight,
+                           uint32_t ncpus);
+
 /* Thread t, the one on CPU `cpu`, has made a call and is still there: may
  * it simply go on, without the scheduler choosing again and with the timer
  * as the kernel last set it? Only if the scheduler would choose t again and

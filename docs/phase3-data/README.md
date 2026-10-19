@@ -339,3 +339,137 @@ old order, by the P53's Claude Code with the lock study's method and tools:
 `ipcbench`, 50 stress boots, image SHA-256s); `raw/` every kept log and
 `stress.txt`; `tools/` the scripts. Summary in `docs/phase3-plan.md`,
 *Decision 0017: the timer written after the unlock*.
+
+## Step 10: the benchmark CPUs (2026-10-15): `step10-benchcpus/`
+
+The exit benchmark (*Step 10: the exit benchmark*, above) missed the plan's
+stability test on two figures. Two causes were found in the host, not in
+Joist, and fixed there (`docs/testbed.md`, *Benchmark CPUs*). Both runs below
+are 20 boots of the same image (the bench-gate entry of the kernel at
+`f67da20`, SHA-256
+`e9c79ea708187202f153af3517e0c6741dd35ae5402152bb1b1587161fec9d5c`),
+booted as `tools/p53/boot.sh` does, by the P53's Claude Code: `findings.md`
+in each directory has the method and every table, `raw/` every log.
+
+- `governor/`: CPUs 2-5 on the `performance` governor. The do-nothing
+  call's slow first measurement is gone (its ruler never above 7 420 counts,
+  against 9 736-39 156 under `powersave`): 99th percentile 576 in all 20
+  runs, a 0.0 % spread against 29.4 %. But a server with its own context had
+  99th-percentile bursts in 3 runs (24 448, 22 208, 21 984 against about
+  19 700): a 25 % spread.
+- `isolated/`: also every movable host interrupt and the build VM on CPUs
+  0, 1, 6 and 7. The bursts are gone: 2.6 % spread over 20 runs. The
+  do-nothing call stays at 0.7 %. What still reaches CPUs 2-5 during a boot is
+  the host's own timer tick (92 % of 3 400-5 000 interrupts a boot).
+
+| Spread over 20 runs | `powersave` (10 runs) | `governor/` | `isolated/` |
+|---|---|---|---|
+| Do-nothing call, 99th percentile | 29.4 % | 0.0 % | 0.7 % |
+| Own context, 99th percentile | 15.1 % | 25.4 % | 2.6 % |
+| Contended line, median | 8.5 % | 4.5 % | 5.2 % |
+
+The contended line's median stays near the 5 % limit with the host quiet:
+that spread is the kernel's, and is taken up separately.
+
+## Step 10: the contended line (2026-10-15): `step10-contended/`
+
+The contended line ("every other CPU making system calls") still spread
+7.9 % over 20 boots with the host quiet. The P53's Claude Code measured why,
+on `f67da20` with counters added only under `#ifdef` (`tools/joist-ct.patch`):
+`findings.md` has the method and every table, `raw/` every log, the host
+checks before and after each campaign, and `images.sha256`.
+
+- The ticket lock is saturated in every boot: the client finds 3 tickets
+  ahead in 99.8 % of its acquisitions. What moves from boot to boot is the
+  cost of each hold and handover, not the queue.
+- Within one boot the 20 rounds sit on a plateau of about ±1 %, so more
+  calls per boot would not help.
+- About three quarters of the boot-to-boot variance comes from where the
+  host puts the guest's RAM: with RAM backed by a kept `/dev/shm` file, the
+  boots of one file agree to 0.7 %. `tools/p53/boot.sh` now does this
+  (`docs/testbed.md`).
+
+## Step 10: a call that changes nothing (2026-10-16): `step10-stays/`
+
+20 boots of the bench-gate image at `8241b56` (SHA-256
+`3104b0d693e261a2bf1b6adb3b0fd4ed467cea4bbdaf0f3f144e5d2f46636a76`), booted
+by `tools/p53/boot.sh` (fixed RAM, QEMU on 0, 1, 6, 7, the vCPUs on 2-5):
+`raw/run-*.log`, and `raw/analysis.txt` from `analyze.py`. `analyze.py` is
+the plan's stability test, checked over every 10-run window (1-10, 2-11, and
+so on), not only over all runs; later campaigns use it.
+
+| Line | p50 median | p50 spread (worst 10-window) | p99 spread | |
+|---|---|---|---|---|
+| a system call that does nothing | 412 | 1.0 % | 2.9 % | ok |
+| two address spaces, passive server | 1 632 | 0.2 % | 2.4 % | ok |
+| one address space, passive server | 1 176 | 0.3 % | 3.7 % | ok |
+| two address spaces, server with its own context | 14 096 | 1.6 % | 10.0 % | ok |
+| ... 4 KiB of IPC buffer each way | 2 984 | 0.0 % | 3.4 % | ok |
+| ... every other CPU making system calls | 6 864 | 12.1 % | 14.0 % | **fails** |
+
+The do-nothing call fell from 528 to 412, and the contended line from 9 232
+to 6 864. But the contended line's median spread rose: its busy CPUs' holds
+are short now, and something other than the lock's length sets it.
+
+## Step 10: the contended line after `8241b56` (2026-10-16): `step10-contended2/`
+
+The P53's Claude Code, 370 kept boots on `8241b56` plus counters
+(`tools/`, `prompt.md` the question asked): `findings.md` has the method and
+every table, `raw/` every log, `raw/images.sha256` the images.
+
+- The lock is still a full convoy: the client is behind all three busy CPUs
+  in 98.7-99.9 % of its acquisitions. Its rounds move with phase only when
+  the busy CPUs spend 1 000-3 000 TSC counts in user mode between calls (a
+  peak of 25.5 % spread at 2 000), so shortening the busy path further
+  would make the line worse, not better.
+- About 47 % of the boot-to-boot variance is which virtual CPU the client
+  lands on. Every idle CPU was interrupted for a thread made ready, and the
+  first to the lock took it.
+- A host clock dip 45-65 ms after the busy threads start sets the worst
+  round and p99, not the median.
+- After placement, a residual boot-to-boot SD of 1.7 % remains, unexplained.
+- The bench-gate image spread 6.4 % and 5.9 % in two 10-boot campaigns; none
+  of its 11 consecutive 10-boot windows is under 5 %.
+
+This led to decision 0018 (`docs/decisions/0018-wake-placement.md`).
+
+## Decision 0018, measured (2026-10-19): `step10-pokes/`
+
+`campaign.sh` booted the bench-gate images of `8241b56` ("a") and of
+decision 0018 ("b") 20 times each, interleaved, by `tools/p53/boot.sh`, the
+build VM idle and on its new pinning (`docs/testbed.md`). `raw/` has every
+log, `campaign.log`, `images.sha256` and `analysis.txt` (from
+`step10-stays/analyze.py`). `review.md` is the P53's Claude Code's review of
+0018 before it was measured (*Decision 0018* in `docs/phase3-plan.md`).
+
+| Line | a | b |
+|---|---|---|
+| a system call that does nothing | 412, 1.0 % | 412, 1.0 % |
+| two address spaces, passive server | 1 632, 0.2 % | 1 644, 0.2 % |
+| one address space, passive server | 1 176, 0.0 % | 1 188, 0.3 % |
+| ... server with its own context | 14 016, 1.7 % | 14 400, 2.7 % |
+| ... 4 KiB of IPC buffer each way | 2 984, 0.0 % | 2 996, 0.3 % |
+| ... every other CPU making system calls | 7 056, 7.9 % | 7 096, 11.3 % |
+
+(Median of the boots' p50s, then their spread over all 20; the worst
+10-run window is within 1.3 points of it, `analysis.txt`.) Only the
+contended line misses, for both; since decision 0019 it is reported as a
+worst case, and `analysis.txt` (rerun with `analyze.py` as it now is) says
+so.
+
+## Decision 0018: why placement was not fixed (2026-10-19): `step10-place0018/`
+
+The P53's Claude Code, 430 kept boots of the 0018 tree plus a placement
+log and counters (`tools/joist-place0018.patch`; `prompt.md` the questions
+asked): `findings.md` has the answers, the method and every table, `raw/`
+every log, the host checks and `images.sha256` (the images themselves are
+not kept here: 60 MB).
+
+- The client follows the root task, which is woken while every CPU is busy;
+  the CPU 0018 interrupts for it took it in only 30 % of boots.
+- With placement held fixed, boots still differ by an SD of 1.9-3.1 %, and
+  measurements within one boot by as much. Code layout moves the line 2-4 %.
+  No host figure tracks it.
+- Three measurements per boot did not help (9.0 %).
+
+This led to decision 0019 (`docs/decisions/0019-contended-line-a-worst-case.md`).

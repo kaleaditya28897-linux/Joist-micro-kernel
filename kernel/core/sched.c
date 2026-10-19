@@ -537,6 +537,9 @@ void joist_sched_on(struct joist_kernel *k, uint32_t cpu, joist_thread t)
         k->th[was - 1u].cpu = 0;
         if (was - 1u != t) {
             joist__rq_sync(k, was - 1u); /* off this CPU: back on a queue, if it can run */
+            if (can_run(k, was - 1u) != NULL) {
+                k->resched = 1; /* preempted: it may be another CPU's now (0018) */
+            }
         }
     }
     if (t < JOIST_MAX_THREADS && k->th[t].state != JOIST_T_FREE) {
@@ -613,6 +616,151 @@ int joist_sched_better(const struct joist_kernel *k, uint32_t cpu)
     }
     uint32_t best = best_queued(k, cpu);
     return best != (k->on_cpu[cpu] != 0 ? k->on_cpu[cpu] - 1u : JOIST_MAX_THREADS);
+}
+
+/* ---- whom to interrupt (decision 0018) ---- */
+
+static int claimed(const uint32_t *cl, uint32_t n, uint32_t t)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        if (cl[i] == t) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* The first thread on CPU q's queue, in queue order, that isn't claimed:
+ * JOIST_MAX_THREADS if none. At most n claimed ones are passed over. */
+static uint32_t rq_first_unclaimed(const struct joist_kernel *k, uint32_t q, const uint32_t *cl,
+                                   uint32_t n)
+{
+    for (uint32_t w = JOIST_PRIO_WORDS; w-- > 0;) {
+        for (uint64_t b = k->rq[q].bits[w]; b != 0;) {
+            uint32_t bit = 63u - (uint32_t)__builtin_clzll(b);
+            b &= ~(1ull << bit);
+            for (uint32_t x = k->rq[q].list[w * 64u + bit].head; x != 0 && x <= JOIST_MAX_THREADS;
+                 x = k->th[x - 1u].rq_next) {
+                if (!claimed(cl, n, x - 1u)) {
+                    return x - 1u;
+                }
+            }
+        }
+    }
+    return JOIST_MAX_THREADS;
+}
+
+/* What CPU `cpu` would choose, the n threads in cl being someone else's:
+ * best_queued with those left out. */
+static uint32_t choice(const struct joist_kernel *k, uint32_t cpu, const uint32_t *cl, uint32_t n)
+{
+    uint32_t best = JOIST_MAX_THREADS;
+    uint8_t bp = 0;
+    uint64_t bs = 0;
+    uint32_t mine = k->on_cpu[cpu];
+    if (mine != 0 && mine <= JOIST_MAX_THREADS && can_run(k, mine - 1u) != NULL) {
+        best = mine - 1u;
+        bp = k->obj[k->th[best].run_sc - 1u].prio;
+        bs = k->th[best].ready_seq;
+    }
+    for (uint32_t q = 0; q < JOIST_MAX_CPUS; q++) {
+        uint32_t h = k->rq_npend == 0 ? rq_first_unclaimed(k, q, cl, n) : JOIST_MAX_THREADS;
+        if (h >= JOIST_MAX_THREADS) {
+            continue;
+        }
+        uint8_t hp = k->obj[k->th[h].run_sc - 1u].prio;
+        if (best == JOIST_MAX_THREADS || before(hp, k->th[h].ready_seq, bp, bs)) {
+            best = h;
+            bp = hp;
+            bs = k->th[h].ready_seq;
+        }
+    }
+    /* (Held, and something noted: the queues aren't true yet, so the scan,
+     * as best_queued does. The kernel asks only after settling.) */
+    for (uint32_t i = 0; i < JOIST_MAX_THREADS && k->rq_npend != 0; i++) {
+        const struct joist_object *sc = can_run(k, i);
+        if (sc == NULL || k->th[i].cpu != 0 || claimed(cl, n, i)) {
+            continue;
+        }
+        if (best == JOIST_MAX_THREADS || before(sc->prio, k->th[i].ready_seq, bp, bs)) {
+            best = i;
+            bp = sc->prio;
+            bs = k->th[i].ready_seq;
+        }
+    }
+    return best;
+}
+
+/* Does busy CPU a's thread go after busy CPU b's (a thread that can't run
+ * goes after any that can)? */
+static int goes_later(const struct joist_kernel *k, uint32_t a, uint32_t b)
+{
+    uint32_t ta = k->on_cpu[a] - 1u;
+    uint32_t tb = k->on_cpu[b] - 1u;
+    const struct joist_object *sa = can_run(k, ta);
+    const struct joist_object *sb = can_run(k, tb);
+    if (sa == NULL || sb == NULL) {
+        return sa == NULL && sb != NULL;
+    }
+    return before(sb->prio, k->th[tb].ready_seq, sa->prio, k->th[ta].ready_seq);
+}
+
+uint32_t joist_sched_pokes(const struct joist_kernel *k, uint32_t me, uint32_t inflight,
+                           uint32_t ncpus)
+{
+    _Static_assert(JOIST_MAX_CPUS <= 32u, "a CPU mask is 32 bits");
+    uint32_t cl[JOIST_MAX_CPUS];
+    uint32_t n = 0;
+    uint32_t mask = 0;
+    ncpus = ncpus < JOIST_MAX_CPUS ? ncpus : JOIST_MAX_CPUS;
+    /* Those already on their way: they choose anyway; what they will take
+     * is theirs. */
+    for (uint32_t o = 0; o < ncpus; o++) {
+        if (o != me && (inflight >> o & 1u) != 0) {
+            uint32_t x = choice(k, o, cl, n);
+            if (x < JOIST_MAX_THREADS && k->th[x].cpu == 0) {
+                cl[n++] = x; /* theirs */
+            }
+        }
+    }
+    /* Then the idle CPUs, lowest first; then the busy ones, the one whose
+     * thread goes last first (one whose thread can't run at all before
+     * any): an idle CPU takes a thread before a busy one is preempted for
+     * it, and the thread preempted is the one that would wait anyway. */
+    uint32_t order[JOIST_MAX_CPUS];
+    uint32_t m = 0;
+    for (uint32_t o = 0; o < ncpus; o++) {
+        if (o != me && (inflight >> o & 1u) == 0 && k->on_cpu[o] == 0) {
+            order[m++] = o;
+        }
+    }
+    uint32_t idle = m;
+    for (uint32_t o = 0; o < ncpus; o++) {
+        if (o != me && (inflight >> o & 1u) == 0 && k->on_cpu[o] != 0) {
+            order[m++] = o;
+        }
+    }
+    for (uint32_t i = idle; i < m; i++) {
+        uint32_t lo = i;
+        for (uint32_t j = i + 1u; j < m; j++) {
+            lo = goes_later(k, order[j], order[lo]) ? j : lo;
+        }
+        uint32_t o = order[lo];
+        order[lo] = order[i];
+        order[i] = o;
+    }
+    for (uint32_t i = 0; i < m; i++) {
+        uint32_t o = order[i];
+        uint32_t cur = k->on_cpu[o] != 0 ? k->on_cpu[o] - 1u : JOIST_MAX_THREADS;
+        uint32_t x = choice(k, o, cl, n);
+        if (x != cur) {
+            mask |= 1u << o;
+            if (x < JOIST_MAX_THREADS) {
+                cl[n++] = x; /* this one's */
+            }
+        }
+    }
+    return mask;
 }
 
 void joist__off_cpu(struct joist_kernel *k, uint32_t t)

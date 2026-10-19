@@ -1,0 +1,127 @@
+--- run.c.stats	2026-10-15 19:57:39.330182835 +0530
++++ run.c	2026-10-15 19:57:39.342687743 +0530
+@@ -344,11 +344,24 @@
+ static struct {
+     volatile uint32_t next;
+     volatile uint32_t owner;
+-#ifdef RUN_LOCK_STATS
++#if defined(RUN_LOCK_STATS) || defined(RUN_LOCK_ORDER)
+     volatile uint32_t last; /* (contend study) the CPU that let it go last, in the owner's line */
+ #endif
+ } klock;
+ 
++#ifdef RUN_LOCK_ORDER
++/* (contend study) The lock's order without the TSC: per CPU, in a window
++ * set by system call 99 as RUN_LOCK_STATS's, how many tickets were ahead at
++ * asking, who held it just before, and how many exits were the fast path. */
++struct lorder {
++    uint64_t n, fast;
++    uint64_t pred[RUN_MAX_CPUS + 1u];
++    uint64_t depth[8];
++} __attribute__((aligned(64)));
++static struct lorder lorders[RUN_MAX_CPUS];
++static volatile uint32_t lo_on;
++#endif
++
+ static void lock(struct cpu *c)
+ {
+     if (ncpus == 1) {
+@@ -361,6 +374,9 @@
+ #ifdef RUN_LOCK_STATS
+     lstats[c->id].depth = me - __atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE);
+ #endif
++#ifdef RUN_LOCK_ORDER
++    uint32_t lo_d = me - __atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE);
++#endif
+     while (__atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE) != me) {
+         cpu_sync(c);
+         __asm__ volatile("pause");
+@@ -369,6 +385,15 @@
+     lstats[c->id].got = ls_tsc();
+     lstats[c->id].prev = klock.last;
+ #endif
++#ifdef RUN_LOCK_ORDER
++    if (lo_on) {
++        struct lorder *o = &lorders[c->id];
++        uint32_t p = klock.last;
++        o->n++;
++        o->depth[lo_d < 7u ? lo_d : 7u]++;
++        o->pred[p < RUN_MAX_CPUS ? p : RUN_MAX_CPUS]++;
++    }
++#endif
+ }
+ 
+ static void unlock(void)
+@@ -381,6 +406,9 @@
+     ls_released(ls_id);
+     klock.last = ls_id;
+ #endif
++#ifdef RUN_LOCK_ORDER
++    klock.last = this_cpu()->id;
++#endif
+     __atomic_store_n(&klock.owner, klock.owner + 1u, __ATOMIC_RELEASE);
+ }
+ #endif
+@@ -1327,6 +1355,11 @@
+      * after it. */
+     __atomic_store_n(&c->in_kernel, 0, __ATOMIC_RELEASE);
+     LS_KIND(c, handed ? LS_FAST : LS_SLOW);
++#ifdef RUN_LOCK_ORDER
++    if (handed && lo_on) {
++        lorders[c->id].fast++;
++    }
++#endif
+     unlock();
+     if (RUN_LOCK_TIMER_OUT && rearm) {
+         arm_timer(c, next);
+@@ -1439,6 +1472,38 @@
+ }
+ #endif
+ 
++#ifdef RUN_LOCK_ORDER
++static void lo_op(uint64_t op)
++{
++    if (op == 0) {
++        __builtin_memset(lorders, 0, sizeof lorders);
++        lo_on = 1;
++        return;
++    }
++    lo_on = 0;
++    for (uint32_t i = 0; i < ncpus; i++) {
++        struct lorder *o = &lorders[i];
++        kputs("lockorder: cpu ");
++        kputu(i);
++        kputs(" acq ");
++        kputu(o->n);
++        kputs(" fast ");
++        kputu(o->fast);
++        kputs(" pred");
++        for (uint32_t k = 0; k <= ncpus && k <= RUN_MAX_CPUS; k++) {
++            kputs(k == 0 ? " " : "/");
++            kputu(o->pred[k == ncpus ? RUN_MAX_CPUS : k]);
++        }
++        kputs(" depth");
++        for (unsigned k = 0; k < 8u; k++) {
++            kputs(k == 0 ? " " : "/");
++            kputu(o->depth[k]);
++        }
++        kputs("\n");
++    }
++}
++#endif
++
+ void run_user_trap(struct trap_frame *tf)
+ {
+     struct cpu *c = this_cpu();
+@@ -1480,6 +1545,11 @@
+                 ls_op(K.th[t].regs.r[ABI_RDI], K.th[t].regs.r[ABI_RSI], K.th[t].regs.r[ABI_RDX]);
+             }
+ #endif
++#ifdef RUN_LOCK_ORDER
++            if (K.th[t].regs.r[ABI_RAX] == RUN_LS_SYSCALL) {
++                lo_op(K.th[t].regs.r[ABI_RDI]);
++            }
++#endif
+             int may_hand =
+                 RUN_FAST_PATH && K.npending == 0 && c->armed_for != 0 && K.now < c->armed_for;
+             /* The run queues are held for the call and settled after the

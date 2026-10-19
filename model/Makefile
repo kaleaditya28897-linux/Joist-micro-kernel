@@ -161,9 +161,16 @@ CBMC_OPS  ?= 0 1 2 4 5 7 8
 CBMC_JOBS ?= 2
 cbmc:
 	@mkdir -p $(BUILD)/cbmc
+	@rm -f $(BUILD)/cbmc/summary.txt
 	@printf "%s\n" $(CBMC_OPS) | xargs -P$(CBMC_JOBS) -I{} sh cbmc/run.sh $(BUILD)/cbmc {} \
 	    | sort | tee $(BUILD)/cbmc/summary.txt
-	@n=$$(grep -c "VERIFICATION SUCCESSFUL" $(BUILD)/cbmc/summary.txt); \
+	@# Each operation by its own line: a run killed (out of memory: it says
+	@# nothing) is not verified, whatever else the file holds (2026-10-19, a
+	@# count of the file's lines passed one with op0 killed).
+	@n=0; for op in $(CBMC_OPS); do \
+	    grep -q "^op$$op: .*VERIFICATION SUCCESSFUL" $(BUILD)/cbmc/summary.txt && n=$$((n + 1)) || \
+	        echo "cbmc: op$$op not verified ($(BUILD)/cbmc/op$$op.log)"; \
+	done; \
 	    test $$n -eq $(words $(CBMC_OPS)) && echo "cbmc: all $$n operations verified" || \
 	    { echo "cbmc: $$n of $(words $(CBMC_OPS)) verified"; exit 1; }
 

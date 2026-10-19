@@ -1,0 +1,45 @@
+campaign: 2026-10-15T14:39:32Z build VM busy during run: 0.2 %; governor before: performance performance performance performance  after: performance performance performance performance 
+runiso-status: 1
+pin: qemu-system-x86: 0-11
+pin: call_rcu: 0-11
+pin: worker: 0-11
+pin: CPU 0/KVM: 2
+pin: CPU 1/KVM: 3
+pin: CPU 2/KVM: 4
+pin: CPU 3/KVM: 5
+pin: kvm-nx-lpage-re: 0-11
+memfile: /dev/shm/joist-ct-E.mem
+smaps: Rss:               60156 kB
+smaps: AnonHugePages:      6144 kB
+smaps: ShmemPmdMapped:        0 kB
+smaps: FilePmdMapped:         0 kB
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe40000), direct map at 0xffff800000000000
+joist: frames: 64813 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64551 frames free after)
+joist: timer: 20 ticks at 100 Hz, 624980 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+ipcbench: a system call that does nothing: n=20x5000 min=525 p50=544 p99=580 worst-p50=544 max=34728 cycles (bucket 4; 12000 cycles took 7242 to 7276 counts; clock 18 to 20 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x5000 min=1546 p50=1640 p99=1724 worst-p50=1644 max=148192 cycles (bucket 4; 12000 cycles took 7244 to 7628 counts; clock 18 to 20 counts, taken off)
+ipcbench: one address space, passive server: n=20x5000 min=1146 p50=1184 p99=1244 worst-p50=1188 max=146233 cycles (bucket 4; 12000 cycles took 7242 to 7430 counts; clock 18 to 20 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x5000 min=12196 p50=14112 p99=19616 worst-p50=14400 max=167746 cycles (bucket 32; 12000 cycles took 7078 to 7440 counts; clock 16 to 20 counts, taken off)
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=2824 p50=2992 p99=3144 worst-p50=2992 max=157489 cycles (bucket 8; 12000 cycles took 7078 to 7436 counts; clock 16 to 20 counts, taken off)
+lockorder: cpu 0 acq 200015 fast 199982 pred 0/77895/67488/54632/0 depth 3/1/320/199691/0/0/0/0
+lockorder: cpu 1 acq 202979 fast 0 pred 53019/0/69035/80925/0 depth 2/7/3229/199741/0/0/0/0
+lockorder: cpu 2 acq 202979 fast 0 pred 73353/62204/0/67422/0 depth 0/9/3235/199735/0/0/0/0
+lockorder: cpu 3 acq 202979 fast 0 pred 73643/62880/66456/0/0 depth 11/10/3228/199730/0/0/0/0
+ipcbench: segments p50/p99: 10656/12000 10624/11648 10464/11360 10624/11520 10464/11520 10720/11552 10432/11232 9984/10944 9920/11136 10080/28736 9760/11904 9792/11104 9920/11200 9920/11008 9984/10912 9792/10848 10016/10944 10016/10816 9856/10720 9632/10464
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=6348 p50=10016 p99=11200 worst-p50=10720 max=143375 cycles (bucket 32; 12000 cycles took 7244 to 7628 counts; clock 18 to 20 counts, taken off)
+ipcbench: done
+joist: root task exited with code 0 (timer ticks so far: 64)
+joist: finish code 0

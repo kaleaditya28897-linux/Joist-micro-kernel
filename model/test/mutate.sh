@@ -7,6 +7,9 @@
 # MUTATE_ONLY=regex runs only the mutations whose names match (extended regex).
 # MUTATE_JOBS=n runs n mutations at once (default: the number of CPUs); the
 # results are printed in list order whatever the order they finish in.
+# MUTATE_TIMEOUT=s bounds each mutant's test run (default 3600): one that runs
+# longer is reported as TIMEOUT and fails the check, as a survivor does; a
+# hang is not a catch, since it may be a test that never reaches its check.
 set -u
 if [ "${1:-}" = "--one" ]; then
     # Worker: mutation number $2 of the list in $MUT_WORK/list.
@@ -34,8 +37,10 @@ PY
         echo "STALE  $name: text not found in $file" > "$res"
     elif ! make -s -C "$w/model" CC="$MUT_CC" build/plain/run-tests > "$w/build.log" 2>&1; then
         echo "STALE  $name: mutant does not build" > "$res"
-    elif "$w/model/build/plain/run-tests" > "$w/out" 2>&1; then
+    elif timeout "${MUTATE_TIMEOUT:-3600}" "$w/model/build/plain/run-tests" > "$w/out" 2>&1; then
         echo "SURVIVED $name" > "$res"
+    elif [ $? -eq 124 ]; then
+        echo "TIMEOUT $name: the tests ran over ${MUTATE_TIMEOUT:-3600} s" > "$res"
     else
         echo "caught $name: $( (grep -m1 'seed .* step' "$w/out" || grep -m1 'failed:' "$w/out") | sed 's/^ *//' | cut -c1-110)" > "$res"
     fi

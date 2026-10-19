@@ -1,0 +1,401 @@
+--- tools/orig/ipcbench.c	2026-10-16 15:48:37.960853662 +0530
++++ tools/work/ipcbench.c	2026-10-16 16:15:06.275717822 +0530
+@@ -47,7 +47,7 @@
+ 
+ void _start(uint64_t role, uint64_t name, uint64_t from, uint64_t to);
+ 
+-#ifdef BENCH_LOCK_STATS
++#if defined(BENCH_LOCK_STATS) || defined(BENCH_LOCK_DEPTH)
+ /* The lock study's kernel call (run.c, RUN_LOCK_STATS): op 0 counts the
+  * kernel lock's acquisitions from TSC `from` to `to`, op 1 prints them.
+  * Any other kernel refuses the number and nothing happens. */
+@@ -59,6 +59,38 @@
+ 
+ static uint32_t hist[BUCKETS + 1u]; /* the last: everything longer */
+ 
++#ifdef BENCH_ROUNDS
++/* (contend2 study) For the contended line: each segment's own histogram in
++ * RB_WIDTH-cycle buckets, printed after the measurement with the segments'
++ * p50 and p99 in their order. */
++#define RB_WIDTH 128u
++#define RB_N     256u
++static uint32_t rhist[BENCH_SEGMENTS][RB_N + 1u];
++#endif
++#ifdef BENCH_SERIES
++/* (contend2 study) For the contended line, per batch of BENCH_BATCH calls:
++ * when it started (TSC counts after the first), its ruler, and its median
++ * (from a histogram of SB_WIDTH-cycle buckets), printed after the
++ * measurement. */
++#define SB_N     (BENCH_SEGMENTS * (BENCH_CALLS / BENCH_BATCH))
++#define SB_WIDTH 32u
++#define SB_B     512u
++static uint64_t sb_at[SB_N], sb_ruler[SB_N], sb_p50[SB_N];
++static uint32_t sb_hist[SB_B + 1u];
++static uint64_t sb_t0;
++static void sb_close(unsigned k)
++{
++    uint64_t seen = 0;
++    for (unsigned b = 0; b <= SB_B; b++) {
++        seen += sb_hist[b];
++        if (seen * 2u >= BENCH_BATCH && sb_p50[k] == 0) {
++            sb_p50[k] = (uint64_t)(b + 1u) * SB_WIDTH;
++        }
++        sb_hist[b] = 0;
++    }
++}
++#endif
++
+ static const char *const names[] = {
+     "two address spaces, passive server",
+     "one address space, passive server",
+@@ -203,17 +235,33 @@
+     static uint64_t p50[BENCH_SEGMENTS];
+     static uint64_t p99[BENCH_SEGMENTS];
+     uint64_t worst = 0;
+-#ifdef BENCH_LOCK_STATS
++#if defined(BENCH_LOCK_STATS) || defined(BENCH_LOCK_DEPTH)
+     if (bench_name == 3) { /* the contended measurement: the kernel lock's figures for it */
+         lock_stats(0, work_tsc(), UINT64_MAX);
+     }
+ #endif
+     for (unsigned seg = 0; seg < BENCH_SEGMENTS; seg++) {
++#ifdef BENCH_LOCK_DEPTH
++        if (bench_name == 3 && seg > 0) {
++            lock_stats(3, 0, 0); /* (contend2) RUN_LOCK_DEPTH's next round */
++        }
++#endif
+         for (unsigned b = 0; b <= BUCKETS; b++) {
+             hist[b] = 0;
+         }
+         for (unsigned i = 0; i < BENCH_CALLS; i++) {
+             if (i % BENCH_BATCH == 0) {
++#ifdef BENCH_SERIES
++                if (bench_name == 3) {
++                    unsigned k = seg * (BENCH_CALLS / BENCH_BATCH) + i / BENCH_BATCH;
++                    if (k > 0) {
++                        sb_close(k - 1u);
++                    } else {
++                        sb_t0 = work_tsc();
++                    }
++                    sb_at[k] = work_tsc() - sb_t0;
++                }
++#endif
+                 /* The ruler and the clock's own cost, both in counts, both
+                  * again for every batch: counts per CPU cycle change with
+                  * the CPU's speed, and the two must be taken at the same
+@@ -228,6 +276,11 @@
+                 ruler_max = r > ruler_max ? r : ruler_max;
+                 clock_min = clock < clock_min ? clock : clock_min;
+                 clock_max = clock > clock_max ? clock : clock_max;
++#ifdef BENCH_SERIES
++                if (bench_name == 3) {
++                    sb_ruler[seg * (BENCH_CALLS / BENCH_BATCH) + i / BENCH_BATCH] = r;
++                }
++#endif
+             }
+             uint64_t t = once(&m);
+             uint64_t d = (t > clock ? t - clock : 0) * cycles / r;
+@@ -235,16 +288,95 @@
+             max = d > max ? d : max;
+             uint64_t b = d / width;
+             hist[b < BUCKETS ? b : BUCKETS]++;
++#ifdef BENCH_SERIES
++            if (bench_name == 3) {
++                sb_hist[d / SB_WIDTH < SB_B ? d / SB_WIDTH : SB_B]++;
++            }
++#endif
++#ifdef BENCH_ROUNDS
++            if (bench_name == 3) {
++                rhist[seg][d / RB_WIDTH < RB_N ? d / RB_WIDTH : RB_N]++;
++            }
++#endif
+         }
+         p50[seg] = quantile(1, 2, width);
+         p99[seg] = quantile(99, 100, width);
+         worst = p50[seg] > worst ? p50[seg] : worst;
+     }
+-#ifdef BENCH_LOCK_STATS
++#if defined(BENCH_LOCK_STATS) || defined(BENCH_LOCK_DEPTH)
+     if (bench_name == 3) {
+         lock_stats(1, 0, 0);
+     }
+ #endif
++#ifdef BENCH_SERIES
++    if (bench_name == 3) {
++        sb_close(SB_N - 1u);
++        put("ipcbench-series: start tsc ", sb_t0);
++        j_puts("\n");
++        for (unsigned k = 0; k < SB_N; k++) {
++            put("ipcbench-batch: ", k);
++            put(" ", sb_at[k]);
++            put(" ", sb_ruler[k]);
++            put(" ", sb_p50[k]);
++            j_puts("\n");
++        }
++    }
++#endif
++#ifdef BENCH_ROUNDS
++    if (bench_name == 3) {
++        j_puts("ipcbench-rounds: p50");
++        for (unsigned s = 0; s < BENCH_SEGMENTS; s++) {
++            put(" ", p50[s]);
++        }
++        j_puts("\nipcbench-rounds: p99");
++        for (unsigned s = 0; s < BENCH_SEGMENTS; s++) {
++            put(" ", p99[s]);
++        }
++        /* Buckets from the least time's to the one holding the pooled 99.9th
++         * percentile; what lies above is counted in a last column. */
++        static uint64_t all[RB_N + 1u];
++        uint64_t total = 0;
++        for (unsigned b = 0; b <= RB_N; b++) {
++            all[b] = 0;
++            for (unsigned s = 0; s < BENCH_SEGMENTS; s++) {
++                all[b] += rhist[s][b];
++            }
++            total += all[b];
++        }
++        unsigned lo = (unsigned)(min / RB_WIDTH < RB_N ? min / RB_WIDTH : RB_N);
++        unsigned hi = lo;
++        uint64_t seen = 0;
++        for (unsigned b = 0; b <= RB_N; b++) {
++            seen += all[b];
++            if (seen * 1000u >= total * 999u) {
++                hi = b;
++                break;
++            }
++        }
++        put("\nipcbench-hist: width ", RB_WIDTH);
++        put(" from ", (uint64_t)lo * RB_WIDTH);
++        put(" to ", (uint64_t)(hi + 1u) * RB_WIDTH);
++        j_puts(" then above\n");
++        for (unsigned s = 0; s <= BENCH_SEGMENTS; s++) {
++            if (s < BENCH_SEGMENTS) {
++                put("ipcbench-hist: seg ", s);
++            } else {
++                j_puts("ipcbench-hist: all");
++            }
++            uint64_t above = 0;
++            for (unsigned b = lo; b <= RB_N; b++) {
++                uint64_t v = s < BENCH_SEGMENTS ? rhist[s][b] : all[b];
++                if (b <= hi) {
++                    put(" ", v);
++                } else {
++                    above += v;
++                }
++            }
++            put(" | ", above);
++            j_puts("\n");
++        }
++    }
++#endif
+     j_puts("ipcbench: ");
+     j_puts(what);
+     put(": n=", BENCH_SEGMENTS);
+@@ -310,6 +442,12 @@
+     }
+     if (role == 2) {
+         for (;;) { /* keep the kernel busy from another CPU (step 9: the lock) */
++#ifdef BENCH_BUSY_SPIN
++            /* (contend2 study) BENCH_BUSY_SPIN TSC counts in user mode between calls */
++            uint64_t s0 = work_tsc();
++            while (work_tsc() - s0 < (uint64_t)BENCH_BUSY_SPIN) {
++            }
++#endif
+             (void)j_cap_delete(J_SLOT_NONE);
+         }
+     }
+--- tools/orig/benchroot.c	2026-10-16 15:48:38.091853655 +0530
++++ tools/work/benchroot.c	2026-10-16 16:15:06.275862817 +0530
+@@ -27,6 +27,21 @@
+ 
+ static uint64_t done;
+ 
++#ifdef BENCH_SERIES
++/* (contend2 study) the TSC now, printed with a label */
++static void tsc_note(const char *what)
++{
++    uint32_t lo;
++    uint32_t hi;
++    __asm__ volatile("lfence; rdtsc" : "=a"(lo), "=d"(hi));
++    j_puts("benchroot: tsc ");
++    j_puts(what);
++    j_puts(" ");
++    j_putu((uint64_t)hi << 32 | lo);
++    j_puts("\n");
++}
++#endif
++
+ static void thread_start(uint64_t task, uint64_t thread, uint64_t entry, uint64_t sp,
+                          uint64_t role, uint64_t name)
+ {
+@@ -132,7 +147,15 @@
+         /* The kernel lock under contention (decision 0016 asks for its cost
+          * on 2 and 4 CPUs): the first measurement again while a thread on
+          * every other CPU does nothing but enter the kernel. */
++#ifdef BENCH_SERIES
++        tsc_note("busy-start");
++#endif
++#ifdef BENCH_BUSY
++        /* (contend2 study) only BENCH_BUSY of the other CPUs make calls */
++        for (uint64_t i = 1; i < ncpus && i <= BENCH_BUSY; i++) {
++#else
+         for (uint64_t i = 1; i < ncpus; i++) {
++#endif
+             uint64_t task = slot_new();
+             uint64_t thread = slot_new();
+             uint64_t sc = slot_new();
+@@ -141,6 +164,15 @@
+             must(j_sc_create(sc, 100, 10 * J_MS, 10 * J_MS), "sc_create (busy)");
+             must(j_sc_bind(sc, thread), "sc_bind (busy)");
+         }
++#ifdef BENCH_LEAD_MS
++        /* (contend2 study) the busy CPUs run BENCH_LEAD_MS alone first */
++        if (j_recv(done, &m, BENCH_LEAD_MS * J_MS) != J_E_TIMEOUT) {
++            die("the lead sleep didn't time out");
++        }
++#endif
++#ifdef BENCH_SERIES
++        tsc_note("measure");
++#endif
+         measure(3, 0, 1);
+     }
+     j_puts("ipcbench: done\n");
+--- tools/orig/run.c	2026-10-16 15:48:38.212853649 +0530
++++ tools/work/run.c	2026-10-16 15:53:15.898795240 +0530
+@@ -206,6 +206,8 @@
+ struct lstat {
+     uint64_t asked, got; /* this acquisition */
+     uint32_t kind;       /* how it will be let go */
++    uint32_t depth;      /* (contend2 study) tickets ahead of this one when it asked */
++    uint64_t qn[8], qwait[8]; /* (contend2) acquisitions and their wait, by depth */
+     uint64_t n, wait, hold;
+     uint64_t kn[LS_KINDS], khold[LS_KINDS];
+     uint64_t sn[LS_SCANS], st[LS_SCANS];
+@@ -242,6 +244,8 @@
+     s->wait += w;
+     s->hold += h;
+     s->kn[s->kind]++;
++    s->qn[s->depth < 7u ? s->depth : 7u]++;
++    s->qwait[s->depth < 7u ? s->depth : 7u] += w;
+     s->khold[s->kind] += h;
+     s->hold_hist[h / LS_WIDTH < LS_BUCKETS ? h / LS_WIDTH : LS_BUCKETS]++;
+     s->wait_hist[w / LS_WIDTH < LS_BUCKETS ? w / LS_WIDTH : LS_BUCKETS]++;
+@@ -274,6 +278,19 @@
+ #define LS_TIME_V(c, which, stmt) stmt
+ #endif
+ 
++#ifdef RUN_LOCK_DEPTH
++/* (contend2 study) The lock's queue without the TSC: per round of the
++ * measurement and per CPU, how many acquisitions found 0, 1, 2 or 3+ tickets
++ * ahead (the holder counts) when they asked. System call 99: RDI 0 starts
++ * round 0 and clears, 3 starts the next round, 1 prints and stops. */
++#define LD_SEGS 20u
++struct ldseg {
++    uint64_t n, qn[4];
++};
++static struct ldseg ldsegs[RUN_MAX_CPUS][LD_SEGS] __attribute__((aligned(64)));
++static volatile uint32_t ld_seg = UINT32_MAX; /* off */
++#endif
++
+ #if RUN_LOCK_MCS
+ struct qnode {
+     struct qnode *volatile next;
+@@ -349,6 +366,17 @@
+     lstats[c->id].asked = ls_tsc();
+ #endif
+     uint32_t me = __atomic_fetch_add(&klock.next, 1, __ATOMIC_SEQ_CST);
++#ifdef RUN_LOCK_STATS
++    lstats[c->id].depth = me - __atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE);
++#endif
++#ifdef RUN_LOCK_DEPTH
++    uint32_t ld_d = me - __atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE);
++    uint32_t ld_s = ld_seg;
++    if (ld_s < LD_SEGS) {
++        ldsegs[c->id][ld_s].n++;
++        ldsegs[c->id][ld_s].qn[ld_d < 3u ? ld_d : 3u]++;
++    }
++#endif
+     while (__atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE) != me) {
+         cpu_sync(c);
+         __asm__ volatile("pause");
+@@ -1373,6 +1401,8 @@
+         ls_hold_all[b] = 0;
+         ls_wait_all[b] = 0;
+     }
++    ls_put("lockstats: caller cpu ", this_cpu()->id);
++    kputs("\n");
+     ls_put("lockstats: window ", span);
+     ls_put(" tsc counts, cpus ", ncpus);
+     ls_put(", lock ", RUN_LOCK_MCS ? 1u : 0u);
+@@ -1399,6 +1429,11 @@
+             ls_put(" ", s->sn[k]);
+             ls_put("/", s->st[k]);
+         }
++        kputs(" depth");
++        for (unsigned k = 0; k < 8u; k++) {
++            ls_put(" ", s->qn[k]);
++            ls_put("/", s->qwait[k]);
++        }
+         kputs("\n");
+         n += s->n;
+         for (unsigned b = 0; b <= LS_BUCKETS; b++) {
+@@ -1416,6 +1451,46 @@
+ }
+ #endif
+ 
++#ifdef RUN_LOCK_DEPTH
++/* (contend2 study) RUN_LOCK_DEPTH's system call; under the lock. */
++static void ld_op(uint64_t op)
++{
++    if (op == 0) {
++        __builtin_memset(ldsegs, 0, sizeof ldsegs);
++        ld_seg = 0;
++        return;
++    }
++    if (op == 3) {
++        ld_seg = ld_seg + 1u < LD_SEGS ? ld_seg + 1u : ld_seg;
++        return;
++    }
++    if (op != 1) {
++        return;
++    }
++    ld_seg = UINT32_MAX;
++    kputs("lockdepth: caller cpu ");
++    kputu(this_cpu()->id);
++    kputs("\n");
++    for (uint32_t sg = 0; sg < LD_SEGS; sg++) {
++        for (uint32_t i = 0; i < ncpus; i++) {
++            struct ldseg *d = &ldsegs[i][sg];
++            kputs("lockdepth: seg ");
++            kputu(sg);
++            kputs(" cpu ");
++            kputu(i);
++            kputs(" n ");
++            kputu(d->n);
++            kputs(" depth");
++            for (unsigned k = 0; k < 4u; k++) {
++                kputs(" ");
++                kputu(d->qn[k]);
++            }
++            kputs("\n");
++        }
++    }
++}
++#endif
++
+ void run_user_trap(struct trap_frame *tf)
+ {
+     struct cpu *c = this_cpu();
+@@ -1457,6 +1532,11 @@
+                 ls_op(K.th[t].regs.r[ABI_RDI], K.th[t].regs.r[ABI_RSI], K.th[t].regs.r[ABI_RDX]);
+             }
+ #endif
++#ifdef RUN_LOCK_DEPTH
++            if (K.th[t].regs.r[ABI_RAX] == RUN_LS_SYSCALL) {
++                ld_op(K.th[t].regs.r[ABI_RDI]);
++            }
++#endif
+             int may_hand =
+                 RUN_FAST_PATH && K.npending == 0 && c->armed_for != 0 && K.now < c->armed_for;
+             /* The run queues are held for the call and settled after the

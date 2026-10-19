@@ -1,0 +1,25 @@
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe3c000), direct map at 0xffff800000000000
+joist: frames: 64809 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64546 frames free after)
+joist: timer: 20 ticks at 100 Hz, 624956 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+ipcbench: a system call that does nothing: n=20x5000 min=391 p50=408 p99=420 worst-p50=412 max=86528 cycles (bucket 4; 12000 cycles took 6770 to 6946 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x5000 min=1558 p50=1644 p99=1684 worst-p50=1644 max=102483 cycles (bucket 4; 12000 cycles took 6770 to 7086 counts; clock 16 to 18 counts, taken off)
+ipcbench: one address space, passive server: n=20x5000 min=1152 p50=1188 p99=1216 worst-p50=1188 max=88057 cycles (bucket 4; 12000 cycles took 6770 to 6934 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x5000 min=13004 p50=14560 p99=20480 worst-p50=14848 max=150766 cycles (bucket 32; 12000 cycles took 6772 to 6950 counts; clock 18 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=2902 p50=3000 p99=3056 worst-p50=3000 max=133829 cycles (bucket 8; 12000 cycles took 6922 to 7106 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=5145 p50=7104 p99=7920 worst-p50=7344 max=139114 cycles (bucket 16; 12000 cycles took 7242 to 7626 counts; clock 18 to 20 counts, taken off)
+ipcbench: done
+joist: root task exited with code 0 (timer ticks so far: 37)
+joist: finish code 0

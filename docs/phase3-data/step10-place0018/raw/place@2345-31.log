@@ -1,0 +1,162 @@
+campaign: 2026-10-19T08:27:33Z build VM busy during run: 0.2 %; governor before: performance performance performance performance  after: performance performance performance performance 
+runiso-status: 1
+runiso-cpus: 2 3 4 5 
+pin-1s: qemu-system-x86: 0,1,6,7 last 0
+pin-1s: call_rcu: 0,1,6,7 last 7
+pin-1s: worker: 0,1,6,7 last 7
+pin-1s: CPU 0/KVM: 2 last -1
+pin-1s: CPU 1/KVM: 3 last -1
+pin-1s: CPU 2/KVM: 4 last -1
+pin-1s: CPU 3/KVM: 5 last -1
+pin-1s: kvm-nx-lpage-re: 0,1,6,7 last 1
+pin-1s: build VM:      38 0,1,6,7 
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe3c000), direct map at 0xffff800000000000
+joist: frames: 64809 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64546 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625106 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+ipcbench: a system call that does nothing: n=20x5000 min=394 p50=412 p99=424 worst-p50=416 max=86971 cycles (bucket 4; 12000 cycles took 6770 to 6950 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x5000 min=1596 p50=1648 p99=1664 worst-p50=1652 max=88534 cycles (bucket 4; 12000 cycles took 6770 to 7092 counts; clock 16 to 18 counts, taken off)
+ipcbench: one address space, passive server: n=20x5000 min=1186 p50=1204 p99=1212 worst-p50=1204 max=43774 cycles (bucket 4; 12000 cycles took 6920 to 6956 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x5000 min=8821 p50=14592 p99=21120 worst-p50=14784 max=156263 cycles (bucket 32; 12000 cycles took 6922 to 7106 counts; clock 18 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=2907 p50=3008 p99=3072 worst-p50=3008 max=126218 cycles (bucket 8; 12000 cycles took 6922 to 7108 counts; clock 16 to 18 counts, taken off)
+lockdepth: caller cpu 2
+placement: 0 enter cpu 0 tag 1 a 0
+placement: 1 enter cpu 1 tag 1 a 32
+placement: 2 enter cpu 2 tag 1 a 32
+placement: 3 enter cpu 3 tag 1 a 32
+placement: 4 mark cpu 0 tag 0 a 0
+placement: 5 poke cpu 1 tag 0 a 0
+placement: 6 poke cpu 0 tag 0 a 0
+placement: 7 poke cpu 0 tag 0 a 2
+placement: 8 mark cpu 0 tag 11 a 0
+placement: 9 poke cpu 1 tag 0 a 0
+placement: 10 enter cpu 1 tag 0 a 1
+placement: 11 poke cpu 0 tag 0 a 0
+placement: 12 poke cpu 0 tag 0 a 4
+placement: 13 mark cpu 0 tag 12 a 0
+placement: 14 poke cpu 2 tag 0 a 0
+placement: 15 enter cpu 2 tag 0 a 2
+placement: 16 poke cpu 0 tag 0 a 0
+placement: 17 poke cpu 0 tag 0 a 8
+placement: 18 mark cpu 0 tag 13 a 0
+placement: 19 poke cpu 3 tag 0 a 0
+placement: 20 enter cpu 3 tag 0 a 3
+placement: 21 poke cpu 0 tag 0 a 0
+placement: 22 poke cpu 0 tag 0 a 0
+placement: 23 mark cpu 0 tag 30 a 0
+placement: 24 poke cpu 0 tag 0 a 8
+placement: 25 enter cpu 0 tag 0 a 4
+placement: 26 poke cpu 2 tag 8 a 0
+placement: 27 enter cpu 2 tag 0 a 0
+placement: 28 poke cpu 3 tag 0 a 0
+placement: 29 enter cpu 3 tag 0 a 2
+placement: 30 enter cpu 0 tag 0 a 3
+placement: 31 poke cpu 2 tag 0 a 0
+placement: 32 enter cpu 2 tag 0 a 4
+placement: 33 poke cpu 2 tag 0 a 0
+placement: 34 poke cpu 2 tag 0 a 0
+placement: 35 mark cpu 2 tag 31 a 0
+placement: 36 poke cpu 2 tag 0 a 0
+placement: 37 mark cpu 2 tag 32 a 0
+placement: 38 enter cpu 2 tag 0 a 5
+placement: 39 mark cpu 2 tag 999 a 5
+placement: now cpu 0 runs 3
+placement: now cpu 1 runs 1
+placement: now cpu 2 runs 5
+placement: now cpu 3 runs 2
+lockdepth: seg 0 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 0 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 0 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 0 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 1 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 1 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 1 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 1 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 2 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 2 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 2 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 2 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 3 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 3 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 3 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 3 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 4 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 4 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 4 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 4 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 5 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 5 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 5 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 5 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 6 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 6 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 6 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 6 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 7 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 7 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 7 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 7 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 8 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 8 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 8 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 8 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 9 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 9 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 9 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 9 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 10 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 10 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 10 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 10 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 11 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 11 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 11 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 11 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 12 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 12 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 12 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 12 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 13 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 13 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 13 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 13 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 14 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 14 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 14 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 14 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 15 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 15 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 15 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 15 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 16 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 16 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 16 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 16 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 17 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 17 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 17 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 17 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 18 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 18 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 18 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 18 cpu 3 n 0 depth 0 0 0 0
+lockdepth: seg 19 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 19 cpu 1 n 0 depth 0 0 0 0
+lockdepth: seg 19 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 19 cpu 3 n 0 depth 0 0 0 0
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=4653 p50=7344 p99=8384 worst-p50=7744 max=110441 cycles (bucket 16; 12000 cycles took 7242 to 7628 counts; clock 18 to 20 counts, taken off)
+ipcbench: done
+joist: root task exited with code 0 (timer ticks so far: 64)
+joist: finish code 0

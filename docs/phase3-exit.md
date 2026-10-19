@@ -11,7 +11,7 @@ end.
 
 | Criterion (§11) | Met by | Evidence |
 |---|---|---|
-| IPC benchmarks stable | `user/ipcbench`, run by `user/benchroot`: round trips in CPU cycles (by the benchmark's own ruler), one and two address spaces, passive server and server with its own context, and a do-nothing system call. *Stable* (plan, *Testing*): across 10 runs the median moves under 5 % and the 99th percentile under 20 %. A gate in `make check` (`bench-gate` in `kernel/test/selftest.sh`) fails a median more than 25 % above `kernel/test/ipcbench.baseline` 10 runs each of the fast-path and slow-path kernels on the P53 (i7-9850H, KVM, 4 vCPUs pinned, QEMU 11.1.2; `docs/phase3-data/README.md`, *Step 10: the exit benchmark*). **Every uncontended round trip passes**: medians move 0-2.3 %, 99th percentiles 2.6-16 %. **Two figures do not**: the do-nothing call's 99th percentile on the fast path (29.4 %: two runs of ten read 736-740 against 572), and the contended line's median (8.5 % fast, 7.9 % slow), which is the one kernel lock's (0017). The gate's baseline was measured again on the same tree: 496, 1 548, 1 092 |
+| IPC benchmarks stable | `user/ipcbench`, run by `user/benchroot`: round trips in CPU cycles (by the benchmark's own ruler), one and two address spaces, passive server and server with its own context, and a do-nothing system call. *Stable* (plan, *Testing*): across 10 runs the median moves under 5 % and the 99th percentile under 20 %. A gate in `make check` (`bench-gate` in `kernel/test/selftest.sh`) fails a median more than 25 % above `kernel/test/ipcbench.baseline` 10 runs each of the fast-path and slow-path kernels on the P53 (i7-9850H, KVM, 4 vCPUs pinned, QEMU 11.1.2; `docs/phase3-data/README.md`, *Step 10: the exit benchmark*). **Every uncontended round trip passes**: medians move 0-2.3 %, 99th percentiles 2.6-16 %. **Two figures do not**: the do-nothing call's 99th percentile on the fast path (29.4 %: two runs of ten read 736-740 against 572), and the contended line's median (8.5 % fast, 7.9 % slow), which is the one kernel lock's (0017). **Since then, met** (2026-10-19): the first was the host's, and spreads 1.0-2.9 % with CPUs 2-5 kept for the benchmark; the second is reported as the lock's worst case, not held to the test (decision 0019, the owner's choice after four studies); every held line passes in every 10-run window of 20 boots of each kernel (`docs/phase3-data/step10-pokes/`). The gate's baseline was measured again on the same tree: 496, 1 548, 1 092 |
 | Fault-injected client/server tests pass | `user/faultinj` and `user/fiworker`: five scenarios (a client in a call, a server holding a reply, a saved reply, capabilities in transit, a thread signalling or waiting), 13 kill points, five ways to kill (thread kill, last thread capability, task destroy, last task capability, reply object or capability deleted). Survivors checked against `docs/abi.md` (`E_PEER`, `E_GONE`, withdrawn messages, no-senders and dead names exactly once, skipped capabilities, signals as sent); every wait bounded; kernel counters level after every round. Seeded, replayable | Seven self-tests, seeds 1-7, 100 rounds each (1 CPU twice; 2 and 4 emulated; 2 and 4 under KVM; the checking kernel on 4 under KVM), 13 of 13 kill points in each. 9 000 more rounds (seeds 11-16, 300 rounds, five machine shapes). No kernel or core bug found. Six bugs planted in the core by hand, one at a time, each caught at the first round to reach them. Recorded in `docs/phase3-plan.md`, *Step 10, part 3*, and in the hand-off report `/srv/joist/handoff/faultinj/findings.md` on the P53; not in `docs/phase3-data/` |
 | No kernel memory growth under adversarial tests | `debug_counters` (call 3, root task only) reports live objects, thread records, spaces, table leaves, mappings, destructions pending, free page-table frames and free boot frames. `user/growroot` makes and destroys tasks, threads, endpoints, notifications, contexts, capabilities and cycles of tasks (reaped), fills the object, space and mapping tables to `E_NOMEM`, and runs `user/fuzzchild` (random system calls) in its tasks. After the first round every counter must read the same after every round | 41 rounds on 4 CPUs under KVM, 60 cycles reaped, every counter unchanged; 9 rounds emulated and on the checking kernel (self-tests `grow`, `kvm-smp4-grow40`, `chk-kvm-smp4-grow`). A kernel made to leak one page table in fifty, tried once by hand, fails at the second round. `faultinj` checks the same counters after every round. Recorded in `docs/phase3-plan.md`, *Step 10, part 1*; not in `docs/phase3-data/` |
 
@@ -145,6 +145,21 @@ than an underestimate of it, and the run queues (172 cycles a round trip).
 - **The exit benchmark's two misses** (above): the do-nothing call's 99th
   percentile and the contended line's median. Whether the criterion is met
   is the owner's call; the figures are as measured.
+  - The first was the host's: with CPUs 2-5 kept for the benchmark
+    (`docs/testbed.md`, *Benchmark CPUs*) it spreads 1.0-2.9 % over 20
+    boots.
+  - The second still misses, 2026-10-19, in every 10-run window of a
+    40-boot campaign (`docs/phase3-data/step10-pokes/`): 7.9 % at
+    `8241b56` (a call that changes nothing skips the scheduler; the line
+    fell from 9 232 to about 7 050 cycles), 11.3 % with decision 0018 (one
+    CPU woken per thread), which was to remove the client's placement race.
+    Every other line passes, in every window, with both kernels.
+  - **Decided 2026-10-19:** a study of 430 boots
+    (`docs/phase3-data/step10-place0018/`) found no kernel or benchmark
+    change that would plausibly make the line stable on this testbed, and
+    the owner chose to report it as the one lock's worst case, not hold it
+    to the test (decision 0019). The criterion is met for every line the
+    plan names.
 - **Bare metal** is still not available. Every real-CPU figure in this
   phase is under KVM: VM 112 (i5-14400) until 2026-10-14, the P53
   (i7-9850H) since.

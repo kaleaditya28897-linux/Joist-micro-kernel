@@ -1,0 +1,569 @@
+13:11:26 round 1: gate@2345 depth@2345 base@2345 
+13:11:34 gate@2345-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:11:42 depth@2345-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:11:50 base@2345-1 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:11:50 round 2: depth@2345 base@2345 gate@2345 
+13:11:59 depth@2345-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:12:07 base@2345-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:12:15 gate@2345-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:12:15 round 3: base@2345 gate@2345 depth@2345 
+13:12:23 base@2345-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:12:31 gate@2345-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:12:40 depth@2345-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:12:40 round 4: gate@2345 depth@2345 base@2345 
+13:12:48 gate@2345-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:12:56 depth@2345-4 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:13:04 base@2345-4 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:13:04 round 5: depth@2345 base@2345 gate@2345 
+13:13:12 depth@2345-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:13:21 base@2345-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:13:29 gate@2345-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:13:29 round 6: base@2345 gate@2345 depth@2345 
+13:13:37 base@2345-6 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:13:45 gate@2345-6 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:13:53 depth@2345-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:13:53 round 7: gate@2345 depth@2345 base@2345 
+13:14:01 gate@2345-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:14:09 depth@2345-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:14:18 base@2345-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:14:18 round 8: depth@2345 base@2345 gate@2345 
+13:14:26 depth@2345-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:14:34 base@2345-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:14:42 gate@2345-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:14:42 round 9: base@2345 gate@2345 depth@2345 
+13:14:50 base@2345-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:14:58 gate@2345-9 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:15:07 depth@2345-9 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:15:07 round 10: gate@2345 depth@2345 base@2345 
+13:15:15 gate@2345-10 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:15:23 depth@2345-10 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:15:31 base@2345-10 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:15:31 round 11: depth@2345 base@2345 gate@2345 
+13:15:40 depth@2345-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:15:48 base@2345-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:15:56 gate@2345-11 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:15:56 round 12: base@2345 gate@2345 depth@2345 
+13:16:04 base@2345-12 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:16:12 gate@2345-12 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:16:20 depth@2345-12 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:16:20 round 13: gate@2345 depth@2345 base@2345 
+13:16:28 gate@2345-13 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:16:37 depth@2345-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:16:45 base@2345-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:16:45 round 14: depth@2345 base@2345 gate@2345 
+13:16:53 depth@2345-14 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:17:01 base@2345-14 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:17:09 gate@2345-14 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:17:09 round 15: base@2345 gate@2345 depth@2345 
+13:17:18 base@2345-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:17:26 gate@2345-15 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:17:34 depth@2345-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:17:34 round 16: gate@2345 depth@2345 base@2345 
+13:17:42 gate@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:17:50 depth@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:17:58 base@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:17:58 round 17: depth@2345 base@2345 gate@2345 
+13:18:07 depth@2345-17 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:18:15 base@2345-17 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:18:23 gate@2345-17 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:18:23 round 18: base@2345 gate@2345 depth@2345 
+13:18:31 base@2345-18 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:18:39 gate@2345-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:18:47 depth@2345-18 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:18:47 round 19: gate@2345 depth@2345 base@2345 
+13:18:55 gate@2345-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:19:04 depth@2345-19 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:19:12 base@2345-19 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:19:12 round 20: depth@2345 base@2345 gate@2345 
+13:19:20 depth@2345-20 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:19:28 base@2345-20 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:19:36 gate@2345-20 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:19:37 check-after exit 0
+13:19:37 campaign finished
+13:19:41 round 1: depth@3452 depth@4523 depth@5234 gate@2345x 
+13:19:49 depth@3452-1 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:19:59 round 1: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:20:07 depth@3452-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:20:15 depth@4523-1 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:20:24 depth@5234-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:20:32 depth@2345-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:20:40 gate@2345-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:20:40 round 2: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:20:48 depth@4523-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:20:56 depth@5234-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:21:05 depth@2345-22 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:21:13 gate@2345-22 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:21:21 depth@3452-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:21:21 round 3: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:21:29 depth@5234-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:21:37 depth@2345-23 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:21:45 gate@2345-23 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:21:54 depth@3452-4 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:22:02 depth@4523-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:22:02 round 4: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:22:10 depth@2345-24 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:22:18 gate@2345-24 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:22:26 depth@3452-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:22:35 depth@4523-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:22:43 depth@5234-4 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:22:43 round 5: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:22:51 gate@2345-25 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:22:59 depth@3452-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:23:07 depth@4523-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:23:16 depth@5234-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:23:24 depth@2345-25 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:23:24 round 6: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:23:32 depth@3452-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:23:40 depth@4523-6 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:23:49 depth@5234-6 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:23:57 depth@2345-26 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:24:05 gate@2345-26 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:24:05 round 7: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:24:13 depth@4523-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:24:21 depth@5234-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:24:30 depth@2345-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:24:38 gate@2345-27 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:24:46 depth@3452-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:24:46 round 8: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:24:54 depth@5234-8 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:25:02 depth@2345-28 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:25:10 gate@2345-28 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:25:19 depth@3452-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:25:27 depth@4523-8 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:25:27 round 9: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:25:35 depth@2345-29 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:25:43 gate@2345-29 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:25:51 depth@3452-10 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:26:00 depth@4523-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:26:08 depth@5234-9 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:26:08 round 10: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:26:16 gate@2345-30 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:26:24 depth@3452-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:26:32 depth@4523-10 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:26:41 depth@5234-10 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:26:49 depth@2345-30 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:26:49 round 11: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:26:57 depth@3452-12 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:27:05 depth@4523-11 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:27:14 depth@5234-11 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:27:22 depth@2345-31 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:27:30 gate@2345-31 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:27:30 round 12: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:27:38 depth@4523-12 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:27:46 depth@5234-12 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:27:55 depth@2345-32 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:28:03 gate@2345-32 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:28:11 depth@3452-13 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:28:11 round 13: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:28:19 depth@5234-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:28:27 depth@2345-33 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:28:35 gate@2345-33 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:28:44 depth@3452-14 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:28:52 depth@4523-13 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:28:52 round 14: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:29:00 depth@2345-34 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:29:08 gate@2345-34 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:29:16 depth@3452-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:29:25 depth@4523-14 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:29:33 depth@5234-14 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:29:33 round 15: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:29:41 gate@2345-35 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:29:49 depth@3452-16 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:29:58 depth@4523-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:30:06 depth@5234-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:30:14 depth@2345-35 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:30:14 round 16: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:30:22 depth@3452-17 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:30:30 depth@4523-16 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:30:39 depth@5234-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:30:47 depth@2345-36 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:30:55 gate@2345-36 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:30:55 round 17: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:31:03 depth@4523-17 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:31:12 depth@5234-17 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:31:20 depth@2345-37 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:31:28 gate@2345-37 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:31:36 depth@3452-18 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:31:36 round 18: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:31:44 depth@5234-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:31:53 depth@2345-38 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:32:01 gate@2345-38 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:32:09 depth@3452-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:32:17 depth@4523-18 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:32:17 round 19: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:32:25 depth@2345-39 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:32:33 gate@2345-39 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:32:41 depth@3452-20 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:32:50 depth@4523-19 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:32:58 depth@5234-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:32:58 round 20: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:33:06 gate@2345-40 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:33:14 depth@3452-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:33:22 depth@4523-20 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:33:31 depth@5234-20 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:33:39 depth@2345-40 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:33:39 round 21: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:33:47 depth@3452-22 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:33:55 depth@4523-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:34:04 depth@5234-21 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:34:04 round 22: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:34:12 depth@4523-22 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:34:20 depth@5234-22 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:34:28 depth@3452-23 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:34:28 round 23: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:34:37 depth@5234-23 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:34:45 depth@3452-24 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:34:53 depth@4523-23 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:34:53 round 24: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:35:01 depth@3452-25 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:35:09 depth@4523-24 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:35:18 depth@5234-24 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:35:18 round 25: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:35:26 depth@3452-26 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:35:34 depth@4523-25 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:35:42 depth@5234-25 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:35:42 round 26: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:35:51 depth@3452-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:35:59 depth@4523-26 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:36:07 depth@5234-26 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:36:07 round 27: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:36:15 depth@4523-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:36:24 depth@5234-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:36:32 depth@3452-28 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:36:32 round 28: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:36:40 depth@5234-28 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:36:48 depth@3452-29 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:36:57 depth@4523-28 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:36:57 round 29: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:37:05 depth@3452-30 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:37:13 depth@4523-29 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:37:21 depth@5234-29 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:37:21 round 30: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:37:30 depth@3452-31 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:37:38 depth@4523-30 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:37:46 depth@5234-30 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:37:46 round 31: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:37:54 depth@3452-32 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:38:03 depth@4523-31 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:38:11 depth@5234-31 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:38:11 round 32: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:38:19 depth@4523-32 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:38:27 depth@5234-32 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:38:36 depth@3452-33 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:38:36 round 33: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:38:44 depth@5234-33 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:38:52 depth@3452-34 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:39:00 depth@4523-33 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:39:00 round 34: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:39:09 depth@3452-35 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:39:17 depth@4523-34 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:39:25 depth@5234-34 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:39:25 round 35: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:39:33 depth@3452-36 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:39:41 depth@4523-35 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:39:50 depth@5234-35 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:39:50 round 36: depth@3452 depth@4523 depth@5234 depth@2345 gate@2345 
+13:39:58 depth@3452-37 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:40:06 depth@4523-36 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:40:14 depth@5234-36 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:40:14 round 37: depth@4523 depth@5234 depth@2345 gate@2345 depth@3452 
+13:40:23 depth@4523-37 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:40:31 depth@5234-37 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:40:39 depth@3452-38 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:40:39 round 38: depth@5234 depth@2345 gate@2345 depth@3452 depth@4523 
+13:40:47 depth@5234-38 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:40:56 depth@3452-39 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:41:04 depth@4523-38 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:41:04 round 39: depth@2345 gate@2345 depth@3452 depth@4523 depth@5234 
+13:41:12 depth@3452-40 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:41:20 depth@4523-39 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:41:29 depth@5234-39 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:41:29 round 40: gate@2345 depth@3452 depth@4523 depth@5234 depth@2345 
+13:41:37 depth@4523-40 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:41:45 depth@5234-40 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:41:45 check-after exit 0
+13:41:45 campaign finished
+13:44:18 round 1: place@2345 order@2345 long@2345 
+13:44:27 place@2345-1 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:44:35 order@2345-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:44:45 long@2345-1 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:44:45 round 2: order@2345 long@2345 place@2345 
+13:44:53 order@2345-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:45:03 long@2345-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:45:11 place@2345-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:45:11 round 3: long@2345 place@2345 order@2345 
+13:45:21 long@2345-3 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:45:29 place@2345-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:45:37 order@2345-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:45:37 round 4: place@2345 order@2345 long@2345 
+13:45:45 place@2345-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:45:54 order@2345-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:46:03 long@2345-4 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:46:03 round 5: order@2345 long@2345 place@2345 
+13:46:11 order@2345-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:46:21 long@2345-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:46:29 place@2345-5 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:46:29 round 6: long@2345 place@2345 order@2345 
+13:46:39 long@2345-6 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:46:47 place@2345-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:46:56 order@2345-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:46:56 round 7: place@2345 order@2345 long@2345 
+13:47:04 place@2345-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:47:12 order@2345-7 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:47:22 long@2345-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:47:22 round 8: order@2345 long@2345 place@2345 
+13:47:30 order@2345-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:47:40 long@2345-8 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:47:48 place@2345-8 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:47:48 round 9: long@2345 place@2345 order@2345 
+13:47:58 long@2345-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:48:06 place@2345-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:48:14 order@2345-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:48:14 round 10: place@2345 order@2345 long@2345 
+13:48:22 place@2345-10 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:48:31 order@2345-10 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:48:40 long@2345-10 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:48:40 round 11: order@2345 long@2345 place@2345 
+13:48:49 order@2345-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:48:58 long@2345-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:49:07 place@2345-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:49:07 round 12: long@2345 place@2345 order@2345 
+13:49:16 long@2345-12 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:49:24 place@2345-12 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:49:33 order@2345-12 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:49:33 round 13: place@2345 order@2345 long@2345 
+13:49:41 place@2345-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:49:49 order@2345-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:49:59 long@2345-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:49:59 round 14: order@2345 long@2345 place@2345 
+13:50:07 order@2345-14 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+13:50:17 long@2345-14 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:50:25 place@2345-14 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:50:25 round 15: long@2345 place@2345 order@2345 
+13:50:35 long@2345-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:50:43 place@2345-15 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:50:51 order@2345-15 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:50:51 round 16: place@2345 order@2345 long@2345 
+13:51:00 place@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:51:08 order@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:51:18 long@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:51:18 round 17: order@2345 long@2345 place@2345 
+13:51:26 order@2345-17 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:51:36 long@2345-17 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:51:44 place@2345-17 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:51:44 round 18: long@2345 place@2345 order@2345 
+13:51:54 long@2345-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:52:02 place@2345-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:52:10 order@2345-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:52:10 round 19: place@2345 order@2345 long@2345 
+13:52:18 place@2345-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:52:27 order@2345-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:52:36 long@2345-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:52:36 round 20: order@2345 long@2345 place@2345 
+13:52:44 order@2345-20 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:52:54 long@2345-20 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:53:02 place@2345-20 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:53:02 round 21: long@2345 place@2345 order@2345 
+13:53:12 long@2345-21 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:53:20 place@2345-21 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:53:29 order@2345-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:53:29 round 22: place@2345 order@2345 long@2345 
+13:53:37 place@2345-22 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:53:45 order@2345-22 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:53:55 long@2345-22 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:53:55 round 23: order@2345 long@2345 place@2345 
+13:54:03 order@2345-23 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:54:13 long@2345-23 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:54:21 place@2345-23 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:54:21 round 24: long@2345 place@2345 order@2345 
+13:54:31 long@2345-24 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:54:39 place@2345-24 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:54:47 order@2345-24 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:54:47 round 25: place@2345 order@2345 long@2345 
+13:54:56 place@2345-25 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:55:04 order@2345-25 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:55:13 long@2345-25 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:55:13 round 26: order@2345 long@2345 place@2345 
+13:55:22 order@2345-26 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:55:31 long@2345-26 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:55:40 place@2345-26 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:55:40 round 27: long@2345 place@2345 order@2345 
+13:55:49 long@2345-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:55:58 place@2345-27 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:56:06 order@2345-27 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:56:06 round 28: place@2345 order@2345 long@2345 
+13:56:14 place@2345-28 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:56:22 order@2345-28 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:56:32 long@2345-28 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:56:32 round 29: order@2345 long@2345 place@2345 
+13:56:40 order@2345-29 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:56:50 long@2345-29 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:56:58 place@2345-29 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:56:58 round 30: long@2345 place@2345 order@2345 
+13:57:08 long@2345-30 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:57:16 place@2345-30 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:57:24 order@2345-30 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:57:24 round 31: place@2345 order@2345 long@2345 
+13:57:33 place@2345-31 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:57:41 order@2345-31 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:57:50 long@2345-31 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:57:50 round 32: order@2345 long@2345 place@2345 
+13:57:59 order@2345-32 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:58:08 long@2345-32 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:58:17 place@2345-32 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:58:17 round 33: long@2345 place@2345 order@2345 
+13:58:26 long@2345-33 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:58:35 place@2345-33 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:58:43 order@2345-33 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:58:43 round 34: place@2345 order@2345 long@2345 
+13:58:51 place@2345-34 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:58:59 order@2345-34 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:59:09 long@2345-34 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:59:09 round 35: order@2345 long@2345 place@2345 
+13:59:17 order@2345-35 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+13:59:27 long@2345-35 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:59:35 place@2345-35 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+13:59:35 round 36: long@2345 place@2345 order@2345 
+13:59:45 long@2345-36 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+13:59:53 place@2345-36 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:00:01 order@2345-36 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:00:01 round 37: place@2345 order@2345 long@2345 
+14:00:10 place@2345-37 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:00:18 order@2345-37 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:00:28 long@2345-37 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:00:28 round 38: order@2345 long@2345 place@2345 
+14:00:36 order@2345-38 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:00:45 long@2345-38 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:00:54 place@2345-38 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:00:54 round 39: long@2345 place@2345 order@2345 
+14:01:03 long@2345-39 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:01:12 place@2345-39 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:01:20 order@2345-39 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:01:20 round 40: place@2345 order@2345 long@2345 
+14:01:28 place@2345-40 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:01:36 order@2345-40 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:01:46 long@2345-40 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:01:46 check-after exit 0
+14:01:46 campaign finished
+14:02:28 round 1: rep@2345 rep-place@2345 pred@2345 
+14:02:37 rep@2345-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:02:45 rep-place@2345-1 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:02:54 pred@2345-1 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+14:02:54 round 2: rep-place@2345 pred@2345 rep@2345 
+14:03:02 rep-place@2345-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:03:10 pred@2345-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:03:19 rep@2345-2 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+14:03:19 round 3: pred@2345 rep@2345 rep-place@2345 
+14:03:27 pred@2345-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:03:36 rep@2345-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:03:44 rep-place@2345-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:03:44 round 4: rep@2345 rep-place@2345 pred@2345 
+14:03:53 rep@2345-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:04:01 rep-place@2345-4 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:04:10 pred@2345-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:04:10 round 5: rep-place@2345 pred@2345 rep@2345 
+14:04:18 rep-place@2345-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:04:26 pred@2345-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:04:35 rep@2345-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:04:35 round 6: pred@2345 rep@2345 rep-place@2345 
+14:04:43 pred@2345-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:04:52 rep@2345-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:05:00 rep-place@2345-6 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:05:00 round 7: rep@2345 rep-place@2345 pred@2345 
+14:05:09 rep@2345-7 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:05:17 rep-place@2345-7 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:05:26 pred@2345-7 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:05:26 round 8: rep-place@2345 pred@2345 rep@2345 
+14:05:34 rep-place@2345-8 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:05:43 pred@2345-8 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:05:51 rep@2345-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:05:51 round 9: pred@2345 rep@2345 rep-place@2345 
+14:05:59 pred@2345-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:06:08 rep@2345-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:06:17 rep-place@2345-9 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:06:17 round 10: rep@2345 rep-place@2345 pred@2345 
+14:06:25 rep@2345-10 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:06:34 rep-place@2345-10 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:06:42 pred@2345-10 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:06:42 round 11: rep-place@2345 pred@2345 rep@2345 
+14:06:51 rep-place@2345-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:06:59 pred@2345-11 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:07:07 rep@2345-11 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:07:07 round 12: pred@2345 rep@2345 rep-place@2345 
+14:07:16 pred@2345-12 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:07:24 rep@2345-12 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:07:33 rep-place@2345-12 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:07:33 round 13: rep@2345 rep-place@2345 pred@2345 
+14:07:41 rep@2345-13 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:07:50 rep-place@2345-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:07:58 pred@2345-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:07:58 round 14: rep-place@2345 pred@2345 rep@2345 
+14:08:07 rep-place@2345-14 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:08:15 pred@2345-14 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:08:23 rep@2345-14 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:08:23 round 15: pred@2345 rep@2345 rep-place@2345 
+14:08:32 pred@2345-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:08:40 rep@2345-15 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:08:49 rep-place@2345-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:08:49 round 16: rep@2345 rep-place@2345 pred@2345 
+14:08:57 rep@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:09:06 rep-place@2345-16 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:09:14 pred@2345-16 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:09:14 round 17: rep-place@2345 pred@2345 rep@2345 
+14:09:23 rep-place@2345-17 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:09:31 pred@2345-17 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+14:09:40 rep@2345-17 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:09:40 round 18: pred@2345 rep@2345 rep-place@2345 
+14:09:48 pred@2345-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:09:56 rep@2345-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:10:05 rep-place@2345-18 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:10:05 round 19: rep@2345 rep-place@2345 pred@2345 
+14:10:13 rep@2345-19 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:10:22 rep-place@2345-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:10:30 pred@2345-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:10:30 round 20: rep-place@2345 pred@2345 rep@2345 
+14:10:39 rep-place@2345-20 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:10:47 pred@2345-20 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+14:10:56 rep@2345-20 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+14:10:56 round 21: pred@2345 rep@2345 rep-place@2345 
+14:11:04 pred@2345-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:11:12 rep@2345-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:11:21 rep-place@2345-21 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:11:21 round 22: rep@2345 rep-place@2345 pred@2345 
+14:11:29 rep@2345-22 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:11:38 rep-place@2345-22 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:11:46 pred@2345-22 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:11:46 round 23: rep-place@2345 pred@2345 rep@2345 
+14:11:55 rep-place@2345-23 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:12:03 pred@2345-23 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:12:12 rep@2345-23 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:12:12 round 24: pred@2345 rep@2345 rep-place@2345 
+14:12:20 pred@2345-24 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:12:28 rep@2345-24 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:12:37 rep-place@2345-24 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:12:37 round 25: rep@2345 rep-place@2345 pred@2345 
+14:12:46 rep@2345-25 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:12:54 rep-place@2345-25 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:13:02 pred@2345-25 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:13:02 round 26: rep-place@2345 pred@2345 rep@2345 
+14:13:11 rep-place@2345-26 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:13:19 pred@2345-26 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:13:28 rep@2345-26 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:13:28 round 27: pred@2345 rep@2345 rep-place@2345 
+14:13:36 pred@2345-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:13:45 rep@2345-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:13:53 rep-place@2345-27 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:13:53 round 28: rep@2345 rep-place@2345 pred@2345 
+14:14:02 rep@2345-28 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+14:14:10 rep-place@2345-28 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:14:19 pred@2345-28 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+14:14:19 round 29: rep-place@2345 pred@2345 rep@2345 
+14:14:27 rep-place@2345-29 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:14:35 pred@2345-29 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:14:44 rep@2345-29 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:14:44 round 30: pred@2345 rep@2345 rep-place@2345 
+14:14:52 pred@2345-30 status 1 vm-busy 0.1 % governor-after: performance performance performance performance 
+14:15:01 rep@2345-30 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:15:09 rep-place@2345-30 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+14:15:09 check-after exit 0
+14:15:09 campaign finished

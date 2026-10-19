@@ -9,12 +9,20 @@
 # as `ssh joist-dev2` through the P53. Nested KVM works inside (-cpu host),
 # for the self-tests that need a real CPU.
 #
+# Pinned to host CPUs 0, 1 and 6-11 (taskset, every thread): never 2-5,
+# where tools/p53/boot.sh pins test boots. 8-11 are those cores' second
+# threads, so for each test boot boot.sh narrows this VM to 0, 1, 6 and 7
+# (two cores) and widens it again after: the build VM never runs beside a
+# benchmark, and has six cores' worth of threads the rest of the time (an
+# emulated 4-CPU self-test needs more than two cores; 2026-10-15 and -17;
+# see tools/p53/rc.local-bench and docs/testbed.md).
+#
 # UEFI (OVMF, its variables in efivars.fd), not SeaBIOS as on Proxmox: on
 # the P53, under KVM, a SeaBIOS boot of Linux resets the guest at the
 # kernel's first instruction (found 2026-10-14; the same disk boots by
 # UEFI). The Debian cloud image has both boot paths.
 dir=/srv/joist/vms/joist-dev2
-exec qemu-system-x86_64 -name joist-dev2,debug-threads=on \
+exec taskset -c 0,1,6-11 qemu-system-x86_64 -name joist-dev2,debug-threads=on \
     -machine q35,accel=kvm -cpu host -smp 8 -m 8192 \
     -drive if=pflash,format=raw,readonly=on,file=/usr/share/qemu/edk2-x86_64-code.fd \
     -drive if=pflash,format=raw,file=$dir/efivars.fd \

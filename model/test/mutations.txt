@@ -184,3 +184,15 @@ rq-in-place-ignores-cpu @@ ../kernel/core/sched.c @@     return r->rq_on == cpu 
 stays-ignores-resched @@ ../kernel/core/sched.c @@ k->resched != 0 || @@ 0 ||
 stays-ignores-better @@ ../kernel/core/sched.c @@ sc->refill_at > k->now && best_queued(k, cpu) == t; @@ sc->refill_at > k->now;
 stays-ignores-refill @@ ../kernel/core/sched.c @@ return sc != NULL && sc->refill_at > k->now && @@ return sc != NULL &&
+# joist_sched_pokes: one CPU for each thread, idle first, lowest first (decision 0018; test_smp.c).
+pokes-herd @@ ../kernel/core/sched.c @@                 cl[n++] = x; /* this one's */ @@                 (void)0;
+pokes-unclaimed-ignored @@ ../kernel/core/sched.c @@                 if (!claimed(cl, n, x - 1u)) { @@                 if (!claimed(cl, n, x - 1u) || 1) {
+pokes-inflight-ignored @@ ../kernel/core/sched.c @@         if (o != me && (inflight >> o & 1u) != 0) { @@         if (0) {
+pokes-inflight-unclaimed @@ ../kernel/core/sched.c @@                 cl[n++] = x; /* theirs */ @@                 (void)0;
+pokes-busy-in-cpu-order @@ ../kernel/core/sched.c @@             lo = goes_later(k, order[j], order[lo]) ? j : lo; @@             lo = goes_later(k, order[lo], order[lo]) ? j : lo;
+pokes-never-preempt @@ ../kernel/core/sched.c @@         if (x != cur) { @@         if (x != cur && cur == JOIST_MAX_THREADS) {
+pokes-idle-after-busy @@ ../kernel/core/sched.c @@         uint32_t o = order[i]; @@         uint32_t o = order[(i + idle) % m];
+pokes-stopped-asked-last @@ ../kernel/core/sched.c @@         return sa == NULL && sb != NULL; @@         return sa != NULL && sb == NULL;
+pokes-scan-ignores-claims @@ ../kernel/core/sched.c @@         if (sc == NULL || k->th[i].cpu != 0 || claimed(cl, n, i)) { @@         if (sc == NULL || k->th[i].cpu != 0 || (claimed(cl, n, i) && 0)) {
+pokes-scan-dropped @@ ../kernel/core/sched.c @@     for (uint32_t i = 0; i < JOIST_MAX_THREADS && k->rq_npend != 0; i++) { @@     for (uint32_t i = 0; i < JOIST_MAX_THREADS && k->rq_npend != 0 && 0; i++) {
+preempt-no-resched @@ ../kernel/core/sched.c @@                 k->resched = 1; /* preempted: it may be another CPU's now (0018) */ @@                 (void)0;

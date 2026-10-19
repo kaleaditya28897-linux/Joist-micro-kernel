@@ -1,0 +1,16 @@
+== a
+a system call that does nothing                            p50     412 (408-412) all  1.0% worst-10  1.0% | p99 all  1.9% worst-10  1.9%  ok
+two address spaces, passive server                         p50    1632 (1628-1632) all  0.2% worst-10  0.2% | p99 all  2.4% worst-10  2.4%  ok
+one address space, passive server                          p50    1176 (1176-1176) all  0.0% worst-10  0.0% | p99 all  3.7% worst-10  3.7%  ok
+two address spaces, server with its own context            p50   14016 (13936-14176) all  1.7% worst-10  1.7% | p99 all  6.8% worst-10  6.8%  ok
+two address spaces, passive server, 4 KiB of IPC buffer ea p50    2984 (2984-2984) all  0.0% worst-10  0.0% | p99 all  2.4% worst-10  2.4%  ok
+two address spaces, passive server, every other CPU making p50    7056 (6704-7264) all  7.9% worst-10  8.0% | p99 all 10.1% worst-10 10.2%  FAIL
+criterion NOT met in some 10-run window
+== b
+a system call that does nothing                            p50     412 (408-412) all  1.0% worst-10  1.0% | p99 all  1.0% worst-10  1.0%  ok
+two address spaces, passive server                         p50    1644 (1640-1644) all  0.2% worst-10  0.2% | p99 all  2.6% worst-10  2.6%  ok
+one address space, passive server                          p50    1188 (1184-1188) all  0.3% worst-10  0.3% | p99 all  3.3% worst-10  3.3%  ok
+two address spaces, server with its own context            p50   14400 (14272-14656) all  2.7% worst-10  2.7% | p99 all  2.5% worst-10  2.5%  ok
+two address spaces, passive server, 4 KiB of IPC buffer ea p50    2996 (2992-3000) all  0.3% worst-10  0.3% | p99 all  1.8% worst-10  1.9%  ok
+two address spaces, passive server, every other CPU making p50    7096 (6624-7424) all 11.3% worst-10 10.0% | p99 all  8.9% worst-10  8.0%  FAIL
+criterion NOT met in some 10-run window

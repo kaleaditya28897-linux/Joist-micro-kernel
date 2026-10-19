@@ -369,9 +369,15 @@ static void charge(uint32_t c)
     resumed[c] = k.now;
 }
 
-static void poke(void) /* the interrupt to every CPU that would choose otherwise */
+/* The interrupt to every CPU that would choose otherwise, until none would.
+ * 0 if that never happens: a choice that preempts sets the flag again (0018),
+ * so a scheduler that would loop forever is caught here, not hung. */
+static int poke(void)
 {
-    while (k.resched) {
+    for (uint32_t round = 0; k.resched; round++) {
+        if (round > ncpus * JOIST_MAX_THREADS) {
+            return 0;
+        }
         k.resched = 0;
         for (uint32_t o = 0; o < ncpus; o++) {
             if (joist_sched_better(&k, o)) {
@@ -380,6 +386,7 @@ static void poke(void) /* the interrupt to every CPU that would choose otherwise
             }
         }
     }
+    return 1;
 }
 
 static int covered(char *why, size_t n)
@@ -446,7 +453,12 @@ JT_TEST(props_every_event_is_on_some_cpus_timer)
                 joist_tick(&k, 0);
                 k.resched = 1; /* a period that has begun may be anyone's (run.c, as there) */
                 choose(first);
-                poke();
+                if (!poke()) {
+                    fprintf(stderr, "  seed %llu step %d: the CPUs never settle\n",
+                            (unsigned long long)seed, step);
+                    JT_CHECK(0);
+                    return;
+                }
                 timers++;
             } else {
                 k.now += d;
@@ -522,7 +534,12 @@ JT_TEST(props_every_event_is_on_some_cpus_timer)
                         }
                     } else {
                         choose(c);
-                        poke();
+                        if (!poke()) {
+                            fprintf(stderr, "  seed %llu step %d: the CPUs never settle\n",
+                                    (unsigned long long)seed, step);
+                            JT_CHECK(0);
+                            return;
+                        }
                     }
                 }
             }

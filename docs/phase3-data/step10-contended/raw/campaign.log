@@ -1,0 +1,95 @@
+19:55:36 lb-cur-1 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+19:55:44 lb-cur-stats-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:55:53 lb-cur-stats-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:56:01 lb-cur-2 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+19:56:09 lb-cur-3 status 1 vm-busy 0.5 % governor-after: performance performance performance performance 
+19:56:17 lb-cur-stats-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+19:56:25 lb-cur-stats-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:56:33 lb-cur-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:56:42 lb-cur-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+19:56:50 lb-cur-stats-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+19:56:58 lb-cur-stats-6 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+19:57:06 lb-cur-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:57:14 lb-cur-7 status 1 vm-busy 0.5 % governor-after: performance performance performance performance 
+19:57:22 lb-cur-stats-7 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:57:31 lb-cur-stats-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:57:39 lb-cur-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:57:47 lb-cur-9 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:57:55 lb-cur-stats-9 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:58:03 lb-cur-stats-10 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:58:12 lb-cur-10 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+check-after exit 0
+19:58:12 campaign finished
+19:59:24 lb-cur-11 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:59:32 lb-cur-order-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+19:59:40 lb-cur-order-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+19:59:48 lb-cur-12 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+19:59:56 lb-cur-13 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:00:04 lb-cur-order-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:00:12 lb-cur-order-4 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:00:20 lb-cur-14 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:00:28 lb-cur-15 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:00:37 lb-cur-order-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:00:45 lb-cur-order-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:00:53 lb-cur-16 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:01:01 lb-cur-17 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:01:09 lb-cur-order-7 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:01:17 lb-cur-order-8 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:01:25 lb-cur-18 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:01:33 lb-cur-19 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:01:41 lb-cur-order-9 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:01:49 lb-cur-order-10 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:01:57 lb-cur-20 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:02:05 lb-cur-order-11 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:02:13 lb-cur-order-12 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:02:21 lb-cur-order-13 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:02:29 lb-cur-order-14 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:02:37 lb-cur-order-15 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:02:46 lb-cur-order-16 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:02:54 lb-cur-order-17 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:03:02 lb-cur-order-18 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:03:10 lb-cur-order-19 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:03:18 lb-cur-order-20 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+check-after exit 0
+20:03:18 campaign finished
+20:04:39 lb-cur-memA-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:04:47 lb-cur-memB-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:04:55 lb-cur-memC-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:05:03 lb-cur-memD-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:05:11 lb-cur-anon-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:05:19 lb-cur-memA-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:05:28 lb-cur-memB-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:05:36 lb-cur-memC-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:05:44 lb-cur-memD-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:05:52 lb-cur-anon-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:06:00 lb-cur-memA-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:06:08 lb-cur-memB-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:06:16 lb-cur-memC-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:06:24 lb-cur-memD-3 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:06:32 lb-cur-anon-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:06:40 lb-cur-memA-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:06:48 lb-cur-memB-4 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:06:56 lb-cur-memC-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:07:04 lb-cur-memD-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:07:13 lb-cur-anon-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:07:21 lb-cur-memA-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:07:29 lb-cur-memB-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:07:37 lb-cur-memC-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:07:45 lb-cur-memD-5 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:07:53 lb-cur-anon-5 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+check-after exit 0
+20:07:53 campaign-mem finished
+20:08:28 lb-cur-order-memE-1 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:08:36 lb-cur-order-memF-1 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:08:44 lb-cur-order-memE-2 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:08:52 lb-cur-order-memF-2 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:09:00 lb-cur-order-memE-3 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:09:08 lb-cur-order-memF-3 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:09:16 lb-cur-order-memE-4 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:09:24 lb-cur-order-memF-4 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:09:32 lb-cur-order-memE-5 status 1 vm-busy 0.2 % governor-after: performance performance performance performance 
+20:09:40 lb-cur-order-memF-5 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+20:09:48 lb-cur-order-memE-6 status 1 vm-busy 0.4 % governor-after: performance performance performance performance 
+20:09:56 lb-cur-order-memF-6 status 1 vm-busy 0.3 % governor-after: performance performance performance performance 
+check-after exit 0
+20:09:57 campaign-mem finished

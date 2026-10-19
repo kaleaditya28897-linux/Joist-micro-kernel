@@ -1,0 +1,14 @@
+governor cpu2-5: performance performance performance performance 
+default_smp_affinity: 0c3
+irq 134 affinity 2 effective 2 nvme0q3
+irq 135 affinity 3 effective 3 nvme0q4
+irq 136 affinity 4 effective 4 nvme0q5
+irq 137 affinity 5 effective 5 nvme0q6
+irq 140 affinity 8 effective 8 nvme0q9
+irq 141 affinity 9 effective 9 nvme0q10
+irq 142 affinity 10 effective 10 nvme0q11
+irq 143 affinity 11 effective 11 nvme0q12
+irq 179 affinity 0-11 effective  i2c-INT3515:00-tps6598x.0
+irq 196 affinity 0-11 effective  elan_i2c
+irq 2 affinity 0-11 effective  (not in /proc/interrupts)
+build VM qemu 9937: 29 threads, affinity lists: 0,1,6-11 

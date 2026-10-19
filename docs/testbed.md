@@ -39,6 +39,46 @@ log; the script still requires the kernel's `joist: finish code` line
 before it trusts a status, since QEMU failing to start is also status 1.
 For benchmarks the build VM is to be idle.
 
+**Benchmark CPUs** (since 2026-10-15). Host CPUs 2-5, where test boots are
+pinned, are kept for them:
+
+- the `performance` cpufreq governor on CPUs 2-5 (the others stay on
+  `powersave`);
+- every host interrupt that can be moved steered to CPUs 0, 1, 6 and 7
+  (`/proc/irq/default_smp_affinity` = `c3`). The NVMe driver's per-CPU
+  queue interrupts can't be moved, and stay;
+- the build VM pinned to CPUs 0, 1 and 6-11, all its threads
+  (`tools/p53/joist-dev2.sh` starts QEMU under `taskset`): never on the
+  benchmark CPUs. For each test boot `tools/p53/boot.sh` moves it to 0, 1,
+  6 and 7, off the benchmark cores' second threads (8-11), and back after
+  (since 2026-10-17; from 2026-10-15 it was on 0, 1, 6 and 7 all the time,
+  two cores, too few for the kernel check's emulated 4-CPU self-test,
+  `smp4-smp`, which then failed every time);
+- every other host process there too, now and to come (init's own
+  affinity is inherited), and the kernel's unbound work queues
+  (`/sys/devices/virtual/workqueue/cpumask` = `c3`). Per-CPU memory
+  statistics are updated every 120 s, not every second
+  (`vm.stat_interval`). Only per-CPU kernel threads still run on 2-5;
+- in a test boot itself (`tools/p53/boot.sh`), only the four virtual CPUs
+  run on 2-5. QEMU starts on 0, 1, 6, 7, so its main loop, serial and
+  housekeeping threads stay there, and the guest's RAM is the same host
+  pages every boot, zeroed (a file in `/dev/shm`). Where the host put a
+  guest's RAM set the cost of moving the kernel lock between cores for a
+  whole boot (*Step 10: the contended line*). 2 MiB hugepages were tried
+  instead, and were no better.
+
+The host settings are made at boot by lines appended to the P53's
+`/etc/rc.local` (`tools/p53/rc.local-bench`; the previous file is
+`/etc/rc.local.before-bench`). Why, measured
+(`docs/phase3-data/README.md`, *Step 10: the benchmark CPUs*): under
+`powersave` the IPC benchmark's first measurement sometimes ran on a CPU
+still slow from idle (a do-nothing call's 99th percentile 736-740 in 2 runs
+of 10, against 572), and host interrupts put bursts into the 99th
+percentiles (a server with its own context: 24 448 in one run against
+19 700). With both changes, 20 runs gave 0.7 % and 2.6 % spreads there.
+The build VM has 8 host threads instead of 12 (4 during a test boot), so
+builds are a little slower; that is the price.
+
 **The GNU/Hurd testbed** (`tools/p53/joist-hurd-amd64.sh`, run by hand): the
 disk of Proxmox VM 111, moved; AHCI disk and e1000 network as there, same
 MAC; SSH on loopback port 2223 (`ssh joist-amd64`). See *GNU/Hurd

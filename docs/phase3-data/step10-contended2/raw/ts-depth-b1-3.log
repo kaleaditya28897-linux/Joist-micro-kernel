@@ -1,0 +1,343 @@
+campaign: 2026-10-16T11:08:34Z build VM busy during run: 0.3 %; governor before: performance performance performance performance  after: performance performance performance performance 
+runiso-status: 1
+pin: qemu-system-x86: 0,1,6,7
+pin: call_rcu: 0,1,6,7
+pin: worker: 0,1,6,7
+pin: CPU 0/KVM: 2
+pin: CPU 1/KVM: 3
+pin: CPU 2/KVM: 4
+pin: CPU 3/KVM: 5
+pin: kvm-nx-lpage-re: 0,1,6,7
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 253 MiB usable in 5 ranges, 25 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fe40000), direct map at 0xffff800000000000
+joist: frames: 64808 free of 65236 covered (253 MiB)
+joist: page tables: the kernel's own, loaded (64545 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625107 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 4 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 4 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+ipcbench: a system call that does nothing: n=20x5000 min=385 p50=412 p99=432 worst-p50=412 max=123495 cycles (bucket 4; 12000 cycles took 6770 to 7100 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x5000 min=1543 p50=1628 p99=1668 worst-p50=1628 max=101298 cycles (bucket 4; 12000 cycles took 6772 to 7106 counts; clock 16 to 18 counts, taken off)
+ipcbench: one address space, passive server: n=20x5000 min=1134 p50=1172 p99=1196 worst-p50=1172 max=96584 cycles (bucket 4; 12000 cycles took 6772 to 6950 counts; clock 18 to 18 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x5000 min=12692 p50=14272 p99=20224 worst-p50=14464 max=151071 cycles (bucket 32; 12000 cycles took 6922 to 7256 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=2892 p50=2984 p99=3040 worst-p50=2984 max=124449 cycles (bucket 8; 12000 cycles took 6922 to 7108 counts; clock 16 to 18 counts, taken off)
+benchroot: tsc busy-start 5074168364
+benchroot: tsc measure 5075628486
+lockdepth: caller cpu 3
+lockdepth: seg 0 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 0 cpu 1 n 11276 depth 1275 10001 0 0
+lockdepth: seg 0 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 0 cpu 3 n 10001 depth 6 9995 0 0
+lockdepth: seg 1 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 1 cpu 1 n 11254 depth 1264 9990 0 0
+lockdepth: seg 1 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 1 cpu 3 n 10001 depth 14 9987 0 0
+lockdepth: seg 2 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 2 cpu 1 n 11304 depth 1303 10001 0 0
+lockdepth: seg 2 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 2 cpu 3 n 10001 depth 4 9997 0 0
+lockdepth: seg 3 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 3 cpu 1 n 11270 depth 1269 10001 0 0
+lockdepth: seg 3 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 3 cpu 3 n 10001 depth 3 9998 0 0
+lockdepth: seg 4 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 4 cpu 1 n 11287 depth 1297 9990 0 0
+lockdepth: seg 4 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 4 cpu 3 n 10001 depth 13 9988 0 0
+lockdepth: seg 5 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 5 cpu 1 n 11269 depth 1268 10001 0 0
+lockdepth: seg 5 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 5 cpu 3 n 10001 depth 0 10001 0 0
+lockdepth: seg 6 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 6 cpu 1 n 11255 depth 1264 9991 0 0
+lockdepth: seg 6 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 6 cpu 3 n 10001 depth 12 9989 0 0
+lockdepth: seg 7 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 7 cpu 1 n 11293 depth 1292 10001 0 0
+lockdepth: seg 7 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 7 cpu 3 n 10001 depth 6 9995 0 0
+lockdepth: seg 8 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 8 cpu 1 n 11267 depth 1266 10001 0 0
+lockdepth: seg 8 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 8 cpu 3 n 10001 depth 4 9997 0 0
+lockdepth: seg 9 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 9 cpu 1 n 11283 depth 1292 9991 0 0
+lockdepth: seg 9 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 9 cpu 3 n 10001 depth 14 9987 0 0
+lockdepth: seg 10 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 10 cpu 1 n 11268 depth 1267 10001 0 0
+lockdepth: seg 10 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 10 cpu 3 n 10001 depth 3 9998 0 0
+lockdepth: seg 11 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 11 cpu 1 n 11257 depth 1267 9990 0 0
+lockdepth: seg 11 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 11 cpu 3 n 10001 depth 17 9984 0 0
+lockdepth: seg 12 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 12 cpu 1 n 11295 depth 1294 10001 0 0
+lockdepth: seg 12 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 12 cpu 3 n 10001 depth 8 9993 0 0
+lockdepth: seg 13 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 13 cpu 1 n 11295 depth 1294 10001 0 0
+lockdepth: seg 13 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 13 cpu 3 n 10001 depth 13 9988 0 0
+lockdepth: seg 14 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 14 cpu 1 n 11306 depth 1319 9987 0 0
+lockdepth: seg 14 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 14 cpu 3 n 10001 depth 18 9983 0 0
+lockdepth: seg 15 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 15 cpu 1 n 11277 depth 1276 10001 0 0
+lockdepth: seg 15 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 15 cpu 3 n 10001 depth 5 9996 0 0
+lockdepth: seg 16 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 16 cpu 1 n 11287 depth 1296 9991 0 0
+lockdepth: seg 16 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 16 cpu 3 n 10001 depth 14 9987 0 0
+lockdepth: seg 17 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 17 cpu 1 n 11267 depth 1266 10001 0 0
+lockdepth: seg 17 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 17 cpu 3 n 10001 depth 5 9996 0 0
+lockdepth: seg 18 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 18 cpu 1 n 11290 depth 1289 10001 0 0
+lockdepth: seg 18 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 18 cpu 3 n 10001 depth 4 9997 0 0
+lockdepth: seg 19 cpu 0 n 0 depth 0 0 0 0
+lockdepth: seg 19 cpu 1 n 11289 depth 1299 9990 0 0
+lockdepth: seg 19 cpu 2 n 0 depth 0 0 0 0
+lockdepth: seg 19 cpu 3 n 10001 depth 14 9987 0 0
+ipcbench-series: start tsc 5081751386
+ipcbench-batch: 0 20 6946 3392
+ipcbench-batch: 1 1277230 7098 3136
+ipcbench-batch: 2 2337054 6922 3104
+ipcbench-batch: 3 3318016 6924 3136
+ipcbench-batch: 4 4404094 6922 3104
+ipcbench-batch: 5 5383916 6926 3168
+ipcbench-batch: 6 6370012 6930 3200
+ipcbench-batch: 7 7462506 6924 3200
+ipcbench-batch: 8 8460536 6926 3136
+ipcbench-batch: 9 9545348 6924 3104
+ipcbench-batch: 10 10525742 6928 3104
+ipcbench-batch: 11 11503204 6940 3232
+ipcbench-batch: 12 12627284 6926 3104
+ipcbench-batch: 13 13610186 6924 3104
+ipcbench-batch: 14 14689860 6924 3104
+ipcbench-batch: 15 15673632 6924 3104
+ipcbench-batch: 16 16655054 6934 3200
+ipcbench-batch: 17 17751996 6924 3104
+ipcbench-batch: 18 18733846 6930 3104
+ipcbench-batch: 19 19816140 6926 3104
+ipcbench-batch: 20 20795390 6940 3104
+ipcbench-batch: 21 21787250 6942 3200
+ipcbench-batch: 22 22904350 6924 3104
+ipcbench-batch: 23 23884814 6924 3104
+ipcbench-batch: 24 24967428 6924 3104
+ipcbench-batch: 25 25951532 6928 3104
+ipcbench-batch: 26 26935322 6936 3104
+ipcbench-batch: 27 28020116 6934 3104
+ipcbench-batch: 28 29003512 6940 3104
+ipcbench-batch: 29 30084754 6940 3104
+ipcbench-batch: 30 31072816 6946 3104
+ipcbench-batch: 31 32054820 6944 3200
+ipcbench-batch: 32 33176244 6924 3104
+ipcbench-batch: 33 34160092 6930 3104
+ipcbench-batch: 34 35244326 6926 3104
+ipcbench-batch: 35 36223098 6938 3104
+ipcbench-batch: 36 37200230 6946 3104
+ipcbench-batch: 37 38281090 6948 3104
+ipcbench-batch: 38 39260316 6938 3104
+ipcbench-batch: 39 40338630 6934 3104
+ipcbench-batch: 40 41321510 6926 3104
+ipcbench-batch: 41 42300314 6924 3200
+ipcbench-batch: 42 43419120 6944 3104
+ipcbench-batch: 43 44399788 6930 3232
+ipcbench-batch: 44 45693458 6926 3168
+ipcbench-batch: 45 46680364 6932 3104
+ipcbench-batch: 46 47673256 6938 3104
+ipcbench-batch: 47 48757106 6930 3168
+ipcbench-batch: 48 49747634 6934 3168
+ipcbench-batch: 49 50836068 6928 3168
+ipcbench-batch: 50 51830134 6930 3104
+ipcbench-batch: 51 52811980 6940 3200
+ipcbench-batch: 52 53928478 6924 3104
+ipcbench-batch: 53 54911318 6922 3104
+ipcbench-batch: 54 55992622 6924 3136
+ipcbench-batch: 55 56979948 6924 3136
+ipcbench-batch: 56 57966090 6928 3104
+ipcbench-batch: 57 59047768 6926 3104
+ipcbench-batch: 58 60027396 6936 3104
+ipcbench-batch: 59 61112124 6936 3104
+ipcbench-batch: 60 62099070 6938 3104
+ipcbench-batch: 61 63084564 6948 3200
+ipcbench-batch: 62 64201622 6926 3104
+ipcbench-batch: 63 65181944 6932 3104
+ipcbench-batch: 64 66262822 6932 3136
+ipcbench-batch: 65 67248196 6936 3104
+ipcbench-batch: 66 68232662 6944 3136
+ipcbench-batch: 67 69317232 6938 3104
+ipcbench-batch: 68 70302264 6948 3136
+ipcbench-batch: 69 71386262 6944 3104
+ipcbench-batch: 70 72371184 6946 3104
+ipcbench-batch: 71 73351864 6936 3200
+ipcbench-batch: 72 74474448 6928 3168
+ipcbench-batch: 73 75466626 6932 3168
+ipcbench-batch: 74 76552976 6922 3200
+ipcbench-batch: 75 77545808 6924 3168
+ipcbench-batch: 76 78533752 6932 3168
+ipcbench-batch: 77 79623812 6924 3200
+ipcbench-batch: 78 80618266 6922 3168
+ipcbench-batch: 79 81664670 7108 3040
+ipcbench-batch: 80 82694378 6924 3168
+ipcbench-batch: 81 83684660 6924 3232
+ipcbench-batch: 82 84799440 6938 3104
+ipcbench-batch: 83 85781108 6924 3168
+ipcbench-batch: 84 86822210 7094 3104
+ipcbench-batch: 85 87853770 6926 3200
+ipcbench-batch: 86 88848182 6926 3200
+ipcbench-batch: 87 89942744 6938 3168
+ipcbench-batch: 88 90930344 6932 3168
+ipcbench-batch: 89 91923490 6928 3104
+ipcbench-batch: 90 93007598 6934 3104
+ipcbench-batch: 91 93988994 6920 3200
+ipcbench-batch: 92 95098286 6948 3104
+ipcbench-batch: 93 96080008 6938 3104
+ipcbench-batch: 94 97061084 6924 3104
+ipcbench-batch: 95 98139582 6926 3104
+ipcbench-batch: 96 99120064 6924 3104
+ipcbench-batch: 97 100210210 6924 3104
+ipcbench-batch: 98 101189452 6924 3104
+ipcbench-batch: 99 102167728 6936 3104
+ipcbench-batch: 100 103257314 6928 3104
+ipcbench-batch: 101 104239848 6944 3168
+ipcbench-batch: 102 105310080 7100 3040
+ipcbench-batch: 103 106335428 6924 3104
+ipcbench-batch: 104 107317238 6932 3104
+ipcbench-batch: 105 108397006 6928 3104
+ipcbench-batch: 106 109381412 6938 3104
+ipcbench-batch: 107 110461378 6936 3104
+ipcbench-batch: 108 111442024 6948 3104
+ipcbench-batch: 109 112423592 6942 3136
+ipcbench-batch: 110 113599600 6946 3104
+ipcbench-batch: 111 114578106 6938 3168
+ipcbench-batch: 112 115680422 7100 3040
+ipcbench-batch: 113 116707890 6924 3104
+ipcbench-batch: 114 117690316 6928 3104
+ipcbench-batch: 115 118873934 7082 3552
+ipcbench-batch: 116 120373502 7254 3488
+ipcbench-batch: 117 121507112 7244 3488
+ipcbench-batch: 118 122637154 7270 3392
+ipcbench-batch: 119 123791080 7102 3456
+ipcbench-batch: 120 124888844 7096 3456
+ipcbench-batch: 121 126052930 7260 3456
+ipcbench-batch: 122 127177574 7256 3424
+ipcbench-batch: 123 128340120 7094 3456
+ipcbench-batch: 124 129439464 7106 3424
+ipcbench-batch: 125 130531420 7098 3392
+ipcbench-batch: 126 131702708 7086 3424
+ipcbench-batch: 127 132786618 7082 3392
+ipcbench-batch: 128 133962170 7082 3424
+ipcbench-batch: 129 135053686 7086 3456
+ipcbench-batch: 130 136211354 7248 3360
+ipcbench-batch: 131 137346370 7084 3424
+ipcbench-batch: 132 138435464 7080 3584
+ipcbench-batch: 133 139796468 7264 3520
+ipcbench-batch: 134 140940612 7252 3488
+ipcbench-batch: 135 142171852 7244 3424
+ipcbench-batch: 136 143372120 7272 3424
+ipcbench-batch: 137 144591398 7252 3488
+ipcbench-batch: 138 145724330 7250 3392
+ipcbench-batch: 139 146865612 7098 3360
+ipcbench-batch: 140 147939330 7104 3424
+ipcbench-batch: 141 149159388 6934 3104
+ipcbench-batch: 142 150137638 6924 3104
+ipcbench-batch: 143 151117884 6926 3104
+ipcbench-batch: 144 152207362 6922 3104
+ipcbench-batch: 145 153184368 6930 3104
+ipcbench-batch: 146 154279212 7420 2912
+ipcbench-batch: 147 155331550 6938 3104
+ipcbench-batch: 148 156311066 6950 3168
+ipcbench-batch: 149 157558314 6948 3104
+ipcbench-batch: 150 158543782 6942 3104
+ipcbench-batch: 151 159719092 6944 3104
+ipcbench-batch: 152 160700022 6942 3104
+ipcbench-batch: 153 161679976 6930 3104
+ipcbench-batch: 154 162805348 6930 3104
+ipcbench-batch: 155 163784368 6944 3104
+ipcbench-batch: 156 164963320 6930 3104
+ipcbench-batch: 157 165939974 6944 3104
+ipcbench-batch: 158 166916604 6940 3424
+ipcbench-batch: 159 168096660 6944 3104
+ipcbench-batch: 160 169079416 6944 3168
+ipcbench-batch: 161 170200678 6922 3104
+ipcbench-batch: 162 171182428 6932 3104
+ipcbench-batch: 163 172165170 6942 3104
+ipcbench-batch: 164 173280604 6924 3104
+ipcbench-batch: 165 174261300 6924 3104
+ipcbench-batch: 166 175444314 6928 3104
+ipcbench-batch: 167 176416698 6926 3104
+ipcbench-batch: 168 177400158 6940 3296
+ipcbench-batch: 169 178583932 6922 3104
+ipcbench-batch: 170 179564216 6926 3168
+ipcbench-batch: 171 180693168 6944 3104
+ipcbench-batch: 172 181671676 6934 3104
+ipcbench-batch: 173 182714808 7250 2944
+ipcbench-batch: 174 183732866 6924 3104
+ipcbench-batch: 175 184712796 6924 3136
+ipcbench-batch: 176 185809108 6924 3104
+ipcbench-batch: 177 186790386 6924 3168
+ipcbench-batch: 178 187778760 6926 3200
+ipcbench-batch: 179 188932384 6932 3104
+ipcbench-batch: 180 189914424 6942 3104
+ipcbench-batch: 181 191030970 6924 3104
+ipcbench-batch: 182 192008844 6924 3104
+ipcbench-batch: 183 192986732 6952 3104
+ipcbench-batch: 184 194070894 6934 3104
+ipcbench-batch: 185 195052452 6946 3104
+ipcbench-batch: 186 196225954 6936 3104
+ipcbench-batch: 187 197209926 6946 3104
+ipcbench-batch: 188 198255018 7250 3040
+ipcbench-batch: 189 199428600 6938 3072
+ipcbench-batch: 190 200407686 6922 3104
+ipcbench-batch: 191 201536534 6934 3104
+ipcbench-batch: 192 202511798 6946 3104
+ipcbench-batch: 193 203602206 6938 3104
+ipcbench-batch: 194 204582224 6946 3104
+ipcbench-batch: 195 205561256 6932 3104
+ipcbench-batch: 196 206690712 6924 3136
+ipcbench-batch: 197 207674240 6932 3136
+ipcbench-batch: 198 208779520 7108 3072
+ipcbench-batch: 199 209857344 6924 3104
+ipcbench-rounds: p50 3152 3104 3096 3096 3120 3104 3104 3160 3152 3096 3096 3320 3424 3432 3096 3088 3096 3088 3080 3096
+ipcbench-rounds: p99 3632 3560 3504 3560 3616 3560 3536 3512 3488 3536 3552 3728 3704 3728 3640 3640 3688 3576 3496 3672
+ipcbench-hist: width 128 from 1536 to 32896 then above
+ipcbench-hist: seg 0 0 0 0 0 0 0 0 0 0 0 0 382 3495 680 224 145 45 12 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 12 | 0
+ipcbench-hist: seg 1 0 5 0 0 0 0 0 0 0 0 0 215 4049 435 138 123 17 2 0 2 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 | 0
+ipcbench-hist: seg 2 0 0 0 0 0 0 0 0 0 0 0 424 3938 374 184 64 2 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 | 0
+ipcbench-hist: seg 3 0 0 0 0 0 0 0 0 0 0 0 696 3752 286 112 117 23 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 | 0
+ipcbench-hist: seg 4 1 4 0 0 0 0 0 0 0 0 1 269 3752 545 178 179 47 4 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 12 | 0
+ipcbench-hist: seg 5 0 0 0 0 0 0 0 0 0 0 0 231 4148 369 112 111 15 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 | 0
+ipcbench-hist: seg 6 3 1 1 0 0 0 0 0 0 0 0 489 3873 364 151 96 8 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 | 0
+ipcbench-hist: seg 7 0 0 0 0 0 0 0 0 0 0 0 646 3343 742 181 66 9 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6 | 0
+ipcbench-hist: seg 8 0 0 0 0 0 0 0 0 0 0 0 468 3604 664 201 47 2 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 | 0
+ipcbench-hist: seg 9 0 4 0 0 0 0 0 0 0 0 0 307 4122 299 169 69 14 0 1 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 | 0
+ipcbench-hist: seg 10 0 0 0 0 0 0 0 0 0 0 0 632 3828 289 141 77 15 1 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 2 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 | 0
+ipcbench-hist: seg 11 0 5 0 0 0 0 0 0 0 0 1 555 1572 440 1077 961 333 31 0 1 0 1 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 17 | 0
+ipcbench-hist: seg 12 0 0 0 0 0 0 0 0 0 0 0 0 0 662 2676 1314 303 30 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 | 0
+ipcbench-hist: seg 13 0 0 0 0 0 0 0 0 0 0 0 0 16 887 2110 1390 540 38 2 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 12 | 0
+ipcbench-hist: seg 14 6 0 0 0 0 0 0 0 0 0 364 717 3007 303 286 230 62 5 1 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 13 | 0
+ipcbench-hist: seg 15 0 0 0 0 0 0 0 0 0 0 1 1362 2903 318 119 204 61 13 0 2 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 12 | 0
+ipcbench-hist: seg 16 3 1 0 0 0 0 0 0 0 0 0 827 3489 314 86 144 96 17 4 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 11 | 0
+ipcbench-hist: seg 17 0 0 0 0 0 0 0 0 0 0 265 1158 2864 404 160 105 26 2 1 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 9 | 0
+ipcbench-hist: seg 18 0 0 0 0 0 0 0 0 0 0 193 1711 2535 412 82 41 9 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 12 | 0
+ipcbench-hist: seg 19 0 5 0 0 0 0 0 0 0 0 0 1171 3298 295 91 51 53 13 3 1 0 2 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 11 | 0
+ipcbench-hist: all 13 25 1 0 0 0 0 0 0 0 825 12260 61588 9082 8478 5534 1680 170 16 11 3 9 4 5 1 1 3 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 1 1 1 0 0 0 0 0 0 0 1 0 0 0 0 2 0 1 5 3 8 5 2 6 3 1 3 0 1 2 1 1 2 3 2 1 2 0 2 1 0 0 0 0 0 0 0 1 1 0 0 0 0 1 0 0 1 0 1 1 1 1 2 2 3 2 0 2 0 0 1 0 0 1 1 2 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 198 | 0
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=1623 p50=3104 p99=3576 worst-p50=3432 max=120058 cycles (bucket 8; 12000 cycles took 6920 to 7420 counts; clock 16 to 20 counts, taken off)
+ipcbench: done
+joist: root task exited with code 0 (timer ticks so far: 60)
+joist: finish code 0

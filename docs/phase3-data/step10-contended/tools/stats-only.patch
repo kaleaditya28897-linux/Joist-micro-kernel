@@ -1,0 +1,91 @@
+--- run.c.orig	2026-10-15 19:53:49.557942388 +0530
++++ run.c	2026-10-15 19:54:11.993720581 +0530
+@@ -206,6 +206,10 @@
+ struct lstat {
+     uint64_t asked, got; /* this acquisition */
+     uint32_t kind;       /* how it will be let go */
++    uint32_t prev;       /* (contend study) who held the lock just before this acquisition */
++    uint32_t depth;      /* (contend study) tickets ahead of this one when it asked */
++    uint64_t pred[RUN_MAX_CPUS + 1u];
++    uint64_t qdepth[8];
+     uint64_t n, wait, hold;
+     uint64_t kn[LS_KINDS], khold[LS_KINDS];
+     uint64_t sn[LS_SCANS], st[LS_SCANS];
+@@ -242,6 +246,8 @@
+     s->wait += w;
+     s->hold += h;
+     s->kn[s->kind]++;
++    s->pred[s->prev < RUN_MAX_CPUS ? s->prev : RUN_MAX_CPUS]++;
++    s->qdepth[s->depth < 7u ? s->depth : 7u]++;
+     s->khold[s->kind] += h;
+     s->hold_hist[h / LS_WIDTH < LS_BUCKETS ? h / LS_WIDTH : LS_BUCKETS]++;
+     s->wait_hist[w / LS_WIDTH < LS_BUCKETS ? w / LS_WIDTH : LS_BUCKETS]++;
+@@ -338,6 +344,9 @@
+ static struct {
+     volatile uint32_t next;
+     volatile uint32_t owner;
++#ifdef RUN_LOCK_STATS
++    volatile uint32_t last; /* (contend study) the CPU that let it go last, in the owner's line */
++#endif
+ } klock;
+ 
+ static void lock(struct cpu *c)
+@@ -349,12 +358,16 @@
+     lstats[c->id].asked = ls_tsc();
+ #endif
+     uint32_t me = __atomic_fetch_add(&klock.next, 1, __ATOMIC_SEQ_CST);
++#ifdef RUN_LOCK_STATS
++    lstats[c->id].depth = me - __atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE);
++#endif
+     while (__atomic_load_n(&klock.owner, __ATOMIC_ACQUIRE) != me) {
+         cpu_sync(c);
+         __asm__ volatile("pause");
+     }
+ #ifdef RUN_LOCK_STATS
+     lstats[c->id].got = ls_tsc();
++    lstats[c->id].prev = klock.last;
+ #endif
+ }
+ 
+@@ -364,7 +377,9 @@
+         return;
+     }
+ #ifdef RUN_LOCK_STATS
+-    ls_released(this_cpu()->id);
++    uint32_t ls_id = this_cpu()->id;
++    ls_released(ls_id);
++    klock.last = ls_id;
+ #endif
+     __atomic_store_n(&klock.owner, klock.owner + 1u, __ATOMIC_RELEASE);
+ }
+@@ -1399,6 +1414,14 @@
+             ls_put(" ", s->sn[k]);
+             ls_put("/", s->st[k]);
+         }
++        kputs(" pred");
++        for (uint32_t k = 0; k <= ncpus && k <= RUN_MAX_CPUS; k++) {
++            ls_put(k == 0 ? " " : "/", s->pred[k == ncpus ? RUN_MAX_CPUS : k]);
++        }
++        kputs(" depth");
++        for (unsigned k = 0; k < 8u; k++) {
++            ls_put(k == 0 ? " " : "/", s->qdepth[k]);
++        }
+         kputs("\n");
+         n += s->n;
+         for (unsigned b = 0; b <= LS_BUCKETS; b++) {
+--- ipcbench.c.orig	2026-10-15 19:53:49.559066562 +0530
++++ ipcbench.c	2026-10-15 19:54:11.993851904 +0530
+@@ -243,6 +243,13 @@
+ #ifdef BENCH_LOCK_STATS
+     if (bench_name == 3) {
+         lock_stats(1, 0, 0);
++        /* (contend study) each segment's median and 99th percentile */
++        j_puts("ipcbench: segments p50/p99:");
++        for (unsigned seg = 0; seg < BENCH_SEGMENTS; seg++) {
++            put(" ", p50[seg]);
++            put("/", p99[seg]);
++        }
++        j_puts("\n");
+     }
+ #endif
+     j_puts("ipcbench: ");

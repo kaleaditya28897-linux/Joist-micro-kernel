@@ -1716,3 +1716,144 @@ two threads each (0/6, 1/7). That is too few for four emulated CPUs to spin
 in parallel. With the VM's threads let onto all 12 host CPUs for the run,
 both pass (363-378 % of one spinner). The kernel check was run that way,
 and the pinning was restored after.
+
+### Decision 0018: one CPU woken for each thread (2026-10-17)
+
+After the change above, the contended line still spread 6.4 % over 10 boots
+(`docs/phase3-data/step10-stays/`). The P53's Claude Code measured why
+(`docs/phase3-data/step10-contended2/`, 370 boots). The lock is a full
+convoy, so there is no phase effect to remove. About 47 % of the variance
+from boot to boot is which virtual CPU the client lands on, and that is
+decided by a race: every idle CPU was interrupted for a thread made ready,
+and the first to the lock took it. The owner chose to remove the race
+(`docs/decisions/0018-wake-placement.md`).
+
+**The core** (`joist_sched_pokes`, `kernel/core/sched.c`) names the CPUs
+to interrupt after a CPU has chosen. Each queued thread that should now run
+goes to one CPU: first one already interrupted whose interrupt hasn't
+arrived (it will choose anyway), then an idle CPU, lowest first, then the
+busy CPU whose thread goes last. Each choice leaves out the threads already
+claimed. A CPU whose thread can no longer run is interrupted too.
+`poke_others` (`run.c`) sends the mask, and asks again after every choice
+made while the flag is set or any interrupt is still on its way.
+
+**What the tests found.** A preemption puts a thread that can still run
+back on a queue, and that thread may belong on another CPU. Nothing set
+`k->resched` for it. The old interrupts reached every CPU that wanted
+anything, and so covered such chains by accident; exact claims do not.
+`joist_sched_on` now sets `k->resched` when it takes a runnable thread off
+a CPU. The burst test found it: from 4 CPUs with two interrupts on their
+way, one delivery order of four left a thread waiting while a lower one ran.
+
+**Tests** (`test_smp.c`):
+- `smp_one_cpu_is_woken_for_each_thread_the_lowest_idle_first`: the masks
+  themselves (one thread, one CPU; two threads, two CPUs, in order; CPUs on
+  their way never asked again; an idle CPU before a preemption; the lowest
+  thread preempted; a CPU whose thread stopped).
+- `props_smp_interrupts_settle_in_any_order`: 1 500 random states, each a
+  burst of threads stopped and started with no CPU yet chosen, and some
+  interrupts already on their way. For each state, four random delivery
+  orders: in every order, once all interrupts have arrived, no CPU would
+  choose otherwise, no CPU was interrupted twice, and no more were
+  interrupted than threads changed plus those on their way plus the CPUs.
+- `props_smp_the_best_threads_run_and_no_wakeup_is_missed` now delivers
+  the interrupts as the kernel does: in any order, some only after later
+  operations, each CPU choosing and asking again when its own arrives.
+- Mutations: `pokes-herd`, `pokes-unclaimed-ignored`,
+  `pokes-inflight-ignored`, `pokes-inflight-unclaimed`,
+  `pokes-busy-in-cpu-order`, `pokes-never-preempt`, `preempt-no-resched`.
+
+**What the first verification found** (2026-10-17, rerun 2026-10-19).
+- The mutation run hung for two days on `rq-own-thread-ignored`, a mutation
+  older than 0018. Its mutant makes CPUs preempt each other, and since
+  0018 every preemption sets the flag again, so `test_runq.c`'s `poke()`,
+  which looped while the flag was set, never ended. A loop forever is
+  not a catch. `poke()` now stops after `ncpus × JOIST_MAX_THREADS` rounds
+  and the test fails with "the CPUs never settle". `mutate.sh` now bounds
+  each mutant's run (`MUTATE_TIMEOUT`, default 3 600 s) and reports one that
+  runs over as `TIMEOUT`, which fails the check just as a survivor does.
+- `props_smp_interrupts_settle_in_any_order` failed its coverage floor
+  under `small`: 500 states with several CPUs interrupted at once, against
+  a floor of more than 500. The floor is now more than 400 (plain: 540).
+
+**An independent review** (2026-10-19, the P53's Claude Code; its report
+is `docs/phase3-data/step10-pokes/review.md`) found no missed wake-up,
+livelock or out-of-bounds index, and argued why none is possible: each
+preemption strictly improves the sorted list of running threads, so
+chains end. It found gaps in the tests, all now fixed:
+- `pokes-unclaimed-ignored` didn't build (`-Werror`, parameters left
+  unused), so it was never a catch; it is now `|| 1`.
+- Two of the decision's rules were untested, because a wrong order also
+  settles, one preemption later: an idle CPU before a preemption, and a
+  CPU whose thread stopped before one whose thread runs. A new unit test
+  `smp_an_idle_cpu_before_a_preemption_and_a_stopped_thread_before_a_running_one`
+  covers both; mutations `pokes-idle-after-busy`, `pokes-stopped-asked-last`.
+- The scan used while the queues are held was never run (the kernel asks
+  only after settling). It is kept, as `best_queued` keeps its own, and is
+  tested by `smp_the_cpus_to_wake_are_right_while_the_queues_are_held`;
+  mutations `pokes-scan-ignores-claims`, `pokes-scan-dropped`.
+- `make CC=gcc` failed on a sign conversion in the burst test.
+- `run.c`'s `poked` is cleared at any entry, not only when the interrupt is
+  taken; the comment now says so, and why a CPU that then leaves without
+  choosing still chooses (the interrupt is still pending).
+
+**CBMC's own check passed a killed proof.** In the rerun, op0's CBMC was
+killed for memory (the sanitizer builds ran beside it), yet `make cbmc`
+printed "all 7 operations verified": it counted every "VERIFICATION
+SUCCESSFUL" line in `summary.txt`, and the file held one more than the
+six that ran. Where that line came from is not known; GNU `tee` truncates.
+The check now deletes the summary first and requires each operation's own
+line (`model/Makefile`). Tested both ways: under a 1 GB memory limit op0
+fails it ("op0 not verified"), and alone, op0 verifies in 318 s.
+
+**Verified** (2026-10-19, on the build VM):
+- `make -C model check`: 176 tests under plain, asan, ubsan, msan, tsan
+  and small, no failure; the SMP tests also build and pass with gcc.
+- Mutations of the scheduler (`pokes-`, `preempt-`, `stays-`, `smp-`,
+  `rq-`, `yield-`, 51): every one caught, none timed out.
+- CBMC: all 7 operations (op0 rerun alone, above).
+- `make -C kernel check` (2026-10-17, the same kernel sources apart from
+  a comment in `run.c`): 71 self-tests pass, among them the emulated
+  4-CPU `smp4-smp`, with the build VM on its new six cores.
+
+**Measured** (2026-10-19, `docs/phase3-data/step10-pokes/`): 20 boots
+each of the bench-gate images of `8241b56` ("a") and 0018 ("b"),
+interleaved, with the new build VM pinning.
+
+| Line | a: p50, spread (worst 10) | b: p50, spread (worst 10) |
+|---|---|---|
+| a system call that does nothing | 412, 1.0 % | 412, 1.0 % |
+| two address spaces, passive server | 1 632, 0.2 % | 1 644, 0.2 % |
+| one address space, passive server | 1 176, 0.0 % | 1 188, 0.3 % |
+| ... server with its own context | 14 016, 1.7 % | 14 400, 2.7 % |
+| ... 4 KiB of IPC buffer each way | 2 984, 0.0 % | 2 996, 0.3 % |
+| ... every other CPU making system calls | 7 056, 7.9 % (8.0 %) | 7 096, 11.3 % (10.0 %) |
+
+- The new pinning costs the benchmark nothing: "a" matches
+  `step10-stays` on every uncontended line (the same medians, within 4
+  cycles), and its contended spread is no worse (7.9 % against 12.1 %).
+- 0018 does not bring the contended line under 5 %. Its boots' medians run
+  6 944-7 424, with one at 6 624; without that one it is still 6.8 %. Its
+  round trips cost 12 cycles more uncontended (1 644 against 1 632), and
+  384 more with a server with its own context (14 400 against 14 016).
+
+**Why, measured** (the P53's Claude Code, 430 boots,
+`docs/phase3-data/step10-place0018/`, with a log of every placement):
+- 0018 places the busy threads on the lowest idle CPUs, in order, every
+  time. But the client still lands on a different CPU from boot to boot
+  (vCPU 0/1/2/3 in 14/42/53/41 of 150 boots). It starts where the root task
+  is, and the root is woken while every CPU is busy: 0018 interrupts the
+  busy CPU whose thread goes last, and whichever busy CPU chooses first
+  takes the root (70 % of boots). The claim is not binding.
+- Placement is now only 5-52 % of the variance. With it held fixed, boots
+  still differ by an SD of 1.9-3.1 %; every window passing reliably needs
+  about 1.2 %. Two measurements in one boot with the client on the same
+  CPU differ as much as two on different CPUs.
+- Kernel changes that add nothing to the timed path move the line by
+  2-4 %. No host figure tracks the spread.
+- Three measurements per boot, their median taken: 9.0 %.
+
+**Decided** (2026-10-19, the owner): the contended line is reported as a
+worst case, not held to the stability test (decision 0019), and 0018 is
+kept (its *Outcome*). With that, every held line passes in every 10-run
+window, for both kernels: the benchmark criterion is met.
