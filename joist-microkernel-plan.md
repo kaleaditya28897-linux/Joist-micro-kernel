@@ -623,11 +623,11 @@ Priority check: does this respect the order Reliability > Resilience > POSIX > R
 
 ## 17. Immediate next steps
 
-*Status (2026-10-06): these were Phase 0's steps. All were done and Phase 0
-closed on 2026-10-01 (`docs/phase0-exit.md`); Phases 1 and 2 are closed too
-(`docs/phase1-exit.md`, `docs/phase2-exit.md`). Phase 3 is next; its
-starting points are the carried-forward lists in those exit records. The
-list is kept as the record of how the project started.*
+*Status (2026-10-19): these were Phase 0's steps. All were done and Phase 0
+closed on 2026-10-01 (`docs/phase0-exit.md`); Phases 1, 2 and 3 are closed
+too (`docs/phase1-exit.md`, `docs/phase2-exit.md`, `docs/phase3-exit.md`).
+Phase 4 is next; its starting points are the carried-forward lists in those
+exit records. The list is kept as the record of how the project started.*
 
 1. Set up Debian GNU/Hurd x86_64 in QEMU and build Hurd + GNU Mach + glibc from source.
 2. Run `rpctrace` on boot, a shell session, and a package build; start `docs/mach-inventory.md`.

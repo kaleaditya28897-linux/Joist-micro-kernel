@@ -1,7 +1,8 @@
 # Phase 3 exit
 
-**Status: for the project owner's review** (2026-10-15). Drafted by the P53's Claude Code, completed by this session. Phase 3
-(§11, *IPC and capabilities*). The work, step by step, is in
+**Status: accepted by the project owner, 2026-10-19.** Phase 3 (§11, *IPC
+and capabilities*) is closed. Drafted by the P53's Claude Code (2026-10-15),
+completed by this session. The work, step by step, is in
 `docs/phase3-plan.md`, *Progress*; data in `docs/phase3-data/`.
 
 The final verification run of every suite is under *Verification*, at the
@@ -130,7 +131,8 @@ than an underestimate of it, and the run queues (172 cycles a round trip).
 
 ## Carried forward / open
 
-**Awaiting the owner's decision:**
+**Decided at the exit** (each was awaiting the owner's decision in the
+record's draft):
 
 - **Decision 0017** (accepted 2026-10-15), the revisit of 0016 the owner
   asked for, from the lock study (`docs/phase3-data/step10-lock/`): one
@@ -160,6 +162,8 @@ than an underestimate of it, and the run queues (172 cycles a round trip).
     the owner chose to report it as the one lock's worst case, not hold it
     to the test (decision 0019). The criterion is met for every line the
     plan names.
+**Still open:**
+
 - **Bare metal** is still not available. Every real-CPU figure in this
   phase is under KVM: VM 112 (i5-14400) until 2026-10-14, the P53
   (i7-9850H) since.
