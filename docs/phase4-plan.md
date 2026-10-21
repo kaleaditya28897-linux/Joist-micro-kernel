@@ -1,0 +1,306 @@
+# Phase 4 plan: memory management
+
+Plan §11, Phase 4: *page-fault IPC, userspace memory manager, anonymous
+memory, COW, shared memory grants.* **Exit: a test program can
+`fork`-equivalent (via memory manager clone) and run COW correctly under
+stress.**
+
+This file turns that into concrete work, as `docs/phase3-plan.md` did for
+Phase 3. It is a plan, not a decision: choices marked *(changeable)* can be
+changed without a journal entry until later phases build on them. Three
+choices are big enough for the journal and are proposed as decisions
+**0020** (page-sized mappings), **0021** (donated page tables) and
+**0022** (revoke by kill, the batched copy), in `docs/decisions/`, to be
+accepted with this plan.
+
+**Status: accepted by the project owner, 2026-10-21**, with decisions 0020,
+0021 and 0022. Drafted
+with a design survey by the P53's Claude Code
+(`docs/phase4-data/survey.md`). What that survey says of other systems
+(seL4, Fiasco.OC, NOVA, Zircon, Minix 3, Mach) is from memory and was not
+checked against their sources; it is background here, not evidence. What
+it says of Joist was checked against the tree.
+
+## Inputs
+
+What earlier phases hand to this one:
+
+- **The kernel's memory calls** (`docs/abi.md`, *Frames and mappings*;
+  `kernel/core/map.c`): frame capabilities for all free memory, given to
+  the root task at boot (0013); `frame_split`; `map` of a **whole** frame
+  (at most `JOIST_MAP_SPAN` = 512 pages, inside one page table) and
+  `unmap`; W^X; sharing by mapping one frame in several tasks; TLB
+  shootdown on SMP.
+- **Fault IPC** (0009, `docs/abi.md`, *Thread control and faults*): a
+  fault is a `Call` to the thread's handler (else its task's) with the kind,
+  the address, the error code and a control capability for the thread; the
+  reply resumes or destroys the thread. A memory manager plugs in here.
+- **Thread control** (0010): registers, suspend, resume, abort.
+- **The decisions that set Phase 4's shape:** 0007 (page faults to a
+  userspace pager; a dead pager is a fault, not a hang), 0008 (the kernel
+  does `map`, `unmap`, `protect`; `mm` owns the address-space map; the
+  escape hatch is designed in Phase 4), 0011 (O(1) task creation; `mm`
+  does the clone; the capability copy is explicit and batched;
+  `posix_spawn` native), 0013 (the root task partitions memory), 0003 (no
+  allocation after boot; revoke blocks rather than defers), 0006 (Phase 5's
+  move-grant, which Phase 4 must not make impossible).
+- **Carried forward** (`docs/phase3-exit.md`): revoke and 0011's batched
+  copy; page-fault IPC to a memory manager; donated memory (seL4-style
+  untyped), reconsidered with it; guard pages under the double-fault, NMI
+  and machine-check stacks; `run.c`'s broken-kernel tests not kept as
+  mutations; gaps in fault-injection coverage.
+- **A promise to keep:** the plan (§7.3) and `docs/client-recovery.md` say
+  that what a file-backed `mmap` does when its pager dies is decided in
+  Phase 4, not Phase 9, though file-backed memory itself is Phase 6.
+- **The tree's limits, found while planning** (they shape the choices):
+  - The kernel's tables are global, fixed and scanned whole: 1 024 objects
+    and 512 mappings in the kernel build (`kernel/Makefile`, `KSIZES`), 16
+    address spaces, 32 threads, 8 192 capability slots per space from a pool
+    of 64 leaves. `map` and `unmap` scan the mapping table; making a frame
+    scans the object table.
+  - A mapping is a whole frame, and `frame_split` refuses a frame that is
+    mapped or shared, so a page can't be made private to one task after it
+    has been shared: there is no page-sized COW.
+  - Page tables come from a pool reserved at boot for the worst case of the
+    mapping table (1 560 frames), charged as one quota unit per mapping.
+  - A capability is `{object, type, rights, badge}`, with no record of what
+    it was derived from: nothing to revoke along.
+  - `map` and `unmap` on the caller's own space (`JOIST_SLOT_SELF`) need no
+    task capability, and `unmap` needs no frame capability: any task can
+    remove what `mm` mapped into it.
+
+## Scope
+
+| In Phase 4 | Not until later |
+|---|---|
+| Mapping part of a frame; page-sized mappings with the page tables as the record (0020) | huge pages (2 MiB mappings) |
+| `protect`, `unmap_range`, a conditional `map`, `map_query` | — |
+| Page tables paid for by memory the memory manager donates (0021) | swap, the default pager (Phase 6 and later) |
+| Revoke by killing the object; the batched capability copy for `fork` (0022) | revoke of descendants (a derivation tree), if RS needs it |
+| The fault message completed (pc, an access type); then a fault reply that maps, once measured (0007) | signals over fault IPC (Phase 7) |
+| `servers/mm`: anonymous memory, demand-zero, COW clone, shared mappings between tasks | file-backed memory and the paging protocol (Phase 6) |
+| What a file-backed mapping does when its pager dies: decided and written down | its implementation (Phase 6) |
+| The escape hatch of 0008: designed, then built after the exit test | measured against glibc's `malloc` (before Phase 7) |
+| `fork` of a test program by `mm`, and `posix_spawn`'s kernel side (an empty task) | glibc's `fork` and `posix_spawn` (Phase 7) |
+| The `SELF` gap closed | — |
+| Capacities raised for fork trees, still compile-time constants (choice 10) | — (not sized from boot memory: the owner, 2026-10-21) |
+| Guard pages under the double-fault, NMI and machine-check stacks | — |
+| `mm` restartable by design (its state readable back from the kernel) | `mm` actually restarted (class C, Phase 9) |
+| — | moving pages between tasks (move-grant, 0006, Phase 5) |
+
+## Constraints carried in
+
+- **§5.1:** no recursion, no VLAs, no allocation after boot except from
+  memory a task donates, bounded work per system call, user memory only
+  through `copy_from_user`/`copy_to_user`, the 15k-line tripwire (the
+  kernel is 7 879 lines at Phase 3's exit, headers included).
+- **0003 and 0016:** one kernel lock, interrupts off, bounded preemption
+  points; nothing user-sized under the lock. A call over pages is bounded
+  by one page table (512 pages) and does at most one shootdown.
+- **0004:** every object paid for from a task's quota.
+- **TLA+'s rule:** a dying space accepts no new capabilities. Phase 4 adds:
+  and no new mappings.
+- **§9.1:** `mm` reads and writes all user memory and is in the trusted
+  base; its authority is the frames it is given and control of the tasks
+  it serves, nothing ambient.
+- **Model first.** Every kernel change goes into the model and its tests
+  (property tests, mutation, fuzzing, CBMC, TLA+ where it applies) before
+  the kernel relies on it. `mm`'s COW logic is host-testable too, against
+  the model.
+
+## Choices this plan makes
+
+1. **Page-sized mappings: map part of a frame, and the page tables are
+   the record (decision 0020, proposed).**
+   - `map(frame, page offset, n, task, va, perms)`, with the run inside one
+     page table. The global mapping table goes. Each page-table page gets a
+     **shadow page** holding, per entry, the frame it names and the rights
+     the frame capability allowed. Each frame keeps a **map count**.
+   - So `mm` holds a few large frames (hundreds of frame objects, not
+     hundreds of thousands), allocates pages from them itself and keeps
+     the COW reference counts. The kernel keeps only what makes the page
+     tables checkable: which frame each entry names, and how many name it.
+   - Deleting a frame's last capability is O(1) when its map count is 0.
+     Otherwise the frame is **dying**, and a sweep of the spaces' shadow
+     pages joins the destruction work list (0016's preemption points),
+     one page table per step. If that sweep proves too slow, a reverse
+     map threaded through the shadow pages is the fallback (twice the
+     shadow memory).
+   - I12 becomes: every present user entry names a page inside a live (or
+     dying) frame; the shadow agrees with the entry; the map counts add up
+     to the present entries; W^X; user half only.
+   - Rejected: one frame per page (a 1 GiB space would need 262 144 frame
+     objects, capabilities and mappings, against tables of 1 024 and 512),
+     and a capability per mapping as seL4 does (Joist's slot limit and its
+     object record make it the most expensive).
+2. **The kernel calls** *(changeable in detail)*, each over at most one
+   page table, with one shootdown:
+   - `map`, extended: a page offset and a count; and a **conditional
+     replace** (`REPLACE`, with the entry each page is expected to hold),
+     which fails with no effect if any page differs. It lets `mm` resolve a
+     fault without locks of its own around the kernel call, and closes the
+     Dirty COW class of race (a discard racing a write fault).
+   - `unmap_range` (holes allowed), replacing `unmap`'s "a mapping starts
+     here".
+   - `protect` over a range, up to each page's rights ceiling, W^X checked.
+     An upgrade needs no shootdown (a stale read-only entry only refaults).
+   - `map_query`: per page, present, permissions, page offset, and the
+     frame only if the caller holds that frame with CONTROL. Never a
+     physical address. Needed to check `mm` against the kernel (0008) and
+     for `mm`'s restart (class C).
+   - **No kernel copy.** `mm` keeps the memory it manages mapped in its
+     own space (read-write, never executable) and copies and zeroes pages
+     with `memcpy`. A kernel copy would hold the one lock for microseconds
+     per page; mapping both pages into `mm` for each copy would cost a
+     shootdown per unmap.
+   - **The `SELF` gap closed:** mapping into or unmapping from one's own
+     space needs a capability to one's own task with CONTROL, as for any
+     other task. `mm`'s clients don't get one.
+3. **Who pays for page tables: memory the memory manager donates
+   (decision 0021, proposed).** `space_donate(task, frame)` turns a frame
+   into page-table and shadow pages for that space; the kernel holds it
+   until the space dies, then it is the donor's frame again. `mm` donates
+   when it creates a task and before it maps beyond what was donated (it
+   knows its own layout), so `map` without enough donated pages is
+   `E_NOMEM`, never a kernel allocation. Memory is conserved by
+   construction (I3): the pages never leave a frame object. The boot pool
+   shrinks to the root task's tables and each space's top-level table.
+   Objects stay on quota units as today (0004). **Fallback**, if donation
+   proves too much for Phase 4: one quota unit per page-table page, the
+   pool a compile-time constant like the other capacities (choice 10); the
+   decision would say which was built.
+4. **Revoke and the batched copy (decision 0022, proposed).**
+   - **Revoke by killing the object**, as an endpoint dies today: every
+     capability to it then fails `E_GONE` at once, O(1); the slots stay
+     occupied until their holders delete them. It needs a kill right, so
+     copies can be handed out without it; a frame lent to a space can't be
+     killed. Built for the objects that need it in Phase 4: the region
+     capability (choice 7) and frames.
+   - **No derivation tree** (seL4's) in Phase 4: Mach has no revoke of
+     descendants and the Hurd does not rely on one. Kept as a recorded
+     option (8 bytes more per slot) for when RS must revoke what it
+     delegated through a server.
+   - **`cap_copy_batch(task, first, count ≤ 32, rights mask)`** for
+     `fork`: copies each capability in `[first, first + count)` of the
+     caller's space to **the same slot** of the child (the Hurd's `fork`
+     keeps port names, `docs/client-recovery.md` §4), masked; skips those
+     without GRANT, and receive rights unless asked; stops at an occupied
+     slot or a missing leaf with a cursor; `E_DEAD` for a dying child.
+     Never allocates (a derive only counts a reference). 32 slots is the
+     destruction step's size. Whether Hurd glibc stops the parent's other
+     threads during `fork` is to be checked (`sysdeps/mach/hurd/fork.c`);
+     the batch is atomic only per call.
+5. **The fault path** (0007, 0009). First, as it is: one fault IPC to
+   `mm` per fault, then `mm`'s kernel calls, then the reply. The message
+   gains the **faulting pc** and an **access type** (read, write or
+   execute; present or not) independent of the x86 error code. A handler
+   may ask for **no thread capability on page faults** (the badge names the
+   task), saving a `cap_delete` per fault. **Measured, then fused:** a
+   reply that carries one map action (0007's "reply carrying a frame
+   capability"), if the measurement shows the extra kernel entry matters.
+   Read faults and demand-zero map up to 16 pages around the fault; write
+   faults one page. *(changeable)*
+6. **`servers/mm`** (C, Joist's coding standard; §12's place).
+   - The root task gives `mm` the memory it is to manage and control
+     capabilities for the tasks it starts; `mm` is their fault handler.
+   - It keeps, per task, a region map; per page it manages, a reference
+     count and its owner. Anonymous memory is demand-zero.
+   - **Clone** (0011): the kernel makes an empty task in O(1); `mm`
+     walks its own records, **downgrades the parent's writable pages
+     first** (`protect` with shootdown), then maps them read-only into the
+     child, then the capabilities are copied in batches. A write fault
+     copies the page if it is shared, or makes it writable if it is now the
+     last reference.
+   - **Shared memory between tasks:** `mm` maps the same pages into both
+     (`mm_share`); no new kernel object. Pages shared this way are never
+     COW-shared.
+   - Its logic sits in a library built for the host as well, so it is
+     tested against the kernel model (*Testing*).
+   - Restartable by design: everything it needs to rebuild is readable
+     from the kernel (`map_query`) and the capabilities it holds.
+     Restarting it is Phase 9's.
+7. **The escape hatch** (0008). A **region capability**: a range of one
+   task's addresses, a backing frame, a rights ceiling. Its holder may
+   map, unmap and protect pages of that frame inside the range, and
+   nothing else; `mm` keeps the frame and can kill the region (choice 4).
+   Designed now, so the calls above are shaped for it (and so it can serve
+   as Phase 5's receive window). Built after the exit test, and measured
+   against plain RPCs to `mm` before Phase 7, as 0008 asks. *(changeable)*
+8. **A file-backed mapping whose pager dies.** Proposed: as 0007 says, the
+   faulting access becomes a fault to the task's own handler (`SIGBUS`
+   once glibc exists); `mm` does not keep a file's pages to hide the
+   pager's death. Pages already mapped stay readable until `mm` unmaps
+   them. Written into `docs/client-recovery.md` with this plan; built in
+   Phase 6.
+9. **Moves and COW, for Phase 5** (0006): only `mm` knows which pages are
+   COW-shared, so a kernel move of pages could hand a client a page a fork
+   child still sees. Rule for Phase 5: the kernel moves only pages in
+   region ranges, which `mm` never COW-shares (it copies them at fork).
+10. **Capacities** (the owner, 2026-10-21): raised for fork trees to 64
+    address spaces, 128 threads and 2 048 objects, with capability leaves
+    raised to match. They stay **compile-time constants**: they are not
+    sized from boot memory. The tables are still scanned in places (making
+    an object, finding a free space); each scan's bound is recorded, and an
+    O(1) free list replaces any scan on a path Phase 4 makes hot.
+
+## Testing
+
+| What | How |
+|---|---|
+| The new kernel calls and I12 as revised | the model first: unit and property tests under every sanitizer, whole states compared after every step, including "a failed call changes nothing" for partial ranges and for the conditional `map`; CBMC on `map`, `unmap_range`, `protect`, `space_donate`; mutations; the fuzzer |
+| Revoke and the batched copy | property tests against a shadow; TLA+'s dying-space rule extended to mappings and to `cap_copy_batch` |
+| COW, refined | **an abstract machine** in which every task owns an array of page values and `fork` deep-copies it, against the concrete one (the kernel model, `mm`'s library and the fault calls) on random sequences of fork, read, write, unmap, protect, share, exit and kill. Every read must equal the abstract value; `mm`'s view must cover the kernel's mappings (0008). Seeded, replayable, mutated |
+| Stale TLB entries | TLA+: per-CPU TLBs as stale caches, two threads of a task on two CPUs, `mm` replacing a page. Removing the shootdown, or mapping the child before the parent is downgraded, must violate the property |
+| In QEMU and on the P53 | `user/cowstress`: fork trees 4-6 deep, every page tagged (task, generation, address, checksum), written at random and verified after every step and at exit, by writers on 1, 2 and 4 CPUs; children killed mid-fault and mid-fork (the `faultinj` pattern); the kernel's counters (frames, page-table and shadow pages, map counts) level after every round; also on the checking kernel |
+| Mutations (model and kernel) | among others: no shootdown on a replace; the child mapped before the parent's downgrade; a reference count off by one; a write upgrade with the page still shared; a map count not decremented; a sweep that skips a page table; `cap_copy_batch` widening rights; a replace that ignores what it expected; a discard racing a write fault (Dirty COW's shape) |
+| Measured, recorded | fault round trip (read, write-copy, write-upgrade), `fork` of 1, 16 and 256 MiB, `protect` over 512 pages; to `docs/phase4-data/` as Phase 3 did. Not gated at first; a regression gate once stable |
+| **Exit: `fork` and COW correct under stress** | *Correct under stress* means: `cowstress` passes N rounds (N fixed with the owner before the exit run) on 1, 2 and 4 CPUs, under KVM on the P53 and on the checking kernel, with every read verified and every counter level after every round; the refinement property test passes with M seeds; every listed mutation is caught |
+| Phase 3's suites | all of them, unchanged, in every full run |
+
+## Order of work
+
+1. ~~**This plan, decisions 0020, 0021 and 0022**, accepted by the owner.~~
+   Done 2026-10-21.
+2. **The model:** part-of-a-frame mappings, shadow and map counts,
+   `unmap_range`, `protect`, the conditional `map`, `map_query`, the dying
+   frame's sweep; I12 as revised. Property tests, CBMC, mutations.
+3. **The model:** donated page-table memory (0021); revoke by kill and
+   `cap_copy_batch` (0022); TLA+ extended.
+4. **The kernel:** the page tables as the record, shadow pages, donated
+   pages, the shootdown per call; the `SELF` gap closed; capacities raised.
+   Every Phase 3 self-test still passes; new self-tests for the calls.
+5. **The fault path:** pc and access type in the message, no thread
+   capability on request. Measured.
+6. **`mm`:** the library and its refinement test on the host, then the
+   server: anonymous memory, demand-zero, clone, shared mappings. The root
+   task starts it and hands it memory.
+7. **Exit:** `cowstress`, the measurements, the fused fault reply if
+   measured worthwhile, the file-backed rule written down, the guard pages,
+   the exit record.
+8. **After the exit test:** the region capability (choice 7), built and
+   measured. If it lands after the exit record, the record says so.
+
+## Risks
+
+- **The one lock and long calls.** `protect` or `map` over 512 pages,
+  with a shootdown, under the one lock, is the longest call so far.
+  Measured at step 4; if it is too long, the bound drops below one page
+  table.
+- **Line count.** Shadow pages, donation, revoke, the batched copy and the
+  calls may add 1 500-2 500 lines: about 10 000 of the 15 000-line
+  tripwire. Counted at every step.
+- **`mm` is in the trusted base** and is the first real server. Its
+  authority is kept to the frames and task capabilities it is given (0013);
+  the review of it is part of the exit.
+- **Hurd glibc's `fork`** is not yet read for how it stops other threads;
+  if it doesn't, `cap_copy_batch` and the downgrade need a stop of their
+  own. Checked at step 3.
+- **Donation is new state in the kernel** (a frame lent to a space). If it
+  proves too much, the fallback in choice 3 is ready, and the decision
+  records which was built.
+- **Bare metal** is still not available; every real-CPU figure is under
+  KVM on the P53.
+
+## Progress
+
+Nothing yet.
