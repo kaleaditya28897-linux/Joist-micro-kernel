@@ -46,7 +46,7 @@ JT_TEST(map_boot_frames)
     struct joist_cap c;
     JT_REQUIRE(joist_cap_read(&k, root, F, &c) == JOIST_OK);
     JT_CHECK(c.type == JOIST_OBJ_FRAME &&
-             c.rights == (JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_GRANT));
+             c.rights == (JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_KILL | JOIST_R_GRANT));
     JT_CHECK(joist_boot_frame(&k, root, F2, 0x10f, 4) == JOIST_E_STATE); /* overlaps the last page */
     JT_CHECK(joist_boot_frame(&k, root, F2, 0x50, 0) == JOIST_E_RANGE);
     JT_CHECK(joist_boot_frame(&k, root, F2, UINT64_MAX, 2) == JOIST_E_RANGE); /* wraps */

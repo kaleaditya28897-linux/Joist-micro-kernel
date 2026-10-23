@@ -245,6 +245,48 @@ JT_TEST(abi_cap_read_reports_frames)
     JT_CHECK(clean());
 }
 
+/* ---- decision 0022: the batched copy and revoke by kill ---- */
+
+JT_TEST(abi_cap_copy_batch_and_obj_kill)
+{
+    setup();
+    joist_thread t;
+    JT_REQUIRE(joist_thread_create(&k, root, &t) == JOIST_OK);
+    JT_REQUIRE(sys(t, ABI_TASK_CREATE, 4, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(joist_obj_create(&k, root, JOIST_OBJ_ENDPOINT, 2) == JOIST_OK);
+    JT_REQUIRE(joist_cap_derive(&k, root, 2, 3, JOIST_R_SEND) == JOIST_OK);              /* no GRANT */
+    JT_REQUIRE(joist_cap_derive(&k, root, 2, 4, JOIST_R_SEND | JOIST_R_GRANT) == JOIST_OK);
+    JT_REQUIRE(joist_boot_frame(&k, root, 5, 0x100, 4) == JOIST_OK);
+    /* Slots 2-5 into the task: RECV skipped (no flag), 3 skipped (no
+     * GRANT), 4 and 5 copied with the mask, in R10; flags in R8. */
+    k.th[t].regs.r[ABI_R8] = 0;
+    JT_CHECK(sys(t, ABI_CAP_COPY_BATCH, 0, 2, 4, JOIST_R_ALL) == ABI_DONE);
+    JT_CHECK(k.th[t].regs.r[ABI_RAX] == JOIST_OK && k.th[t].regs.r[ABI_RDX] == 4 &&
+             k.th[t].regs.r[ABI_R8] == 0x3);
+    uint32_t child = k.obj[k.cs[root].slot[0].obj - 1u].target - 1u;
+    JT_CHECK(k.cs[child].slot[2].obj == 0 && k.cs[child].slot[3].obj == 0);
+    JT_CHECK(k.cs[child].slot[4].obj == k.cs[root].slot[4].obj && k.cs[child].slot[5].rights ==
+                                                                      (JOIST_R_SEND | JOIST_R_RECV |
+                                                                       JOIST_R_KILL | JOIST_R_GRANT));
+    /* Again: stops at once on slot 4, now occupied; an unknown flag, or 33. */
+    k.th[t].regs.r[ABI_R8] = JOIST_COPY_RECV;
+    JT_CHECK(sys(t, ABI_CAP_COPY_BATCH, 0, 2, 4, JOIST_R_ALL) == ABI_DONE);
+    JT_CHECK(k.th[t].regs.r[ABI_RAX] == JOIST_E_OCCUPIED && k.th[t].regs.r[ABI_RDX] == 2 &&
+             k.th[t].regs.r[ABI_R8] == 0x2 && k.cs[child].slot[2].obj != 0);
+    k.th[t].regs.r[ABI_R8] = 1ull << 40;
+    JT_CHECK(sys(t, ABI_CAP_COPY_BATCH, 0, 6, 1, JOIST_R_ALL) == ABI_DONE &&
+             k.th[t].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    k.th[t].regs.r[ABI_R8] = 0;
+    JT_CHECK(sys(t, ABI_CAP_COPY_BATCH, 0, 6, JOIST_COPY_BATCH + 1u, JOIST_R_ALL) == ABI_DONE &&
+             k.th[t].regs.r[ABI_RAX] == JOIST_E_RANGE && k.th[t].regs.r[ABI_RDX] == 0);
+    /* Kill the frame from the root: the child's copy is dead too. */
+    JT_CHECK(sys(t, ABI_OBJ_KILL, 2, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_E_TYPE);
+    JT_CHECK(sys(t, ABI_OBJ_KILL, 5, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(sys(t, ABI_OBJ_KILL, 5, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_E_GONE);
+    JT_CHECK(joist_map(&k, child, 5, JOIST_SLOT_SELF, 0x400, 0) == JOIST_E_GONE);
+    JT_CHECK(clean());
+}
+
 JT_TEST(abi_wait_completes_on_signal)
 {
     setup();

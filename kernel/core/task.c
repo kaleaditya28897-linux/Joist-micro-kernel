@@ -325,6 +325,69 @@ joist_err joist_cap_give(struct joist_kernel *k, joist_cspace cs, joist_slot tas
     return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, mask);
 }
 
+joist_err joist_cap_copy_batch(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                               joist_slot first, uint32_t count, joist_rights mask,
+                               uint32_t flags, uint32_t *done, uint32_t *skipped)
+{
+    uint32_t obj;
+    *done = 0;
+    *skipped = 0;
+    joist_err e = space_live(k, cs);
+    if (e == JOIST_OK) {
+        e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj); /* CONTROL on the child */
+    }
+    if (e == JOIST_E_GONE) { /* the child is dying or destroyed */
+        /* Its task object dies as its destruction begins (0016), and a
+         * dying space accepts no capability (TLA+'s rule,
+         * model/tla/IpcDelete.tla). So a live task object names a space
+         * that is live and not dying. */
+        return JOIST_E_DEAD;
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (count > JOIST_COPY_BATCH || first >= JOIST_CSPACE_SLOTS ||
+        count > JOIST_CSPACE_SLOTS - first || (flags & ~(uint32_t)JOIST_COPY_RECV) != 0) {
+        return JOIST_E_RANGE;
+    }
+    uint32_t child = k->obj[obj].target - 1u;
+    for (uint32_t i = 0; i < count; i++) {
+        JOIST_WORK(k);
+        joist_slot s = first + i;
+        const struct joist_cap *c = joist__slot_c(k, cs, s);
+        if (c == NULL || c->obj == 0) {
+            continue; /* nothing here (an absent leaf of the caller's holds nothing) */
+        }
+        /* Mach's fork inherits no receive right; glibc makes new ones. */
+        int recv = c->type == JOIST_OBJ_ENDPOINT && (c->rights & mask & JOIST_R_RECV) != 0 &&
+                   (flags & JOIST_COPY_RECV) == 0;
+        if ((c->rights & JOIST_R_GRANT) == 0 || recv) {
+            *skipped |= 1u << i;
+            continue;
+        }
+        const struct joist_cap *dc = joist__slot_c(k, child, s);
+        if (dc == NULL) {
+            *done = i; /* the caller grows the child's table, and goes on from here */
+            return JOIST_E_RANGE;
+        }
+        if (dc->obj != 0) {
+            *done = i; /* what was copied before stays copied */
+            return JOIST_E_OCCUPIED;
+        }
+        /* The copy, with cap_give's accounting: one more reference, RECV
+         * counted, and the badge's no-senders account (which exists: c is
+         * counted in it) one more sender. Nothing is allocated, nothing
+         * fires. Checked above, so it can't fail. */
+        e = joist__cap_grant(k, cs, s, child, s, mask);
+        if (e != JOIST_OK) {
+            *done = i;
+            return e;
+        }
+    }
+    *done = count;
+    return JOIST_OK;
+}
+
 /* Is space s a strict descendant of space anc (anc on s's parent chain)?
  * Bounded by JOIST_MAX_CSPACES: parent chains are acyclic (an invariant),
  * and the walk stops after that many steps regardless. */

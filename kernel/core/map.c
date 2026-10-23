@@ -69,7 +69,7 @@ joist_err joist_boot_frame(struct joist_kernel *k, joist_cspace cs, joist_slot d
         }
     }
     return new_frame(k, cs, d, base, npages,
-                     (joist_rights)(JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_GRANT));
+                     (joist_rights)(JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_KILL | JOIST_R_GRANT));
 }
 
 joist_err joist_frame_split(struct joist_kernel *k, joist_cspace cs, joist_slot slot, uint64_t at,

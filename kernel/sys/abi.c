@@ -157,6 +157,21 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_CAP_GIVE:
         e = joist_cap_give(k, cs, slot_arg(a0), slot_arg(a1), slot_arg(a2), (joist_rights)(a3 & 0xffu));
         break;
+    case ABI_CAP_COPY_BATCH: {
+        /* The fifth argument in R8; the bitmap of what was skipped comes
+         * back there too, as cap_read's badge does. */
+        uint32_t done = 0;
+        uint32_t skipped = 0;
+        e = joist_cap_copy_batch(k, cs, slot_arg(a0), slot_arg(a1), u32_arg(a2),
+                                 (joist_rights)(a3 & 0xffu), u32_arg(R->r[ABI_R8]), &done,
+                                 &skipped);
+        out = done;
+        R->r[ABI_R8] = skipped;
+        break;
+    }
+    case ABI_OBJ_KILL:
+        e = joist_obj_kill(k, cs, slot_arg(a0));
+        break;
     case ABI_CSPACE_GROW:
         e = joist_cspace_grow(k, cs, u32_arg(a0));
         break;

@@ -22,6 +22,7 @@ enum {
 enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRAME };
 #define J_R_SEND    0x1u
 #define J_R_RECV    0x2u
+#define J_R_KILL    0x4u /* on frames: obj_kill (0022) */
 #define J_R_GRANT   0x8u
 #define J_R_ALL     0xfu
 #define J_R_CONTROL J_R_SEND
@@ -42,7 +43,7 @@ enum {
     J_SYS_CALL = 10, J_SYS_RECV, J_SYS_REPLY, J_SYS_REPLY_RECV, J_SYS_SIGNAL, J_SYS_WAIT,
     J_SYS_RECV_SLOTS, J_SYS_REPLY_SAVE, J_SYS_REPLY_SAVED,
     J_SYS_OBJ_CREATE = 20, J_SYS_CAP_DERIVE, J_SYS_CAP_MINT, J_SYS_CAP_DELETE, J_SYS_CAP_READ,
-    J_SYS_CAP_GIVE, J_SYS_CSPACE_GROW, J_SYS_CSPACE_SHRINK,
+    J_SYS_CAP_GIVE, J_SYS_CSPACE_GROW, J_SYS_CSPACE_SHRINK, J_SYS_CAP_COPY_BATCH, J_SYS_OBJ_KILL,
     J_SYS_TASK_CREATE = 30, J_SYS_TASK_DESTROY, J_SYS_THREAD_SPAWN, J_SYS_THREAD_KILL,
     J_SYS_THREAD_SUSPEND, J_SYS_THREAD_RESUME, J_SYS_THREAD_ABORT, J_SYS_THREAD_SET_FAULT,
     J_SYS_TASK_SET_FAULT,
@@ -216,6 +217,31 @@ static inline uint64_t j_cap_delete(uint64_t slot)
 static inline uint64_t j_cap_give(uint64_t task, uint64_t src, uint64_t dst, uint64_t mask)
 {
     return j_sys4(J_SYS_CAP_GIVE, task, src, dst, mask);
+}
+/* The batched copy for fork (0022): each capability in slots [first,
+ * first + count) (count <= J_COPY_BATCH) with GRANT goes to the same slot of
+ * the task, rights & mask, badge kept; receive rights only with
+ * J_COPY_RECV. *done is how many slots were dealt with (count unless it
+ * stopped at an occupied slot, J_E_OCCUPIED, or a leaf the task lacks,
+ * J_E_RANGE: go on from first + *done), *skipped a bit per slot skipped. */
+#define J_COPY_BATCH 32u
+#define J_COPY_RECV  1u
+static inline uint64_t j_cap_copy_batch(uint64_t task, uint64_t first, uint64_t count,
+                                        uint64_t mask, uint64_t flags, uint64_t *done,
+                                        uint64_t *skipped)
+{
+    struct j_regs r = {.rax = J_SYS_CAP_COPY_BATCH, .rdi = task, .rsi = first, .rdx = count,
+                       .r10 = mask, .r8 = flags};
+    j_syscall(&r);
+    *done = r.rdx;
+    *skipped = r.r8;
+    return r.rax;
+}
+/* Kill the object (a frame) in slot: every capability to it, anywhere, then
+ * fails J_E_GONE; needs J_R_KILL (0022). */
+static inline uint64_t j_obj_kill(uint64_t slot)
+{
+    return j_sys4(J_SYS_OBJ_KILL, slot, 0, 0, 0);
 }
 /* Add leaf `leaf` to the caller's capability table: 128 more slots, from
  * slot leaf * 128. */

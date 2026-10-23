@@ -97,7 +97,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|revoke: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $log; fail=1
     fi
@@ -248,4 +248,13 @@ for t in faultinj-1 faultinj-2 smp2-faultinj-3 smp4-faultinj-4 kvm-smp2-faultinj
         "faultinj: signal ok" "faultinj: 13 of 13 kill points covered" "faultinj: all ok" \
         "root task exited with code 0"
 done
+# Phase 4, decision 0022 (user/revokeroot): the batched capability copy and
+# revoke by kill through the ABI: same slots, the mask, what is skipped, a
+# stop part way, a batch into a dead task; a killed frame unmapped from two
+# spaces and refused everywhere after. Emulated, on the real CPU, and on the
+# checking kernel.
+run revokeroot 1 "revoke: batch ok" "revoke: kill ok" "revoke: dead task ok" "revoke: all ok" \
+    "root task exited with code 0"
+run kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
+run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 exit $fail

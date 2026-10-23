@@ -56,7 +56,7 @@ are given as `joist_*` so every statement can be checked against the code.
 | Task | `task_create` | CONTROL, GRANT | a capability space, its threads and its memory quota (0004) |
 | Thread | `thread_spawn` | CONTROL, GRANT | a thread of a task; its capability is 0010's thread control capability |
 | Scheduling context | `sc_create` | CONTROL, GRANT | a priority, a budget and a period: the time a thread runs on (§5.6) |
-| Frame | boot (`boot_frame`), `frame_split` | CONTROL, WRITE, GRANT | a range of physical pages (0013: memory is handed out as capabilities) |
+| Frame | boot (`boot_frame`), `frame_split` | CONTROL, WRITE, KILL, GRANT | a range of physical pages (0013: memory is handed out as capabilities) |
 
 **Memory (0003, 0004, I3).** Every object is paid for from a task's quota,
 one unit per object; a failed allocation returns `E_NOMEM` and never blocks.
@@ -68,14 +68,19 @@ refunds its payer. Nothing is allocated when a call arrives or a client dies.
 which `task_reap` and `task_descendant` take. An id carries no authority by
 itself: those two check ancestry.
 
-**Lifetime.** An object is freed with its last capability (I1). Two
+**Lifetime.** An object is freed with its last capability (I1). Three
 types also *die* before that, after which every use of a remaining capability
 fails with `E_GONE`:
 
 - an **endpoint** dies with its last capability that has RECV (the server is
   gone; I5);
 - a **task** or **thread** dies when it is destroyed or killed, or when its
-  last capability is deleted (a task nobody can name is destroyed, I1).
+  last capability is deleted (a task nobody can name is destroyed, I1);
+- a **frame** dies when a holder of its kill right kills it (`obj_kill`,
+  0022: revoke by kill).
+
+A dead object's slots stay occupied until their holders delete them, and its
+quota unit returns to its payer with its last capability.
 
 ## Rights
 
@@ -83,7 +88,8 @@ fails with `E_GONE`:
 |---|---:|---|
 | SEND | 1 | `Call` on an endpoint; `Signal` a notification; reply through a reply object |
 | RECV | 2 | `Recv` on an endpoint, `Wait` on a notification; owning an endpoint (binding no-senders, collecting badges) |
-| SEND_ONCE | 4 | reserved (0001's reply capability is per thread or in a reply object, not a slot) |
+| SEND_ONCE | 4 | on endpoints, reserved (0001's reply capability is per thread or in a reply object, not a slot) |
+| KILL | = SEND_ONCE | on a frame capability (and a region's, when regions exist): `obj_kill` (0022). Boot frames have it; masked away like any right, it makes copies that can't revoke |
 | GRANT | 8 | mint a badge; pass the capability to another task |
 | CONTROL | = SEND | on a task or thread capability: destroy, kill, spawn into |
 
@@ -107,6 +113,7 @@ in a badge, typically its per-client record's address or index.
 | `cap_mint` | src, dst, mask, badge | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (src or dst), `E_EMPTY`, `E_OCCUPIED`, `E_RIGHTS` (src lacks GRANT), `E_BADGE` (src already badged, or badge 0), `E_NOMEM` (no-senders account table full) | as derive, with the badge set (I7); allocates the badge's no-senders account if it is the first sender with it | one account scan |
 | `cap_delete` | slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY` | the capability goes; may fire no-senders, kill an endpoint, free the object, destroy an unreachable task (cascade) | cascade |
 | `cap_give` | task slot, src, dst, mask | as for a task capability with CONTROL, then `E_RANGE` (src or dst), `E_EMPTY` (src), `E_RIGHTS` (src lacks GRANT), `E_OCCUPIED` (dst in the task) | copies the capability into the task's slot dst, rights ∩ mask (I8), badge kept: how a creator hands a new task its first capabilities | O(1) |
+| `cap_copy_batch` | task slot, first, count, mask, flags → done, skipped | `E_RANGE`/`E_DEAD` (space), then the task slot: `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_DEAD` (the task is dying or destroyed: a dying space accepts nothing, TLA+'s rule); then `E_RANGE` (count > `JOIST_COPY_BATCH` = 32, the range past the table, or an unknown flag); then, part way, `E_RANGE` (a copy's slot is in a leaf the task doesn't have: grow it first) or `E_OCCUPIED` (a copy's slot is taken) | for `fork` (0011): each capability in slots [first, first + count) goes to **the same slot** of the task, rights ∩ mask (I8), badge kept. Skipped, with bit *i* of `skipped` set for slot first + *i*: capabilities without GRANT, and copies that would carry RECV on an endpoint unless flags has `COPY_RECV` (1) (Mach's fork inherits no receive right). A stop leaves `done` = the slots dealt with before it, and what was copied stays (the caller goes on from first + done); `done` = count on success, 0 on a refusal. Never allocates: each copy counts a reference, and its badge's no-senders account exists already. Atomic per call only | 32 copies |
 | `cap_read` | slot | `E_RANGE` (space or slot past the end), `E_DEAD`, `E_RANGE` (slot in an absent leaf), `E_EMPTY` (the empty slot is still returned) | returns type, rights and badge (inspection) | O(1) |
 | `cspace_grow` | leaf index | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (index 0, which is built in, or past the root), `E_OCCUPIED` (already there), `E_NOMEM` (quota, then the leaf pool) | adds the leaf, empty; paid by the caller like an object (one unit, I3) | one pool scan |
 | `cspace_shrink` | leaf index | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (index 0, past the root, or absent), `E_STATE` (the leaf still holds a capability) | removes the leaf, refunding its unit; a leaf is never removed with capabilities in it | one leaf |
@@ -281,9 +288,10 @@ before it goes on loops on it, on its own time.
 The kernel manages only page tables and frame capabilities (§5.5). At boot
 it makes **frames** for the free memory and gives them all to the root
 task (0013); frames never overlap, so no page is handed out twice. On a
-frame capability CONTROL (the SEND bit) allows mapping and splitting, and
+frame capability CONTROL (the SEND bit) allows mapping and splitting,
 **WRITE** (the RECV bit) allows mapping writable, so a read-only frame
-capability can be passed on.
+capability can be passed on, and **KILL** (the SEND_ONCE bit) allows
+`obj_kill`, so the memory manager can take back what it handed out (0022).
 
 | Operation | Arguments | Results, in check order | Effect | Bound |
 |---|---|---|---|---|
@@ -291,13 +299,15 @@ capability can be passed on.
 | `frame_split` | frame slot, page, dst | as for a frame capability with CONTROL, then `E_RANGE` (page not inside), `E_RANGE`/`E_OCCUPIED` (dst), `E_STATE` (another capability names it, or it is mapped), `E_NOMEM` | the frame keeps the pages before `page`; a new frame with the rest, same rights, goes in dst, paid by the caller | one table scan |
 | `map` | frame slot, task slot, first virtual page, permissions | for the frame, then the task (each with CONTROL): `E_RANGE`/`E_DEAD`, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS`, `E_GONE`; then `E_RIGHTS` (writable and executable, an unknown permission, or writable without WRITE), `E_RANGE` (outside the user half), `E_OCCUPIED` (overlaps a mapping in that task), `E_NOMEM` (the task's quota, then the mapping table) | the whole frame appears at those pages of the task, readable, and writable **or** executable (W^X); the task pays one quota unit for its page tables | one table scan |
 | `unmap` | task slot, first virtual page | as for a task capability with CONTROL, then `E_EMPTY` (no mapping starts there) | the mapping goes; its unit returns to the task | one table scan |
+| `obj_kill` | slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE` (not a frame), `E_RIGHTS` (KILL), `E_GONE` (killed already); with 0021, `E_STATE` (a frame lent to a space) | revoke by kill (0022): the frame dies, so every capability to it, in any space, fails `E_GONE` (`map`, `frame_split`, `obj_kill`); it is unmapped everywhere, each mapping's unit back to its task. Its slots stay until their holders delete them; its pages and its quota unit come back with its last capability. All or nothing per frame: to revoke only what was handed out, hand out a frame of its own | O(1), and one table scan to unmap (0020's sweep, preemptible, replaces it) |
 
 The same frame may be mapped in several tasks, or twice in one: sharing is
 how memory is passed in Phase 3 (0006's grants come in Phase 5). W^X holds
 per mapping, not across aliases of one frame. Deleting a frame's last
-capability unmaps it everywhere; destroying a task removes its mappings.
-**I12**: frames are disjoint and non-empty; every mapping maps a whole live
-frame into a live space, in the user half, never writable and executable;
+capability unmaps it everywhere, and so does killing it; destroying a task
+removes its mappings.
+**I12**: frames are disjoint and non-empty; every mapping maps a whole live,
+unkilled frame into a live space, in the user half, never writable and executable;
 no two mappings in one space overlap; and each mapping is charged to its
 space (I3). No fault is resolved by the kernel: a page fault is fault IPC
 (above), and Phase 4's memory manager maps in reply.
@@ -469,14 +479,15 @@ the dispatcher works on that record alone.
 | `R9` | bits 0-1 the count; per position *i* (0, 1) a 16-bit slot at bit 2 + 20*i* and a 4-bit rights mask at bit 18 + 20*i*; slot `0xffff` is "none" (`JOIST_SLOT_NONE` on receipt; out of range if sent). Bits 48-57 the IPC buffer's word count, sending and received; on receipt bit 63 the *lost* mark |
 
 Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
-`Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-27 capabilities and
-the table, 30-38 tasks and threads, 40-42 frames and mappings, 50-53
+`Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-29 capabilities and
+the table (28 `cap_copy_batch`, 29 `obj_kill`: 0022), 30-38 tasks and threads, 40-42 frames and mappings, 50-53
 scheduling contexts, 54 `yield` (decision 0014: the calling thread gives up
 the rest of its turn and goes behind its equals; its budget is untouched), 60-65 destruction, ancestry and lifetime
 notifications, 70-71 a thread's registers (`thread_read_regs`,
 `thread_write_regs`), 72 `ipc_buffer`. `thread_spawn` takes the new thread's pc and sp, so it
 starts where its creator says; `cap_read` also returns a frame's size in
-pages in `R10`. A slot argument wider than 32 bits is out of range, never
+pages in `R10`; `cap_copy_batch` takes its flags in `R8` and returns `done`
+in `RDX` and `skipped` in `R8`. A slot argument wider than 32 bits is out of range, never
 truncated into a valid slot. A call that blocks gets its outputs written
 when its thread next runs. Call 3 (`debug_counters`, Phase 3's exit) is for the root task only
 (`E_RIGHTS` from any other): it writes what the kernel has in use (live
@@ -502,7 +513,7 @@ nothing else.
 | `E_TYPE` | 7 | wrong object type |
 | `E_DEAD` | 8 | the capability space has been destroyed |
 | `E_TIMEOUT` | 9 | the deadline passed, or timeout 0 where the operation would block |
-| `E_GONE` | 10 | the endpoint, task or thread is dead |
+| `E_GONE` | 10 | the endpoint, task, thread or frame is dead |
 | `E_PEER` | 11 | the other end of a call is gone: the reply capability died unused, or the caller stopped waiting |
 | `E_NOREPLY` | 12 | no reply capability to use (I6) |
 | `E_STATE` | 13 | the thread isn't running, or holds an unused reply capability |
@@ -535,8 +546,10 @@ nothing else.
 3. ~~**Task cycles.**~~ Settled 2026-10-05 (0004 amendment): tasks holding
    each other's task capabilities outlive their last outside capability, and
    any ancestor reclaims them with `task_reap`, found with `task_descendant`.
-4. **Revoke and the batched capability copy** (0003, 0011): not yet in the
-   model; moved to Phase 4, which needs them for `fork` (`docs/phase3-plan.md`,
-   *Scope*).
+4. ~~**Revoke and the batched capability copy** (0003, 0011).~~ Settled in
+   Phase 4 by decision 0022: revoke by kill (`obj_kill`, *Frames and
+   mappings*) and `cap_copy_batch` (*Capability operations*). As written
+   before: not yet in the model; moved to Phase 4, which needs them for
+   `fork` (`docs/phase3-plan.md`, *Scope*).
 5. ~~**Thread state** (register records, TLS base, 0010) and **fault IPC**
    (0009).~~ Settled in Phase 3 step 3 (*Thread control and faults*).

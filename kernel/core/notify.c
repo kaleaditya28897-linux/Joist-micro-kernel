@@ -467,7 +467,8 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
                 VIOLATION("task/thread object %u carries endpoint or notification state", o);
             }
         } else if (ob->type == JOIST_OBJ_FRAME) {
-            if (ob->word != 0 || ob->recv_caps != 0 || ob->dead || ob->qkind != JOIST_Q_NONE ||
+            /* (dead: killed, 0022; cspace.c checks it is mapped nowhere.) */
+            if (ob->word != 0 || ob->recv_caps != 0 || ob->qkind != JOIST_Q_NONE ||
                 ob->ns_notif != 0 || ob->rseq != 0 || ob->target != 0) {
                 VIOLATION("frame %u carries other objects' state", o);
             }
