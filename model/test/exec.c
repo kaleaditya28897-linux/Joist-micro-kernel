@@ -60,6 +60,8 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_DONATE] = "donate",
                                         [JX_CONTINUE] = "continue",
                                         [JX_GIVE] = "give",
+                                        [JX_OBJ_KILL] = "obj_kill",
+                                        [JX_COPY_BATCH] = "copy_batch",
                                         [JX_TICK] = "tick"};
 
 /* Relative frequency of each operation, out of their sum. */
@@ -76,7 +78,7 @@ static const uint8_t weight[JX_OPS] = {
     [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,       [JX_SPLIT] = 2,
     [JX_MAP] = 5,          [JX_UNMAP] = 2,         [JX_PROTECT] = 2,     [JX_DONATE] = 2,
     [JX_CONTINUE] = 4,     [JX_GIVE] = 4,
-    [JX_TICK] = 6};
+    [JX_OBJ_KILL] = 2,     [JX_COPY_BATCH] = 4,    [JX_TICK] = 6};
 
 static uint64_t boot_budget;
 
@@ -85,7 +87,8 @@ int jx_op_cascades(unsigned op)
     return op == JX_SPACE_DESTROY || op == JX_DELETE || op == JX_TASK_DESTROY || op == JX_KILL ||
            op == JX_TH_DESTROY || op == JX_REAP ||
            op == JX_FAULT || /* a fault with no handler destroys its task (0009) */
-           op == JX_CONTINUE;
+           op == JX_CONTINUE ||
+           op == JX_OBJ_KILL; /* a killed frame's sweep (0020) */
 }
 
 static uint32_t ch(struct jx_source *src, uint32_t n)
@@ -873,6 +876,69 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
                                                                : ch(src, JOIST_CSPACE_SLOTS + 1u);
         joist_rights mask = ch(src, 3) == 0 ? (joist_rights)ch(src, 16) : JOIST_R_ALL;
         return joist_cap_give(k, cs, ts, pick_slot(k, src, cs, JOIST_OBJ_NONE), d, mask);
+    }
+    case JX_OBJ_KILL: {
+        /* Usually a frame (from the root half the time: it holds the boot
+         * frames); afterwards it must be dead, and mapped nowhere once its
+         * sweep is done: at once unless preempted (0020). */
+        uint32_t ks = ch(src, 2) == 0 && k->root != 0 ? k->root - 1u : cs;
+        uint32_t s = pick_slot(k, src, ks, ch(src, 4) != 0 ? JOIST_OBJ_FRAME : JOIST_OBJ_NONE);
+        joist_err e = joist_obj_kill(k, ks, s);
+        if (e == JOIST_OK) {
+            uint32_t f = joist__slot_c(k, ks, s)->obj;
+            if (k->preempt == 0 && k->obj[f - 1u].mapcount != 0) {
+                (void)snprintf(why, whylen, "0022: killed frame %u still mapped", f - 1u);
+                *bad = 1;
+            }
+            if (!k->obj[f - 1u].dead) {
+                (void)snprintf(why, whylen, "0022: killed frame %u not dead", f - 1u);
+                *bad = 1;
+            }
+        }
+        return e;
+    }
+    case JX_COPY_BATCH: {
+        /* From around an occupied slot, into a task this space holds; now
+         * and then too many, an unknown flag, or a range off the end. */
+        uint32_t ts = pick_slot(k, src, cs, JOIST_OBJ_TASK);
+        uint32_t first = pick_slot(k, src, cs, JOIST_OBJ_NONE);
+        first = first >= 4u && ch(src, 2) == 0 ? first - ch(src, 4) : first;
+        uint32_t count = ch(src, 8) == 0 ? JOIST_COPY_BATCH + 1u + ch(src, 4)
+                                         : ch(src, JOIST_COPY_BATCH + 1u);
+        joist_rights mask = ch(src, 3) == 0 ? (joist_rights)ch(src, 16) : JOIST_R_ALL;
+        uint32_t flags = ch(src, 8) == 0 ? ch(src, 4) : ch(src, 2);
+        uint32_t done = 0;
+        uint32_t skipped = 0;
+        joist_err e = joist_cap_copy_batch(k, cs, ts, first, count, mask, flags, &done, &skipped);
+        /* What was copied is the source's, masked (I8), badge kept, in the
+         * same slot of the task; nothing at all on a refusal. */
+        if (done != 0) { /* (so cs and the task capability were good) */
+            const struct joist_cap *tc = joist__slot_c(k, cs, ts);
+            uint32_t child = tc->obj != 0 && tc->type == JOIST_OBJ_TASK ? k->obj[tc->obj - 1u].target : 0;
+            for (uint32_t i = 0; i < done && child != 0; i++) {
+                const struct joist_cap *sc = joist__slot_c(k, cs, first + i);
+                const struct joist_cap *dc = joist__slot_c(k, child - 1u, first + i);
+                if (sc == NULL || sc->obj == 0 || (skipped >> i & 1u) != 0) {
+                    continue;
+                }
+                if (dc == NULL || dc->obj != sc->obj || dc->badge != sc->badge ||
+                    dc->rights != (joist_rights)(sc->rights & mask)) {
+                    (void)snprintf(why, whylen, "0022: slot %u not copied as it should be",
+                                   first + i);
+                    *bad = 1;
+                }
+            }
+        }
+        if (e != JOIST_OK && e != JOIST_E_OCCUPIED && !(e == JOIST_E_RANGE && done != 0) &&
+            (done != 0 || skipped != 0)) {
+            (void)snprintf(why, whylen, "0022: a refused batch reports %u done", done);
+            *bad = 1;
+        }
+        if (done > count || (e == JOIST_OK && done != count)) {
+            (void)snprintf(why, whylen, "0022: batch of %u reports %u done", count, done);
+            *bad = 1;
+        }
+        return e;
     }
     case JX_CONTINUE:
         /* Resume pending destruction: a few slots, or to the end. */

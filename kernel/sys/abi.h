@@ -59,6 +59,8 @@ enum {
 #define ABI_CAP_GIVE         25u /* task, src, dst, mask */
 #define ABI_CSPACE_GROW      26u /* leaf */
 #define ABI_CSPACE_SHRINK    27u /* leaf */
+#define ABI_CAP_COPY_BATCH   28u /* task, first, count, mask, flags -> RDX done, R8 skipped (0022) */
+#define ABI_OBJ_KILL         29u /* slot (0022) */
 #define ABI_TASK_CREATE      30u /* donation, dst */
 #define ABI_TASK_DESTROY     31u /* task */
 #define ABI_THREAD_SPAWN     32u /* task, dst, pc, sp: the new thread starts there */

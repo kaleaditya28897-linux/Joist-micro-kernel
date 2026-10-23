@@ -67,8 +67,13 @@
 #define JOIST_MAX_BADGE_ACCTS 64u
 #endif
 /* Dead-name notification registrations (I5). */
-/* Pages in the user half of an address space (x86_64: 2^47 bytes of 4 KiB). */
-#define JOIST_USER_PAGES (1ull << 35)
+/* Pages in the user half of an address space (x86_64: 2^47 bytes of 4 KiB):
+ * JOIST_PT_TOP top-level page-table entries (below) of 2^27 pages each. Only
+ * CBMC builds it smaller (model/cbmc/run.sh), to keep its state small. */
+#ifndef JOIST_PT_TOP
+#define JOIST_PT_TOP 256u /* top-level entries covering the user half */
+#endif
+#define JOIST_USER_PAGES ((uint64_t)JOIST_PT_TOP << 27)
 #define JOIST_PAGE_SIZE 4096u /* bytes in a page: addresses that the core sees in bytes */
 #ifndef JOIST_MAX_DEADNAMES
 #define JOIST_MAX_DEADNAMES 32u
@@ -123,6 +128,11 @@ typedef uint8_t joist_rights;
 /* On task and thread capabilities, the SEND bit means "control": create
  * threads in the task, destroy it, kill the thread (0004, 0010). */
 #define JOIST_R_CONTROL JOIST_R_SEND
+/* On frames (and regions, when they exist: docs/phase4-plan.md, choice 7),
+ * the SEND_ONCE bit is the kill right: joist_obj_kill (decision 0022).
+ * Boot frames have it; a derive or a transfer can mask it away like any
+ * right, so copies can be handed out that can't revoke. */
+#define JOIST_R_KILL JOIST_R_SEND_ONCE
 
 /* Badge. 0 means "unbadged". The width is 0001's open item 2; 64 bits until
  * the model settles it. */
@@ -159,7 +169,7 @@ struct joist_object {
     /* Endpoints. An endpoint *dies* when its last capability with RECV is
      * deleted (the server is gone), while send capabilities may remain: their
      * use then fails with JOIST_E_GONE (I5). The object is freed when refs
-     * reaches 0. */
+     * reaches 0. A frame dies when it is killed (joist_obj_kill, 0022). */
     uint32_t recv_caps; /* capabilities with RECV naming it */
     uint8_t dead;
     uint32_t ns_notif;   /* no-senders notification bound to it: object index + 1 */
@@ -212,7 +222,6 @@ struct joist_object {
  * last-level entry is 0020's record: the frame, the page in it, the
  * permissions and the rights ceiling. */
 #define JOIST_PT_ENTRIES 512u /* entries per node, every level */
-#define JOIST_PT_TOP 256u     /* top-level entries covering the user half */
 #define JOIST_PT_LEVELS 3u
 #define JOIST_PT_NODE(shadow, hw) (((uint64_t)(shadow) + 1u) | (((uint64_t)(hw) + 1u) << 32))
 #define JOIST_PT_SHADOW(e) (((e) & 0xffffffffu) - 1u)
@@ -510,11 +519,14 @@ struct joist_kernel {
     struct joist_deadname dn[JOIST_MAX_DEADNAMES];
     struct joist_leaf leaf[JOIST_MAX_LEAVES];
     uint32_t objects_live;
-    /* Frames dying while still mapped (0020), and the sweep that unmaps
-     * them: the next (space, last-level table) to look at, as
-     * space * JOIST_PT_SWEEP_SPACE + table. */
+    /* Frames dying (0020) or killed (0022) while still mapped, and the
+     * sweep that unmaps them: the next (space, last-level table) to look at, as
+     * space * JOIST_PT_SWEEP_SPACE + table. fround: whether the sweep's
+     * round has cleared anything, or a frame began dying, since it began;
+     * a round with neither means frames_dying is wrong, and the sweep stops. */
     uint32_t frames_dying;
     uint64_t fsweep;
+    uint8_t fround;
     uint64_t now; /* model time: advanced only by joist_tick */
     uint64_t ready_seq; /* the last place given out among ready threads */
     /* While nonzero, joist__rq_sync only notes the threads to file (each
@@ -631,6 +643,49 @@ joist_err joist_cap_give(struct joist_kernel *k, joist_cspace cs, joist_slot tas
 /* Delete the capability in slot. Deleting the last capability to an object
  * destroys it and refunds its donor. */
 joist_err joist_cap_delete(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
+
+/* Capabilities one joist_cap_copy_batch copies at most: the size of one
+ * destruction step (decision 0022; the kernel's RUN_PREEMPT_SLOTS), and the
+ * width of its skipped bitmap. */
+#define JOIST_COPY_BATCH 32u
+/* joist_cap_copy_batch's flags: copy receive rights (an endpoint capability
+ * with RECV) too. Mach's fork does not inherit them; glibc makes new ones. */
+#define JOIST_COPY_RECV 1u
+
+/* The batched capability copy for fork (decision 0022, 0011): for each
+ * occupied slot s in [first, first + count) of cs, a copy in slot s of the
+ * task named by task_slot (which needs CONTROL), with the rights in mask
+ * (I8) and the same badge. Capabilities without GRANT are skipped, and so
+ * are copies that would carry RECV on an endpoint, unless flags has
+ * JOIST_COPY_RECV; bit i of *skipped is slot first + i skipped. It stops at
+ * the first slot whose copy would land on an occupied slot of the task
+ * (JOIST_E_OCCUPIED) or in a leaf the task doesn't have (JOIST_E_RANGE: the
+ * caller grows it first and pays for it), with *done the slots dealt with
+ * before it (count on success): those copies stay, and the caller goes on
+ * from first + *done. Results: JOIST_E_RANGE/JOIST_E_DEAD (cs), then for the
+ * task capability JOIST_E_RANGE, JOIST_E_EMPTY, JOIST_E_TYPE, JOIST_E_RIGHTS
+ * (CONTROL), JOIST_E_DEAD (the task is dying or destroyed: TLA+'s rule, a
+ * dying space accepts no capability), then JOIST_E_RANGE (count over
+ * JOIST_COPY_BATCH, the range past the table, or an unknown flag), then the
+ * stops. Never allocates: a copy only counts a reference, and the no-senders
+ * account of any badge copied exists already (its source is counted in it).
+ * Atomic per call only. Bounded by JOIST_COPY_BATCH copies. */
+joist_err joist_cap_copy_batch(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                               joist_slot first, uint32_t count, joist_rights mask,
+                               uint32_t flags, uint32_t *done, uint32_t *skipped);
+
+/* Revoke by kill (decision 0022): the object the capability in slot names
+ * dies, and from then on every capability to it, in any space, fails with
+ * JOIST_E_GONE wherever it is used. The slots stay occupied until their
+ * holders delete them (I1), and the object's quota unit returns to its
+ * donor with its last capability, as for any object. Frames only for now
+ * (regions to come): a killed frame is unmapped everywhere and can't be
+ * mapped or split again. Results: JOIST_E_RANGE/JOIST_E_DEAD (space),
+ * JOIST_E_RANGE, JOIST_E_EMPTY, JOIST_E_TYPE (not a type that can be
+ * killed), JOIST_E_RIGHTS (no JOIST_R_KILL), JOIST_E_GONE (dead already).
+ * (JOIST_E_STATE, a frame lent to a space, comes with 0021.) O(1) but for
+ * the unmapping (0020's sweep will make that preemptible). */
+joist_err joist_obj_kill(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
 
 /* ---- threads and IPC (Phase 1 work item 2; I6, I7, I10) ----
  *
@@ -768,6 +823,13 @@ joist_err joist_task_reap(struct joist_kernel *k, joist_cspace cs, joist_cspace 
  * kernel calls it when the thread that started a destruction runs again;
  * between calls, every other operation sees dying spaces as dead. */
 joist_err joist_continue(struct joist_kernel *k, uint32_t budget);
+
+/* Destruction work left for joist_continue: a dying space still being swept,
+ * or a frame dying or killed while still mapped (0020, 0022). */
+static inline int joist_destruction_pending(const struct joist_kernel *k)
+{
+    return k->npending != 0 || k->frames_dying != 0;
+}
 
 /* The first live strict descendant of cs whose id is >= from, in *out, or
  * JOIST_E_EMPTY if there is none: how an ancestor finds a task it holds no

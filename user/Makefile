@@ -5,7 +5,7 @@
 # benchroot and ipcbench, the IPC benchmark: step 8; smproot, the
 # multiprocessor test: step 9; faultinj and fiworker, the fault-injection
 # test: the exit; docs/phase3-plan.md; scaleroot, the lock study's scaling
-# test),
+# test; revokeroot, decision 0022's calls),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
 ifeq ($(origin CC),default)
@@ -31,7 +31,7 @@ ASMPROGS := sysfuzz sysrethole
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
 LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot scaleroot growroot fuzzchild \
-            fiworker faultinj
+            fiworker faultinj revokeroot
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -67,6 +67,7 @@ $(eval $(call libprog,growroot,$(BUILD)/elf.o))
 $(eval $(call libprog,fuzzchild,))
 $(eval $(call libprog,fiworker,))
 $(eval $(call libprog,faultinj,$(BUILD)/elf.o))
+$(eval $(call libprog,revokeroot,$(BUILD)/elf.o))
 
 # One rule per program: a pattern can't use % twice (prog/prog.c).
 define prog

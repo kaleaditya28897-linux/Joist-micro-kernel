@@ -152,12 +152,18 @@ tla-mutate:
 # CBMC (§8.1): for each capability and task operation, from any state the
 # invariant check accepts, the operation keeps every invariant (and every
 # array access, pointer and shift is checked on the way). Operation numbers
-# are those of cbmc/harness_cspace.c (7, 8: grow, shrink); CBMC_JOBS run at once (each needs up
+# are those of cbmc/harness_cspace.c (7, 8: grow, shrink; 9, 10: obj_kill,
+# cap_copy_batch, 0022); CBMC_JOBS run at once (each needs up
 # to ~5 GB). Operations 3 (delete) and 6 (task destroy) can cascade; their
 # formulas exhaust 15 GB even at smaller sizes, split by slot type, with
 # CaDiCaL, or path by path, so they are left to the property tests, the
-# fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8).
-CBMC_OPS  ?= 0 1 2 4 5 7 8
+# fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8). The states
+# have no page tables, lent pages or mappings (0020, 0021), and one top-level
+# entry (JOIST_PT_TOP, cbmc/run.sh): the tables' nodes are pages of 512
+# entries reached through a hook, beyond CBMC, so the mapping calls (41-45)
+# and a condemned frame's sweep are not proved here yet (docs/phase4-plan.md,
+# step 2, part 2: open).
+CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10
 CBMC_JOBS ?= 2
 cbmc:
 	@mkdir -p $(BUILD)/cbmc

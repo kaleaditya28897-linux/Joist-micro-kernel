@@ -95,6 +95,8 @@ joist_err joist__fault_call(struct joist_kernel *k, uint32_t t, uint32_t obj, jo
 /* The last capability to obj is gone: 1 if it is a frame still mapped or
  * lent, now dying and kept; 0 if it is to be freed now. */
 int joist__frame_last_ref(struct joist_kernel *k, uint32_t obj);
+/* Frame obj was just killed (0022): the sweep unmaps it everywhere. */
+void joist__frame_killed(struct joist_kernel *k, uint32_t obj);
 /* A dying space's tables, one last-level table per unit of *done (while
  * under k->preempt): 1 if preempted, 0 when swept. */
 int joist__space_tables_sweep(struct joist_kernel *k, uint32_t s, uint32_t *done);

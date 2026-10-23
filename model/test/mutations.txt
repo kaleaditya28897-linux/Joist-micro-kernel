@@ -218,3 +218,26 @@ hook-protect-missed @@ ../kernel/core/map.c @@ if (k->hooks.protect != NULL) { @
 hook-table-new-missed @@ ../kernel/core/map.c @@ if (k->hooks.table_new != NULL) { @@ if (0) {
 hook-table-gone-missed @@ ../kernel/core/map.c @@ if (k->hooks.table_gone != NULL) { @@ if (0) {
 hook-space-gone-missed @@ ../kernel/core/task.c @@ k->hooks.space_gone(k->hooks.ctx, s); /* its hardware tables, all at once */ @@ (void)s;
+# Revoke by kill (decision 0022; test_kill_copy.c, test_props_kill_copy.c).
+kill-without-kill-right @@ ../kernel/core/cspace.c @@ if ((c->rights & JOIST_R_KILL) == 0) { @@ if (0) {
+kill-not-marked-dead @@ ../kernel/core/cspace.c @@     o->dead = 1; @@     (void)o;
+kill-killed-frame-mappable @@ ../kernel/core/sched.c @@ if (k->obj[c->obj - 1u].dead) { @@ if (k->obj[c->obj - 1u].dead && c->type != JOIST_OBJ_FRAME) {
+kill-keeps-mappings @@ ../kernel/core/map.c @@ return o->dying || o->dead; @@ return o->dying;
+kill-twice-succeeds @@ ../kernel/core/cspace.c @@ return JOIST_E_GONE; /* killed already: like every other use */ @@ (void)0;
+kill-boot-frames-lack-right @@ ../kernel/core/map.c @@ JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_KILL | JOIST_R_GRANT @@ JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_GRANT
+kill-not-swept @@ ../kernel/core/cspace.c @@ joist__frame_killed(k, obj); @@ (void)obj;
+kill-lent-frame @@ ../kernel/core/cspace.c @@ if (o->type == JOIST_OBJ_FRAME && o->lent != 0) { @@ if (0) {
+kill-counted-twice @@ ../kernel/core/map.c @@ if (o->mapcount != 0 && !o->dead) { @@ if (o->mapcount != 0) {
+# The batched capability copy (decision 0022).
+copy-widens-rights @@ ../kernel/core/task.c @@ e = joist__cap_grant(k, cs, s, child, s, mask); @@ e = joist__cap_grant(k, cs, s, child, s, JOIST_R_ALL);
+copy-into-dying-child @@ ../kernel/core/task.c @@ if (e == JOIST_E_GONE) { /* the child is dying or destroyed */ @@ if (e == JOIST_E_GONE) { obj = joist__slot_c(k, cs, task_slot)->obj - 1u; e = JOIST_OK; } if (0) {
+copy-past-occupied-slot @@ ../kernel/core/task.c @@ if (dc->obj != 0) { @@ if (dc->obj != 0) { continue; } if (0) {
+copy-past-missing-leaf @@ ../kernel/core/task.c @@ if (dc == NULL) { @@ if (dc == NULL) { continue; } if (0) {
+copy-without-control @@ ../kernel/core/task.c @@ &obj); /* CONTROL on the child */ @@ &obj); if (e == JOIST_E_RIGHTS) { obj = joist__slot_c(k, cs, task_slot)->obj - 1u; e = JOIST_OK; }
+copy-without-grant @@ ../kernel/core/task.c @@ if ((c->rights & JOIST_R_GRANT) == 0 || recv) { @@ if (recv) {
+copy-receive-rights-unasked @@ ../kernel/core/task.c @@ (flags & JOIST_COPY_RECV) == 0; @@ 0;
+copy-skipped-not-reported @@ ../kernel/core/task.c @@ *skipped |= 1u << i; @@ *skipped |= 0u;
+copy-done-off-by-one @@ ../kernel/core/task.c @@ *done = i; /* what was copied before stays copied */ @@ *done = i + 1u;
+batch-exceeds-32 @@ ../kernel/core/task.c @@ if (count > JOIST_COPY_BATCH || @@ if (count > JOIST_COPY_BATCH + 8u ||
+batch-runs-off-the-table @@ ../kernel/core/task.c @@ count > JOIST_CSPACE_SLOTS - first || @@ 0 ||
+batch-unknown-flags @@ ../kernel/core/task.c @@ (flags & ~(uint32_t)JOIST_COPY_RECV) != 0) { @@ 0) {

@@ -43,7 +43,7 @@ BUILD := build
 # The core's table sizes in the kernel (the host tests and model/ use their
 # own): the root task's image and every task's pages are frames and
 # mappings, so these are larger than the model's defaults.
-KSIZES := -DJOIST_MAX_OBJECTS=1024u -DJOIST_MAX_MAPPINGS=512u
+KSIZES := -DJOIST_MAX_OBJECTS=1024u
 
 # §13's kernel flags.
 KFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding -nostdlib -fno-builtin \

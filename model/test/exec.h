@@ -64,6 +64,8 @@ enum {
     JX_DONATE,
     JX_CONTINUE,
     JX_GIVE,
+    JX_OBJ_KILL,    /* decision 0022 */
+    JX_COPY_BATCH,  /* decision 0022 */
     JX_TICK,
     JX_OPS
 };

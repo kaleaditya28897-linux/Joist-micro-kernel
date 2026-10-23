@@ -1,7 +1,8 @@
 # 0022 — Revoke by killing the object; the capability copy for `fork` in batches
 
 Date: 2026-10-21
-Status: **accepted** (2026-10-21), with `docs/phase4-plan.md` (choice 4).
+Status: **accepted** (2026-10-21), with `docs/phase4-plan.md` (choice 4);
+**amended** 2026-10-23 (memory is revoked by killing regions, below).
 Settles: `docs/abi.md`, open item 4 (revoke and the batched capability
 copy, 0003 and 0011), carried from Phase 3.
 Covers: 0003 (revoke blocks rather than defers; bounded work), 0011
@@ -114,6 +115,33 @@ For the copy:
   extended to the batch. Mutations: the copy widening rights, dropping the
   dying-child check, copying past an occupied slot, a kill without the
   kill right.
+
+## Amendment (2026-10-23): memory is revoked by killing regions
+
+Found while building this decision (the P53's Claude Code, its report in
+`docs/phase4-data/0022-report.md`): killing a frame ends every holder's
+authority at once, but its pages stay the dead frame's until the last
+holder deletes its copy, and no other frame can ever be made over them
+(I12). A holder that keeps a dead copy, a hostile one for instance, would
+stop `mm` from ever reusing that memory. The quota unit was the exposure
+this decision named; the pages are the larger one.
+
+The owner chose a rule over a new mechanism:
+
+- **`mm` never hands out frame capabilities** to the tasks it serves. It
+  keeps every frame it manages, maps them on their behalf, and gives a task
+  authority over memory only as a **region capability**
+  (`docs/phase4-plan.md`, choice 7). Taking memory back is killing the
+  region, then unmapping; the frame was never anyone else's.
+- **A frame kill stays**, for frames lent to trusted servers (the
+  reincarnation server's, for instance), where the holders are known.
+- The rule is `mm`'s to keep, not the kernel's: it is checked when `mm` is
+  reviewed (the plan's *Risks*), and a test of `mm` checks that no task it
+  serves ever holds one of its frames.
+
+Rejected: a kill that hands the killer a new frame over the same pages once
+the sweep ends (a new frame state, waiting for its sweep, through the
+model, CBMC and the invariants), and dropping frame kill altogether.
 
 ## Priority check
 

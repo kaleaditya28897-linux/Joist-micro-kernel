@@ -12,8 +12,9 @@ static joist_rights full_rights(joist_obj_type t)
     switch (t) {
     case JOIST_OBJ_ENDPOINT:
     case JOIST_OBJ_NOTIFICATION:
-    case JOIST_OBJ_FRAME: /* CONTROL, WRITE (the RECV bit), GRANT */
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
+    case JOIST_OBJ_FRAME: /* CONTROL, WRITE (the RECV bit), KILL (0022), GRANT */
+        return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_KILL | JOIST_R_GRANT);
     case JOIST_OBJ_TASK:
     case JOIST_OBJ_THREAD:
     case JOIST_OBJ_REPLY:
@@ -424,6 +425,89 @@ joist_err joist_cspace_destroy(struct joist_kernel *k, joist_cspace cs)
     }
     joist__space_destroy(k, cs);
     (void)joist__drain_pending(k);
+    return JOIST_OK;
+}
+
+/* ---- revoke by kill (decision 0022) ---- */
+
+/* Can objects of type t be killed? Frames; regions when they exist
+ * (docs/phase4-plan.md, choice 7). Endpoints, tasks and threads die their
+ * own ways. */
+static int killable(joist_obj_type t)
+{
+    switch (t) {
+    case JOIST_OBJ_FRAME:
+        return 1;
+    case JOIST_OBJ_NONE:
+    case JOIST_OBJ_ENDPOINT:
+    case JOIST_OBJ_NOTIFICATION:
+    case JOIST_OBJ_TASK:
+    case JOIST_OBJ_THREAD:
+    case JOIST_OBJ_REPLY:
+    case JOIST_OBJ_SCHED:
+    default:
+        return 0;
+    }
+}
+
+joist_err joist_obj_kill(struct joist_kernel *k, joist_cspace cs, joist_slot slot)
+{
+    struct joist_cspace_state *s;
+    joist_err e = get_space(k, cs, &s);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    (void)s;
+    const struct joist_cap *c = joist__slot_c(k, cs, slot);
+    if (c == NULL) {
+        return JOIST_E_RANGE;
+    }
+    if (c->obj == 0) {
+        return JOIST_E_EMPTY;
+    }
+    if (!killable((joist_obj_type)c->type)) {
+        return JOIST_E_TYPE;
+    }
+    if ((c->rights & JOIST_R_KILL) == 0) {
+        return JOIST_E_RIGHTS;
+    }
+    uint32_t obj = c->obj - 1u;
+    struct joist_object *o = &k->obj[obj];
+    if (o->dead) {
+        return JOIST_E_GONE; /* killed already: like every other use */
+    }
+    if (o->type == JOIST_OBJ_FRAME && o->lent != 0) {
+        return JOIST_E_STATE; /* its pages are a space's tables until that space dies (0021) */
+    }
+    /* Dead, as an endpoint dies (I5): every capability to it now fails with
+     * JOIST_E_GONE (joist__control_cap), and the slots stay occupied until
+     * their holders delete them, so I1 holds unchanged. The object, and its
+     * donor's quota unit, go with the last capability, as for any object. */
+    o->dead = 1;
+    switch ((joist_obj_type)o->type) {
+    case JOIST_OBJ_FRAME:
+        /* No new mapping of it (its capabilities fail E_GONE), and the
+         * work list's sweep unmaps it everywhere, as a dying frame (0020). */
+        joist__frame_killed(k, obj);
+        /* Only the frames' sweep, as far as the kernel's preemption allows:
+         * a kill begins no space's destruction, so it doesn't take on any
+         * already pending (joist_continue does, and the sweep goes round
+         * dying spaces too). */
+        {
+            uint32_t done = 0;
+            (void)joist__frames_sweep(k, &done);
+        }
+        break;
+    case JOIST_OBJ_NONE:
+    case JOIST_OBJ_ENDPOINT:
+    case JOIST_OBJ_NOTIFICATION:
+    case JOIST_OBJ_TASK:
+    case JOIST_OBJ_THREAD:
+    case JOIST_OBJ_REPLY:
+    case JOIST_OBJ_SCHED:
+    default:
+        break;
+    }
     return JOIST_OK;
 }
 

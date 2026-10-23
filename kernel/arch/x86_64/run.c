@@ -1222,7 +1222,7 @@ static uint32_t idle(struct cpu *c)
         if (LS_TIME(c, LS_PICK, joist_sched_pick_on(&K, c->id, &t)) == JOIST_OK) {
             return t;
         }
-        if (K.npending != 0) {
+        if (joist_destruction_pending(&K)) {
             (void)joist_continue(&K, RUN_PREEMPT_SLOTS); /* a piece; then look again */
             continue;
         }
@@ -1261,7 +1261,7 @@ static uint32_t idle(struct cpu *c)
  * cascade swept in that thread's name. The destruction test found it.) */
 static void sweep_pending(void)
 {
-    if (K.npending != 0) {
+    if (joist_destruction_pending(&K)) {
         (void)joist_continue(&K, RUN_PREEMPT_SLOTS);
     }
 }
@@ -1544,8 +1544,8 @@ void run_user_trap(struct trap_frame *tf)
                 ls_op(K.th[t].regs.r[ABI_RDI], K.th[t].regs.r[ABI_RSI], K.th[t].regs.r[ABI_RDX]);
             }
 #endif
-            int may_hand =
-                RUN_FAST_PATH && K.npending == 0 && c->armed_for != 0 && K.now < c->armed_for;
+            int may_hand = RUN_FAST_PATH && !joist_destruction_pending(&K) && c->armed_for != 0 &&
+                           K.now < c->armed_for;
             /* The run queues are held for the call and settled after the
              * choice (joist_sched_hold): a thread handed this CPU below
              * never goes on a queue and off it again. */
@@ -1560,7 +1560,7 @@ void run_user_trap(struct trap_frame *tf)
                 kernel_finish(env.exit_code == 0 ? 0 : 3);
             }
             (void)outcome;
-            if (may_hand && env.handover < JOIST_MAX_THREADS && K.npending == 0 &&
+            if (may_hand && env.handover < JOIST_MAX_THREADS && !joist_destruction_pending(&K) &&
                 K.th[env.handover].regs.pc < USER_TOP) {
                 /* The fast path: no scheduler, no timer. The other thread
                  * takes this CPU in the caller's place, so no other CPU's
@@ -1571,7 +1571,7 @@ void run_user_trap(struct trap_frame *tf)
                 enter(c, env.handover, 1);
             }
             joist_sched_settle(&K);
-            if (may_hand && K.npending == 0 && c->cur == t && K.th[t].regs.pc < USER_TOP &&
+            if (may_hand && !joist_destruction_pending(&K) && c->cur == t && K.th[t].regs.pc < USER_TOP &&
                 joist_sched_stays(&K, c->id, t)) {
                 /* The same thread goes on: the core says the scheduler
                  * would choose it again and change nothing, no CPU need

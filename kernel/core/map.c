@@ -148,15 +148,22 @@ static void frame_release(struct joist_kernel *k, uint32_t obj)
     joist__obj_free(k, obj);
 }
 
-/* An entry naming frame f has gone: free f if that was the last thing
- * keeping a dying frame. */
+/* A frame the sweep unmaps: dying (its last capability gone) or dead
+ * (killed, 0022, its capabilities still held). */
+static int condemned(const struct joist_object *o)
+{
+    return o->dying || o->dead;
+}
+
+/* An entry naming frame f has gone: once a condemned frame is mapped
+ * nowhere the sweep is done with it, and a dying one is freed. */
 static void frame_unmapped(struct joist_kernel *k, uint32_t f)
 {
     struct joist_object *o = &k->obj[f];
     o->mapcount--;
-    if (o->dying && o->mapcount == 0) {
+    if (condemned(o) && o->mapcount == 0) {
         k->frames_dying--;
-        if (o->lent == 0) {
+        if (o->dying && o->lent == 0) {
             frame_release(k, f);
         }
     }
@@ -168,11 +175,20 @@ int joist__frame_last_ref(struct joist_kernel *k, uint32_t obj)
     if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0)) {
         return 0;
     }
-    o->dying = 1;
-    if (o->mapcount != 0) {
+    if (o->mapcount != 0 && !o->dead) {
         k->frames_dying++; /* the sweep (joist__frames_sweep) will unmap it */
+        k->fround = 1;
     }
+    o->dying = 1; /* (a killed frame is counted from its kill) */
     return 1;
+}
+
+void joist__frame_killed(struct joist_kernel *k, uint32_t obj)
+{
+    if (k->obj[obj].mapcount != 0) {
+        k->frames_dying++;
+        k->fround = 1;
+    }
 }
 
 /* A new object of `type` in slot d of space cs, from cs's quota: the shared
@@ -232,7 +248,7 @@ joist_err joist_boot_frame(struct joist_kernel *k, joist_cspace cs, joist_slot d
         }
     }
     return new_frame(k, cs, d, base, npages,
-                     (joist_rights)(JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_GRANT));
+                     (joist_rights)(JOIST_R_CONTROL | JOIST_R_WRITE | JOIST_R_KILL | JOIST_R_GRANT));
 }
 
 joist_err joist_boot_self(struct joist_kernel *k, joist_cspace cs, joist_slot dst)
@@ -418,19 +434,21 @@ joist_err joist_map_replace(struct joist_kernel *k, joist_cspace cs, joist_slot 
 
 /* Clear the entries of lf (va's last-level node in space s) in [va, va + n)
  * that name a frame `which` selects (all, or the dying ones), telling the
- * kernel run by run if `tell`. */
+ * kernel run by run if `tell`. Returns how many it cleared. */
 enum { CLEAR_ALL, CLEAR_DYING };
-static void clear_run(struct joist_kernel *k, uint32_t s, uint64_t *lf, uint64_t va, uint64_t n,
+static uint64_t clear_run(struct joist_kernel *k, uint32_t s, uint64_t *lf, uint64_t va, uint64_t n,
                       int which, int tell)
 {
     uint64_t run = 0; /* pages in the run being cleared, ending before va + i */
+    uint64_t cleared = 0;
     for (uint64_t i = 0; i <= n; i++) {
         JOIST_WORK(k);
         uint64_t pe = i < n ? lf[(va + i) % JOIST_PT_ENTRIES] : 0;
-        int go = pe != 0 && (which == CLEAR_ALL || k->obj[JOIST_PTE_FRAME(pe)].dying);
+        int go = pe != 0 && (which == CLEAR_ALL || condemned(&k->obj[JOIST_PTE_FRAME(pe)]));
         if (go) {
             lf[(va + i) % JOIST_PT_ENTRIES] = 0;
             run++;
+            cleared++;
         }
         if (!go && run != 0) {
             if (tell && k->hooks.unmap != NULL) {
@@ -442,6 +460,7 @@ static void clear_run(struct joist_kernel *k, uint32_t s, uint64_t *lf, uint64_t
             frame_unmapped(k, JOIST_PTE_FRAME(pe)); /* after the run is told: see below */
         }
     }
+    return cleared;
 }
 
 joist_err joist_unmap_range(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
@@ -457,7 +476,7 @@ joist_err joist_unmap_range(struct joist_kernel *k, joist_cspace cs, joist_slot 
     }
     uint64_t *lf = leaf(k, space, va);
     if (lf != NULL) {
-        clear_run(k, space, lf, va, npages, CLEAR_ALL, 1);
+        (void)clear_run(k, space, lf, va, npages, CLEAR_ALL, 1);
         prune(k, space, va);
     }
     return JOIST_OK;
@@ -539,7 +558,7 @@ int joist__space_tables_sweep(struct joist_kernel *k, uint32_t s, uint32_t *done
         uint64_t next = sweep_next(k, s, st->tsweep, &lf);
         if (lf != NULL) {
             /* A dying space: its hardware tables go with space_gone. */
-            clear_run(k, s, lf, st->tsweep * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_ALL, 0);
+            (void)clear_run(k, s, lf, st->tsweep * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_ALL, 0);
         }
         st->tsweep = next;
     }
@@ -582,6 +601,13 @@ int joist__frames_sweep(struct joist_kernel *k, uint32_t *done)
         uint32_t s = (uint32_t)(k->fsweep / JOIST_PT_SWEEP_SPACE);
         uint64_t t = k->fsweep % JOIST_PT_SWEEP_SPACE;
         if (s >= JOIST_MAX_CSPACES) {
+            if (!k->fround) {
+                /* A whole round found nothing, and no frame began dying
+                 * during it: frames_dying is wrong (I12). Stop rather than
+                 * go round for ever; the checker reports it. */
+                return 0;
+            }
+            k->fround = 0;
             k->fsweep = 0; /* round again: frames that began dying meanwhile */
             continue;
         }
@@ -593,7 +619,9 @@ int joist__frames_sweep(struct joist_kernel *k, uint32_t *done)
         uint64_t next = sweep_next(k, s, t, &lf);
         if (lf != NULL) {
             int live = !k->cs[s].dying;
-            clear_run(k, s, lf, t * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_DYING, live);
+            if (clear_run(k, s, lf, t * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_DYING, live) != 0) {
+                k->fround = 1;
+            }
             if (live) {
                 prune(k, s, t * JOIST_PT_ENTRIES);
             }
@@ -651,7 +679,10 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
         if (a->dying && a->mapcount == 0 && a->lent == 0) {
             VIOLATION("I12: frame %u dying, but nothing keeps it", i);
         }
-        dying_mapped += (uint32_t)(a->dying && a->mapcount != 0);
+        dying_mapped += (uint32_t)(condemned(a) && a->mapcount != 0);
+        if (a->dead && a->lent != 0) {
+            VIOLATION("0022: frame %u killed while lent", i);
+        }
         if (a->lent != 0) {
             if (a->lent > JOIST_MAX_CSPACES || !k->cs[a->lent - 1u].live) {
                 VIOLATION("I12: frame %u lent to a dead or invalid space", i);
@@ -671,8 +702,8 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
         }
     }
     if (dying_mapped != k->frames_dying) {
-        VIOLATION("I12: %u frames dying while mapped, but frames_dying %u", dying_mapped,
-                  k->frames_dying);
+        VIOLATION("I12/0022: %u frames dying or killed while mapped, but frames_dying %u",
+                  dying_mapped, k->frames_dying);
     }
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
         const struct joist_cspace_state *st = &k->cs[s];

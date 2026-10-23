@@ -55,6 +55,31 @@ int main(void)
      * state would otherwise call arbitrary function pointers. The kernel's
      * hooks are tested by the executor's recorded shadow and by booting. */
     k.hooks = (struct joist_hooks){0};
+    /* No page tables, lent pages or mappings (0020, 0021): their nodes are
+     * pages reached through hooks.page, 512 entries each, beyond what CBMC
+     * can hold. The operations proved here touch them only through a dying
+     * or killed frame's sweep; that, and the mapping calls, are left to the
+     * property tests and the mutations (model/test/exec.c). */
+    for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
+        struct joist_cspace_state *st = &k.cs[s];
+        for (unsigned i = 0; i < JOIST_PT_TOP; i++) {
+            st->pt_top[i] = 0;
+        }
+        st->lent_first = 0;
+        st->pt_free = 0;
+        st->pt_avail = 0;
+        st->pt_used = 0;
+        st->tsweep = 0;
+    }
+    for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
+        k.obj[o].mapcount = 0;
+        k.obj[o].lent = 0;
+        k.obj[o].lent_next = 0;
+        k.obj[o].water = 0;
+    }
+    k.frames_dying = 0;
+    k.fsweep = 0;
+    k.fround = 0;
     __CPROVER_assume(joist_check_invariants(&k, NULL, 0) == 0);
 #else
     joist_cspace root;
@@ -74,6 +99,8 @@ int main(void)
         uint32_t b = any(JOIST_CSPACE_SLOTS);
         joist_rights mask = (joist_rights)any(15);
         joist_badge badge = nondet_u64();
+        uint32_t done = 0;
+        uint32_t skipped = 0;
         joist_err e;
 
 #ifdef JOIST_CBMC_SLOT_TYPE
@@ -114,6 +141,16 @@ int main(void)
         case 8:
             e = joist_cspace_shrink(&k, cs, any(JOIST_CNODE_ROOT));
             break;
+        /* Decision 0022. Not in the Makefile's CBMC_OPS yet: run them with
+         * `make cbmc CBMC_OPS="9 10"`. The batch's loop is bounded by the
+         * table here (JOIST_CSPACE_SLOTS), whatever count says. */
+        case 9:
+            e = joist_obj_kill(&k, cs, a);
+            break;
+        case 10:
+            e = joist_cap_copy_batch(&k, cs, a, b, any(JOIST_COPY_BATCH + 1u), mask,
+                                     any(JOIST_COPY_RECV + 1u), &done, &skipped);
+            break;
         default:
             e = joist_task_destroy(&k, cs, a);
             break;
@@ -129,6 +166,20 @@ int main(void)
             __CPROVER_assert(s != NULL && d != NULL &&
                                  (d->rights & (joist_rights)~s->rights) == 0,
                              "I8: rights never grow");
+        }
+        if (op == 10 && done != 0) {
+            /* I8 for each copy the batch made: slot b + i of the task named
+             * by slot a. */
+            const struct joist_cap *tc = joist__slot_c(&k, cs, a);
+            uint32_t child = k.obj[tc->obj - 1u].target - 1u;
+            for (uint32_t i = 0; i < done; i++) {
+                const struct joist_cap *s = joist__slot_c(&k, cs, b + i);
+                const struct joist_cap *d = joist__slot_c(&k, child, b + i);
+                __CPROVER_assert(s == NULL || s->obj == 0 || (skipped >> i & 1u) != 0 ||
+                                     (d != NULL && d->obj == s->obj &&
+                                      (d->rights & (joist_rights)~s->rights) == 0),
+                                 "I8: a batch copy has no right its source lacks");
+            }
         }
     }
     return 0;

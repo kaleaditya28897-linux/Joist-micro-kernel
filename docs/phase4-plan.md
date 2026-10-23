@@ -203,6 +203,10 @@ What earlier phases hand to this one:
 6. **`servers/mm`** (C, Joist's coding standard; §12's place).
    - The root task gives `mm` the memory it is to manage and control
      capabilities for the tasks it starts; `mm` is their fault handler.
+   - **`mm` never hands out a frame capability** to a task it serves
+     (0022's amendment, 2026-10-23): a frame kill can't take back the
+     pages while a holder keeps a dead copy. Tasks get authority over
+     memory only as regions (choice 7).
    - It keeps, per task, a region map; per page it manages, a reference
      count and its owner. Anonymous memory is demand-zero.
    - **Clone** (0011): the kernel makes an empty task in O(1); `mm`
@@ -448,3 +452,82 @@ the design above says.
     1 092).
   - Not run for this part: CBMC (the mapping calls are not among its
     operations; adding them is step 2's next part).
+
+### Step 2, part 2: revoke by kill and the batched copy (0022) (2026-10-23)
+
+Built by the P53's Claude Code in its own copy, against `5770fbe`, while
+part 1 was being built (its report: `docs/phase4-data/0022-report.md`),
+then merged and adapted to 0020 and 0021 here.
+
+- **What it built:** `joist_obj_kill` with the kill right (`JOIST_R_KILL`,
+  the SEND_ONCE bit, for frames; written so regions can be added), boot
+  frames with the right, and every use of a killed frame `E_GONE`;
+  `joist_cap_copy_batch` (at most 32 slots, the same slot numbers, rights
+  masked, a skipped bitmap, stopping with a cursor); system calls 28 and
+  29; `user/revokeroot`, run emulated, on 2 real CPUs and on the checking
+  kernel; unit tests (`test_kill_copy.c`), a property test against a
+  shadow of the whole state (`test_props_kill_copy.c`), the executor's
+  two operations, 21 mutations, and CBMC operations 9 and 10, both
+  verified.
+- **Adapted to 0020 and 0021:**
+  - A killed frame is unmapped by 0020's sweep, as a dying one is: the
+    sweep takes frames dying *or* killed (`condemned`), each counted once
+    in `frames_dying` (a killed frame whose last capability then goes is
+    not counted again), and `obj_kill` runs that sweep, as far as
+    preemption allows, but no space's destruction already pending (it
+    began none; `joist_continue` takes those). Its unit tests check it a
+    table per step, preempted.
+  - A frame lent to a space can't be killed (`E_STATE`): its pages are the
+    space's tables. A killed frame can't be lent (`E_GONE`, as every use).
+  - The property test no longer maps: its shadow mirrored Phase 3's
+    mapping table, and what a kill does to mappings is covered by the
+    executor (kills among real mappings, the simulated tables and every
+    invariant after each step), the unit tests and `revokeroot`.
+  - The executor counts `obj_kill` among the operations that may cascade
+    (I9: its sweep is a cascade's work).
+  - CBMC's default operations now include 9 and 10.
+- **0022 amended** (the owner, 2026-10-23): the report found that a kill
+  takes back authority but not memory, since a killed frame's pages stay
+  its own until the last holder deletes its copy. `mm` never hands out a
+  frame capability; it gives regions (choice 6 and 7 above). The frame
+  kill stays for frames lent to trusted servers.
+- **A kernel bug in part 1, found while merging:** `run.c` went on with
+  pending destruction, and kept the fast path off, only while
+  `K.npending` was nonzero, so a frame sweep (`frames_dying`) cut short by
+  a pending interrupt waited for some later destruction or an explicit
+  `continue`. Both now ask `joist_destruction_pending` (`core.h`): a
+  dying space, or a frame dying or killed while mapped.
+- **Open, from the report:** 0022 says a batch is "the size of one
+  destruction step"; each copy also costs up to
+  `JOIST_MAX_BADGE_ACCTS` steps (the account lookup), so a batch's bound is
+  32 × (1 + accounts). And KILL shares its bit with SEND_ONCE, so a mask
+  that strips it from every slot would strip SEND_ONCE from endpoints too;
+  harmless while SEND_ONCE means nothing.
+- **Found in verification** (2026-10-23):
+  - The frame sweep went round for ever when `frames_dying` was wrong
+    (five mutants hung rather than failing). A round that clears nothing,
+    with no frame begun dying during it, now stops the sweep, and the
+    checker reports the count (I12). A correct kernel never takes it.
+  - A killed frame whose last capability went mid-sweep was not tested
+    (a surviving mutant); a unit test now is.
+  - `obj_kill` ran every pending space's destruction, which made CBMC's
+    op 9 a hundred times larger; it now runs the frames' sweep only.
+  - CBMC ran out of memory on the page tables' state: its states now
+    have none, and `JOIST_PT_TOP` can be set smaller for it. Proving the
+    mapping calls with CBMC is step 2's next part.
+- **Verified** (on the build VM, nothing else on it; this commit's code):
+  - `make -C model check`: 200 tests under plain, asan, ubsan, msan, tsan
+    and small, no failure.
+  - Mutations `map-`, `lend-`, `root-self-`, `hook-`, `kill-`, `copy-`,
+    `batch-` and `task-no-drain`: all 55 caught.
+  - CBMC: operations 0, 1, 2, 4, 5, 7, 8, 9 and 10 verified.
+  - `make -C kernel check`: every host test, freestanding build,
+    clang-tidy and scan-build clean, BIOS and UEFI boots, and the
+    self-tests, among them `revokeroot` emulated, on 2 real CPUs and on
+    the checking kernel. The bench gate: 384, 1 576 and 1 116 cycles
+    (baselines 496, 1 548, 1 092).
+  - Two emulated 4-CPU timing tests failed once each, in different runs
+    (`smp4-cascade`: "the machine stalled too often to measure";
+    `smp4-smp`: "spinners on separate CPUs didn't run at the same time"),
+    and passed three times out of three alone. Recorded as load, to watch:
+    a third would be worth a look at what else the P53 runs.
