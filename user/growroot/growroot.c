@@ -162,18 +162,20 @@ static void exhaust(void)
         clear(obj[i]);
     }
     drain();
-    /* Mappings until the table is full: one page, mapped again and again
-     * into a task of its own. */
+    /* Page tables until the pages lent to a task of its own run out (0021):
+     * one page, mapped again and again, a last-level table (2 MiB) apart so
+     * that every map needs a new table. */
     uint32_t mark = ld_mark();
     must(j_task_create(64, task[0]), "task_create");
+    ld_tables(task[0]);
     uint64_t page = page_alloc();
     n = 0;
-    while (n < NOBJ && (e = j_map(page, task[0], WORK_VA_PAGE + n, 0)) == J_OK) {
+    while (n < NOBJ && (e = j_map(page, task[0], WORK_VA_PAGE + n * J_MAP_SPAN, 0)) == J_OK) {
         n++;
     }
-    check(e == J_E_NOMEM, "filling the mapping table didn't end in E_NOMEM");
+    check(e == J_E_NOMEM, "filling the lent pages with tables didn't end in E_NOMEM");
     for (uint64_t i = 0; i < n; i += 2) {
-        must(j_unmap(task[0], WORK_VA_PAGE + i), "unmap"); /* half by unmapping */
+        must(j_unmap(task[0], WORK_VA_PAGE + i * J_MAP_SPAN), "unmap"); /* half by unmapping */
     }
     must(j_task_destroy(task[0]), "task_destroy"); /* the rest with the task */
     clear(task[0]);
@@ -185,7 +187,8 @@ static int same(const struct j_counters *a, const struct j_counters *b)
 {
     return a->objects == b->objects && a->threads == b->threads && a->spaces == b->spaces &&
            a->leaves == b->leaves && a->mappings == b->mappings && a->pending == b->pending &&
-           a->table_pool == b->table_pool && a->frames_free == b->frames_free;
+           a->table_pool == b->table_pool && a->frames_free == b->frames_free &&
+           a->table_pages == b->table_pages;
 }
 
 static void show(const char *what, const struct j_counters *c)
@@ -198,6 +201,7 @@ static void show(const char *what, const struct j_counters *c)
     put(", mappings ", c->mappings);
     put(", pending ", c->pending);
     put(", page-table frames free ", c->table_pool);
+    put(", lent table pages used ", c->table_pages);
     put(", frames free ", c->frames_free);
     put(", run-queue walks so far ", c->rq_walks); /* (grows: not compared) */
     j_puts("\n");

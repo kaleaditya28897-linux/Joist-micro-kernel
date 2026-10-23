@@ -56,6 +56,8 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_SPLIT] = "split",
                                         [JX_MAP] = "map",
                                         [JX_UNMAP] = "unmap",
+                                        [JX_PROTECT] = "protect",
+                                        [JX_DONATE] = "donate",
                                         [JX_CONTINUE] = "continue",
                                         [JX_GIVE] = "give",
                                         [JX_TICK] = "tick"};
@@ -72,7 +74,8 @@ static const uint8_t weight[JX_OPS] = {
     [JX_RECV_SLOTS] = 3,   [JX_SC_CREATE] = 3,     [JX_SC_BIND] = 4,     [JX_SC_UNBIND] = 2,
     [JX_SET_MCP] = 1,      [JX_REGS] = 2,          [JX_ABORT] = 2,       [JX_SUSPEND] = 1,
     [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,       [JX_SPLIT] = 2,
-    [JX_MAP] = 4,          [JX_UNMAP] = 2,         [JX_CONTINUE] = 4,       [JX_GIVE] = 4,
+    [JX_MAP] = 5,          [JX_UNMAP] = 2,         [JX_PROTECT] = 2,     [JX_DONATE] = 2,
+    [JX_CONTINUE] = 4,     [JX_GIVE] = 4,
     [JX_TICK] = 6};
 
 static uint64_t boot_budget;
@@ -228,18 +231,34 @@ static joist_badge pick_badge(struct jx_source *src)
     return (joist_badge)1u << ch(src, 16);
 }
 
-/* ---- the kernel hooks, recorded (Phase 3 step 4) ----
+/* ---- the kernel hooks, recorded (Phase 3 step 4, Phase 4 step 2) ----
  * The executor installs hooks that keep a shadow of what the kernel would
- * have built: which spaces have page tables and what is mapped in each.
- * After every step the shadow must equal the core's own record, so a
- * missing, extra or wrong hook call anywhere in the core is caught. */
+ * have built: which spaces have page tables, which tables each has, and what
+ * each page maps. After every step the shadow must equal the core's own
+ * record, so a missing, extra or wrong hook call anywhere in the core is
+ * caught. Pages lent for tables (0021) live in a simulated memory. */
+static uint64_t jx_mem[JX_MEM_PAGES][JOIST_PAGE_SIZE / 8u];
+
+static void *hk_page(void *ctx, uint64_t pfn)
+{
+    (void)ctx;
+    return pfn >= JX_MEM_BASE && pfn < JX_MEM_BASE + JX_MEM_PAGES ? jx_mem[pfn - JX_MEM_BASE] : NULL;
+}
+
+#define HS_TABLES 256u
+#define HS_PAGES 2048u
 static struct {
     uint8_t live[JOIST_MAX_CSPACES];
     struct {
         uint32_t space1; /* space plus one; 0 = free */
-        uint64_t va, pa, npages;
+        unsigned level;
+        uint64_t region; /* va >> (9 * (level + 1)) */
+    } t[HS_TABLES];
+    struct {
+        uint32_t space1;
+        uint64_t va, pa;
         unsigned perms;
-    } m[JOIST_MAX_MAPPINGS];
+    } p[HS_PAGES];
     int bad;
     char why[160];
 } hshadow;
@@ -250,6 +269,27 @@ static void hs_fail(const char *what, uint32_t space)
         (void)snprintf(hshadow.why, sizeof hshadow.why, "hooks: %s (space %u)", what, space);
     }
     hshadow.bad = 1;
+}
+
+static int hs_table(uint32_t space, unsigned level, uint64_t va)
+{
+    uint64_t r = va >> (9u * (level + 1u));
+    for (uint32_t i = 0; i < HS_TABLES; i++) {
+        if (hshadow.t[i].space1 == space + 1u && hshadow.t[i].level == level && hshadow.t[i].region == r) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static int hs_page(uint32_t space, uint64_t va)
+{
+    for (uint32_t i = 0; i < HS_PAGES; i++) {
+        if (hshadow.p[i].space1 == space + 1u && hshadow.p[i].va == va) {
+            return (int)i;
+        }
+    }
+    return -1;
 }
 
 static void hk_space_new(void *ctx, uint32_t space)
@@ -269,95 +309,206 @@ static void hk_space_gone(void *ctx, uint32_t space)
         hs_fail("space_gone for a space without tables", space);
         return;
     }
-    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-        if (hshadow.m[i].space1 == space + 1u) {
-            hs_fail("space_gone while still mapping something", space);
-        }
+    /* Its tables and pages go with it, all at once. */
+    for (uint32_t i = 0; i < HS_TABLES; i++) {
+        hshadow.t[i].space1 = hshadow.t[i].space1 == space + 1u ? 0 : hshadow.t[i].space1;
+    }
+    for (uint32_t i = 0; i < HS_PAGES; i++) {
+        hshadow.p[i].space1 = hshadow.p[i].space1 == space + 1u ? 0 : hshadow.p[i].space1;
     }
     hshadow.live[space] = 0;
 }
 
-static void hk_map(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t npages,
-                   unsigned perms)
+static void hk_table_new(void *ctx, uint32_t space, uint64_t va, unsigned level, uint64_t pfn)
 {
     (void)ctx;
-    if (space >= JOIST_MAX_CSPACES || !hshadow.live[space]) {
-        hs_fail("map into a space without tables", space);
+    if (space >= JOIST_MAX_CSPACES || !hshadow.live[space] || level >= JOIST_PT_LEVELS ||
+        hk_page(NULL, pfn) == NULL) {
+        hs_fail("table_new outside a live space or the lent pages", space);
         return;
     }
-    uint32_t freeslot = JOIST_MAX_MAPPINGS;
-    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-        if (hshadow.m[i].space1 == space + 1u && va < hshadow.m[i].va + hshadow.m[i].npages &&
-            hshadow.m[i].va < va + npages) {
-            hs_fail("map over a live mapping", space);
+    if (hs_table(space, level, va) >= 0 || (level + 1u < JOIST_PT_LEVELS && hs_table(space, level + 1u, va) < 0)) {
+        hs_fail("table_new where one is, or under none", space);
+        return;
+    }
+    for (uint32_t i = 0; i < HS_TABLES; i++) {
+        if (hshadow.t[i].space1 == 0) {
+            hshadow.t[i].space1 = space + 1u;
+            hshadow.t[i].level = level;
+            hshadow.t[i].region = va >> (9u * (level + 1u));
             return;
         }
-        if (hshadow.m[i].space1 == 0 && freeslot == JOIST_MAX_MAPPINGS) {
-            freeslot = i;
-        }
     }
-    if (freeslot == JOIST_MAX_MAPPINGS) {
-        hs_fail("more mappings than the table holds", space);
+    hs_fail("more tables than the shadow holds", space);
+}
+
+static void hk_table_gone(void *ctx, uint32_t space, uint64_t va, unsigned level)
+{
+    (void)ctx;
+    int t = space < JOIST_MAX_CSPACES ? hs_table(space, level, va) : -1;
+    if (t < 0) {
+        hs_fail("table_gone for no table", space);
         return;
     }
-    hshadow.m[freeslot].space1 = space + 1u;
-    hshadow.m[freeslot].va = va;
-    hshadow.m[freeslot].pa = pa;
-    hshadow.m[freeslot].npages = npages;
-    hshadow.m[freeslot].perms = perms;
+    uint64_t r = hshadow.t[t].region;
+    for (uint32_t i = 0; i < HS_TABLES; i++) {
+        if (hshadow.t[i].space1 == space + 1u && hshadow.t[i].level + 1u == level &&
+            hshadow.t[i].region >> 9 == r) {
+            hs_fail("table_gone over a table", space);
+        }
+    }
+    for (uint32_t i = 0; level == 0 && i < HS_PAGES; i++) {
+        if (hshadow.p[i].space1 == space + 1u && hshadow.p[i].va >> 9 == r) {
+            hs_fail("table_gone over a mapped page", space);
+        }
+    }
+    hshadow.t[t].space1 = 0;
+}
+
+static void hk_map(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t npages,
+                   unsigned perms, int replace)
+{
+    (void)ctx;
+    if (space >= JOIST_MAX_CSPACES || !hshadow.live[space] || npages == 0 ||
+        hs_table(space, 0, va) < 0 || (va + npages - 1u) >> 9 != va >> 9) {
+        hs_fail("map without a table, or across tables", space);
+        return;
+    }
+    for (uint64_t n = 0; n < npages; n++) {
+        int at = hs_page(space, va + n);
+        if ((at >= 0) != (replace != 0)) {
+            hs_fail(replace ? "replace of a page not mapped" : "map over a mapped page", space);
+            return;
+        }
+        for (uint32_t i = 0; at < 0 && i < HS_PAGES; i++) {
+            if (hshadow.p[i].space1 == 0) {
+                at = (int)i;
+            }
+        }
+        if (at < 0) {
+            hs_fail("more pages than the shadow holds", space);
+            return;
+        }
+        hshadow.p[at].space1 = space + 1u;
+        hshadow.p[at].va = va + n;
+        hshadow.p[at].pa = pa + n;
+        hshadow.p[at].perms = perms;
+    }
 }
 
 static void hk_unmap(void *ctx, uint32_t space, uint64_t va, uint64_t npages)
 {
     (void)ctx;
-    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-        if (hshadow.m[i].space1 == space + 1u && hshadow.m[i].va == va && hshadow.m[i].npages == npages) {
-            hshadow.m[i].space1 = 0;
+    for (uint64_t n = 0; n < npages; n++) {
+        int at = hs_page(space, va + n);
+        if (at < 0) {
+            hs_fail("unmap of a page not mapped", space);
             return;
         }
+        hshadow.p[at].space1 = 0;
     }
-    hs_fail("unmap of something not mapped", space);
 }
 
-/* The shadow and the core agree: the same spaces have tables, and the same
- * mappings (space, place, frame, size, permissions) exist. 1 if so. */
+static void hk_protect(void *ctx, uint32_t space, uint64_t va, uint64_t npages, unsigned perms)
+{
+    (void)ctx;
+    for (uint64_t n = 0; n < npages; n++) {
+        int at = hs_page(space, va + n);
+        if (at < 0) {
+            hs_fail("protect of a page not mapped", space);
+            return;
+        }
+        hshadow.p[at].perms = perms;
+    }
+}
+
+/* The shadow and the core agree: the same spaces have tables, the same
+ * tables exist, and every page maps the same physical page with the same
+ * permissions. 1 if so. */
 static int hooks_agree(const struct joist_kernel *k, char *why, unsigned whylen)
 {
     if (hshadow.bad) {
         (void)snprintf(why, whylen, "%s", hshadow.why);
         return 0;
     }
+    uint32_t tables = 0;
+    uint32_t pages = 0;
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
         if (hshadow.live[s] != k->cs[s].live) {
             (void)snprintf(why, whylen, "hooks: space %u live %u, but tables %u", s, k->cs[s].live,
                            hshadow.live[s]);
             return 0;
         }
-    }
-    uint32_t n = 0;
-    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-        const struct joist_mapping *m = &k->map[i];
-        n += (uint32_t)(hshadow.m[i].space1 != 0);
-        if (m->space == 0) {
-            continue;
+        if (!k->cs[s].live || k->cs[s].dying) {
+            continue; /* a dying space's tables go with space_gone */
         }
-        int found = 0;
-        for (uint32_t j = 0; j < JOIST_MAX_MAPPINGS && !found; j++) {
-            found = hshadow.m[j].space1 == m->space && hshadow.m[j].va == m->va &&
-                    hshadow.m[j].npages == m->npages && hshadow.m[j].perms == m->perms &&
-                    m->frame != 0 && hshadow.m[j].pa == k->obj[m->frame - 1u].base;
-        }
-        if (!found) {
-            (void)snprintf(why, whylen, "hooks: mapping %u was never carried out", i);
-            return 0;
+        for (uint64_t t2 = 0; t2 < JOIST_PT_TOP; t2++) {
+            uint64_t e2 = k->cs[s].pt_top[t2];
+            if (e2 == 0) {
+                continue;
+            }
+            tables++;
+            if (hs_table(s, 2, t2 << 27) < 0) {
+                (void)snprintf(why, whylen, "hooks: space %u table 2/%llu never made", s, (unsigned long long)t2);
+                return 0;
+            }
+            const uint64_t *n2 = hk_page(NULL, JOIST_PT_SHADOW(e2));
+            for (uint64_t t1 = 0; n2 != NULL && t1 < JOIST_PT_ENTRIES; t1++) {
+                if (n2[t1] == 0) {
+                    continue;
+                }
+                tables++;
+                uint64_t va1 = (t2 << 27) | (t1 << 18);
+                if (hs_table(s, 1, va1) < 0) {
+                    (void)snprintf(why, whylen, "hooks: space %u table 1 at %#llx never made", s,
+                                   (unsigned long long)va1);
+                    return 0;
+                }
+                const uint64_t *n1 = hk_page(NULL, JOIST_PT_SHADOW(n2[t1]));
+                for (uint64_t t0 = 0; n1 != NULL && t0 < JOIST_PT_ENTRIES; t0++) {
+                    if (n1[t0] == 0) {
+                        continue;
+                    }
+                    tables++;
+                    uint64_t va0 = va1 | (t0 << 9);
+                    if (hs_table(s, 0, va0) < 0) {
+                        (void)snprintf(why, whylen, "hooks: space %u table 0 at %#llx never made", s,
+                                       (unsigned long long)va0);
+                        return 0;
+                    }
+                    const uint64_t *lf = hk_page(NULL, JOIST_PT_SHADOW(n1[t0]));
+                    for (uint64_t i = 0; lf != NULL && i < JOIST_PT_ENTRIES; i++) {
+                        uint64_t pe = lf[i];
+                        if (pe == 0) {
+                            continue;
+                        }
+                        pages++;
+                        int at = hs_page(s, va0 | i);
+                        const struct joist_object *f = &k->obj[JOIST_PTE_FRAME(pe)];
+                        if (at < 0 || hshadow.p[at].pa != f->base + JOIST_PTE_OFF(pe) ||
+                            hshadow.p[at].perms != JOIST_PTE_PERMS(pe)) {
+                            (void)snprintf(why, whylen, "hooks: space %u page %#llx not carried out as recorded",
+                                           s, (unsigned long long)(va0 | i));
+                            return 0;
+                        }
+                    }
+                }
+            }
         }
     }
-    uint32_t live_maps = 0;
-    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-        live_maps += (uint32_t)(k->map[i].space != 0);
+    uint32_t hs_tables = 0;
+    uint32_t hs_pages = 0;
+    for (uint32_t i = 0; i < HS_TABLES; i++) {
+        uint32_t s1 = hshadow.t[i].space1;
+        hs_tables += (uint32_t)(s1 != 0 && !k->cs[s1 - 1u].dying);
     }
-    if (n != live_maps) {
-        (void)snprintf(why, whylen, "hooks: %u mappings carried out, %u in the core", n, live_maps);
+    for (uint32_t i = 0; i < HS_PAGES; i++) {
+        uint32_t s1 = hshadow.p[i].space1;
+        hs_pages += (uint32_t)(s1 != 0 && !k->cs[s1 - 1u].dying);
+    }
+    if (hs_tables != tables || hs_pages != pages) {
+        (void)snprintf(why, whylen, "hooks: %u tables and %u pages carried out, %u and %u in the core",
+                       hs_tables, hs_pages, tables, pages);
         return 0;
     }
     return 1;
@@ -374,10 +525,15 @@ void jx_begin(struct joist_kernel *k, struct jx_source *src)
     }
     joist_init(k);
     memset(&hshadow, 0, sizeof hshadow);
+    memset(jx_mem, 0xa5, sizeof jx_mem); /* lent pages must be zeroed before use */
     k->hooks = (struct joist_hooks){.space_new = hk_space_new,
                                     .space_gone = hk_space_gone,
+                                    .table_new = hk_table_new,
+                                    .table_gone = hk_table_gone,
                                     .map = hk_map,
-                                    .unmap = hk_unmap};
+                                    .unmap = hk_unmap,
+                                    .protect = hk_protect,
+                                    .page = hk_page};
     boot_budget = 8u + ch(src, 120);
     (void)joist_boot(k, (uint32_t)boot_budget, &root);
     /* A starting world, so every sequence can reach IPC at once instead of
@@ -404,9 +560,18 @@ void jx_begin(struct joist_kernel *k, struct jx_source *src)
      * usually reaches a thread that receives there. (The root has no task
      * capability for joist_task_set_fault: set directly, as setup.) */
     k->cs[root].fault_slot = 1;
-    /* Memory, as the kernel hands it to the root at boot (0013). */
+    /* Memory, as the kernel hands it to the root at boot (0013): two frames
+     * to map, one in the simulated memory to lend for page tables (0021),
+     * and the root's capability to itself, to map into its own space. */
     (void)joist_boot_frame(k, root, 7, 0x100, 32);
     (void)joist_boot_frame(k, root, 8, 0x1000, 8);
+    (void)joist_boot_frame(k, root, 9, JX_MEM_BASE, JX_MEM_PAGES);
+    (void)joist_boot_self(k, root, 10);
+    /* Four frames of it, one lent to the root's own space at once. */
+    (void)joist_frame_split(k, root, 9, JX_MEM_PAGES / 4u, 11);
+    (void)joist_frame_split(k, root, 11, JX_MEM_PAGES / 4u, 12);
+    (void)joist_frame_split(k, root, 12, JX_MEM_PAGES / 4u, 13);
+    (void)joist_space_donate(k, root, 10, 9);
 }
 
 /* What a step did, for the checks that need more than the final state. */
@@ -645,33 +810,57 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     }
     case JX_SPLIT:
     case JX_MAP:
-    case JX_UNMAP: {
-        /* From the root half the time: it holds the boot frames and the
-         * task capabilities to map into. */
+    case JX_UNMAP:
+    case JX_PROTECT:
+    case JX_DONATE: {
+        /* From the root half the time: it holds the boot frames, the task
+         * capabilities to map into, and its own (slot 10). */
         uint32_t ms = ch(src, 2) == 0 && k->root != 0 ? k->root - 1u : cs;
         if (op == JX_SPLIT) {
             uint32_t f = pick_slot(k, src, ms, JOIST_OBJ_FRAME);
             return joist_frame_split(k, ms, f, ch(src, 34), pick_dst(k, src, ms));
         }
         uint32_t ts = pick_slot(k, src, ms, JOIST_OBJ_TASK);
+        if (op == JX_DONATE) {
+            return joist_space_donate(k, ms, ts, pick_slot(k, src, ms, JOIST_OBJ_FRAME));
+        }
+        /* A few virtual places, in two last-level tables and two top-level
+         * entries, so runs collide; now and then the top of the user half. */
+        uint64_t va = ch(src, 16) == 0 ? JOIST_USER_PAGES - 1u - ch(src, 40)
+                                       : (ch(src, 4) == 0 ? (uint64_t)1 << 27 : 0x400u) +
+                                             (ch(src, 3) == 0 ? 512u : 0u) + ch(src, 24);
+        uint64_t n = ch(src, 8) == 0 ? ch(src, 600) : 1u + ch(src, 6);
+        unsigned perms = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 3);
         if (op == JX_UNMAP) {
-            /* Usually where a mapping of that task starts. */
-            uint64_t va = 0x400u + 8u * ch(src, 8);
+            return joist_unmap_range(k, ms, ts, va, n);
+        }
+        if (op == JX_PROTECT) {
+            return joist_protect(k, ms, ts, va, n, perms);
+        }
+        uint32_t f = pick_slot(k, src, ms, JOIST_OBJ_FRAME);
+        uint64_t off = ch(src, 4) == 0 ? ch(src, 40) : ch(src, 4);
+        if (ch(src, 4) == 0) {
+            /* A replace, usually of what one page there holds. */
+            uint32_t of = pick_slot(k, src, ms, JOIST_OBJ_FRAME);
+            uint64_t ooff = ch(src, 4);
             const struct joist_cap *tc = ms < JOIST_MAX_CSPACES ? joist__slot_c(k, ms, ts) : NULL;
             if (tc != NULL && tc->obj != 0 && tc->type == JOIST_OBJ_TASK && ch(src, 4) != 0) {
-                for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-                    if (k->map[i].space != 0 && k->map[i].space == k->obj[tc->obj - 1u].target) {
-                        va = k->map[i].va;
-                        break;
-                    }
+                uint32_t sp = k->obj[tc->obj - 1u].target;
+                uint64_t *pe = NULL;
+                if (sp != 0 && sp <= JOIST_MAX_CSPACES && k->cs[sp - 1u].pt_top[va >> 27] != 0) {
+                    const uint64_t *n2 = hk_page(NULL, JOIST_PT_SHADOW(k->cs[sp - 1u].pt_top[va >> 27]));
+                    uint64_t e1 = n2 != NULL ? n2[(va >> 18) & 511u] : 0;
+                    const uint64_t *n1 = e1 != 0 ? hk_page(NULL, JOIST_PT_SHADOW(e1)) : NULL;
+                    uint64_t e0 = n1 != NULL ? n1[(va >> 9) & 511u] : 0;
+                    pe = e0 != 0 ? hk_page(NULL, JOIST_PT_SHADOW(e0)) : NULL;
+                }
+                if (pe != NULL && pe[va & 511u] != 0) {
+                    ooff = JOIST_PTE_OFF(pe[va & 511u]);
                 }
             }
-            return joist_unmap(k, ms, ts, va);
+            return joist_map_replace(k, ms, f, off, n, ts, va, perms, of, ooff);
         }
-        /* A few virtual places, so mappings collide; now and then the top. */
-        uint64_t va = ch(src, 16) == 0 ? JOIST_USER_PAGES - ch(src, 40) : 0x400u + 8u * ch(src, 8);
-        unsigned perms = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 3);
-        return joist_map(k, ms, pick_slot(k, src, ms, JOIST_OBJ_FRAME), ts, va, perms);
+        return joist_map(k, ms, f, off, n, ts, va, perms);
     }
     case JX_GIVE: {
         /* Into a task this space holds, a free slot there 3 times in 4. */
@@ -784,9 +973,16 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
         st->faults_taken += (unsigned long)(e == JOIST_BLOCKED);
         st->faults_fatal += (unsigned long)(e == JOIST_E_PEER);
     }
-    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-        if (k->map[i].space != 0) {
+    for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+        if (k->obj[i].type == JOIST_OBJ_FRAME && k->obj[i].mapcount != 0) {
             st->mapped++;
+            break;
+        }
+    }
+    st->frames_dying += (unsigned long)(k->frames_dying != 0);
+    for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
+        if (k->cs[s].pt_used != 0) {
+            st->tables++;
             break;
         }
     }
@@ -943,8 +1139,17 @@ int jx_teardown(struct joist_kernel *k, struct jx_stats *st, char *why, unsigned
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
         spaces += k->cs[s].live != 0;
     }
-    if (k->objects_live != 0 || accts != 0 || dns != 0 || spaces != 1 ||
-        k->cs[root].quota != k->budget || k->budget < boot_budget) {
+    /* Frames lent to the root's own space stay until it dies, which it never
+     * does (0021: no call gives lent pages back from a live space): dying,
+     * still charged to the root. They are all that may be left. */
+    uint32_t lent_root = 0;
+    for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+        const struct joist_object *o = &k->obj[i];
+        lent_root += (uint32_t)(o->type == JOIST_OBJ_FRAME && o->dying && o->lent == root + 1u &&
+                                o->donor == root);
+    }
+    if (k->objects_live != lent_root || accts != 0 || dns != 0 || spaces != 1 ||
+        k->cs[root].quota + lent_root != k->budget || k->budget < boot_budget) {
         (void)snprintf(why, whylen,
                        "I1/I3: teardown left %u objects, %u accounts, %u registrations, %u "
                        "spaces; root quota %u, budget %llu (all of it must be back in the root; "

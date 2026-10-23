@@ -135,9 +135,6 @@ void joist__object_freed(struct joist_kernel *k, uint32_t obj)
     if (o->type == JOIST_OBJ_SCHED) {
         joist__sc_freed(k, obj);
     }
-    if (o->type == JOIST_OBJ_FRAME) {
-        joist__frame_freed(k, obj);
-    }
     if (o->type == JOIST_OBJ_NOTIFICATION) {
         /* Drop every reference the kernel keeps to this notification. */
         for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {

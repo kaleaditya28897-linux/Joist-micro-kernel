@@ -77,7 +77,15 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
 {
     struct joist_object *o = &k->obj[obj_index];
     o->refs--;
-    if (o->refs == 0) {
+    if (o->refs == 0 && !joist__frame_last_ref(k, obj_index)) {
+        joist__obj_free(k, obj_index);
+    }
+}
+
+void joist__obj_free(struct joist_kernel *k, uint32_t obj_index)
+{
+    struct joist_object *o = &k->obj[obj_index];
+    {
         joist__object_freed(k, obj_index);    /* waiters wake; kernel references dropped */
         joist__lifecycle_freed(k, obj_index); /* an unreachable task or thread goes too */
         struct joist_cspace_state *donor = &k->cs[o->donor];
@@ -108,6 +116,11 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
         o->refill_at = 0;
         o->base = 0;
         o->npages = 0;
+        o->mapcount = 0;
+        o->lent = 0;
+        o->lent_next = 0;
+        o->water = 0;
+        o->dying = 0;
         k->objects_live--;
     }
 }
@@ -535,7 +548,8 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
             VIOLATION("I1: object %u refs %u but %u capabilities name it", i, o->refs,
                       refs_seen[i]);
         }
-        if (o->refs == 0) {
+        if (o->refs == 0 && !(o->type == JOIST_OBJ_FRAME && o->dying)) {
+            /* (A dying frame is kept by its mappings or its lending: I12.) */
             VIOLATION("I1: live object %u has no capabilities (leaked)", i);
         }
         if (o->donor >= JOIST_MAX_CSPACES) {
@@ -546,12 +560,6 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     }
     if (live != k->objects_live) {
         VIOLATION("I3: objects_live %u but %u objects are live", k->objects_live, live);
-    }
-    for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-        uint32_t ms = k->map[i].space;
-        if (ms != 0 && ms <= JOIST_MAX_CSPACES) {
-            charged_seen[ms - 1u]++; /* a mapping is paid for by its space (I3) */
-        }
     }
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         if (k->cs[c].charged != charged_seen[c]) {

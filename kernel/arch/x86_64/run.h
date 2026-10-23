@@ -16,11 +16,17 @@
  * 2 MiB aligned), RDX the first of RCX boot-module frames (modules 1
  * onwards, in limine.conf's order; module 0 is the root task itself), R8 its
  * first free slot, R9 the number of CPUs in use. Its own image and stack are frames in leaf 1 (slots 128-255): its
- * to keep. */
+ * to keep. By convention, not registers: its own task capability is in slot
+ * RUN_ROOT_SELF (the only way it maps into itself, 0020), and slot
+ * RUN_ROOT_TABLES holds the frame of RUN_ROOT_TABLE_PAGES pages already lent
+ * to its space for its page tables (0021). */
 #define RUN_ROOT_SC      0u /* its own scheduling context */
 #define RUN_POOL_FIRST   1u
 #define RUN_POOL_FRAMES  4u
 #define RUN_POOL_PAGES   512u
+#define RUN_ROOT_SELF    5u /* its own task capability (joist_boot_self) */
+#define RUN_ROOT_TABLES  6u /* a frame lent to its own space for its page tables (0021) */
+#define RUN_ROOT_TABLE_PAGES 256u
 #define RUN_MODULE_FIRST 8u
 #define RUN_FIRST_FREE   16u
 #define RUN_IMAGE_FIRST  128u

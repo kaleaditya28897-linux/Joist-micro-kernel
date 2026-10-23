@@ -28,7 +28,7 @@ static struct worker worker_new(uint64_t role, uint64_t arg)
     uint64_t entry = ld_load(0, k.task);
     uint64_t f = page_alloc();
     uint64_t va = ROOT_WORK_VA + nworkers++ * J_PAGE;
-    must(j_map(f, J_SLOT_SELF, va / J_PAGE, J_MAP_W), "map (work page, here)");
+    must(j_map(f, J_ROOT_SELF, va / J_PAGE, J_MAP_W), "map (work page, here)");
     k.w = (struct work *)(uintptr_t)va;
     k.w->role = role;
     k.w->arg = arg;

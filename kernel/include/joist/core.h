@@ -67,10 +67,6 @@
 #define JOIST_MAX_BADGE_ACCTS 64u
 #endif
 /* Dead-name notification registrations (I5). */
-/* Mappings of frames into address spaces (Phase 3 step 3; I12). */
-#ifndef JOIST_MAX_MAPPINGS
-#define JOIST_MAX_MAPPINGS 64u
-#endif
 /* Pages in the user half of an address space (x86_64: 2^47 bytes of 4 KiB). */
 #define JOIST_USER_PAGES (1ull << 35)
 #define JOIST_PAGE_SIZE 4096u /* bytes in a page: addresses that the core sees in bytes */
@@ -189,6 +185,13 @@ struct joist_object {
     /* Frames: the first physical page and the number of pages. */
     uint64_t base;
     uint64_t npages;
+    uint64_t mapcount;  /* present page entries naming it (0020) */
+    uint32_t lent;      /* the space it is lent to, plus one; 0: not lent (0021) */
+    uint32_t lent_next; /* the next frame lent to that space, object plus one */
+    uint64_t water;     /* lent: its pages taken for tables so far */
+    /* Its last capability is gone, but it is still mapped or lent: no new
+     * mapping, and freed when neither (0020). refs is 0 meanwhile. */
+    uint8_t dying;
 };
 
 /* On a frame capability the RECV bit means "may be mapped writable"; SEND is
@@ -199,15 +202,36 @@ struct joist_object {
 #define JOIST_MAP_W 1u
 #define JOIST_MAP_X 2u
 
-/* A frame mapped into an address space: pages [va, va + npages) of the
- * space show the frame's pages, all of it (split a frame to map part). */
-struct joist_mapping {
-    uint32_t space; /* the space, plus one; 0 = free entry */
-    uint32_t frame; /* the frame object, plus one */
-    uint64_t va;    /* first virtual page */
-    uint64_t npages;
-    uint8_t perms; /* JOIST_MAP_W, JOIST_MAP_X */
-};
+/* ---- page tables (0020, 0021; Phase 4 step 2) ----
+ * The record of what is mapped is a tree per space that mirrors the
+ * hardware's: a top level of JOIST_PT_TOP entries in the space's state, then
+ * JOIST_PT_LEVELS levels of nodes, each one page of a frame lent to the space
+ * (0021) and paired with the hardware table it mirrors (two pages per table).
+ * Level 2 is under the top, level 0 the last. An interior entry names both
+ * pages of its child: JOIST_PT_NODE(shadow page, hardware page), 0 = none. A
+ * last-level entry is 0020's record: the frame, the page in it, the
+ * permissions and the rights ceiling. */
+#define JOIST_PT_ENTRIES 512u /* entries per node, every level */
+#define JOIST_PT_TOP 256u     /* top-level entries covering the user half */
+#define JOIST_PT_LEVELS 3u
+#define JOIST_PT_NODE(shadow, hw) (((uint64_t)(shadow) + 1u) | (((uint64_t)(hw) + 1u) << 32))
+#define JOIST_PT_SHADOW(e) (((e) & 0xffffffffu) - 1u)
+#define JOIST_PT_HW(e) (((e) >> 32) - 1u)
+/* Page numbers a lent frame may hold: they must fit an interior entry. */
+#define JOIST_PT_PFN_LIMIT 0xffffffffull
+/* A last-level entry. */
+#define JOIST_PTE_W 0x1u      /* = JOIST_MAP_W */
+#define JOIST_PTE_X 0x2u      /* = JOIST_MAP_X */
+#define JOIST_PTE_CEIL_W 0x4u /* the frame capability used allowed writing */
+#define JOIST_PTE_P 0x8u      /* present */
+#define JOIST_PTE(frame, off, perms, ceil_w)                                                       \
+    ((uint64_t)JOIST_PTE_P | (uint64_t)(perms) | ((ceil_w) ? (uint64_t)JOIST_PTE_CEIL_W : 0u) |    \
+     ((uint64_t)(frame) << 16) | ((uint64_t)(off) << 32))
+#define JOIST_PTE_FRAME(e) ((uint32_t)(((e) >> 16) & 0xffffu))
+#define JOIST_PTE_OFF(e) ((e) >> 32)
+#define JOIST_PTE_PERMS(e) ((unsigned)((e) & (JOIST_PTE_W | JOIST_PTE_X)))
+/* Pages a frame may have: the page offset must fit a last-level entry. */
+#define JOIST_FRAME_PAGES_MAX 0xffffffffull
 
 typedef enum {
     JOIST_Q_NONE = 0,
@@ -290,9 +314,22 @@ struct joist_hooks {
     void (*space_gone)(void *ctx, uint32_t space);
     /* npages pages from physical page `pa` appear at virtual page va of the
      * space, or disappear from it. */
+    /* Page tables (0020): a table at `level` (2 under the top, 0 the last)
+     * now covers va, in physical page pfn, zeroed; or it is gone. */
+    void (*table_new)(void *ctx, uint32_t space, uint64_t va, unsigned level, uint64_t pfn);
+    void (*table_gone)(void *ctx, uint32_t space, uint64_t va, unsigned level);
+    /* npages pages from physical page `pa` appear at virtual page va of the
+     * space (replacing what was there if `replace`: the TLBs then need
+     * flushing), or disappear from it, or change permissions. Called for runs
+     * that are wholly present. */
     void (*map)(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t npages,
-                unsigned perms);
+                unsigned perms, int replace);
     void (*unmap)(void *ctx, uint32_t space, uint64_t va, uint64_t npages);
+    void (*protect)(void *ctx, uint32_t space, uint64_t va, uint64_t npages, unsigned perms);
+    /* Where the core can reach physical page pfn, to keep its page-table
+     * nodes in pages lent to a space (0021): the kernel's direct map, or a
+     * simulated memory on the host. NULL: no page can be lent. */
+    void *(*page)(void *ctx, uint64_t pfn);
     /* Thread t, on CPU `cpu`, is about to be stopped, destroyed, or have
      * its registers read or written from elsewhere: get it off that CPU
      * now, its registers in its record (step 9). Not called for a thread on
@@ -306,11 +343,12 @@ struct joist_hooks {
     int (*copy_msg)(void *ctx, uint32_t from_space, uint64_t from_va, uint32_t to_space,
                     uint64_t to_va, uint32_t words);
 };
-/* Pages one mapping may span: one page table (x86_64: 512 pages, 2 MiB). A
- * mapping lies within one such aligned region, so it needs at most one table
- * at each level and the kernel's table pool is sized from JOIST_MAX_MAPPINGS
- * and JOIST_MAX_CSPACES alone. Larger regions are several frames. */
+/* Pages one call may cover: one page table (x86_64: 512 pages, 2 MiB). A
+ * run lies within one such aligned region, so it needs at most one new table
+ * at each level and one TLB shootdown. Larger regions take several calls. */
 #define JOIST_MAP_SPAN 512u
+/* The frame sweep's cursor: last-level tables per space. */
+#define JOIST_PT_SWEEP_SPACE (JOIST_USER_PAGES / JOIST_PT_ENTRIES)
 
 /* Fault messages (0009): what a fault handler receives, in the message
  * registers: r[0] the kind, r[1] the address (page faults), r[2] the
@@ -435,6 +473,21 @@ struct joist_cspace_state {
      * `sweep` upwards, a few per step. */
     uint8_t dying;
     uint32_t sweep;
+    /* Its page tables (0020): the top level of the tree. */
+    uint64_t pt_top[JOIST_PT_TOP];
+    /* Memory lent for them (0021): the lent frames that still have pages
+     * never taken, object plus one, linked through lent_next (a frame leaves
+     * when full; all lent frames carry `lent`); a free list of pages given
+     * back by emptied tables, page plus one, linked through each page's
+     * first word; how many pages it can still take, and how many its tables
+     * use. */
+    uint32_t lent_first;
+    uint64_t pt_free;
+    uint64_t pt_avail;
+    uint64_t pt_used;
+    /* Dying, its slots swept: the next last-level table to sweep (its first
+     * virtual page / JOIST_PT_ENTRIES). */
+    uint64_t tsweep;
     /* Leaf 0: slots 0 .. JOIST_CNODE_LEAF - 1. */
     struct joist_cap slot[JOIST_CNODE_LEAF];
     /* The other leaves: leaf[i] is the pool index plus one of leaf i, 0 if
@@ -456,8 +509,12 @@ struct joist_kernel {
     struct joist_badge_acct acct[JOIST_MAX_BADGE_ACCTS];
     struct joist_deadname dn[JOIST_MAX_DEADNAMES];
     struct joist_leaf leaf[JOIST_MAX_LEAVES];
-    struct joist_mapping map[JOIST_MAX_MAPPINGS];
     uint32_t objects_live;
+    /* Frames dying while still mapped (0020), and the sweep that unmaps
+     * them: the next (space, last-level table) to look at, as
+     * space * JOIST_PT_SWEEP_SPACE + table. */
+    uint32_t frames_dying;
+    uint64_t fsweep;
     uint64_t now; /* model time: advanced only by joist_tick */
     uint64_t ready_seq; /* the last place given out among ready threads */
     /* While nonzero, joist__rq_sync only notes the threads to file (each
@@ -691,7 +748,9 @@ joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t do
  * its threads, its capabilities, and, through them, any task this makes
  * unreachable. Its unspent quota, and the charges for objects it paid for
  * that are still alive, go to its parent; its children are re-parented to
- * its parent (I3). The task object stays, dead, until its capabilities go. */
+ * its parent (I3). The task object stays, dead, until its capabilities go.
+ * JOIST_E_RIGHTS for the root's own (joist_boot_self): it is never
+ * destroyed (0013). */
 joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
 
 /* Parent authority (0004 amendment, 2026-10-05). A task may destroy any task
@@ -867,44 +926,78 @@ joist_thread joist_sched_handed(const struct joist_kernel *k, joist_thread from,
  * Bounded by JOIST_MAX_THREADS. */
 uint64_t joist_sched_next_event(const struct joist_kernel *k, joist_thread running);
 
-/* Set the mcp of the task named by task_slot (CONTROL) to at most cs's own
- * (JOIST_E_RIGHTS otherwise). */
-/* ---- frames and mappings (Phase 3 step 3; 0013, plan choice 5; I12) ----
+/* ---- frames and mappings (Phase 3 step 3, Phase 4 step 2; 0013, 0020,
+ * 0021; I12) ----
  * The kernel manages only page tables and frame capabilities (§5.5): it
  * creates frames for free memory at boot, held by the root task, which
- * splits them and maps them into the tasks it makes. Page tables cost the
- * task mapped into one quota unit per mapping. Phase 4's memory manager
- * builds on this; no fault is resolved by the kernel. */
+ * splits them, lends them to spaces for page tables and maps them. Every
+ * call over pages covers at most one JOIST_MAP_SPAN-aligned run and needs a
+ * capability with CONTROL to the task whose space it changes, the caller's
+ * own included. No fault is resolved by the kernel. */
 
 /* Boot: a frame of pages [base, base + npages) in the root's slot dst,
  * paid from the root's quota. JOIST_E_STATE if not the root or the range
- * overlaps an existing frame, JOIST_E_RANGE if empty or wrapping, then as
- * obj_create. */
+ * overlaps an existing frame, JOIST_E_RANGE if empty, wrapping or larger
+ * than JOIST_FRAME_PAGES_MAX, then as obj_create. */
 joist_err joist_boot_frame(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uint64_t base,
                            uint64_t npages);
+
+/* Boot: a task capability with CONTROL to the root's own space, in the
+ * root's slot dst, paid from its quota: how the root maps into itself.
+ * JOIST_E_STATE if not the root or it has one already, then as obj_create. */
+joist_err joist_boot_self(struct joist_kernel *k, joist_cspace cs, joist_slot dst);
 
 /* Split the frame in slot (CONTROL) at page `at`: it keeps [base, base +
  * at), and a new frame with the rest goes in dst with the same rights,
  * paid by cs. JOIST_E_RANGE (at not inside), JOIST_E_OCCUPIED (dst),
- * JOIST_E_STATE (mapped, or another capability names it), JOIST_E_NOMEM. */
+ * JOIST_E_STATE (mapped, lent, or another capability names it),
+ * JOIST_E_NOMEM. */
 joist_err joist_frame_split(struct joist_kernel *k, joist_cspace cs, joist_slot slot, uint64_t at,
                             joist_slot dst);
 
-/* Map the frame in frame_slot (CONTROL; JOIST_R_WRITE too for JOIST_MAP_W)
- * at virtual page va of the task in task_slot (CONTROL), or of the caller's
- * own space for JOIST_SLOT_SELF. JOIST_E_RIGHTS (W and X together, or W
- * without JOIST_R_WRITE), JOIST_E_RANGE (outside the user half, or not
- * within one aligned JOIST_MAP_SPAN), JOIST_E_OCCUPIED (overlaps a mapping
- * there), JOIST_E_NOMEM (the task's quota: one unit for its page tables;
- * then the mapping table). */
-joist_err joist_map(struct joist_kernel *k, joist_cspace cs, joist_slot frame_slot,
-                    joist_slot task_slot, uint64_t va, unsigned perms);
+/* Lend the frame in frame_slot (CONTROL) to the space of the task in
+ * task_slot (CONTROL) for its page tables (0021): from now on it can't be
+ * mapped or split, and when the space dies it is an ordinary frame again.
+ * JOIST_E_STATE (mapped, lent, dying; or pages the core can't reach: no
+ * page hook, its first or last page unreachable, or beyond
+ * JOIST_PT_PFN_LIMIT), after the capabilities' errors. O(1). */
+joist_err joist_space_donate(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                             joist_slot frame_slot);
 
-/* Remove the mapping starting at virtual page va of the task in task_slot
- * (CONTROL), or of the caller's own space for JOIST_SLOT_SELF, refunding its
- * unit. JOIST_E_EMPTY if there is none. */
-joist_err joist_unmap(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot, uint64_t va);
+/* Map pages [off, off + npages) of the frame in frame_slot (CONTROL;
+ * JOIST_R_WRITE too for JOIST_MAP_W) at virtual page va of the task in
+ * task_slot (CONTROL). JOIST_E_RIGHTS (W and X together, an unknown
+ * permission, or W without JOIST_R_WRITE), JOIST_E_RANGE (npages 0, beyond
+ * the frame, outside the user half, or not within one JOIST_MAP_SPAN),
+ * JOIST_E_STATE (the frame lent or dying), JOIST_E_OCCUPIED (a page already
+ * mapped), JOIST_E_NOMEM (too few lent pages for the tables it needs). */
+joist_err joist_map(struct joist_kernel *k, joist_cspace cs, joist_slot frame_slot, uint64_t off,
+                    uint64_t npages, joist_slot task_slot, uint64_t va, unsigned perms);
 
+/* As joist_map, but every page of the run must already be mapped, to pages
+ * [old_off, old_off + npages) of the frame in old_slot (CONTROL), and is
+ * replaced: JOIST_E_STATE if any page holds anything else, and nothing
+ * changes (0020's conditional replace). */
+joist_err joist_map_replace(struct joist_kernel *k, joist_cspace cs, joist_slot frame_slot,
+                            uint64_t off, uint64_t npages, joist_slot task_slot, uint64_t va,
+                            unsigned perms, joist_slot old_slot, uint64_t old_off);
+
+/* Unmap whatever is mapped in [va, va + npages) of the task in task_slot
+ * (CONTROL); holes are fine. Tables left empty go back to the space's lent
+ * pages. JOIST_E_RANGE (npages 0, outside the user half or one
+ * JOIST_MAP_SPAN). */
+joist_err joist_unmap_range(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                            uint64_t va, uint64_t npages);
+
+/* Set the permissions of the pages mapped in [va, va + npages) of the task
+ * in task_slot (CONTROL); holes are fine. JOIST_E_RIGHTS (W and X together,
+ * an unknown permission, or W on a page whose rights ceiling lacks it: then
+ * nothing changes), JOIST_E_RANGE as joist_unmap_range. */
+joist_err joist_protect(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot, uint64_t va,
+                        uint64_t npages, unsigned perms);
+
+/* Set the mcp of the task named by task_slot (CONTROL) to at most cs's own
+ * (JOIST_E_RIGHTS otherwise). */
 joist_err joist_task_set_mcp(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
                              uint8_t mcp);
 

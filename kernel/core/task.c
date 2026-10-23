@@ -67,7 +67,10 @@ static void space_finish(struct joist_kernel *k, uint32_t s)
             joist__leaf_free(k, s, l); /* empty: swept */
         }
     }
-    joist__space_unmap_all(k, s); /* its page tables go; the units to its quota */
+    if (k->hooks.space_gone != NULL) {
+        k->hooks.space_gone(k->hooks.ctx, s); /* its hardware tables, all at once */
+    }
+    joist__space_tables_gone(k, s); /* the frames lent for them are their owners' again */
     /* I3: hand everything this space still owns to its parent, and its
      * children too, so no quota is lost and the parent chain stays live. */
     uint32_t p = st->parent;
@@ -101,9 +104,6 @@ static void space_finish(struct joist_kernel *k, uint32_t s)
     st->dying = 0;
     st->sweep = 0;
     st->live = 0;
-    if (k->hooks.space_gone != NULL) {
-        k->hooks.space_gone(k->hooks.ctx, s); /* its mappings are gone already */
-    }
 }
 
 int joist__drain_pending(struct joist_kernel *k)
@@ -129,11 +129,17 @@ int joist__drain_pending(struct joist_kernel *k)
             }
             continue;
         }
+        /* Then its page tables (0020), a last-level table per step. */
+        if (joist__space_tables_sweep(k, s, &done)) {
+            return 1;
+        }
         /* Fully swept, and on top: nothing pushed since is left. */
         k->npending--;
         space_finish(k, s);
     }
-    return 0;
+    /* Frames that died while mapped (0020): unmapped everywhere, a table per
+     * step, after the spaces (whose own sweeps unmap their share). */
+    return joist__frames_sweep(k, &done);
 }
 
 joist_err joist_continue(struct joist_kernel *k, uint32_t budget)
@@ -149,6 +155,12 @@ joist_err joist_continue(struct joist_kernel *k, uint32_t budget)
 void joist__lifecycle_freed(struct joist_kernel *k, uint32_t obj)
 {
     struct joist_object *o = &k->obj[obj];
+    if (o->type == JOIST_OBJ_TASK && !o->dead && o->target == k->root) {
+        /* The root's own capability to itself (joist_boot_self): the root is
+         * never destroyed (0013); it just has none any more. */
+        k->cs[o->target - 1u].task_obj = 0;
+        return;
+    }
     if (o->type == JOIST_OBJ_TASK && !o->dead && o->target != 0) {
         /* Unreachable now: its destruction begins at once (dying, threads
          * gone, on the work list), so no window is left in which a doomed
@@ -223,6 +235,25 @@ static void install(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uin
                             .rights = (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT),
                             .badge = 0};
     joist__cap_added(k, d);
+}
+
+joist_err joist__task_cap_new(struct joist_kernel *k, joist_cspace cs, joist_slot dst,
+                              uint32_t space)
+{
+    uint32_t obj;
+    const struct joist_cap *d = joist__slot_c(k, cs, dst);
+    if (d == NULL) {
+        return JOIST_E_RANGE;
+    }
+    if (d->obj != 0) {
+        return JOIST_E_OCCUPIED;
+    }
+    if (k->cs[cs].quota == 0 || !free_object(k, &obj)) {
+        return JOIST_E_NOMEM;
+    }
+    install(k, cs, dst, obj, JOIST_OBJ_TASK, space + 1u);
+    k->cs[space].task_obj = obj + 1u;
+    return JOIST_OK;
 }
 
 joist_err joist_task_create(struct joist_kernel *k, joist_cspace cs, uint32_t donation,
@@ -303,6 +334,9 @@ joist_err joist_task_destroy(struct joist_kernel *k, joist_cspace cs, joist_slot
     }
     if (e != JOIST_OK) {
         return e;
+    }
+    if (k->obj[obj].target == k->root) {
+        return JOIST_E_RIGHTS; /* the root's own capability (joist_boot_self): never (0013) */
     }
     joist__space_destroy(k, k->obj[obj].target - 1u);
     (void)joist__drain_pending(k);

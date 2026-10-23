@@ -303,4 +303,148 @@ What earlier phases hand to this one:
 
 ## Progress
 
-Nothing yet.
+### Step 2: the design of the model's page tables (2026-10-21)
+
+How 0020 and 0021 go into `kernel/core/`. These are implementation
+choices inside the accepted decisions, so they are *(changeable)*.
+
+- **0020 and 0021 go in together.** Every root program maps memory
+  (`user/lib/loader.h`, `testroot.h`, `faultroot`, `faultinj`,
+  `growroot`), several into their own space. Building 0020 on the old boot
+  pool first would be replaced by donation at once, so the core, the
+  kernel's hooks and those programs change in one part. The kernel keeps
+  building and passing at the end of each part.
+- **The core keeps a shadow tree that mirrors the hardware's levels.** It
+  must know which tables a run needs, to fail with `E_NOMEM` before
+  changing anything, and which become empty.
+  - The top level (the user half's 256 entries) is in the core's state,
+    per space: a compile-time size, like the other capacities.
+  - Each level below is a node of one page in a donated frame, paired with
+    the hardware table it mirrors (two pages per table). An interior entry
+    names both pages of its child.
+  - A last-level entry is the 0020 record: the frame, the page offset in
+    it, the permissions and the rights ceiling.
+- **The core reaches donated pages through a hook** that turns a page
+  number into a pointer: the kernel's direct map, or a simulated physical
+  memory in the model, as `kernel/mem/vm.c`'s tests already use.
+  `vm.c` keeps writing x86 entries, but into tables the core gives it
+  (`table_new`, `table_gone` hooks); it no longer takes or frees pages for
+  the user half itself.
+- **Donated pages** (0021): a space keeps a list of the frames lent to it,
+  each with a high-water mark, and a free list of pages given back by
+  emptied tables, threaded through the free pages. Taking a page is O(1),
+  and so is `space_donate`, whatever the frame's size.
+- **Emptiness is found by scanning**: when `unmap_range` clears entries,
+  the leaf it touched and the levels above are checked (at most 3 × 512
+  entries); no per-table counts.
+- **Two kinds of sweep go on the destruction work list** with a cursor
+  over the shadow tree, one leaf table per step (0016's preemption
+  points): a dying space's tables (replacing `joist__space_unmap_all`) and
+  a frame that dies while still mapped (replacing `joist__frame_freed`'s
+  scan).
+- **0022's calls** (`obj_kill`, `cap_copy_batch`) are built in parallel by
+  the P53's Claude Code in its own copy, and reviewed before they are
+  applied.
+
+### Step 2, part 1: page-sized mappings and lent page tables (2026-10-21)
+
+0020 and 0021 in the core, the kernel and the user programs together, as
+the design above says.
+
+- **The core** (`kernel/core/map.c`, rewritten): the shadow tree per space,
+  pages taken from lent frames or from a free list of pages given back,
+  `space_donate`, `map` of any run of a frame, `map_replace`,
+  `unmap_range`, `protect`, and the two sweeps on the work list (a dying
+  space's tables, frames dying while mapped). `joist_boot_self` gives the
+  root its capability to itself. The global mapping table and its quota
+  charge are gone. A frame whose last capability goes while it is mapped
+  or lent is kept, dying, by splitting `obj_unref` (`cspace.c`) in two.
+- **Found while building it:**
+  - With a capability to itself, the root could be destroyed by
+    `task_destroy`: the whole-model property test found it in its first
+    run. `task_destroy` now refuses the root's own capability
+    (`E_RIGHTS`), and deleting it only forgets it.
+  - The property test's teardown expected every unit back in the root.
+    Frames lent to the root's own space stay until it dies, which it never
+    does (0021 has no call to take lent pages back from a live space), so
+    they are now the one thing teardown may leave, dying and charged to
+    the root.
+- **The kernel:** `vm.c` installs and removes tables the core places
+  (`vm_table_set`, `vm_table_clear`), replaces (`vm_remap`), protects
+  (`vm_protect`) and forgets a space's lower half without freeing it
+  (`vm_release`); it no longer takes or frees a user table itself. `run.c`
+  flushes the TLB on every change that can leave a stale entry (a replace,
+  an unmap, a protect, a table that goes). The page-table pool shrinks to
+  the spaces' top-level tables. At boot the root gets its own capability
+  (slot 5) and a frame of 256 pages lent to its space (slot 6), before its
+  image is mapped (`run.h`).
+- **System calls 41-45** (`docs/abi.md`, *Frames and mappings*):
+  `map` with an offset and a count, `unmap_range`, `map_replace`
+  (arguments 7 and 8 in `R12`, `R13`), `protect`, `space_donate`.
+  `debug_counters` counts page entries present, and lent pages used by
+  tables (a new last field).
+- **User programs:** the loader lends each task it makes 32 pages for its
+  tables (`ld_tables`), and maps into the root through `J_ROOT_SELF`;
+  `growroot` now exhausts a task's lent pages (a map 2 MiB apart each
+  time) where it exhausted the mapping table, and it and `faultinj` check
+  the new counter stays level.
+- **Tests** (`model/test/test_map.c`, 16 tests): lending and its refusals,
+  a run refused for one page too few and fitting with exactly enough, a
+  frame refused when its first or its last page can't be reached,
+  the tables a run takes, runs of a frame, refusals that change nothing,
+  the conditional replace, `unmap_range` with holes giving tables back,
+  `protect` up to the ceiling, a dying frame swept a table per step,
+  task destruction returning its lent frame, a lent frame dying with its
+  space, mapping into one's own space, and the checker seeing corrupt
+  entries. The whole-model executor keeps a simulated set of hardware
+  tables and a simulated physical memory, and checks the hooks against
+  the core's tree after every step; it maps, replaces, unmaps, protects
+  and lends at random. New coverage floors: steps with page tables and
+  with a frame dying while mapped; successful maps, unmaps, protects and
+  lendings.
+- **Mutations:** 13 of Phase 3's mapping mutations aimed at code that is
+  gone. Twelve were retargeted to the same rule in the new code;
+  `map-uncharged` went with the rule (a mapping no longer costs a quota
+  unit). 20 new ones were added: 32 in all (`map-`, `lend-`, `root-self-`,
+  `hook-`). The first run found three that didn't build (`if (0)` left a
+  function or variable unused, which `-Werror` refuses; they now keep it
+  and add `&& 0`) and two that survived, each a boundary no test reached:
+  lending one page too few for a run's tables (`map-pages-needed-short`),
+  and a frame unreachable at its first page only (`lend-unreachable`).
+  Two unit tests above now reach them.
+- **Also found by the first full run:**
+  - I9's closed-form bounds (`model/test/exec.h`) had no term for page
+    tables, so the `small` build's bound (776) was below what one
+    `unmap_range` may do (933: a table's entries, then the three tables
+    above it scanned for emptiness). Each bound now has a page-table
+    term: a run's work for a simple operation, and up to three sweeps of
+    every space's tables, as many as the lent memory holds, for one that
+    cascades.
+  - `faultinj` subtracted two `ld_mark()`s to count a round's pages, which
+    the loader's new mark (pages and runs of table pages together) broke.
+    It now counts each (`ld_pages_since`, `ld_runs_since`), and warms a
+    run of table pages for each peer as it warms pages (`ld_warm_runs`),
+    so the first round can't read as growth.
+  - `smproot`'s destroy stage (20 rounds of a task per other CPU, never
+    given back) ran its 4-CPU variants out of memory once each task took
+    32 lent pages: 60 tasks, 1 920 pages of a 2 048-page pool. Its work
+    pages stay mapped in the root, but the tables' runs come back when
+    the tasks die, so it now gives the runs back each round
+    (`ld_release_runs`).
+  - The bench gate's do-nothing call read 632 cycles (limit 620; 380 in
+    0018's check). That run overlapped the P53's Claude Code's own kernel
+    check on the same build VM; rerun alone, see below.
+- **Verified** (2026-10-21 and -23, on the build VM, each run with
+  nothing else on it):
+  - `make -C model check`: 182 tests under plain, asan, ubsan, msan, tsan
+    and small, no failure; the whole-model property test with the floors
+    above.
+  - Mutations `map-`, `lend-`, `root-self-`, `hook-`: all 33 caught.
+  - `make -C kernel check`: every host test, freestanding build,
+    clang-tidy and scan-build clean, BIOS and UEFI boots, and all 71
+    self-tests, among them the 4-CPU SMP tests, the memory-growth test and
+    the seven fault-injection runs. The bench gate: a do-nothing call 412
+    cycles, two spaces 1 568, one space 1 104 (baselines 496, 1 548,
+    1 092).
+  - Not run for this part: CBMC (the mapping calls are not among its
+    operations; adding them is step 2's next part).

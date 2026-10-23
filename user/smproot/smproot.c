@@ -209,6 +209,9 @@ static void test_control(uint64_t per_ms)
 static void test_destroy(uint64_t ncpus, uint64_t per_ms)
 {
     for (unsigned round = 0; round < 20u; round++) {
+        /* The work pages stay mapped here; the tasks' lent tables come back
+         * with them (finish drains their destruction), to be lent again. */
+        uint32_t mark = ld_mark();
         struct worker s[MAX_CPUS];
         for (uint64_t i = 0; i + 1u < ncpus; i++) {
             s[i] = worker_new(WORK_SPIN, 0);
@@ -224,6 +227,7 @@ static void test_destroy(uint64_t ncpus, uint64_t per_ms)
             busy_for(J_MS / 5u, per_ms);
             check(s[i].w->count == c, "a destroyed task's thread went on running");
         }
+        ld_release_runs(mark);
     }
     j_puts("smp: destroy ok: 20 rounds of tasks destroyed while their threads ran on other CPUs\n");
 }

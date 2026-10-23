@@ -32,7 +32,12 @@ enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRA
 #define J_FOREVER   UINT64_MAX
 #define J_MS        1000000ull /* times are in nanoseconds */
 #define J_SLOT_NONE 0xffffffffu
-#define J_SLOT_SELF 0xfffffffeu
+#define J_SLOT_SELF 0xfffffffeu /* no call over pages takes it since 0020: J_ROOT_SELF */
+/* The root task's own task capability, and the frame lent to its space for
+ * its page tables (kernel/arch/x86_64/run.h, RUN_ROOT_SELF and
+ * RUN_ROOT_TABLES). */
+#define J_ROOT_SELF   5u
+#define J_ROOT_TABLES 6u
 #define J_PAGE      4096u
 #define J_MAP_SPAN  512u /* pages one mapping may span */
 
@@ -46,7 +51,8 @@ enum {
     J_SYS_TASK_CREATE = 30, J_SYS_TASK_DESTROY, J_SYS_THREAD_SPAWN, J_SYS_THREAD_KILL,
     J_SYS_THREAD_SUSPEND, J_SYS_THREAD_RESUME, J_SYS_THREAD_ABORT, J_SYS_THREAD_SET_FAULT,
     J_SYS_TASK_SET_FAULT,
-    J_SYS_FRAME_SPLIT = 40, J_SYS_MAP, J_SYS_UNMAP,
+    J_SYS_FRAME_SPLIT = 40, J_SYS_MAP, J_SYS_UNMAP, J_SYS_MAP_REPLACE, J_SYS_PROTECT,
+    J_SYS_SPACE_DONATE,
     J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP, J_SYS_YIELD,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
@@ -244,13 +250,47 @@ static inline uint64_t j_frame_split(uint64_t frame, uint64_t at, uint64_t dst)
 {
     return j_sys4(J_SYS_FRAME_SPLIT, frame, at, dst, 0);
 }
+/* Pages [off, off + n) of a frame at va_page of a task (0020). */
+static inline uint64_t j_map_run(uint64_t frame, uint64_t off, uint64_t n, uint64_t task,
+                                 uint64_t va_page, uint64_t perms)
+{
+    struct j_regs r = {.rax = J_SYS_MAP, .rdi = frame, .rsi = off, .rdx = n, .r10 = task,
+                       .r8 = va_page, .r9 = perms};
+    j_syscall(&r);
+    return r.rax;
+}
+/* The first page of a frame. */
 static inline uint64_t j_map(uint64_t frame, uint64_t task, uint64_t va_page, uint64_t perms)
 {
-    return j_sys4(J_SYS_MAP, frame, task, va_page, perms);
+    return j_map_run(frame, 0, 1, task, va_page, perms);
+}
+/* As j_map_run, replacing pages [old_off, old_off + n) of old_frame there. */
+static inline uint64_t j_map_replace(uint64_t frame, uint64_t off, uint64_t n, uint64_t task,
+                                     uint64_t va_page, uint64_t perms, uint64_t old_frame,
+                                     uint64_t old_off)
+{
+    struct j_regs r = {.rax = J_SYS_MAP_REPLACE, .rdi = frame, .rsi = off, .rdx = n, .r10 = task,
+                       .r8 = va_page, .r9 = perms, .r12 = old_frame, .r13 = old_off};
+    j_syscall(&r);
+    return r.rax;
+}
+/* Whatever is mapped in [va_page, va_page + n) of a task. */
+static inline uint64_t j_unmap_range(uint64_t task, uint64_t va_page, uint64_t n)
+{
+    return j_sys4(J_SYS_UNMAP, task, va_page, n, 0);
 }
 static inline uint64_t j_unmap(uint64_t task, uint64_t va_page)
 {
-    return j_sys4(J_SYS_UNMAP, task, va_page, 0, 0);
+    return j_unmap_range(task, va_page, 1);
+}
+static inline uint64_t j_protect(uint64_t task, uint64_t va_page, uint64_t n, uint64_t perms)
+{
+    return j_sys4(J_SYS_PROTECT, task, va_page, n, perms);
+}
+/* Lend a frame to a task's space for its page tables (0021). */
+static inline uint64_t j_space_donate(uint64_t task, uint64_t frame)
+{
+    return j_sys4(J_SYS_SPACE_DONATE, task, frame, 0, 0);
 }
 
 /* Thread control (0010): everything through a thread capability. */
@@ -346,7 +386,8 @@ static inline uint64_t j_sc_unbind(uint64_t sc)
  * struct abi_counters). J_OK, J_E_RIGHTS or J_E_RANGE. */
 struct j_counters {
     uint64_t objects, threads, spaces, leaves, mappings, pending, table_pool, frames_free;
-    uint64_t rq_walks; /* run-queue insert steps past a list's end, so far */
+    uint64_t rq_walks;    /* run-queue insert steps past a list's end, so far */
+    uint64_t table_pages; /* lent pages the spaces' page tables use (0021) */
 };
 static inline uint64_t j_debug_counters(struct j_counters *out)
 {

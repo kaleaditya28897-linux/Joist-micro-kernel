@@ -60,6 +60,8 @@ enum {
     JX_SPLIT,
     JX_MAP,
     JX_UNMAP,
+    JX_PROTECT,
+    JX_DONATE,
     JX_CONTINUE,
     JX_GIVE,
     JX_TICK,
@@ -79,6 +81,8 @@ struct jx_stats {
     unsigned long faults_taken; /* faults delivered to a handler */
     unsigned long faults_fatal; /* faults with no handler: task or thread ended */
     unsigned long mapped;       /* steps that left a mapping standing */
+    unsigned long frames_dying; /* steps that left a frame dying while mapped (0020) */
+    unsigned long tables;       /* steps that left a space with page tables (0021) */
     unsigned long dying;        /* steps that left a destruction half done (0016) */
     unsigned long dying_deep;   /* ... with two or more spaces on the work list */
     unsigned long sequences;
@@ -99,7 +103,18 @@ extern const char *const jx_op_name[JX_OPS];
 #define JX_SWEEP                                                                                   \
     ((uint64_t)JOIST_MAX_OBJECTS + JOIST_MAX_THREADS + JOIST_MAX_CSPACES + JOIST_CSPACE_SLOTS +  \
      JOIST_MAX_BADGE_ACCTS + JOIST_MAX_DEADNAMES + JOIST_MAX_LEAVES)
-#define JX_WORK_SIMPLE (4u * JX_SWEEP)
+/* Page tables (0020): a run over pages writes at most one last-level
+ * table's entries and checks the three tables above for emptiness; a sweep
+ * of every space's tables skips each absent top-level entry in a step and
+ * reads each table there is, and there are no more tables than the
+ * simulated memory lent for them holds (two pages each). */
+#define JX_MEM_BASE 0x2000u /* the pages the simulated memory holds (exec.c) */
+#define JX_MEM_PAGES 128u
+#define JX_PT_RUN ((uint64_t)JOIST_PT_ENTRIES + 1u + JOIST_PT_LEVELS * JOIST_PT_ENTRIES)
+#define JX_PT_SWEEP                                                                                \
+    ((uint64_t)JOIST_MAX_CSPACES * (JOIST_PT_TOP + JOIST_PT_ENTRIES) +                            \
+     (uint64_t)(JX_MEM_PAGES / 2u) * (JOIST_PT_ENTRIES + 1u + JX_PT_RUN))
+#define JX_WORK_SIMPLE (4u * JX_SWEEP + JX_PT_RUN)
 /* Destroying one space: its root entries and slots, the children and objects
  * it hands on, its threads, and the work list. */
 #define JX_PER_SPACE                                                                               \
@@ -111,9 +126,11 @@ extern const char *const jx_op_name[JX_OPS];
      JOIST_MAX_BADGE_ACCTS)
 /* Deleting one capability: its no-senders account. */
 #define JX_PER_CAP ((uint64_t)JOIST_MAX_BADGE_ACCTS)
+/* (A frame sweep may go round every space twice: a frame that begins to die
+ * mid-round is finished in the next.) */
 #define JX_WORK_CASCADE                                                                            \
     ((uint64_t)JOIST_MAX_CSPACES * JX_PER_SPACE + (uint64_t)JOIST_MAX_OBJECTS * JX_PER_FREE +      \
-     (uint64_t)JOIST_MAX_CSPACES * JOIST_CSPACE_SLOTS * JX_PER_CAP)
+     (uint64_t)JOIST_MAX_CSPACES * JOIST_CSPACE_SLOTS * JX_PER_CAP + 3u * JX_PT_SWEEP)
 
 /* Can this operation free objects, and so cascade? */
 int jx_op_cascades(unsigned op);

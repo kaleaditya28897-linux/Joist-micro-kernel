@@ -69,8 +69,11 @@ enum {
 #define ABI_THREAD_SET_FAULT 37u /* thread, handler slot */
 #define ABI_TASK_SET_FAULT   38u /* task, handler slot */
 #define ABI_FRAME_SPLIT      40u /* frame, at, dst */
-#define ABI_MAP              41u /* frame, task (or JOIST_SLOT_SELF), va page, perms */
-#define ABI_UNMAP            42u /* task (or JOIST_SLOT_SELF), va page */
+#define ABI_MAP              41u /* frame, page offset, pages, task, va page, perms */
+#define ABI_UNMAP            42u /* task, va page, pages (joist_unmap_range) */
+#define ABI_MAP_REPLACE      43u /* as ABI_MAP; r12 the old frame, r13 its page offset */
+#define ABI_PROTECT          44u /* task, va page, pages, perms */
+#define ABI_SPACE_DONATE     45u /* task, frame */
 #define ABI_SC_CREATE        50u /* dst, prio, budget, period */
 #define ABI_SC_BIND          51u /* context, thread */
 #define ABI_SC_UNBIND        52u /* context */
@@ -113,11 +116,12 @@ struct abi_counters {
     uint64_t threads;     /* thread records in use */
     uint64_t spaces;      /* capability spaces alive (tasks, the root, fixtures) */
     uint64_t leaves;      /* capability-table leaves taken from the pool */
-    uint64_t mappings;    /* mapping records in use */
+    uint64_t mappings;    /* page entries present, in every space (0020) */
     uint64_t pending;     /* destructions not yet finished */
     uint64_t table_pool;  /* page-table frames free in the kernel's pool */
     uint64_t frames_free; /* frames free in the boot frame allocator */
     uint64_t rq_walks;    /* run-queue insert steps past a list's end, so far (choice 9) */
+    uint64_t table_pages; /* lent pages the spaces' page tables use (0021) */
 };
 
 struct abi_env {

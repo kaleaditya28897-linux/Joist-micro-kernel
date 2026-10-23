@@ -276,31 +276,55 @@ never more than the kernel's limit whatever is asked (0 asks for the
 limit); `OK`, and whether more remains. A caller that needs the memory back
 before it goes on loops on it, on its own time.
 
-## Frames and mappings (0013, §5.5; Phase 3 step 3)
+## Frames and mappings (0013, 0020, 0021, §5.5; Phase 3 step 3, Phase 4 step 2)
 
 The kernel manages only page tables and frame capabilities (§5.5). At boot
 it makes **frames** for the free memory and gives them all to the root
 task (0013); frames never overlap, so no page is handed out twice. On a
-frame capability CONTROL (the SEND bit) allows mapping and splitting, and
-**WRITE** (the RECV bit) allows mapping writable, so a read-only frame
-capability can be passed on.
+frame capability CONTROL (the SEND bit) allows mapping, splitting and
+lending, and **WRITE** (the RECV bit) allows mapping writable, so a
+read-only frame capability can be passed on.
+
+A space's page tables are paid for by frames **lent** to it (0021): its
+tables, and the kernel's record of them, come from those frames' pages, and
+a call that needs a table the space has no page for fails `E_NOMEM`. A lent
+frame can't be mapped or split, and is its owner's ordinary frame again
+when the space dies. A mapping is any run of a frame's pages (0020): the
+record of what is mapped is the page tables themselves, and each frame
+counts the page entries naming it. Every call over pages covers at most one
+last-level table (`JOIST_MAP_SPAN` = 512 aligned pages) and needs a task
+capability with CONTROL to the space it changes, **the caller's own
+included**: no call over pages takes `JOIST_SLOT_SELF`. The root task gets
+a capability to itself at boot for that (`boot_self`), and the kernel lends
+its space a frame for its tables before loading it (`kernel/arch/x86_64/run.h`).
 
 | Operation | Arguments | Results, in check order | Effect | Bound |
 |---|---|---|---|---|
-| `boot_frame` (kernel, at boot) | dst, first page, pages | `E_RANGE` (space), `E_STATE` (not the root), `E_RANGE` (dst), `E_OCCUPIED`, `E_RANGE` (empty or wrapping), `E_STATE` (overlaps a frame), `E_NOMEM` | a frame in the root's slot, paid from its quota | one table scan |
-| `frame_split` | frame slot, page, dst | as for a frame capability with CONTROL, then `E_RANGE` (page not inside), `E_RANGE`/`E_OCCUPIED` (dst), `E_STATE` (another capability names it, or it is mapped), `E_NOMEM` | the frame keeps the pages before `page`; a new frame with the rest, same rights, goes in dst, paid by the caller | one table scan |
-| `map` | frame slot, task slot, first virtual page, permissions | for the frame, then the task (each with CONTROL): `E_RANGE`/`E_DEAD`, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS`, `E_GONE`; then `E_RIGHTS` (writable and executable, an unknown permission, or writable without WRITE), `E_RANGE` (outside the user half), `E_OCCUPIED` (overlaps a mapping in that task), `E_NOMEM` (the task's quota, then the mapping table) | the whole frame appears at those pages of the task, readable, and writable **or** executable (W^X); the task pays one quota unit for its page tables | one table scan |
-| `unmap` | task slot, first virtual page | as for a task capability with CONTROL, then `E_EMPTY` (no mapping starts there) | the mapping goes; its unit returns to the task | one table scan |
+| `boot_frame` (kernel, at boot) | dst, first page, pages | `E_RANGE` (space), `E_STATE` (not the root), `E_RANGE` (dst), `E_OCCUPIED`, `E_RANGE` (empty, wrapping, or over 2^32 - 1 pages), `E_STATE` (overlaps a frame), `E_NOMEM` | a frame in the root's slot, paid from its quota | one table scan |
+| `boot_self` (kernel, at boot) | dst | `E_RANGE` (space), `E_STATE` (not the root, or it has one), `E_RANGE`/`E_OCCUPIED` (dst), `E_NOMEM` | a task capability with CONTROL to the root's own space; deleting it never destroys the root, and `task_destroy` refuses it (`E_RIGHTS`) | one table scan |
+| `frame_split` | frame slot, page, dst | as for a frame capability with CONTROL, then `E_RANGE` (page not inside), `E_RANGE`/`E_OCCUPIED` (dst), `E_STATE` (another capability names it, or it is mapped or lent), `E_NOMEM` | the frame keeps the pages before `page`; a new frame with the rest, same rights, goes in dst, paid by the caller | one table scan |
+| `space_donate` | task slot, frame slot | for the frame, then the task (each with CONTROL); then `E_STATE` (the frame is mapped, lent or dying, or its pages can't be reached by the kernel or lie beyond page 2^32 - 2) | the frame is lent to the task's space for its page tables | O(1) |
+| `map` | frame slot, page offset, pages, task slot, first virtual page, permissions | for the frame, then the task (each with CONTROL): `E_RANGE`/`E_DEAD`, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS`, `E_GONE`; then `E_RIGHTS` (writable and executable, an unknown permission, or writable without WRITE), `E_RANGE` (no pages, past the frame, outside the user half, or across a last-level table), `E_STATE` (the frame is lent), `E_OCCUPIED` (a page already mapped), `E_NOMEM` (too few lent pages for the tables it needs) | those pages of the frame appear at those pages of the task, readable, and writable **or** executable (W^X) | the run's pages, and at most three new tables |
+| `map_replace` | as `map`, then the old frame's slot and its page offset | as `map`, with the old frame's capability checked third; then `E_STATE` if any page of the run doesn't hold exactly the old frame's pages from that offset, and nothing changes | the run's pages now show the new frame's, with these permissions; the TLBs are flushed | the run's pages |
+| `unmap_range` | task slot, first virtual page, pages | as for a task capability with CONTROL, then `E_RANGE` (no pages, outside the user half or across a last-level table) | whatever is mapped there goes; holes are fine; tables left empty go back to the space's lent pages | the run's pages, and the three tables above |
+| `protect` | task slot, first virtual page, pages, permissions | as `unmap_range`, with `E_RIGHTS` (writable and executable, an unknown permission) before `E_RANGE`; then `E_RIGHTS` if a page is to be writable but was mapped through a capability without WRITE, and nothing changes | the pages mapped there take those permissions; holes are fine | the run's pages |
 
 The same frame may be mapped in several tasks, or twice in one: sharing is
-how memory is passed in Phase 3 (0006's grants come in Phase 5). W^X holds
-per mapping, not across aliases of one frame. Deleting a frame's last
-capability unmaps it everywhere; destroying a task removes its mappings.
-**I12**: frames are disjoint and non-empty; every mapping maps a whole live
-frame into a live space, in the user half, never writable and executable;
-no two mappings in one space overlap; and each mapping is charged to its
-space (I3). No fault is resolved by the kernel: a page fault is fault IPC
-(above), and Phase 4's memory manager maps in reply.
+how memory is passed until 0006's grants (Phase 5). W^X holds per page, not
+across aliases of one frame. A frame whose last capability goes while it is
+still mapped is **dying**: it can't be mapped again, stays charged to its
+donor, and is unmapped everywhere by the destruction work list, a
+last-level table per step (`continue`), then freed; a dying frame that is
+lent is freed when its space dies. Destroying a task removes its mappings
+the same way. **I12**: frames are disjoint, non-empty and at most 2^32 - 1
+pages; every present page entry names a page inside a frame that is not
+lent; no page is writable beyond the rights of the capability it was
+mapped through, nor writable and executable; each frame's count of the
+entries naming it is right; every table of a space lies in a frame lent to
+it, and the pages it may still take are counted right; a dying frame has no
+capability and is still mapped or lent. No fault is resolved by the kernel:
+a page fault is fault IPC (below), and Phase 4's memory manager maps in
+reply.
 
 ## Thread control and faults (0009, 0010; Phase 3 step 3)
 
@@ -470,7 +494,11 @@ the dispatcher works on that record alone.
 
 Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
 `Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-27 capabilities and
-the table, 30-38 tasks and threads, 40-42 frames and mappings, 50-53
+the table, 30-38 tasks and threads, 40-45 frames and mappings
+(`frame_split`, `map`, `unmap_range`, `map_replace`, `protect`,
+`space_donate`; `map` and `map_replace` take their sixth argument,
+the permissions, in `R9`, and `map_replace` the old frame and its offset in
+`R12` and `R13`), 50-53
 scheduling contexts, 54 `yield` (decision 0014: the calling thread gives up
 the rest of its turn and goes behind its equals; its budget is untouched), 60-65 destruction, ancestry and lifetime
 notifications, 70-71 a thread's registers (`thread_read_regs`,
@@ -480,9 +508,10 @@ pages in `R10`. A slot argument wider than 32 bits is out of range, never
 truncated into a valid slot. A call that blocks gets its outputs written
 when its thread next runs. Call 3 (`debug_counters`, Phase 3's exit) is for the root task only
 (`E_RIGHTS` from any other): it writes what the kernel has in use (live
-objects, thread records, spaces, table leaves, mappings, destructions
-pending, free page-table frames, free boot frames, and the run queues'
-insert steps past a list's end so far) to a record in the
+objects, thread records, spaces, table leaves, page entries present,
+destructions pending, free page-table frames, free boot frames, the run
+queues' insert steps past a list's end so far, and the lent pages the
+spaces' tables use) to a record in the
 caller's memory (`E_RANGE` if it can't be written whole), for tests that
 look for memory the kernel keeps. Calls 1 (`debug_write`) and 2 (`exit`) keep
 Phase 2's debug convention, and an unknown number returns `-3` and changes

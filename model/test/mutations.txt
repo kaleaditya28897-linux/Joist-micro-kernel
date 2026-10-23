@@ -87,16 +87,7 @@ suspend-leaves-queued @@ ../kernel/core/fault.c @@     if (blocked(&k->th[t])) {
 resume-anything @@ ../kernel/core/fault.c @@ if (k->th[t].state != JOIST_T_SUSPENDED) { @@ if (0) {
 fault-flag-unset @@ ../kernel/core/ipc.c @@ k->th[t].faulting = 1; @@ (void)t;
 # Frames and mappings (Phase 3 step 3; 0013; I12).
-map-wx-allowed @@ ../kernel/core/map.c @@ ((perms & JOIST_MAP_W) && (perms & JOIST_MAP_X))) { @@ 0) {
-map-write-right-ignored @@ ../kernel/core/map.c @@ if ((perms & JOIST_MAP_W) && (joist__slot_c(k, cs, frame_slot)->rights & JOIST_R_WRITE) == 0) { @@ if (0) {
-map-kernel-half @@ ../kernel/core/map.c @@ if (va >= JOIST_USER_PAGES || f->npages > JOIST_USER_PAGES - va) { @@ if (0) {
-map-overlap-allowed @@ ../kernel/core/map.c @@ } else if (m->space == space + 1u && va < m->va + m->npages && m->va < va + f->npages) { @@ } else if (0) {
-map-uncharged @@ ../kernel/core/map.c @@ ts->charged++; /* the task pays @@ (void)ts; /* the task pays
-map-frame-freed-keeps @@ ../kernel/core/notify.c @@ joist__frame_freed(k, obj); @@ (void)obj;
-map-destroy-keeps @@ ../kernel/core/task.c @@ joist__space_unmap_all(k, s); /* its page tables @@ (void)s; /* its page tables
-map-split-shared @@ ../kernel/core/map.c @@ if (f->refs != 1) { @@ if (0) {
 map-boot-overlap @@ ../kernel/core/map.c @@ if (o->type == JOIST_OBJ_FRAME && base < o->base + o->npages && o->base < base + npages) { @@ if (o->type == JOIST_OBJ_FRAME && 0) {
-map-split-mapped @@ ../kernel/core/map.c @@ if (k->map[i].space != 0 && k->map[i].frame == fo + 1u) { @@ if (0) {
 # Preemptible destruction (Phase 3 step 3; 0016; TLA+'s rule).
 pre-dying-usable @@ ../kernel/core/internal.h @@ return k->cs[cs].live && !k->cs[cs].dying; @@ return k->cs[cs].live;
 pre-begin-keeps-threads @@ ../kernel/core/task.c @@     joist__threads_destroy_owned(k, s); @@     (void)s;
@@ -107,10 +98,6 @@ pre-finish-early @@ ../kernel/core/task.c @@ if (st->sweep < JOIST_CSPACE_SLOTS)
 pre-reap-dying @@ ../kernel/core/task.c @@ if (!joist__usable(k, target)) { /* dead, or already dying */ @@ if (!k->cs[target].live) {
 pre-descendant-dying @@ ../kernel/core/task.c @@ if (joist__usable(k, s) && is_descendant(k, cs, s)) { @@ if (k->cs[s].live && is_descendant(k, cs, s)) {
 # Kernel hooks and the mapping span (Phase 3 step 4).
-hook-map-missed @@ ../kernel/core/map.c @@ k->hooks.map(k->hooks.ctx, space, va, f->base, f->npages, perms); @@ (void)space;
-hook-unmap-missed @@ ../kernel/core/map.c @@ k->hooks.unmap(k->hooks.ctx, k->map[i].space - 1u, k->map[i].va, k->map[i].npages); @@ (void)i;
-hook-space-gone-missed @@ ../kernel/core/task.c @@ k->hooks.space_gone(k->hooks.ctx, s); /* its mappings are gone already */ @@ (void)s;
-map-span-ignored @@ ../kernel/core/map.c @@ if (f->npages > JOIST_MAP_SPAN - va % JOIST_MAP_SPAN) { @@ if (0) {
 # Giving a task capabilities (Phase 3 step 4).
 give-mask-ignored @@ ../kernel/core/task.c @@ return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, mask); @@ return joist__cap_grant(k, cs, src, k->obj[obj].target - 1u, dst, (joist_rights)(mask | JOIST_R_ALL));
 give-no-control @@ ../kernel/core/task.c @@ e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj); @@ e = control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj); if (e == JOIST_E_RIGHTS) { obj = joist__slot_c(k, cs, task_slot)->obj - 1u; e = JOIST_OK; }
@@ -196,3 +183,38 @@ pokes-stopped-asked-last @@ ../kernel/core/sched.c @@         return sa == NULL 
 pokes-scan-ignores-claims @@ ../kernel/core/sched.c @@         if (sc == NULL || k->th[i].cpu != 0 || claimed(cl, n, i)) { @@         if (sc == NULL || k->th[i].cpu != 0 || (claimed(cl, n, i) && 0)) {
 pokes-scan-dropped @@ ../kernel/core/sched.c @@     for (uint32_t i = 0; i < JOIST_MAX_THREADS && k->rq_npend != 0; i++) { @@     for (uint32_t i = 0; i < JOIST_MAX_THREADS && k->rq_npend != 0 && 0; i++) {
 preempt-no-resched @@ ../kernel/core/sched.c @@                 k->resched = 1; /* preempted: it may be another CPU's now (0018) */ @@                 (void)0;
+
+# Page-sized mappings and lent page tables (Phase 4 step 2; 0020, 0021; I12).
+# Retargeted from Phase 3's mapping mutations where the rule carried over.
+map-wx-allowed @@ ../kernel/core/map.c @@ ((perms & JOIST_MAP_W) && (perms & JOIST_MAP_X)); /* W^X, always */ @@ 0;
+map-write-right-ignored @@ ../kernel/core/map.c @@ if (bad_perms(perms) || ((perms & JOIST_MAP_W) && !ceil_w)) { @@ if (bad_perms(perms)) {
+map-kernel-half @@ ../kernel/core/map.c @@ return npages == 0 || va >= JOIST_USER_PAGES || npages > JOIST_USER_PAGES - va || @@ return npages == 0 ||
+map-span-ignored @@ ../kernel/core/map.c @@ npages > JOIST_MAP_SPAN - va % JOIST_MAP_SPAN; @@ 0;
+map-past-frame @@ ../kernel/core/map.c @@ if (bad_run(va, npages) || off >= f->npages || npages > f->npages - off) { @@ if (bad_run(va, npages)) {
+map-overlap-allowed @@ ../kernel/core/map.c @@ if (lf[(va + i) % JOIST_PT_ENTRIES] != 0) { @@ if (0) {
+map-nomem-ignored @@ ../kernel/core/map.c @@ if (k->cs[space].pt_avail < pages_needed(k, space, va)) { @@ if (k->cs[space].pt_avail < pages_needed(k, space, va) && 0) {
+map-pages-needed-short @@ ../kernel/core/map.c @@ return 2u * ((uint64_t)l + 1u); @@ return 2u * (uint64_t)l;
+map-lent-mappable @@ ../kernel/core/map.c @@ if (f->lent != 0 || f->dying) { @@ if (f->dying) {
+map-split-shared @@ ../kernel/core/map.c @@ if (f->refs != 1 || f->mapcount != 0 || f->lent != 0) { @@ if (f->mapcount != 0 || f->lent != 0) {
+map-split-mapped @@ ../kernel/core/map.c @@ if (f->refs != 1 || f->mapcount != 0 || f->lent != 0) { @@ if (f->refs != 1 || f->lent != 0) {
+map-split-lent @@ ../kernel/core/map.c @@ if (f->refs != 1 || f->mapcount != 0 || f->lent != 0) { @@ if (f->refs != 1 || f->mapcount != 0) {
+map-replace-ignores-expected @@ ../kernel/core/map.c @@ if (pe == 0 || JOIST_PTE_FRAME(pe) != oo || JOIST_PTE_OFF(pe) != old_off + i) { @@ if (pe == 0) {
+map-replace-old-count @@ ../kernel/core/map.c @@ k->obj[oo].mapcount -= npages; @@ (void)oo;
+map-count-not-dropped @@ ../kernel/core/map.c @@ o->mapcount--; @@ (void)o;
+map-protect-past-ceiling @@ ../kernel/core/map.c @@ if (pe != 0 && (pe & JOIST_PTE_CEIL_W) == 0) { @@ if (pe != 0 && 0) {
+map-prune-nonempty @@ ../kernel/core/map.c @@ if (n[i] != 0) { @@ if (n[i] != 0 && i != 0) {
+map-table-not-zeroed @@ ../kernel/core/map.c @@ memset(node(k, pfn), 0, JOIST_PAGE_SIZE); @@ (void)pfn;
+map-frame-freed-keeps @@ ../kernel/core/map.c @@ if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0)) { @@ if (o->type != JOIST_OBJ_FRAME || o->lent == 0) {
+map-destroy-keeps @@ ../kernel/core/map.c @@ clear_run(k, s, lf, st->tsweep * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_ALL, 0); @@ (void)lf;
+lend-mapped-frame @@ ../kernel/core/map.c @@ if (f->mapcount != 0 || f->lent != 0 || f->dying) { @@ if (f->lent != 0 || f->dying) {
+lend-unreachable @@ ../kernel/core/map.c @@ k->hooks.page(k->hooks.ctx, f->base) == NULL || @@ 0 ||
+lend-not-returned @@ ../kernel/core/map.c @@ f->lent = 0; @@ (void)f;
+lend-full-listed @@ ../kernel/core/map.c @@ st->lent_first = f->lent_next; /* full: off the list of frames with room */ @@ (void)st;
+root-self-destroyable @@ ../kernel/core/task.c @@ if (k->obj[obj].target == k->root) { @@ if (0) {
+root-self-delete-destroys @@ ../kernel/core/task.c @@ if (o->type == JOIST_OBJ_TASK && !o->dead && o->target == k->root) { @@ if (0) {
+hook-map-missed @@ ../kernel/core/map.c @@ k->hooks.map(k->hooks.ctx, space, va, f->base + off, npages, perms, replace); @@ (void)space;
+hook-unmap-missed @@ ../kernel/core/map.c @@ if (tell && k->hooks.unmap != NULL) { @@ if (tell && 0) {
+hook-protect-missed @@ ../kernel/core/map.c @@ if (k->hooks.protect != NULL) { @@ if (0) {
+hook-table-new-missed @@ ../kernel/core/map.c @@ if (k->hooks.table_new != NULL) { @@ if (0) {
+hook-table-gone-missed @@ ../kernel/core/map.c @@ if (k->hooks.table_gone != NULL) { @@ if (0) {
+hook-space-gone-missed @@ ../kernel/core/task.c @@ k->hooks.space_gone(k->hooks.ctx, s); /* its hardware tables, all at once */ @@ (void)s;

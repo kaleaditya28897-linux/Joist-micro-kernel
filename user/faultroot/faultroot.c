@@ -98,7 +98,7 @@ static void test_pager(void)
     check((m.r[2] & 7u) == 6u, "a page fault's error code isn't user, write, not present");
     uint64_t page = page_alloc();
     volatile uint64_t *here = (volatile uint64_t *)(uintptr_t)PAGER_VA;
-    must(j_map(page, J_SLOT_SELF, PAGER_VA / J_PAGE, J_MAP_W), "map (pager, here)");
+    must(j_map(page, J_ROOT_SELF, PAGER_VA / J_PAGE, J_MAP_W), "map (pager, here)");
     for (unsigned i = 0; i < J_PAGE / 8u; i++) {
         here[i] = 0;
     }
@@ -255,7 +255,7 @@ static void test_control(void)
     struct worker t = worker_new(FAULT_TLS, 0);
     uint64_t page = page_alloc();
     volatile uint64_t *here = (volatile uint64_t *)(uintptr_t)(PAGER_VA + J_PAGE);
-    must(j_map(page, J_SLOT_SELF, (PAGER_VA + J_PAGE) / J_PAGE, J_MAP_W), "map (tls, here)");
+    must(j_map(page, J_ROOT_SELF, (PAGER_VA + J_PAGE) / J_PAGE, J_MAP_W), "map (tls, here)");
     here[0] = 0x715;
     must(j_map(page, t.task, TLS_VA / J_PAGE, 0), "map (tls, thread)");
     must(j_thread_read_regs(t.thread, &regs), "thread_read_regs");

@@ -72,6 +72,33 @@ kerr vm_prefill_upper(struct vm_space *s);
 /* Copy src's upper-half PML4 entries into dst (a new, empty space). */
 void vm_share_upper(struct vm_space *dst, const struct vm_space *src);
 
+/* ---- tables made by someone else (0020, 0021) ----
+ * For a user space whose tables are kept by the core in pages lent to it:
+ * the core decides where each table goes and when it goes, and these only
+ * write the entries. Lower half only; levels 2 (PDPT), 1 (PD), 0 (PT). */
+
+/* Make the zeroed page at phys va's table at `level`: its entry in the
+ * table above, which must be absent, every table above it present
+ * (KERR_STATE otherwise; KERR_INVAL for the upper half or a bad level). */
+kerr vm_table_set(struct vm_space *s, uint64_t va, unsigned level, uint64_t phys);
+
+/* Clear the entry naming va's table at `level`; the table's page is the
+ * caller's. KERR_STATE if there is none. */
+kerr vm_table_clear(struct vm_space *s, uint64_t va, unsigned level);
+
+/* Overwrite the 4 KiB entries of [va, va + len), every one present
+ * (KERR_RANGE otherwise, changing nothing), with [pa, pa + len) and perms,
+ * as vm_map would write them. */
+kerr vm_remap(struct vm_space *s, uint64_t va, uint64_t pa, uint64_t len, unsigned perms);
+
+/* Give the 4 KiB entries of [va, va + len), every one present (KERR_RANGE
+ * otherwise, changing nothing), the permissions perms; the pages stay. */
+kerr vm_protect(struct vm_space *s, uint64_t va, uint64_t len, unsigned perms);
+
+/* Forget the lower half without freeing its tables (they are not this
+ * code's to free), then free the PML4 through put_frame. */
+void vm_release(struct vm_space *s);
+
 /* Software walk: the physical address va maps to and its permissions.
  * KERR_RANGE if va isn't mapped. */
 kerr vm_translate(const struct vm_space *s, uint64_t va, uint64_t *pa, unsigned *perms);

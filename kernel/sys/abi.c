@@ -205,10 +205,20 @@ int abi_syscall(struct abi_env *env, uint32_t t)
         e = joist_frame_split(k, cs, slot_arg(a0), a1, slot_arg(a2));
         break;
     case ABI_MAP:
-        e = joist_map(k, cs, slot_arg(a0), slot_arg(a1), a2, u32_arg(a3));
+        e = joist_map(k, cs, slot_arg(a0), a1, a2, slot_arg(a3), R->r[ABI_R8], u32_arg(R->r[ABI_R9]));
+        break;
+    case ABI_MAP_REPLACE:
+        e = joist_map_replace(k, cs, slot_arg(a0), a1, a2, slot_arg(a3), R->r[ABI_R8],
+                              u32_arg(R->r[ABI_R9]), slot_arg(R->r[ABI_R12]), R->r[ABI_R13]);
         break;
     case ABI_UNMAP:
-        e = joist_unmap(k, cs, slot_arg(a0), a1);
+        e = joist_unmap_range(k, cs, slot_arg(a0), a1, a2);
+        break;
+    case ABI_PROTECT:
+        e = joist_protect(k, cs, slot_arg(a0), a1, a2, u32_arg(a3));
+        break;
+    case ABI_SPACE_DONATE:
+        e = joist_space_donate(k, cs, slot_arg(a0), slot_arg(a1));
         break;
     case ABI_SC_CREATE:
         e = a1 > JOIST_PRIO_MAX ? JOIST_E_RIGHTS
@@ -278,8 +288,11 @@ int abi_syscall(struct abi_env *env, uint32_t t)
         for (uint32_t i = 0; i < JOIST_MAX_LEAVES; i++) {
             c.leaves += k->leaf[i].owner != 0;
         }
-        for (uint32_t i = 0; i < JOIST_MAX_MAPPINGS; i++) {
-            c.mappings += k->map[i].space != 0;
+        for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+            c.mappings += k->obj[i].type == JOIST_OBJ_FRAME ? k->obj[i].mapcount : 0;
+        }
+        for (uint32_t i = 0; i < JOIST_MAX_CSPACES; i++) {
+            c.table_pages += k->cs[i].pt_used;
         }
         c.pending = k->npending;
         c.rq_walks = k->rq_walks;

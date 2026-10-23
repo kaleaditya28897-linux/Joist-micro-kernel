@@ -378,7 +378,9 @@ static void unlock(void)
 
 /* ---- the page-table pool ---- */
 
-#define POOL_FRAMES (JOIST_MAX_CSPACES + 3u * JOIST_MAX_MAPPINGS + 8u)
+/* Each space's top-level table only: every table below is in pages lent to
+ * the space (0021), placed by the core. */
+#define POOL_FRAMES (JOIST_MAX_CSPACES + 8u)
 static uint64_t pool[POOL_FRAMES];
 static uint32_t npool;
 static uint64_t hhdm_off;
@@ -510,13 +512,21 @@ static void others_leave(const struct cpu *me, uint32_t s)
 
 /* ---- the core's hooks ---- */
 
+static kerr no_frame(void *ctx, uint64_t *phys)
+{
+    (void)ctx;
+    (void)phys;
+    return KERR_NOMEM; /* a user space's tables are the core's to place (0021) */
+}
+
 static void hk_space_new(void *ctx, uint32_t s)
 {
     (void)ctx;
     if (vm_create(&vspace[s], pool_get, to_ptr, NULL) != KERR_OK) {
         die("page-table pool empty (it is sized from the core's limits)");
     }
-    vspace[s].put_frame = pool_put;
+    vspace[s].get_frame = no_frame;
+    vspace[s].put_frame = NULL; /* vm_unmap frees no table: the core gives them back */
     vm_share_upper(&vspace[s], paging_kernel_space());
     for (uint32_t i = 0; i < ncpus; i++) {
         cpus[i].stale[s] = 1; /* whatever had this number before left entries under its PCID */
@@ -533,24 +543,15 @@ static void hk_space_gone(void *ctx, uint32_t s)
         c->cur_space = JOIST_MAX_CSPACES;
     }
     others_leave(c, s); /* nor the tables any other CPU's CR3 points at */
-    vm_destroy(&vspace[s]);
+    vm_release(&vspace[s]); /* the rest are in pages lent to it, the core's */
+    pool_put(NULL, vspace[s].root);
 }
 
-static void hk_map(void *ctx, uint32_t s, uint64_t va, uint64_t pa, uint64_t npages, unsigned perms)
+/* Entries of space s for [va, va + npages) changed or went: no CPU may keep
+ * them past this point (nor, for a table that went, the paging-structure
+ * caches' entries above them: invlpg drops those too). */
+static void flush(uint32_t s, uint64_t va, uint64_t npages)
 {
-    (void)ctx;
-    unsigned vp = VM_USER | ((perms & JOIST_MAP_W) ? VM_W : 0u) | ((perms & JOIST_MAP_X) ? VM_X : 0u);
-    if (vm_map(&vspace[s], va * VM_PAGE, pa * VM_PAGE, npages * VM_PAGE, VM_PAGE, vp) != KERR_OK) {
-        die("a mapping the core allowed was refused by the page tables");
-    }
-}
-
-static void hk_unmap(void *ctx, uint32_t s, uint64_t va, uint64_t npages)
-{
-    (void)ctx;
-    if (vm_unmap(&vspace[s], va * VM_PAGE, npages * VM_PAGE) != KERR_OK) {
-        die("an unmapping the core asked for was refused by the page tables");
-    }
     struct cpu *c = this_cpu();
     if (c->cur_space == s) {
         for (uint64_t i = 0; i < npages; i++) {
@@ -560,6 +561,67 @@ static void hk_unmap(void *ctx, uint32_t s, uint64_t va, uint64_t npages)
         c->stale[s] = 1; /* its entries for these pages go at the next switch to it */
     }
     others_leave(c, s); /* and no other CPU keeps them past this point */
+}
+
+static void *hk_page(void *ctx, uint64_t pfn)
+{
+    (void)ctx;
+    return to_ptr(NULL, pfn * VM_PAGE);
+}
+
+static void hk_table_new(void *ctx, uint32_t s, uint64_t va, unsigned level, uint64_t pfn)
+{
+    (void)ctx;
+    if (vm_table_set(&vspace[s], va * VM_PAGE, level, pfn * VM_PAGE) != KERR_OK) {
+        die("a table the core placed was refused by the page tables");
+    }
+}
+
+static void hk_table_gone(void *ctx, uint32_t s, uint64_t va, unsigned level)
+{
+    (void)ctx;
+    if (vm_table_clear(&vspace[s], va * VM_PAGE, level) != KERR_OK) {
+        die("a table the core removed was not in the page tables");
+    }
+    flush(s, va, 1);
+}
+
+static unsigned vm_perms(unsigned perms)
+{
+    return VM_USER | ((perms & JOIST_MAP_W) ? VM_W : 0u) | ((perms & JOIST_MAP_X) ? VM_X : 0u);
+}
+
+static void hk_map(void *ctx, uint32_t s, uint64_t va, uint64_t pa, uint64_t npages, unsigned perms,
+                   int replace)
+{
+    (void)ctx;
+    kerr e = replace ? vm_remap(&vspace[s], va * VM_PAGE, pa * VM_PAGE, npages * VM_PAGE, vm_perms(perms))
+                     : vm_map(&vspace[s], va * VM_PAGE, pa * VM_PAGE, npages * VM_PAGE, VM_PAGE,
+                              vm_perms(perms));
+    if (e != KERR_OK) {
+        die("a mapping the core allowed was refused by the page tables");
+    }
+    if (replace) {
+        flush(s, va, npages); /* the old pages may be another task's by the time it returns */
+    }
+}
+
+static void hk_unmap(void *ctx, uint32_t s, uint64_t va, uint64_t npages)
+{
+    (void)ctx;
+    if (vm_unmap(&vspace[s], va * VM_PAGE, npages * VM_PAGE) != KERR_OK) {
+        die("an unmapping the core asked for was refused by the page tables");
+    }
+    flush(s, va, npages);
+}
+
+static void hk_protect(void *ctx, uint32_t s, uint64_t va, uint64_t npages, unsigned perms)
+{
+    (void)ctx;
+    if (vm_protect(&vspace[s], va * VM_PAGE, npages * VM_PAGE, vm_perms(perms)) != KERR_OK) {
+        die("a protection the core asked for was refused by the page tables");
+    }
+    flush(s, va, npages); /* (an upgrade needs none; measured later, 0020) */
 }
 
 /* The IPC buffer's words, from one space to another (the core's copy_msg
@@ -687,7 +749,7 @@ static const char *root_page(struct frame_alloc *fa, uint64_t va, unsigned perms
     }
     joist_slot slot = next_image_slot++;
     if (joist_boot_frame(&K, 0, slot, pa / VM_PAGE, 1) != JOIST_OK ||
-        joist_map(&K, 0, slot, JOIST_SLOT_SELF, va / VM_PAGE, perms) != JOIST_OK) {
+        joist_map(&K, 0, slot, 0, 1, RUN_ROOT_SELF, va / VM_PAGE, perms) != JOIST_OK) {
         return "the core refused a page of the root task";
     }
     return NULL;
@@ -748,13 +810,22 @@ static const char *give_pool(struct frame_alloc *fa, const struct limine_memmap_
         }
     }
     uint64_t want = (uint64_t)RUN_POOL_FRAMES * RUN_POOL_PAGES * VM_PAGE;
+    uint64_t tables = (uint64_t)RUN_ROOT_TABLE_PAGES * VM_PAGE;
     uint64_t end = (best_base + best_len) & ~(VM_LARGE - 1u);
-    if (best_len < want + VM_LARGE || end - want < best_base) {
+    if (best_len < want + tables + VM_LARGE || end - want - tables < best_base) {
         return "no usable range large enough for the root task's memory pool";
     }
     uint64_t base = end - want;
-    if (frame_take_range(fa, base, want) != KERR_OK) {
+    if (frame_take_range(fa, base - tables, want + tables) != KERR_OK) {
         return "the root task's memory pool overlaps frames in use";
+    }
+    /* Just below the pool: the frame lent to the root's own space for its
+     * page tables (0021), through its own task capability, before anything
+     * of it is mapped. */
+    if (joist_boot_self(&K, 0, RUN_ROOT_SELF) != JOIST_OK ||
+        joist_boot_frame(&K, 0, RUN_ROOT_TABLES, (base - tables) / VM_PAGE, RUN_ROOT_TABLE_PAGES) != JOIST_OK ||
+        joist_space_donate(&K, 0, RUN_ROOT_SELF, RUN_ROOT_TABLES) != JOIST_OK) {
+        return "the core refused the root task's own page tables";
     }
     for (uint32_t i = 0; i < RUN_POOL_FRAMES; i++) {
         uint64_t pa = base + (uint64_t)i * RUN_POOL_PAGES * VM_PAGE;
@@ -923,7 +994,9 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     joist_init(&K);
     K.preempt = RUN_PREEMPT_SLOTS;
     K.hooks = (struct joist_hooks){
-        .space_new = hk_space_new, .space_gone = hk_space_gone, .map = hk_map, .unmap = hk_unmap,
+        .space_new = hk_space_new, .space_gone = hk_space_gone, .table_new = hk_table_new,
+        .table_gone = hk_table_gone, .map = hk_map, .unmap = hk_unmap, .protect = hk_protect,
+        .page = hk_page,
         .off_cpu = hk_off_cpu, .copy_msg = hk_copy_msg};
     joist_cspace root;
     if (joist_boot(&K, ROOT_BUDGET, &root) != JOIST_OK) {

@@ -329,7 +329,7 @@ static struct peer *peer_new(unsigned i, unsigned nthreads, uint64_t prio0, uint
     }
     uint64_t f = page_alloc();
     uint64_t va = PEER_VA + i * J_PAGE;
-    need(j_map(f, J_SLOT_SELF, va / J_PAGE, J_MAP_W), "map (peer page, here)");
+    need(j_map(f, J_ROOT_SELF, va / J_PAGE, J_MAP_W), "map (peer page, here)");
     volatile uint64_t *w = (volatile uint64_t *)(uintptr_t)va;
     for (unsigned k = 0; k < J_PAGE / 8u; k++) {
         w[k] = 0; /* a page given back keeps what the last peer left */
@@ -1022,7 +1022,7 @@ static void teardown(uint32_t mark)
             uint64_t e = j_cap_delete(s[k]);
             expect(e == J_OK || e == J_E_EMPTY, "cap_delete at the end of a round failed");
         }
-        need(j_unmap(J_SLOT_SELF, (PEER_VA + i * J_PAGE) / J_PAGE), "unmap (peer page)");
+        need(j_unmap(J_ROOT_SELF, (PEER_VA + i * J_PAGE) / J_PAGE), "unmap (peer page)");
         p->live = 0;
     }
     for (unsigned k = 0; k < nrs; k++) {
@@ -1030,7 +1030,7 @@ static void teardown(uint32_t mark)
         expect(e == J_OK || e == J_E_EMPTY, "cap_delete at the end of a round failed");
     }
     nrs = 0;
-    expect(ld_mark() - mark <= WARM_PAGES,
+    expect(ld_pages_since(mark) <= WARM_PAGES && ld_runs_since(mark) <= MAX_PEERS,
            "a round took more pages than were split off for rounds");
     ld_release(mark);
     uint64_t id;
@@ -1044,7 +1044,8 @@ static int same(const struct j_counters *a, const struct j_counters *b)
 {
     return a->objects == b->objects && a->threads == b->threads && a->spaces == b->spaces &&
            a->leaves == b->leaves && a->mappings == b->mappings && a->pending == b->pending &&
-           a->table_pool == b->table_pool && a->frames_free == b->frames_free;
+           a->table_pool == b->table_pool && a->frames_free == b->frames_free &&
+           a->table_pages == b->table_pages;
 }
 
 static void show(const char *what, const struct j_counters *c)
@@ -1057,6 +1058,7 @@ static void show(const char *what, const struct j_counters *c)
     put(", mappings ", c->mappings);
     put(", pending ", c->pending);
     put(", page-table frames free ", c->table_pool);
+    put(", lent table pages used ", c->table_pages);
     put(", frames free ", c->frames_free);
     put(", run-queue walks so far ", c->rq_walks); /* (grows: not compared) */
     j_puts("\n");
@@ -1132,6 +1134,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
         (void)page_alloc();
     }
     ld_release(mark0);
+    ld_warm_runs(MAX_PEERS); /* and a run of page-table pages for each peer (0021) */
     uint64_t t0 = work_tsc();
     sleep_ns(20 * J_MS);
     per_ms = (work_tsc() - t0) / 20u;

@@ -68,6 +68,114 @@ static kerr walk_create(struct vm_space *s, uint64_t va, unsigned level, uint64_
     return KERR_OK;
 }
 
+static uint64_t leaf_bits(unsigned perms, uint64_t page_size)
+{
+    return PTE_P | ((perms & VM_W) ? PTE_W : 0) | ((perms & VM_USER) ? PTE_U : 0) |
+           ((perms & VM_GLOBAL) ? PTE_G : 0) | ((perms & VM_X) ? 0 : PTE_NX) |
+           ((perms & VM_UNCACHED) ? (PTE_PCD | PTE_PWT) : 0) | (page_size == VM_LARGE ? PTE_PS : 0);
+}
+
+/* The entry for va in its table at `level`, every table above present and
+ * none a large page; NULL otherwise. Creates nothing. */
+static uint64_t *entry_at(const struct vm_space *s, uint64_t va, unsigned level)
+{
+    uint64_t *t = table(s, s->root);
+    for (unsigned l = 3; l > level; l--) {
+        uint64_t e = t[idx(va, l)];
+        if (!(e & PTE_P) || (e & PTE_PS)) {
+            return NULL;
+        }
+        t = table(s, e & PTE_ADDR);
+    }
+    return &t[idx(va, level)];
+}
+
+kerr vm_table_set(struct vm_space *s, uint64_t va, unsigned level, uint64_t phys)
+{
+    if (level > 2u || (va >> 47) != 0 || phys % VM_PAGE != 0 || phys > PA_MAX) {
+        return KERR_INVAL;
+    }
+    uint64_t *e = entry_at(s, va, level + 1u);
+    if (e == NULL || (*e & PTE_P)) {
+        return KERR_STATE;
+    }
+    /* Present, writable and user-accessible: the leaf decides (walk_create). */
+    *e = (phys & PTE_ADDR) | PTE_P | PTE_W | PTE_U;
+    return KERR_OK;
+}
+
+kerr vm_table_clear(struct vm_space *s, uint64_t va, unsigned level)
+{
+    if (level > 2u || (va >> 47) != 0) {
+        return KERR_INVAL;
+    }
+    uint64_t *e = entry_at(s, va, level + 1u);
+    if (e == NULL || !(*e & PTE_P) || (*e & PTE_PS)) {
+        return KERR_STATE;
+    }
+    *e = 0;
+    return KERR_OK;
+}
+
+/* Every 4 KiB entry of [va, va + len) present: 1 if so. */
+static int all_present(const struct vm_space *s, uint64_t va, uint64_t len)
+{
+    for (uint64_t off = 0; off < len; off += VM_PAGE) {
+        const uint64_t *e = entry_at(s, va + off, 0);
+        if (e == NULL || !(*e & PTE_P)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int bad_user_run(uint64_t va, uint64_t len)
+{
+    return len == 0 || va % VM_PAGE != 0 || len % VM_PAGE != 0 || va > UINT64_MAX - (len - 1u) ||
+           ((va + (len - 1u)) >> 47) != 0;
+}
+
+kerr vm_remap(struct vm_space *s, uint64_t va, uint64_t pa, uint64_t len, unsigned perms)
+{
+    if (bad_user_run(va, len) || pa % VM_PAGE != 0 || pa > PA_MAX - (len - 1u) ||
+        ((perms & VM_W) && (perms & VM_X))) {
+        return KERR_INVAL;
+    }
+    if (!all_present(s, va, len)) {
+        return KERR_RANGE;
+    }
+    for (uint64_t off = 0; off < len; off += VM_PAGE) {
+        *entry_at(s, va + off, 0) = ((pa + off) & PTE_ADDR) | leaf_bits(perms, VM_PAGE);
+    }
+    return KERR_OK;
+}
+
+kerr vm_protect(struct vm_space *s, uint64_t va, uint64_t len, unsigned perms)
+{
+    if (bad_user_run(va, len) || ((perms & VM_W) && (perms & VM_X))) {
+        return KERR_INVAL;
+    }
+    if (!all_present(s, va, len)) {
+        return KERR_RANGE;
+    }
+    for (uint64_t off = 0; off < len; off += VM_PAGE) {
+        uint64_t *e = entry_at(s, va + off, 0);
+        *e = (*e & PTE_ADDR) | leaf_bits(perms, VM_PAGE);
+    }
+    return KERR_OK;
+}
+
+void vm_release(struct vm_space *s)
+{
+    uint64_t *pml4 = table(s, s->root);
+    for (unsigned i = 0; i < 256u; i++) {
+        pml4[i] = 0;
+    }
+    if (s->put_frame != NULL) {
+        s->put_frame(s->ctx, s->root);
+    }
+}
+
 kerr vm_map(struct vm_space *s, uint64_t va, uint64_t pa, uint64_t len, uint64_t page_size,
             unsigned perms)
 {
@@ -83,10 +191,7 @@ kerr vm_map(struct vm_space *s, uint64_t va, uint64_t pa, uint64_t len, uint64_t
     if ((va >> 47) != ((va + (len - 1u)) >> 47)) {
         return KERR_INVAL;
     }
-    uint64_t leaf = PTE_P | ((perms & VM_W) ? PTE_W : 0) | ((perms & VM_USER) ? PTE_U : 0) |
-                    ((perms & VM_GLOBAL) ? PTE_G : 0) | ((perms & VM_X) ? 0 : PTE_NX) |
-                    ((perms & VM_UNCACHED) ? (PTE_PCD | PTE_PWT) : 0) |
-                    (page_size == VM_LARGE ? PTE_PS : 0);
+    uint64_t leaf = leaf_bits(perms, page_size);
     unsigned level = page_size == VM_LARGE ? 1u : 0u;
     /* Check every page first, so a refused call changes no mappings (tables
      * it created on the way stay, empty, which is harmless). */
