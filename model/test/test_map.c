@@ -72,11 +72,11 @@ static void setup(void)
 /* The entry recorded for virtual page va of space s, 0 if none. */
 static uint64_t pte(joist_cspace s, uint64_t va)
 {
-    uint64_t e = k.cs[s].pt_top[va >> 27];
+    uint64_t e = k.cs[s].pt_top[va >> JOIST_PT_SHIFT(3)];
     for (unsigned l = 2; e != 0 && l > 0; l--) {
-        e = ((const uint64_t *)page(NULL, JOIST_PT_SHADOW(e)))[(va >> (9u * l)) & 511u];
+        e = ((const uint64_t *)page(NULL, JOIST_PT_SHADOW(e)))[(va >> JOIST_PT_SHIFT(l)) & (JOIST_PT_ENTRIES - 1u)];
     }
-    return e == 0 ? 0 : ((const uint64_t *)page(NULL, JOIST_PT_SHADOW(e)))[va & 511u];
+    return e == 0 ? 0 : ((const uint64_t *)page(NULL, JOIST_PT_SHADOW(e)))[va & (JOIST_PT_ENTRIES - 1u)];
 }
 
 JT_TEST(map_boot_frames)
@@ -154,7 +154,7 @@ JT_TEST(map_needs_lent_pages)
     JT_CHECK(k.cs[T].pt_used == 6);
     JT_REQUIRE(joist_map(&k, root, F, 6, 1, TK, 0x600, 0) == JOIST_OK);
     JT_CHECK(k.cs[T].pt_used == 8);
-    JT_REQUIRE(joist_map(&k, root, F, 7, 1, TK, (uint64_t)1 << 27, 0) == JOIST_OK);
+    JT_REQUIRE(joist_map(&k, root, F, 7, 1, TK, (uint64_t)1 << JOIST_PT_SHIFT(3), 0) == JOIST_OK);
     JT_CHECK(k.cs[T].pt_used == 14 && k.cs[T].pt_avail == 18);
     JT_CHECK(clean());
 }
@@ -329,7 +329,7 @@ JT_TEST(map_task_destroy_returns_its_lent_pages)
 {
     setup();
     JT_REQUIRE(joist_map(&k, root, F, 0, 3, TK, 0x400, 0) == JOIST_OK);
-    JT_REQUIRE(joist_map(&k, root, F, 0, 3, TK, (uint64_t)1 << 27, 0) == JOIST_OK);
+    JT_REQUIRE(joist_map(&k, root, F, 0, 3, TK, (uint64_t)1 << JOIST_PT_SHIFT(3), 0) == JOIST_OK);
     JT_REQUIRE(joist_task_destroy(&k, root, TK) == JOIST_OK);
     JT_CHECK(frame(F)->mapcount == 0 && frame(MEM)->lent == 0 && frame(MEM)->water == 0);
     JT_CHECK(!k.cs[T].live && k.cs[T].pt_top[0] == 0);

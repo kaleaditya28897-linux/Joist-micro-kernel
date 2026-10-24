@@ -203,9 +203,12 @@ map-replace-old-count @@ ../kernel/core/map.c @@ k->obj[oo].mapcount -= npages; 
 map-count-not-dropped @@ ../kernel/core/map.c @@ o->mapcount--; @@ (void)o;
 map-protect-past-ceiling @@ ../kernel/core/map.c @@ if (pe != 0 && (pe & JOIST_PTE_CEIL_W) == 0) { @@ if (pe != 0 && 0) {
 map-prune-nonempty @@ ../kernel/core/map.c @@ if (n[i] != 0) { @@ if (n[i] != 0 && i != 0) {
-map-table-not-zeroed @@ ../kernel/core/map.c @@ memset(node(k, pfn), 0, JOIST_PAGE_SIZE); @@ (void)pfn;
+map-table-not-zeroed @@ ../kernel/core/map.c @@ memset(node(k, pfn), 0, JOIST_PT_ENTRIES * sizeof(uint64_t)); @@ (void)pfn;
 map-frame-freed-keeps @@ ../kernel/core/map.c @@ if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0)) { @@ if (o->type != JOIST_OBJ_FRAME || o->lent == 0) {
 map-destroy-keeps @@ ../kernel/core/map.c @@ clear_run(k, s, lf, st->tsweep * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_ALL, 0); @@ (void)lf;
+map-sweep-skips-tables @@ ../kernel/core/map.c @@ return ((va >> JOIST_PT_SHIFT(2)) + 1u) << (JOIST_PT_SHIFT(2) - JOIST_PT_BITS); @@ return ((va >> JOIST_PT_SHIFT(2)) + 1u) << JOIST_PT_SHIFT(2);
+map-sweep-skips-top @@ ../kernel/core/map.c @@ return ((va >> JOIST_PT_SHIFT(3)) + 1u) << (JOIST_PT_SHIFT(3) - JOIST_PT_BITS); @@ return ((va >> JOIST_PT_SHIFT(3)) + 2u) << (JOIST_PT_SHIFT(3) - JOIST_PT_BITS);
+map-frame-free-skipped @@ ../kernel/core/map.c @@     joist__obj_clear(k, obj); @@     (void)k; (void)obj;
 lend-mapped-frame @@ ../kernel/core/map.c @@ if (f->mapcount != 0 || f->lent != 0 || f->dying) { @@ if (f->lent != 0 || f->dying) {
 lend-unreachable @@ ../kernel/core/map.c @@ k->hooks.page(k->hooks.ctx, f->base) == NULL || @@ 0 ||
 lend-not-returned @@ ../kernel/core/map.c @@ f->lent = 0; @@ (void)f;

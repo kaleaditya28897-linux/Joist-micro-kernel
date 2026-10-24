@@ -36,6 +36,86 @@ struct joist_kernel nondet_kernel(void);
 
 static struct joist_kernel k;
 
+/* Physical memory, as far as the core sees it (0020, 0021): the pages that
+ * hooks.page reaches, holding the page tables' nodes. A node uses only its
+ * first JOIST_PT_ENTRIES words (run.sh builds them small), so a page here is
+ * that many; the hardware tables paired with the nodes are the kernel's
+ * (kernel/mem/vm.c) and never read by the core. */
+#ifndef JOIST_CBMC_SIM_PAGES
+#define JOIST_CBMC_SIM_PAGES 8u
+#endif
+#define SIM_BASE 16u /* the first page number simulated */
+static uint64_t sim[JOIST_CBMC_SIM_PAGES][JOIST_PT_ENTRIES];
+
+static void *sim_page(void *ctx, uint64_t pfn)
+{
+    (void)ctx;
+    return pfn >= SIM_BASE && pfn - SIM_BASE < JOIST_CBMC_SIM_PAGES ? sim[pfn - SIM_BASE] : NULL;
+}
+
+#ifdef JOIST_CBMC_TABLES
+/* Every page a live space's tables hold, as a node (its shadow and its
+ * hardware page) or on its free list, is held once. The kernel makes it so
+ * (take_page hands out each lent page once), but I12's check doesn't look,
+ * since that takes storage or time growing with the tables; here, where
+ * the tables are tiny, it is assumed of the state before and asserted of
+ * the one after. A page is marked as it is met: met twice, or outside the
+ * simulated memory (where no lent page is), it fails. Frames don't overlap
+ * (I12), so one set of marks serves every space. */
+_Static_assert(JOIST_PT_LEVELS == 3u, "the walk below is written for three levels");
+static unsigned char held[JOIST_CBMC_SIM_PAGES];
+
+static int hold(uint64_t pfn)
+{
+    if (pfn < SIM_BASE || pfn - SIM_BASE >= JOIST_CBMC_SIM_PAGES || held[pfn - SIM_BASE]) {
+        return 0;
+    }
+    held[pfn - SIM_BASE] = 1;
+    return 1;
+}
+
+static int pages_distinct(void)
+{
+    __CPROVER_array_set(held, 0);
+    int ok = 1;
+    for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
+        const struct joist_cspace_state *st = &k.cs[s];
+        if (!st->live) {
+            continue;
+        }
+        for (unsigned t2 = 0; t2 < JOIST_PT_TOP; t2++) {
+            uint64_t e2 = st->pt_top[t2];
+            if (e2 == 0) {
+                continue;
+            }
+            ok &= hold(JOIST_PT_SHADOW(e2)) & hold(JOIST_PT_HW(e2));
+            const uint64_t *n2 = sim_page(NULL, JOIST_PT_SHADOW(e2));
+            for (unsigned t1 = 0; n2 != NULL && t1 < JOIST_PT_ENTRIES; t1++) {
+                uint64_t e1 = n2[t1];
+                if (e1 == 0) {
+                    continue;
+                }
+                ok &= hold(JOIST_PT_SHADOW(e1)) & hold(JOIST_PT_HW(e1));
+                const uint64_t *n1 = sim_page(NULL, JOIST_PT_SHADOW(e1));
+                for (unsigned t0 = 0; n1 != NULL && t0 < JOIST_PT_ENTRIES; t0++) {
+                    uint64_t e0 = n1[t0];
+                    if (e0 != 0) {
+                        ok &= hold(JOIST_PT_SHADOW(e0)) & hold(JOIST_PT_HW(e0));
+                    }
+                }
+            }
+        }
+        uint64_t p = st->pt_free;
+        for (unsigned i = 0; p != 0 && i <= JOIST_CBMC_SIM_PAGES; i++) { /* cbmc: free walk */
+            ok &= hold(p - 1u);
+            const uint64_t *fp = sim_page(NULL, p - 1u);
+            p = fp != NULL ? fp[0] : 0;
+        }
+    }
+    return ok;
+}
+#endif
+
 static uint32_t any(uint32_t n)
 {
     uint32_t v = nondet_unsigned();
@@ -53,13 +133,30 @@ int main(void)
     k = nondet_kernel();
     /* The host model has no kernel hooks (struct joist_hooks): an arbitrary
      * state would otherwise call arbitrary function pointers. The kernel's
-     * hooks are tested by the executor's recorded shadow and by booting. */
+     * hooks are tested by the executor's recorded shadow and by booting.
+     * With page tables (JOIST_CBMC_TABLES) the page hook is the harness's:
+     * the simulated memory above, of any contents. Without, it stays NULL:
+     * no table page is reached there, and CBMC proves it (a call through a
+     * pointer with no target is a failed check under --pointer-check), at a
+     * fraction of the cost of the simulated memory. */
     k.hooks = (struct joist_hooks){0};
-    /* No page tables, lent pages or mappings (0020, 0021): their nodes are
-     * pages reached through hooks.page, 512 entries each, beyond what CBMC
-     * can hold. The operations proved here touch them only through a dying
-     * or killed frame's sweep; that, and the mapping calls, are left to the
-     * property tests and the mutations (model/test/exec.c). */
+#ifdef JOIST_CBMC_TABLES
+    k.hooks.page = sim_page;
+    __CPROVER_havoc_object(sim);
+    /* Page tables, lent pages and mappings of any shape the check accepts,
+     * in frames lent within the simulated memory (what space_donate checks
+     * of the frames it takes: their first and last pages reachable). */
+    for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
+        const struct joist_object *f = &k.obj[o];
+        __CPROVER_assume(f->lent == 0 ||
+                         (f->base >= SIM_BASE && f->npages <= JOIST_CBMC_SIM_PAGES &&
+                          f->base - SIM_BASE <= JOIST_CBMC_SIM_PAGES - f->npages));
+    }
+    __CPROVER_assume(pages_distinct());
+#else
+    /* No page tables, lent pages or mappings (0020, 0021): the operations
+     * proved this way touch them only through a condemned frame's sweep,
+     * proved with the tables (JOIST_CBMC_TABLES, the mapping operations). */
     for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
         struct joist_cspace_state *st = &k.cs[s];
         for (unsigned i = 0; i < JOIST_PT_TOP; i++) {
@@ -80,6 +177,7 @@ int main(void)
     k.frames_dying = 0;
     k.fsweep = 0;
     k.fround = 0;
+#endif
     __CPROVER_assume(joist_check_invariants(&k, NULL, 0) == 0);
 #else
     joist_cspace root;
@@ -101,6 +199,12 @@ int main(void)
         joist_badge badge = nondet_u64();
         uint32_t done = 0;
         uint32_t skipped = 0;
+        /* Pages, offsets and permissions for the mapping calls, any value. */
+        uint64_t off = nondet_u64();
+        uint64_t n = nondet_u64();
+        uint64_t va = nondet_u64();
+        uint64_t off2 = nondet_u64();
+        unsigned perms = nondet_unsigned();
         joist_err e;
 
 #ifdef JOIST_CBMC_SLOT_TYPE
@@ -151,6 +255,25 @@ int main(void)
             e = joist_cap_copy_batch(&k, cs, a, b, any(JOIST_COPY_BATCH + 1u), mask,
                                      any(JOIST_COPY_RECV + 1u), &done, &skipped);
             break;
+        /* Decisions 0020 and 0021, with the page tables (JOIST_CBMC_TABLES):
+         * a is the frame (or for unmap_range and protect the task), b the
+         * task (or for space_donate the frame), to the old frame of a
+         * conditional map. */
+        case 11:
+            e = joist_map(&k, cs, a, off, n, b, va, perms);
+            break;
+        case 12:
+            e = joist_map_replace(&k, cs, a, off, n, b, va, perms, to, off2);
+            break;
+        case 13:
+            e = joist_unmap_range(&k, cs, a, va, n);
+            break;
+        case 14:
+            e = joist_protect(&k, cs, a, va, n, perms);
+            break;
+        case 15:
+            e = joist_space_donate(&k, cs, a, b);
+            break;
         default:
             e = joist_task_destroy(&k, cs, a);
             break;
@@ -159,6 +282,9 @@ int main(void)
 #ifndef JOIST_CBMC_NO_INVARIANTS
         __CPROVER_assert(joist_check_invariants(&k, NULL, 0) == 0, "invariants hold");
 #endif
+#if defined(JOIST_CBMC_TABLES) && defined(JOIST_CBMC_INDUCTIVE)
+        __CPROVER_assert(pages_distinct(), "I12: every table page held once");
+#endif
         if (e == JOIST_OK && (op == 1 || op == 2 || op == 4)) {
             uint32_t dst = op == 4 ? to : cs;
             const struct joist_cap *s = joist__slot_c(&k, cs, a);
@@ -166,6 +292,11 @@ int main(void)
             __CPROVER_assert(s != NULL && d != NULL &&
                                  (d->rights & (joist_rights)~s->rights) == 0,
                              "I8: rights never grow");
+        }
+        if (e == JOIST_OK && (op == 11 || op == 12) && (perms & JOIST_MAP_W) != 0) {
+            const struct joist_cap *fc = joist__slot_c(&k, cs, a);
+            __CPROVER_assert(fc != NULL && (fc->rights & JOIST_R_WRITE) != 0,
+                             "I8: a page is writable only through a frame capability that writes");
         }
         if (op == 10 && done != 0) {
             /* I8 for each copy the batch made: slot b + i of the task named

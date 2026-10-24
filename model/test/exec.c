@@ -356,12 +356,12 @@ static void hk_table_gone(void *ctx, uint32_t space, uint64_t va, unsigned level
     uint64_t r = hshadow.t[t].region;
     for (uint32_t i = 0; i < HS_TABLES; i++) {
         if (hshadow.t[i].space1 == space + 1u && hshadow.t[i].level + 1u == level &&
-            hshadow.t[i].region >> 9 == r) {
+            hshadow.t[i].region >> JOIST_PT_SHIFT(1) == r) {
             hs_fail("table_gone over a table", space);
         }
     }
     for (uint32_t i = 0; level == 0 && i < HS_PAGES; i++) {
-        if (hshadow.p[i].space1 == space + 1u && hshadow.p[i].va >> 9 == r) {
+        if (hshadow.p[i].space1 == space + 1u && hshadow.p[i].va >> JOIST_PT_SHIFT(1) == r) {
             hs_fail("table_gone over a mapped page", space);
         }
     }
@@ -373,7 +373,7 @@ static void hk_map(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t
 {
     (void)ctx;
     if (space >= JOIST_MAX_CSPACES || !hshadow.live[space] || npages == 0 ||
-        hs_table(space, 0, va) < 0 || (va + npages - 1u) >> 9 != va >> 9) {
+        hs_table(space, 0, va) < 0 || (va + npages - 1u) >> JOIST_PT_SHIFT(1) != va >> JOIST_PT_SHIFT(1)) {
         hs_fail("map without a table, or across tables", space);
         return;
     }
@@ -451,7 +451,7 @@ static int hooks_agree(const struct joist_kernel *k, char *why, unsigned whylen)
                 continue;
             }
             tables++;
-            if (hs_table(s, 2, t2 << 27) < 0) {
+            if (hs_table(s, 2, t2 << JOIST_PT_SHIFT(3)) < 0) {
                 (void)snprintf(why, whylen, "hooks: space %u table 2/%llu never made", s, (unsigned long long)t2);
                 return 0;
             }
@@ -461,7 +461,7 @@ static int hooks_agree(const struct joist_kernel *k, char *why, unsigned whylen)
                     continue;
                 }
                 tables++;
-                uint64_t va1 = (t2 << 27) | (t1 << 18);
+                uint64_t va1 = (t2 << JOIST_PT_SHIFT(3)) | (t1 << JOIST_PT_SHIFT(2));
                 if (hs_table(s, 1, va1) < 0) {
                     (void)snprintf(why, whylen, "hooks: space %u table 1 at %#llx never made", s,
                                    (unsigned long long)va1);
@@ -473,7 +473,7 @@ static int hooks_agree(const struct joist_kernel *k, char *why, unsigned whylen)
                         continue;
                     }
                     tables++;
-                    uint64_t va0 = va1 | (t0 << 9);
+                    uint64_t va0 = va1 | (t0 << JOIST_PT_SHIFT(1));
                     if (hs_table(s, 0, va0) < 0) {
                         (void)snprintf(why, whylen, "hooks: space %u table 0 at %#llx never made", s,
                                        (unsigned long long)va0);
@@ -830,7 +830,7 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         /* A few virtual places, in two last-level tables and two top-level
          * entries, so runs collide; now and then the top of the user half. */
         uint64_t va = ch(src, 16) == 0 ? JOIST_USER_PAGES - 1u - ch(src, 40)
-                                       : (ch(src, 4) == 0 ? (uint64_t)1 << 27 : 0x400u) +
+                                       : (ch(src, 4) == 0 ? (uint64_t)1 << JOIST_PT_SHIFT(3) : 0x400u) +
                                              (ch(src, 3) == 0 ? 512u : 0u) + ch(src, 24);
         uint64_t n = ch(src, 8) == 0 ? ch(src, 600) : 1u + ch(src, 6);
         unsigned perms = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 3);
@@ -850,15 +850,15 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
             if (tc != NULL && tc->obj != 0 && tc->type == JOIST_OBJ_TASK && ch(src, 4) != 0) {
                 uint32_t sp = k->obj[tc->obj - 1u].target;
                 uint64_t *pe = NULL;
-                if (sp != 0 && sp <= JOIST_MAX_CSPACES && k->cs[sp - 1u].pt_top[va >> 27] != 0) {
-                    const uint64_t *n2 = hk_page(NULL, JOIST_PT_SHADOW(k->cs[sp - 1u].pt_top[va >> 27]));
-                    uint64_t e1 = n2 != NULL ? n2[(va >> 18) & 511u] : 0;
+                if (sp != 0 && sp <= JOIST_MAX_CSPACES && k->cs[sp - 1u].pt_top[va >> JOIST_PT_SHIFT(3)] != 0) {
+                    const uint64_t *n2 = hk_page(NULL, JOIST_PT_SHADOW(k->cs[sp - 1u].pt_top[va >> JOIST_PT_SHIFT(3)]));
+                    uint64_t e1 = n2 != NULL ? n2[(va >> JOIST_PT_SHIFT(2)) & (JOIST_PT_ENTRIES - 1u)] : 0;
                     const uint64_t *n1 = e1 != 0 ? hk_page(NULL, JOIST_PT_SHADOW(e1)) : NULL;
-                    uint64_t e0 = n1 != NULL ? n1[(va >> 9) & 511u] : 0;
+                    uint64_t e0 = n1 != NULL ? n1[(va >> JOIST_PT_SHIFT(1)) & (JOIST_PT_ENTRIES - 1u)] : 0;
                     pe = e0 != 0 ? hk_page(NULL, JOIST_PT_SHADOW(e0)) : NULL;
                 }
-                if (pe != NULL && pe[va & 511u] != 0) {
-                    ooff = JOIST_PTE_OFF(pe[va & 511u]);
+                if (pe != NULL && pe[va & (JOIST_PT_ENTRIES - 1u)] != 0) {
+                    ooff = JOIST_PTE_OFF(pe[va & (JOIST_PT_ENTRIES - 1u)]);
                 }
             }
             return joist_map_replace(k, ms, f, off, n, ts, va, perms, of, ooff);

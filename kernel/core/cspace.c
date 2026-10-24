@@ -85,10 +85,15 @@ static void obj_unref(struct joist_kernel *k, uint32_t obj_index)
 
 void joist__obj_free(struct joist_kernel *k, uint32_t obj_index)
 {
+    joist__object_freed(k, obj_index);    /* waiters wake; kernel references dropped */
+    joist__lifecycle_freed(k, obj_index); /* an unreachable task or thread goes too */
+    joist__obj_clear(k, obj_index);
+}
+
+void joist__obj_clear(struct joist_kernel *k, uint32_t obj_index)
+{
     struct joist_object *o = &k->obj[obj_index];
     {
-        joist__object_freed(k, obj_index);    /* waiters wake; kernel references dropped */
-        joist__lifecycle_freed(k, obj_index); /* an unreachable task or thread goes too */
         struct joist_cspace_state *donor = &k->cs[o->donor];
         donor->charged--;
         if (donor->live) {

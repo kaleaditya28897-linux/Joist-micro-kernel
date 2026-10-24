@@ -67,13 +67,23 @@
 #define JOIST_MAX_BADGE_ACCTS 64u
 #endif
 /* Dead-name notification registrations (I5). */
-/* Pages in the user half of an address space (x86_64: 2^47 bytes of 4 KiB):
- * JOIST_PT_TOP top-level page-table entries (below) of 2^27 pages each. Only
- * CBMC builds it smaller (model/cbmc/run.sh), to keep its state small. */
+/* The page tables' shape (*page tables*, below): JOIST_PT_BITS index bits
+ * per level (the hardware's 9, 512 entries a node), JOIST_PT_LEVELS levels
+ * of nodes under a top level of JOIST_PT_TOP entries. Only CBMC builds them
+ * smaller (model/cbmc/run.sh), to keep its state small; the kernel's
+ * page-table code (kernel/mem/vm.c) requires the hardware's. */
+#ifndef JOIST_PT_BITS
+#define JOIST_PT_BITS 9u
+#endif
+#define JOIST_PT_LEVELS 3u
 #ifndef JOIST_PT_TOP
 #define JOIST_PT_TOP 256u /* top-level entries covering the user half */
 #endif
-#define JOIST_USER_PAGES ((uint64_t)JOIST_PT_TOP << 27)
+/* Pages one entry covers at `level` (0 the last; JOIST_PT_LEVELS the top). */
+#define JOIST_PT_SHIFT(level) (JOIST_PT_BITS * (level))
+/* Pages in the user half of an address space (x86_64: 2^47 bytes of 4 KiB):
+ * JOIST_PT_TOP top-level entries of 2^27 pages each. */
+#define JOIST_USER_PAGES ((uint64_t)JOIST_PT_TOP << JOIST_PT_SHIFT(JOIST_PT_LEVELS))
 #define JOIST_PAGE_SIZE 4096u /* bytes in a page: addresses that the core sees in bytes */
 #ifndef JOIST_MAX_DEADNAMES
 #define JOIST_MAX_DEADNAMES 32u
@@ -221,8 +231,7 @@ struct joist_object {
  * pages of its child: JOIST_PT_NODE(shadow page, hardware page), 0 = none. A
  * last-level entry is 0020's record: the frame, the page in it, the
  * permissions and the rights ceiling. */
-#define JOIST_PT_ENTRIES 512u /* entries per node, every level */
-#define JOIST_PT_LEVELS 3u
+#define JOIST_PT_ENTRIES (1u << JOIST_PT_BITS) /* entries per node, every level */
 #define JOIST_PT_NODE(shadow, hw) (((uint64_t)(shadow) + 1u) | (((uint64_t)(hw) + 1u) << 32))
 #define JOIST_PT_SHADOW(e) (((e) & 0xffffffffu) - 1u)
 #define JOIST_PT_HW(e) (((e) >> 32) - 1u)
@@ -355,7 +364,7 @@ struct joist_hooks {
 /* Pages one call may cover: one page table (x86_64: 512 pages, 2 MiB). A
  * run lies within one such aligned region, so it needs at most one new table
  * at each level and one TLB shootdown. Larger regions take several calls. */
-#define JOIST_MAP_SPAN 512u
+#define JOIST_MAP_SPAN JOIST_PT_ENTRIES
 /* The frame sweep's cursor: last-level tables per space. */
 #define JOIST_PT_SWEEP_SPACE (JOIST_USER_PAGES / JOIST_PT_ENTRIES)
 

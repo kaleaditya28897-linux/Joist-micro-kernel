@@ -99,6 +99,7 @@ static struct abi_env env;
 #define RUN_MAX_CPUS 4u
 #endif
 _Static_assert(RUN_MAX_CPUS <= JOIST_MAX_CPUS && RUN_MAX_CPUS <= GDT_MAX_CPUS, "CPUs");
+_Static_assert(JOIST_PT_BITS == 9u && JOIST_PT_TOP == 256u, "the core's page tables mirror x86_64's (vm.c)");
 /* (The invariant-checking test build runs the core's checker in the
  * kernel, and the checker keeps tables the size of the core's on its
  * stack: tens of kilobytes with the larger table sizes. Found by that

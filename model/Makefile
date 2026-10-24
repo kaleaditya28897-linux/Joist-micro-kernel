@@ -16,7 +16,7 @@
 #   make fuzz-sanity prove the fuzzer finds injected bugs (FUZZ_SANITY list)
 #   make tla        TLC on tla/IpcDelete.tla: IPC racing preemptible destruction
 #   make tla-mutate prove the TLA+ properties catch each bug in tla/mutate_tla.py
-#   make cbmc       CBMC preservation proofs for the capability and task operations
+#   make cbmc       CBMC preservation proofs for the capability, task and mapping operations
 #   make format     clang-format the model's sources in place
 #   make clean
 
@@ -153,18 +153,19 @@ tla-mutate:
 # invariant check accepts, the operation keeps every invariant (and every
 # array access, pointer and shift is checked on the way). Operation numbers
 # are those of cbmc/harness_cspace.c (7, 8: grow, shrink; 9, 10: obj_kill,
-# cap_copy_batch, 0022); CBMC_JOBS run at once (each needs up
-# to ~5 GB). Operations 3 (delete) and 6 (task destroy) can cascade; their
+# cap_copy_batch, 0022); CBMC_JOBS run at once (each needs 3 to 6 GB, so one
+# at a time on the 8 GB build VM; all fourteen take about 4 hours). Operations 3 (delete) and 6 (task destroy) can cascade; their
 # formulas exhaust 15 GB even at smaller sizes, split by slot type, with
 # CaDiCaL, or path by path, so they are left to the property tests, the
-# fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8). The states
-# have no page tables, lent pages or mappings (0020, 0021), and one top-level
-# entry (JOIST_PT_TOP, cbmc/run.sh): the tables' nodes are pages of 512
-# entries reached through a hook, beyond CBMC, so the mapping calls (41-45)
-# and a condemned frame's sweep are not proved here yet (docs/phase4-plan.md,
-# step 2, part 2: open).
-CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10
-CBMC_JOBS ?= 2
+# fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8). The page
+# tables are their smallest (nodes of 2 entries, one top-level entry;
+# cbmc/run.sh). Operations 11-15 are the mapping calls (map, map_replace,
+# unmap_range, protect, space_donate; 0020, 0021), from states with page
+# tables in simulated memory; the others from states without (a condemned
+# frame's sweep, which kill and delete may start, is left to the property
+# tests and the mutations).
+CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15
+CBMC_JOBS ?= 1
 cbmc:
 	@mkdir -p $(BUILD)/cbmc
 	@rm -f $(BUILD)/cbmc/summary.txt

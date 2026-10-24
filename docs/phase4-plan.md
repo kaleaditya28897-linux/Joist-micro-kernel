@@ -531,3 +531,73 @@ then merged and adapted to 0020 and 0021 here.
     `smp4-smp`: "spinners on separate CPUs didn't run at the same time"),
     and passed three times out of three alone. Recorded as load, to watch:
     a third would be worth a look at what else the P53 runs.
+
+### Step 2, part 3: CBMC for the mapping calls (2026-10-24)
+
+The Testing table promises CBMC on `map`, `unmap_range`, `protect` and
+`space_donate`; part 2 left them unproved because the page tables'
+nodes (pages of 512 entries reached through a hook) were beyond CBMC.
+The owner chose to make the tables' shape a parameter and simulate the
+pages in the harness (2026-10-23).
+
+- **The shape a parameter** (`core.h`): `JOIST_PT_BITS` index bits per
+  level (9) and `JOIST_PT_TOP` top-level entries (256), with
+  `JOIST_PT_SHIFT(level)`; `JOIST_PT_ENTRIES`, `JOIST_MAP_SPAN` and
+  `JOIST_USER_PAGES` follow from them. `map.c` and the model's tests use
+  them instead of 9, 18 and 27. `run.c` requires the hardware's (9 and
+  256), and `map.c` three levels.
+- **The harness** (`model/cbmc/harness_cspace.c`, `cbmc/run.sh`):
+  operations 11-15 are `map`, `map_replace`, `unmap_range`, `protect`
+  and `space_donate`, from any state the invariant check accepts with
+  page tables, lent pages and mappings, in nodes of 2 entries under one
+  top-level entry. Their pages are simulated (6, behind `hooks.page`),
+  in one space; lent frames lie within them, as `space_donate` checks.
+  Every table page is held once: assumed of the state before and
+  asserted of the one after. The other operations start from states
+  without tables, with the page hook NULL, so a table page reached there
+  would fail the proof. Three loops get their own bounds, found by their
+  source text (CBMC numbers loops by position).
+- **Found by CBMC:**
+  - The map check followed a lent frame's water mark past its pages
+    when the mark was damaged (it reports the damage, and went on).
+    `lent_holding` now counts only below a sound mark.
+  - I12's check never asked that a table page be held once (as two
+    nodes, or a node and a free page): a state that breaks it passes,
+    and clearing an entry in one node then corrupts the other. The
+    kernel can't reach such a state (`take_page` hands each lent page out
+    once), and a check of it in the kernel takes storage or time growing
+    with the tables, so it is the harness's (above).
+- **Freeing a frame is its own** (`joist__obj_clear`, the end of
+  `joist__obj_free`): nothing waits on a frame or is notified of it, and
+  it has no lifecycle, so the rest did nothing. Through it the proof of
+  `unmap_range` was 16 times larger.
+- **Mutations:** `map-sweep-skips-tables`, `map-sweep-skips-top`
+  (the sweep's strides) and `map-frame-free-skipped`.
+- **`make -C model cbmc`** now runs all fourteen operations, one at a
+  time: they need 3 to 6 GB each, and two can't share the build VM.
+- **Verified** (on the build VM, nothing else on it; the mapping
+  calls, the model check, the mutations and the kernel check run by
+  the P53's Claude Code, `/srv/joist/handoff/p4-cbmcmap/findings.md`):
+  - CBMC, operations 11-15: `map` 2 795 s, `map_replace` 1 699 s,
+    `unmap_range` 3 637 s, `protect` 2 072 s, `space_donate` 1 367 s;
+    each 0 of about 10 380 properties failed; peaks 3.4 to 5.1 GB.
+  - CBMC, operations 0, 1, 2, 4, 5, 7, 8, 9 and 10, again (their states'
+    page hook now NULL): all verified, 93 to 737 s, each 0 of about
+    10 290 properties failed. Run with the page hook set, as the mapping
+    calls have it, `obj_kill` ran out of memory (7.9 GB) where NULL takes
+    130 s; the P53's Claude Code found it and the remedy.
+  - `make -C model check`: 200 tests under plain, asan, ubsan, msan, tsan
+    and small, no failure.
+  - Mutations `map-`, `lend-`, `root-self-`, `hook-`, `kill-`, `copy-`,
+    `batch-` and `task-no-drain`: all 58 caught.
+  - `make -C kernel check`: every host test, freestanding build,
+    clang-tidy and scan-build clean, BIOS and UEFI boots, all 74
+    self-tests (no timing test failed this time). The bench gate: 384,
+    1 580 and 1 116 cycles (baselines 496, 1 548, 1 092).
+- **Open:**
+  - CBMC for `obj_kill` and `cap_delete` from states with mapped frames
+    (a condemned frame's sweep) is not done; the sweep is covered by the
+    property tests and the mutations.
+  - `map-sweep-skips-top` is caught by the general I12 count, at the
+    same seed and step as `map-destroy-keeps`, not by a test aimed at
+    the top-level stride.

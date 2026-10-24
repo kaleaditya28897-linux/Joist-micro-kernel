@@ -16,14 +16,16 @@
 
 _Static_assert(JOIST_MAX_OBJECTS <= 0xffffu, "a page entry names its frame in 16 bits");
 _Static_assert(JOIST_MAP_SPAN == JOIST_PT_ENTRIES, "a run lies within one last-level table");
-_Static_assert(JOIST_USER_PAGES == (uint64_t)JOIST_PT_TOP << 27, "the top level covers the user half");
+_Static_assert(JOIST_PT_BITS >= 1u && JOIST_PT_ENTRIES * sizeof(uint64_t) <= JOIST_PAGE_SIZE,
+               "a node fits a page");
+_Static_assert(JOIST_PT_LEVELS == 3u, "the walks below are written for three levels of nodes");
 
 /* ---- the tree ---- */
 
 /* The entry of va's node at `level` (0 the last) for the level below. */
 static unsigned idx(uint64_t va, unsigned level)
 {
-    return (unsigned)((va >> (9u * level)) & (JOIST_PT_ENTRIES - 1u));
+    return (unsigned)((va >> JOIST_PT_SHIFT(level)) & (JOIST_PT_ENTRIES - 1u));
 }
 
 static uint64_t *node(const struct joist_kernel *k, uint64_t pfn)
@@ -35,7 +37,7 @@ static uint64_t *node(const struct joist_kernel *k, uint64_t pfn)
  * level, or in the node above. NULL if a node above it is absent. */
 static uint64_t *link(const struct joist_kernel *k, uint32_t s, uint64_t va, unsigned level)
 {
-    uint64_t *e = (uint64_t *)&k->cs[s].pt_top[va >> 27];
+    uint64_t *e = (uint64_t *)&k->cs[s].pt_top[va >> JOIST_PT_SHIFT(JOIST_PT_LEVELS)];
     for (unsigned l = JOIST_PT_LEVELS - 1u; l > level; l--) {
         if (*e == 0) {
             return NULL;
@@ -45,7 +47,7 @@ static uint64_t *link(const struct joist_kernel *k, uint32_t s, uint64_t va, uns
     return e;
 }
 
-/* The last-level node covering va (its 512 entries), or NULL. */
+/* The last-level node covering va (its JOIST_PT_ENTRIES entries), or NULL. */
 static uint64_t *leaf(const struct joist_kernel *k, uint32_t s, uint64_t va)
 {
     const uint64_t *e = link(k, s, va, 0);
@@ -82,7 +84,7 @@ static uint64_t take_page(struct joist_kernel *k, uint32_t s)
             f->lent_next = 0;
         }
     }
-    memset(node(k, pfn), 0, JOIST_PAGE_SIZE);
+    memset(node(k, pfn), 0, JOIST_PT_ENTRIES * sizeof(uint64_t));
     st->pt_avail--;
     st->pt_used++;
     return pfn;
@@ -143,9 +145,13 @@ static void prune(struct joist_kernel *k, uint32_t s, uint64_t va)
 
 /* The rest of a frame's freeing, once nothing maps it or borrows it: its
  * last capability went long ago (dying). */
+/* A frame freed: its quota unit back and its fields cleared. Nothing waits
+ * on a frame or is notified of it (the IPC and notification checks: no
+ * queue, no notification state), and it has no lifecycle, so the rest of
+ * joist__obj_free would do nothing. */
 static void frame_release(struct joist_kernel *k, uint32_t obj)
 {
-    joist__obj_free(k, obj);
+    joist__obj_clear(k, obj);
 }
 
 /* A frame the sweep unmaps: dying (its last capability gone) or dead
@@ -535,11 +541,12 @@ static uint64_t sweep_next(const struct joist_kernel *k, uint32_t s, uint64_t t,
     uint64_t va = t * JOIST_PT_ENTRIES;
     const uint64_t *e2 = link(k, s, va, 2);
     if (*e2 == 0) {
-        return ((va >> 27) + 1u) << 18; /* the next top-level entry's first table */
+        /* the next top-level entry's first table */
+        return ((va >> JOIST_PT_SHIFT(3)) + 1u) << (JOIST_PT_SHIFT(3) - JOIST_PT_BITS);
     }
     const uint64_t *e1 = link(k, s, va, 1);
     if (*e1 == 0) {
-        return ((va >> 18) + 1u) << 9;
+        return ((va >> JOIST_PT_SHIFT(2)) + 1u) << (JOIST_PT_SHIFT(2) - JOIST_PT_BITS);
     }
     *lf = leaf(k, s, va);
     return t + 1u;
@@ -634,13 +641,15 @@ int joist__frames_sweep(struct joist_kernel *k, uint32_t *done)
 
 /* ---- invariants (I12, and I3's share of page tables) ---- */
 
-/* Frames lent to s holding page pfn: its index plus one, or 0. */
+/* Frames lent to s holding page pfn: its index plus one, or 0. Only below
+ * a sound water mark, so a damaged frame never leads the check past its
+ * pages. */
 static uint32_t lent_holding(const struct joist_kernel *k, uint32_t s, uint64_t pfn)
 {
     for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
         const struct joist_object *f = &k->obj[o];
-        if (f->type == JOIST_OBJ_FRAME && f->lent == s + 1u && pfn >= f->base &&
-            pfn < f->base + f->water) {
+        if (f->type == JOIST_OBJ_FRAME && f->lent == s + 1u && f->water <= f->npages &&
+            pfn >= f->base && pfn < f->base + f->water) {
             return o + 1u;
         }
     }
@@ -769,8 +778,9 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
                             k->obj[fr].type != JOIST_OBJ_FRAME || k->obj[fr].lent != 0 ||
                             JOIST_PTE_OFF(pe) >= k->obj[fr].npages) {
                             VIOLATION("I12: space %u page %llu names no page of a mappable frame", s,
-                                      (unsigned long long)(((uint64_t)t2 << 27) | ((uint64_t)t1 << 18) |
-                                                           ((uint64_t)t0 << 9) | i));
+                                      (unsigned long long)(((uint64_t)t2 << JOIST_PT_SHIFT(3)) |
+                                                           ((uint64_t)t1 << JOIST_PT_SHIFT(2)) |
+                                                           ((uint64_t)t0 << JOIST_PT_SHIFT(1)) | i));
                             continue;
                         }
                         if ((p & JOIST_PTE_W) && (p & JOIST_PTE_X)) {

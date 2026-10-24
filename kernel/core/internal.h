@@ -109,6 +109,10 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
 
 /* Free object obj, whose last capability is gone (cspace.c). */
 void joist__obj_free(struct joist_kernel *k, uint32_t obj);
+/* Its quota unit back to its donor and every field cleared: the end of
+ * joist__obj_free, alone for an object nothing waits on and nothing
+ * notifies of, with no lifecycle (a frame, map.c). */
+void joist__obj_clear(struct joist_kernel *k, uint32_t obj);
 /* A task capability with CONTROL to `space` in cs's slot dst, paid by cs,
  * and space's task object (task.c). */
 joist_err joist__task_cap_new(struct joist_kernel *k, joist_cspace cs, joist_slot dst,
