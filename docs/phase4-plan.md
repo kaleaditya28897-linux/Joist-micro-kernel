@@ -187,9 +187,9 @@ What earlier phases hand to this one:
      without GRANT, and receive rights unless asked; stops at an occupied
      slot or a missing leaf with a cursor; `E_DEAD` for a dying child.
      Never allocates (a derive only counts a reference). 32 slots is the
-     destruction step's size. Whether Hurd glibc stops the parent's other
-     threads during `fork` is to be checked (`sysdeps/mach/hurd/fork.c`);
-     the batch is atomic only per call.
+     destruction step's size. The batch is atomic only per call; Hurd
+     glibc stops the parent's other threads for the whole copy (checked
+     2026-10-27, *Risks*).
 5. **The fault path** (0007, 0009). First, as it is: one fault IPC to
    `mm` per fault, then `mm`'s kernel calls, then the reply. The message
    gains the **faulting pc** and an **access type** (read, write or
@@ -296,9 +296,13 @@ What earlier phases hand to this one:
 - **`mm` is in the trusted base** and is the first real server. Its
   authority is kept to the frames and task capabilities it is given (0013);
   the review of it is part of the exit.
-- **Hurd glibc's `fork`** is not yet read for how it stops other threads;
-  if it doesn't, `cap_copy_batch` and the downgrade need a stop of their
-  own. Checked at step 3.
+- **Hurd glibc's `fork`** stops the parent's other threads for the copy
+  (checked 2026-10-27 in glibc's `sysdeps/mach/hurd/_Fork.c`, the
+  current tree: `__proc_dostop` before `__mach_port_names` and the
+  copy loop, `resume_threads` only after the ports are in the child), so
+  `cap_copy_batch` needs no stop of its own. Joist's `proc` will need its
+  `dostop` (suspending every thread of a task but one, through thread
+  capabilities, 0010); that is Phase 7's.
 - **Donation is new state in the kernel** (a frame lent to a space). If it
   proves too much, the fallback in choice 3 is ready, and the decision
   records which was built.
@@ -709,3 +713,30 @@ pages in the harness (2026-10-23).
   - CBMC, operation 16: verified, 0 of 10 581 properties failed, 1 342 s.
     The other fourteen are unchanged by this part (part 4's run stands:
     the harness only gained the new operation).
+
+### Step 2, part 6: TLA+ extended, and glibc's `fork` read (2026-10-27)
+
+The order of work's item 3 asks TLA+'s dying-space rule extended to
+mappings and to `cap_copy_batch`; the Testing table says the same.
+
+- **`model/tla/IpcDelete.tla`:** the server's destruction gains its
+  fourth step, its tables unmapped one at a time after its slots (as
+  `drain_pending` does); clients may now map and unmap pages in its
+  space and copy capabilities into it in a batch (several empty slots
+  in one step). A new invariant, `TablesEmptied` (I12): when
+  destruction ends, nothing is mapped. Mapping and the batch are refused
+  into a dying space under `RefuseIntoDying`, as a single capability is
+  (in the kernel, through the dead task capability).
+- **TLA+ mutations** (`mutate_tla.py`), new: a batch copy into a dying
+  space (`SpaceEmptied` breaks), a mapping into one (`TablesEmptied`
+  breaks), a table sweep that passes a table without unmapping it, and
+  one that may stall (`NoStrandedClient`).
+- **glibc's `fork`** (the open item for step 3, 0022): it stops the
+  parent's other threads for the whole capability copy (*Risks*), so the
+  batch needs no stop of its own.
+- **Verified** (on the build VM): `make -C model tla`: the safe
+  configuration (5 876 distinct states) and the large one (1 144 512)
+  hold every invariant and `NoStrandedClient`; the unsafe one
+  (`RefuseIntoDying` false) leaks, as it must. `make -C model
+  tla-mutate`: all 12 mutations caught, each by the property it breaks.
+  The C model, the kernel and CBMC are unchanged by this part.

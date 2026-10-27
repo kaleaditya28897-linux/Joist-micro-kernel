@@ -47,8 +47,24 @@ MUTATIONS = [
      """Spec == Init /\\ [][Next]_vars /\\ WF_vars(DestroyThread)"""),
     ("a destroyed space accepts capabilities (I1)",
      """    /\\ phase # "done"
-    /\\ (RefuseIntoDying => phase = "alive")""",
-     """    /\\ (RefuseIntoDying => phase \\in {"alive", "done"})"""),
+    /\\ (RefuseIntoDying => phase = "alive")
+    /\\ \\E i \\in 1..NSlots :""",
+     """    /\\ (RefuseIntoDying => phase \\in {"alive", "done"})
+    /\\ \\E i \\in 1..NSlots :"""),
+    ("cap_copy_batch into a dying space (I1, 0022)",
+     """    /\\ (RefuseIntoDying => phase = "alive")
+    /\\ \\E S \\in SUBSET""",
+     """    /\\ \\E S \\in SUBSET"""),
+    ("a dying space accepts mappings (I12, 0020)",
+     """    /\\ (RefuseIntoDying => phase = "alive")
+    /\\ \\E p \\in (1..NPages) \\ mapped""",
+     """    /\\ \\E p \\in (1..NPages) \\ mapped"""),
+    ("the table sweep passes a table without unmapping it (I12)",
+     """         ELSE /\\ mapped' = mapped \\ {tsweep}""",
+     """         ELSE /\\ mapped' = mapped"""),
+    ("the table sweep may stall (I10 liveness)",
+     """ /\\ WF_vars(TableStep)""",
+     """"""),
 ]
 
 

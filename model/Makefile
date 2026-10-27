@@ -142,7 +142,7 @@ tla:
 	cd tla && $(TLC) -workers auto -metadir ../$(TLA_META)/large -config IpcDelete_large.cfg IpcDelete.tla \
 	    > ../$(TLA_META)/large.log 2>&1 && grep -q "No error has been found" ../$(TLA_META)/large.log
 	cd tla && ! $(TLC) -workers auto -metadir ../$(TLA_META)/unsafe -config IpcDelete_unsafe.cfg IpcDelete.tla \
-	    > ../$(TLA_META)/unsafe.log 2>&1; grep -q "Invariant SpaceEmptied is violated" ../$(TLA_META)/unsafe.log
+	    > ../$(TLA_META)/unsafe.log 2>&1; grep -qE "Invariant (SpaceEmptied|TablesEmptied) is violated" ../$(TLA_META)/unsafe.log
 	@for c in safe large; do printf "tla: %-5s " $$c; grep "distinct states found" $(TLA_META)/$$c.log | tail -1; done
 	@echo "tla: safe and large configurations hold; the unsafe one leaks, as expected"
 

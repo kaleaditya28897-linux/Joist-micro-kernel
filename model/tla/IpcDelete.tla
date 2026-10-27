@@ -13,7 +13,9 @@
 (*                                                                         *)
 (*   1. mark the task dead;                                                *)
 (*   2. destroy its threads (here: the one server thread);                 *)
-(*   3. delete its capability slots one at a time.                         *)
+(*   3. delete its capability slots one at a time;                         *)
+(*   4. unmap its pages, a last-level table at a time (Phase 4, 0020:      *)
+(*      here each page stands for one table).                              *)
 (*                                                                         *)
 (* Client threads in another task keep calling the server's endpoint, time *)
 (* out, and pass capabilities into the server's space, at any point in     *)
@@ -25,15 +27,20 @@
 (*       every client eventually runs again;                               *)
 (*   I1  when destruction ends, the space holds nothing.                   *)
 (*                                                                         *)
+(*   I12 when destruction ends, nothing is mapped in the space (Phase 4).  *)
+(*                                                                         *)
 (* RefuseIntoDying selects whether passing a capability into a space that  *)
-(* is being destroyed is refused. Without it, a capability can land in a   *)
-(* slot the sweep has already passed and is never deleted (I1).            *)
+(* is being destroyed is refused: one at a time, a batch at once           *)
+(* (cap_copy_batch, 0022), or a mapping (0020). Without it, a capability   *)
+(* can land in a slot the sweep has already passed and is never deleted    *)
+(* (I1), and a page in a table it has passed is never unmapped (I12).      *)
 (***************************************************************************)
 EXTENDS Naturals, Sequences, FiniteSets
 
 CONSTANTS Clients,          \* client threads, in one client task
           MaxCalls,         \* calls per client, to keep the state space finite
           NSlots,           \* slots in the server's space
+          NPages,           \* pages (each a last-level table) of the server's space
           RefuseIntoDying   \* BOOLEAN: may a dying space receive capabilities?
 
 None == <<>>
@@ -51,10 +58,13 @@ VARIABLES
     rObj,     \* the reply object's saved reply capability: <<client, call>> or None
     epAlive,  \* the endpoint's RECV capability still exists (0001: else it is dead)
     slots,    \* the server's capability slots
-    phase,    \* "alive", "threads" (task marked dead), "sweep", "done"
-    sweep     \* next slot the sweep deletes
+    phase,    \* "alive", "threads" (task marked dead), "sweep", "tables", "done"
+    sweep,    \* next slot the sweep deletes
+    mapped,   \* the server's pages that are mapped (0020)
+    tsweep    \* next page (table) the table sweep unmaps
 
-vars == <<st, calls, q, srv, sReply, rObj, epAlive, slots, phase, sweep>>
+pt == <<mapped, tsweep>>
+vars == <<st, calls, q, srv, sReply, rObj, epAlive, slots, phase, sweep, mapped, tsweep>>
 
 TypeOK ==
     /\ st \in [Clients -> {"run", "sendq", "reply"}]
@@ -64,8 +74,10 @@ TypeOK ==
     /\ rObj = None \/ rObj \in Clients \X (1..MaxCalls)
     /\ epAlive \in BOOLEAN
     /\ slots \in [1..NSlots -> {"E", "R", "G", "empty"}]
-    /\ phase \in {"alive", "threads", "sweep", "done"}
+    /\ phase \in {"alive", "threads", "sweep", "tables", "done"}
     /\ sweep \in 1..(NSlots + 1)
+    /\ mapped \subseteq 1..NPages
+    /\ tsweep \in 1..(NPages + 1)
 
 Init ==
     /\ st = [c \in Clients |-> "run"]
@@ -78,6 +90,8 @@ Init ==
     /\ slots = InitSlots
     /\ phase = "alive"
     /\ sweep = 1
+    /\ mapped = {}
+    /\ tsweep = 1
 
 \* A reply capability <<c, n>> is live while caller c waits for call n.
 Waiting(cap) == cap # None /\ st[cap[1]] = "reply" /\ calls[cap[1]] = cap[2]
@@ -99,8 +113,8 @@ Call(c) ==
               /\ q' = q
          ELSE /\ st' = [st EXCEPT ![c] = "sendq"]
               /\ q' = Append(q, c)
-              /\ UNCHANGED <<srv, sReply>>
-    /\ UNCHANGED <<rObj, epAlive, slots, phase, sweep>>
+              /\ UNCHANGED <<srv, sReply, pt>>
+    /\ UNCHANGED <<rObj, epAlive, slots, phase, sweep, pt>>
 
 \* A Call's deadline passes, queued or waiting for the reply (the timeout
 \* covers the whole call). A reply capability naming it becomes stale.
@@ -108,7 +122,7 @@ Timeout(c) ==
     /\ st[c] \in {"sendq", "reply"}
     /\ st' = [st EXCEPT ![c] = "run"]
     /\ q' = Dequeue(c)
-    /\ UNCHANGED <<calls, srv, sReply, rObj, epAlive, slots, phase, sweep>>
+    /\ UNCHANGED <<calls, srv, sReply, rObj, epAlive, slots, phase, sweep, pt>>
 
 \* Pass a capability into the server's space (the stand-in for transfer in
 \* messages). A destroyed space refuses; a dying one refuses only if
@@ -120,7 +134,34 @@ Grant(c) ==
     /\ \E i \in 1..NSlots :
          /\ slots[i] = "empty"
          /\ slots' = [slots EXCEPT ![i] = "G"]
-    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, phase, sweep>>
+    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, phase, sweep, pt>>
+
+\* cap_copy_batch (0022): several capabilities at once, into empty slots,
+\* in one step. Refused as Grant is.
+CopyBatch(c) ==
+    /\ st[c] = "run"
+    /\ phase # "done"
+    /\ (RefuseIntoDying => phase = "alive")
+    /\ \E S \in SUBSET {i \in 1..NSlots : slots[i] = "empty"} :
+         /\ S # {}
+         /\ slots' = [i \in 1..NSlots |-> IF i \in S THEN "G" ELSE slots[i]]
+    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, phase, sweep, pt>>
+
+\* Map a page into the server's space (the stand-in for mm, which controls
+\* the task, 0020). Refused as Grant is: the kernel finds the task through
+\* its task capability, which is dead from step 1 on.
+Map(c) ==
+    /\ st[c] = "run"
+    /\ phase # "done"
+    /\ (RefuseIntoDying => phase = "alive")
+    /\ \E p \in (1..NPages) \ mapped : mapped' = mapped \cup {p}
+    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, slots, phase, sweep, tsweep>>
+
+\* Unmap a page: allowed at any time (unmap_range takes holes).
+Unmap(c) ==
+    /\ st[c] = "run"
+    /\ \E p \in mapped : mapped' = mapped \ {p}
+    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, slots, phase, sweep, tsweep>>
 
 (*************************** server actions ******************************)
 
@@ -135,14 +176,14 @@ Recv ==
               /\ q' = Tail(q)
               /\ srv' = srv
          ELSE /\ srv' = "recvq"
-              /\ UNCHANGED <<sReply, st, q>>
-    /\ UNCHANGED <<calls, rObj, epAlive, slots, phase, sweep>>
+              /\ UNCHANGED <<sReply, st, q, pt>>
+    /\ UNCHANGED <<calls, rObj, epAlive, slots, phase, sweep, pt>>
 
 Reply ==
     /\ srv = "run" /\ sReply # None
     /\ st' = IF Waiting(sReply) THEN [st EXCEPT ![sReply[1]] = "run"] ELSE st
     /\ sReply' = None
-    /\ UNCHANGED <<calls, q, srv, rObj, epAlive, slots, phase, sweep>>
+    /\ UNCHANGED <<calls, q, srv, rObj, epAlive, slots, phase, sweep, pt>>
 
 \* reply_save into the reply object, if it still exists and is unbound.
 Save ==
@@ -150,14 +191,14 @@ Save ==
     /\ \E i \in 1..NSlots : slots[i] = "R"
     /\ rObj' = sReply
     /\ sReply' = None
-    /\ UNCHANGED <<st, calls, q, srv, epAlive, slots, phase, sweep>>
+    /\ UNCHANGED <<st, calls, q, srv, epAlive, slots, phase, sweep, pt>>
 
 ReplySaved ==
     /\ srv = "run" /\ rObj # None
     /\ \E i \in 1..NSlots : slots[i] = "R"
     /\ st' = IF Waiting(rObj) THEN [st EXCEPT ![rObj[1]] = "run"] ELSE st
     /\ rObj' = None
-    /\ UNCHANGED <<calls, q, srv, sReply, epAlive, slots, phase, sweep>>
+    /\ UNCHANGED <<calls, q, srv, sReply, epAlive, slots, phase, sweep, pt>>
 
 (*********************** the preemptible destruction **********************)
 
@@ -165,7 +206,7 @@ ReplySaved ==
 StartDestroy ==
     /\ phase = "alive"
     /\ phase' = "threads"
-    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, slots, sweep>>
+    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, slots, sweep, pt>>
 
 \* Step 2: the server thread is destroyed: dequeued, and a caller it owes a
 \* reply wakes with E_PEER (I10).
@@ -175,7 +216,7 @@ DestroyThread ==
     /\ st' = IF Waiting(sReply) THEN [st EXCEPT ![sReply[1]] = "run"] ELSE st
     /\ sReply' = None
     /\ phase' = "sweep"
-    /\ UNCHANGED <<calls, q, rObj, epAlive, slots, sweep>>
+    /\ UNCHANGED <<calls, q, rObj, epAlive, slots, sweep, pt>>
 
 \* Step 3: delete one slot. Deleting the RECV capability kills the endpoint
 \* and wakes its queue (E_GONE); deleting the reply object wakes its caller
@@ -183,8 +224,8 @@ DestroyThread ==
 SweepStep ==
     /\ phase = "sweep"
     /\ IF sweep > NSlots
-         THEN /\ phase' = "done"
-              /\ UNCHANGED <<st, q, rObj, epAlive, slots, sweep>>
+         THEN /\ phase' = "tables"
+              /\ UNCHANGED <<st, q, rObj, epAlive, slots, sweep, pt>>
          ELSE LET s == slots[sweep] IN
               /\ slots' = [slots EXCEPT ![sweep] = "empty"]
               /\ sweep' = sweep + 1
@@ -197,25 +238,37 @@ SweepStep ==
                    ELSE IF s = "R"
                      THEN /\ st' = IF Waiting(rObj) THEN [st EXCEPT ![rObj[1]] = "run"] ELSE st
                           /\ rObj' = None
-                          /\ UNCHANGED <<epAlive, q>>
-                     ELSE UNCHANGED <<st, q, rObj, epAlive>>
-    /\ UNCHANGED <<calls, srv, sReply>>
+                          /\ UNCHANGED <<epAlive, q, pt>>
+                     ELSE UNCHANGED <<st, q, rObj, epAlive, pt>>
+    /\ UNCHANGED <<calls, srv, sReply, pt>>
 
-Destroy == StartDestroy \/ DestroyThread \/ SweepStep
+\* Step 4 (0020): unmap one page's table; then destruction is done. A
+\* preemption point between any two, as for the slots.
+TableStep ==
+    /\ phase = "tables"
+    /\ IF tsweep > NPages
+         THEN /\ phase' = "done"
+              /\ UNCHANGED <<mapped, tsweep>>
+         ELSE /\ mapped' = mapped \ {tsweep}
+              /\ tsweep' = tsweep + 1
+              /\ phase' = phase
+    /\ UNCHANGED <<st, calls, q, srv, sReply, rObj, epAlive, slots, sweep>>
+
+Destroy == StartDestroy \/ DestroyThread \/ SweepStep \/ TableStep
 
 \* After destruction there may be nothing left to do. Saying so explicitly
 \* keeps TLC's deadlock check on for every other state.
 Terminated == phase = "done" /\ UNCHANGED vars
 
 Next ==
-    \/ \E c \in Clients : Call(c) \/ Timeout(c) \/ Grant(c)
+    \/ \E c \in Clients : Call(c) \/ Timeout(c) \/ Grant(c) \/ CopyBatch(c) \/ Map(c) \/ Unmap(c)
     \/ Recv \/ Reply \/ Save \/ ReplySaved
     \/ Destroy
     \/ Terminated
 
 \* Fairness: once started, destruction runs to the end. Nothing else is
 \* assumed: clients and the server may stop at any time.
-Spec == Init /\ [][Next]_vars /\ WF_vars(DestroyThread) /\ WF_vars(SweepStep)
+Spec == Init /\ [][Next]_vars /\ WF_vars(DestroyThread) /\ WF_vars(SweepStep) /\ WF_vars(TableStep)
 
 (******************************* properties ******************************)
 
@@ -235,6 +288,9 @@ QueueSound ==
 
 \* I1: when destruction ends, the space holds nothing.
 SpaceEmptied == phase = "done" => \A i \in 1..NSlots : slots[i] = "empty"
+
+\* I12 (0020): when destruction ends, nothing is mapped in the space.
+TablesEmptied == phase = "done" => mapped = {}
 
 \* I10, liveness: once destruction starts, it finishes and every client ends
 \* up running, even those that called during it: nothing waits forever on a

@@ -92,9 +92,10 @@ For the copy:
   - It never allocates: a copy only counts a reference, and a badge's
     account already exists for any badge already held.
   - It is atomic per call only. If the parent's other threads change its
-    capability space during a `fork`, glibc must stop them. Whether Hurd
-    glibc does so (`sysdeps/mach/hurd/fork.c`) is checked at the plan's
-    step 3.
+    capability space during a `fork`, glibc must stop them. Hurd glibc
+    does (checked 2026-10-27, `sysdeps/mach/hurd/_Fork.c`: `__proc_dostop`
+    stops every other thread before the port names are read and copied,
+    and they resume only after).
 
 ## Consequences
 
