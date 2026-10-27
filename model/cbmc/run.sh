@@ -4,7 +4,7 @@
 # operation with arbitrary arguments keeps every invariant, at the table sizes
 # below. Unwinding assertions make an insufficient loop bound a failure.
 # The page tables are their smallest (one top-level entry, nodes of two
-# entries, three levels); operations 11-15 (the mapping calls) start from
+# entries, three levels); operations 11-16 (the mapping calls) start from
 # states that have them, in simulated memory of JOIST_CBMC_SIM_PAGES pages
 # (6). Two loops of the map checker then need more than the default bound of
 # 4, and get their own (--unwindset): the walk of a space's free table pages
@@ -40,7 +40,7 @@ for arg in "$@"; do
     unwind=4
     unwindset=""
     sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/2/')
-    case $op in 1[1-5])
+    case $op in 1[1-6])
         tables="-DJOIST_CBMC_TABLES -DJOIST_CBMC_SIM_PAGES=${sim_pages}u"
         sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/1/') ;;
     esac

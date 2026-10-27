@@ -676,3 +676,36 @@ pages in the harness (2026-10-23).
     10 550 (11-15) properties failed, in 5 h 06 min; peaks 3.6 to 6.2 GB
     (`cap_copy_batch`). About 100 more properties each than in part 3 (the
     free objects' check), and 30 to 50 % slower.
+
+### Step 2, part 5: `map_query` (2026-10-27)
+
+- **Settled** (the owner, 2026-10-27; 0020 amended): the caller names the
+  frame. `map_query(task, va, n ≤ 64, frame or none, buffer)` reports per
+  page: absent; or present, its permissions, its rights ceiling, and the
+  page offset only for the frame named (with CONTROL). No other frame, no
+  physical address; within one last-level table, as the other calls over
+  pages. Rebuilding `mm` from it after a restart takes a pass per frame:
+  open, for Phase 9.
+- **Built:** `joist_map_query` (`map.c`), O(n), changing nothing;
+  system call 46 (`ABI_MAP_QUERY`, the buffer in `R8`, written whole or
+  not at all) and `j_map_query`; unit tests (the model's and the ABI's);
+  the executor's operation, checked page by page against the hooks'
+  record of what is mapped (present, permissions, a writable page's
+  ceiling, the frame and offset exactly when named); CBMC operation 16
+  (a frame is reported only through a capability with CONTROL);
+  `growroot` queries a page it mapped, on the real kernel. Mutations:
+  `query-shows-other-frames`, `-no-offset`, `-ceiling-lost`,
+  `-frame-unchecked`, `-no-page-limit`.
+- **Verified** (on the build VM, alone, the kernel built from nothing):
+  - `make -C model check`: every test under plain, asan, ubsan, msan,
+    tsan and small, no failure; the whole-model property test with a new
+    floor (over 200 successful queries).
+  - Mutations `query-`, `map-`, `lend-`, `hook-`: all 40 caught.
+  - `make -C kernel check`: every host test (the ABI's query among them),
+    freestanding build, clang-tidy and scan-build clean, BIOS and UEFI
+    boots, all 74 self-tests (`growroot`'s query on 1 and 4 CPUs and on
+    the checking kernel). The bench gate: 376, 1 568 and 1 112 cycles
+    (baselines 496, 1 548, 1 092).
+  - CBMC, operation 16: verified, 0 of 10 581 properties failed, 1 342 s.
+    The other fourteen are unchanged by this part (part 4's run stands:
+    the harness only gained the new operation).

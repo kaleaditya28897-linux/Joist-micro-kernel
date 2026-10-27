@@ -319,6 +319,7 @@ its space a frame for its tables before loading it (`kernel/arch/x86_64/run.h`).
 | `unmap_range` | task slot, first virtual page, pages | as for a task capability with CONTROL, then `E_RANGE` (no pages, outside the user half or across a last-level table) | whatever is mapped there goes; holes are fine; tables left empty go back to the space's lent pages | the run's pages, and the three tables above |
 | `obj_kill` | slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE` (not a frame), `E_RIGHTS` (KILL), `E_GONE` (killed already), `E_STATE` (a frame lent to a space) | revoke by kill (0022): the frame dies, so every capability to it, in any space, fails `E_GONE` (`map`, `frame_split`, `space_donate`, `obj_kill`), and it can't be mapped again; the destruction work list unmaps it everywhere, a last-level table per step (`continue`). Its slots stay until their holders delete them; its pages and its quota unit come back with its last capability. All or nothing per frame: to revoke only what was handed out, hand out a frame of its own | O(1); the unmapping is the sweep's |
 | `protect` | task slot, first virtual page, pages, permissions | as `unmap_range`, with `E_RIGHTS` (writable and executable, an unknown permission) before `E_RANGE`; then `E_RIGHTS` if a page is to be writable but was mapped through a capability without WRITE, and nothing changes | the pages mapped there take those permissions; holes are fine | the run's pages |
+| `map_query` | task slot, first virtual page, pages (at most 64), frame slot or `J_SLOT_NONE`, the caller's buffer | for the task, then the frame named (each with CONTROL); `E_RANGE` (no pages, more than 64, outside the user half or one `JOIST_MAP_SPAN`, or a buffer that can't take the answer whole); nothing is written on an error | per page, one word: 0 if absent, else present, its permissions, whether its rights ceiling allows writing, and, only for the frame named, that it is that frame and the page offset (0020, amended 2026-10-27). Never another frame, nor a physical address | the run's pages |
 
 The same frame may be mapped in several tasks, or twice in one: sharing is
 how memory is passed until 0006's grants (Phase 5). W^X holds per page, not
@@ -506,11 +507,11 @@ the dispatcher works on that record alone.
 Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
 `Wait`, `recv_slots`, `reply_save`, `reply_saved`), 20-29 capabilities and
 the table (28 `cap_copy_batch`, 29 `obj_kill`: 0022), 30-38 tasks and
-threads, 40-45 frames and mappings
+threads, 40-46 frames and mappings
 (`frame_split`, `map`, `unmap_range`, `map_replace`, `protect`,
-`space_donate`; `map` and `map_replace` take their sixth argument,
-the permissions, in `R9`, and `map_replace` the old frame and its offset in
-`R12` and `R13`), 50-53
+`space_donate`, `map_query`; `map` and `map_replace` take their sixth
+argument, the permissions, in `R9`, `map_replace` the old frame and its
+offset in `R12` and `R13`, and `map_query` its buffer in `R8`), 50-53
 scheduling contexts, 54 `yield` (decision 0014: the calling thread gives up
 the rest of its turn and goes behind its equals; its budget is untouched), 60-65 destruction, ancestry and lifetime
 notifications, 70-71 a thread's registers (`thread_read_regs`,

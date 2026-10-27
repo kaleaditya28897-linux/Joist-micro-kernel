@@ -62,6 +62,7 @@ enum {
     JX_UNMAP,
     JX_PROTECT,
     JX_DONATE,
+    JX_MAP_QUERY, /* 0020, amended 2026-10-27 */
     JX_CONTINUE,
     JX_GIVE,
     JX_OBJ_KILL,    /* decision 0022 */

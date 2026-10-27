@@ -154,18 +154,18 @@ tla-mutate:
 # array access, pointer and shift is checked on the way). Operation numbers
 # are those of cbmc/harness_cspace.c (7, 8: grow, shrink; 9, 10: obj_kill,
 # cap_copy_batch, 0022); CBMC_JOBS run at once (each needs 3.5 to 6.5 GB, so
-# one at a time on the 8 GB build VM, with nothing else on it; all fourteen
-# take about 5 hours). Operations 3 (delete) and 6 (task destroy) can cascade; their
+# one at a time on the 8 GB build VM, with nothing else on it; all fifteen
+# take about 6 hours). Operations 3 (delete) and 6 (task destroy) can cascade; their
 # formulas exhaust 15 GB even at smaller sizes, split by slot type, with
 # CaDiCaL, or path by path, so they are left to the property tests, the
 # fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8). The page
 # tables are their smallest (nodes of 2 entries, one top-level entry;
-# cbmc/run.sh). Operations 11-15 are the mapping calls (map, map_replace,
-# unmap_range, protect, space_donate; 0020, 0021), from states with page
+# cbmc/run.sh). Operations 11-16 are the mapping calls (map, map_replace,
+# unmap_range, protect, space_donate, map_query; 0020, 0021), from states with page
 # tables in simulated memory; the others from states without (a condemned
 # frame's sweep, which kill and delete may start, is left to the property
 # tests and the mutations).
-CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15
+CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16
 CBMC_JOBS ?= 1
 cbmc:
 	@mkdir -p $(BUILD)/cbmc

@@ -76,6 +76,7 @@ enum {
 #define ABI_MAP_REPLACE      43u /* as ABI_MAP; r12 the old frame, r13 its page offset */
 #define ABI_PROTECT          44u /* task, va page, pages, perms */
 #define ABI_SPACE_DONATE     45u /* task, frame */
+#define ABI_MAP_QUERY        46u /* task, va page, pages, frame (or none); r8 the buffer (0020) */
 #define ABI_SC_CREATE        50u /* dst, prio, budget, period */
 #define ABI_SC_BIND          51u /* context, thread */
 #define ABI_SC_UNBIND        52u /* context */

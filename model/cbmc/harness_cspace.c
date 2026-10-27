@@ -35,6 +35,7 @@ uint64_t nondet_u64(void);
 struct joist_kernel nondet_kernel(void);
 
 static struct joist_kernel k;
+static uint64_t query[JOIST_QUERY_MAX]; /* map_query's answer (op 16) */
 
 /* Physical memory, as far as the core sees it (0020, 0021): the pages that
  * hooks.page reaches, holding the page tables' nodes. A node uses only its
@@ -274,6 +275,13 @@ int main(void)
         case 15:
             e = joist_space_donate(&k, cs, a, b);
             break;
+        case 16:
+            /* map_query (0020, amended): b the frame named, or none. */
+            if (any(1) == 0) {
+                b = JOIST_SLOT_NONE;
+            }
+            e = joist_map_query(&k, cs, a, va, n, b, query);
+            break;
         default:
             e = joist_task_destroy(&k, cs, a);
             break;
@@ -297,6 +305,17 @@ int main(void)
             const struct joist_cap *fc = joist__slot_c(&k, cs, a);
             __CPROVER_assert(fc != NULL && (fc->rights & JOIST_R_WRITE) != 0,
                              "I8: a page is writable only through a frame capability that writes");
+        }
+        if (e == JOIST_OK && op == 16) {
+            /* A frame is reported only through a frame capability with
+             * CONTROL; the query changed nothing (the invariants above). */
+            const struct joist_cap *fc = b == JOIST_SLOT_NONE ? NULL : joist__slot_c(&k, cs, b);
+            for (uint64_t i = 0; i < n && i < JOIST_QUERY_MAX; i++) {
+                __CPROVER_assert((query[i] & JOIST_QUERY_FRAME) == 0 ||
+                                     (fc != NULL && fc->type == JOIST_OBJ_FRAME &&
+                                      (fc->rights & JOIST_R_CONTROL) != 0),
+                                 "0020: map_query names only a frame the caller controls");
+            }
         }
         if (op == 10 && done != 0) {
             /* I8 for each copy the batch made: slot b + i of the task named

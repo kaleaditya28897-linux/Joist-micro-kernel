@@ -391,6 +391,44 @@ JT_TEST(abi_thread_regs_refusals)
     JT_CHECK(clean());
 }
 
+/* ---- Phase 4 step 2: map_query through the caller's memory (0020) ---- */
+
+JT_TEST(abi_map_query_into_the_callers_memory)
+{
+    setup();
+    uint8_t *mem = with_user_memory();
+    joist_thread a;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    memset(mem, 0x5a, 4096u);
+    /* Nothing mapped: four zeros, written at the caller's pointer. */
+    k.th[a].regs.r[ABI_R8] = UPAGE + 16u;
+    JT_CHECK(sys(a, ABI_MAP_QUERY, 2, 0x400, 4, JOIST_SLOT_NONE) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    for (unsigned i = 0; i < 4096u; i++) {
+        JT_CHECK(mem[i] == (i >= 16u && i < 16u + 4u * 8u ? 0 : 0x5a));
+    }
+    /* Refusals write nothing: too many pages, memory that can't take it
+     * whole (unmapped; running into the read-only page), an empty slot. */
+    memset(mem, 0x5a, 4096u);
+    JT_CHECK(sys(a, ABI_MAP_QUERY, 2, 0x400, JOIST_QUERY_MAX + 1u, JOIST_SLOT_NONE) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    uint64_t bad[] = {0x1000, UPAGE + 4096u - 8u};
+    for (unsigned i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        k.th[a].regs.r[ABI_R8] = bad[i];
+        JT_CHECK(sys(a, ABI_MAP_QUERY, 2, 0x400, 4, JOIST_SLOT_NONE) == ABI_DONE &&
+                 k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    }
+    k.th[a].regs.r[ABI_R8] = UPAGE;
+    JT_CHECK(sys(a, ABI_MAP_QUERY, 7, 0x400, 4, JOIST_SLOT_NONE) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_EMPTY);
+    for (unsigned i = 0; i < 4096u; i++) {
+        JT_CHECK(mem[i] == 0x5a);
+    }
+    JT_CHECK(clean());
+}
+
 /* ---- Phase 3 step 7: continue never sweeps more than the kernel's limit ---- */
 
 JT_TEST(abi_continue_is_bounded_by_the_preemption_limit)

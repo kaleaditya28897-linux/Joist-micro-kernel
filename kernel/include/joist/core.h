@@ -1075,6 +1075,24 @@ joist_err joist_unmap_range(struct joist_kernel *k, joist_cspace cs, joist_slot 
 joist_err joist_protect(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot, uint64_t va,
                         uint64_t npages, unsigned perms);
 
+/* What is mapped at [va, va + npages) of the task in task_slot (CONTROL),
+ * npages at most JOIST_QUERY_MAX, within one JOIST_MAP_SPAN (0020, amended
+ * 2026-10-27): out[i] is 0 for an absent page, or JOIST_QUERY_PRESENT with
+ * the page's permissions (JOIST_MAP_W, JOIST_MAP_X), JOIST_QUERY_CEIL_W if
+ * its rights ceiling allows writing, and JOIST_QUERY_FRAME with the page
+ * offset (JOIST_QUERY_OFF) if it maps the frame in frame_slot (CONTROL;
+ * JOIST_SLOT_NONE names none). Never another frame, nor a physical
+ * address. O(npages); changes nothing, out included, on an error:
+ * the capabilities' errors, then JOIST_E_RANGE (npages 0 or past
+ * JOIST_QUERY_MAX, outside the user half or one JOIST_MAP_SPAN). */
+#define JOIST_QUERY_MAX 64u
+#define JOIST_QUERY_CEIL_W 0x4u
+#define JOIST_QUERY_PRESENT 0x8u
+#define JOIST_QUERY_FRAME 0x10u
+#define JOIST_QUERY_OFF(e) ((e) >> 32)
+joist_err joist_map_query(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                          uint64_t va, uint64_t npages, joist_slot frame_slot, uint64_t *out);
+
 /* Set the mcp of the task named by task_slot (CONTROL) to at most cs's own
  * (JOIST_E_RIGHTS otherwise). */
 joist_err joist_task_set_mcp(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,

@@ -529,6 +529,38 @@ joist_err joist_protect(struct joist_kernel *k, joist_cspace cs, joist_slot task
     return JOIST_OK;
 }
 
+joist_err joist_map_query(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                          uint64_t va, uint64_t npages, joist_slot frame_slot, uint64_t *out)
+{
+    uint32_t space;
+    joist_err e = task_space(k, cs, task_slot, &space);
+    uint32_t fo = JOIST_MAX_OBJECTS; /* no frame named */
+    if (e == JOIST_OK && frame_slot != JOIST_SLOT_NONE) {
+        e = joist__control_cap(k, cs, frame_slot, JOIST_OBJ_FRAME, &fo); /* the frame named */
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (npages > JOIST_QUERY_MAX || bad_run(va, npages)) {
+        return JOIST_E_RANGE;
+    }
+    const uint64_t *lf = leaf(k, space, va);
+    for (uint64_t i = 0; i < npages; i++) {
+        JOIST_WORK(k);
+        uint64_t pe = lf != NULL ? lf[(va + i) % JOIST_PT_ENTRIES] : 0;
+        uint64_t q = 0;
+        if (pe != 0) {
+            q = JOIST_QUERY_PRESENT | JOIST_PTE_PERMS(pe) |
+                ((pe & JOIST_PTE_CEIL_W) != 0 ? (uint64_t)JOIST_QUERY_CEIL_W : 0u);
+            if (JOIST_PTE_FRAME(pe) == fo) {
+                q |= JOIST_QUERY_FRAME | (JOIST_PTE_OFF(pe) << 32);
+            }
+        }
+        out[i] = q;
+    }
+    return JOIST_OK;
+}
+
 /* ---- sweeps (the destruction work list, task.c) ---- */
 
 /* The next last-level table to look at from `t` (in tables of the space),

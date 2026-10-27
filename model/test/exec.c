@@ -58,6 +58,7 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_UNMAP] = "unmap",
                                         [JX_PROTECT] = "protect",
                                         [JX_DONATE] = "donate",
+                                        [JX_MAP_QUERY] = "map_query",
                                         [JX_CONTINUE] = "continue",
                                         [JX_GIVE] = "give",
                                         [JX_OBJ_KILL] = "obj_kill",
@@ -77,6 +78,7 @@ static const uint8_t weight[JX_OPS] = {
     [JX_SET_MCP] = 1,      [JX_REGS] = 2,          [JX_ABORT] = 2,       [JX_SUSPEND] = 1,
     [JX_RESUME] = 2,       [JX_SET_FAULT] = 3,     [JX_FAULT] = 2,       [JX_SPLIT] = 2,
     [JX_MAP] = 5,          [JX_UNMAP] = 2,         [JX_PROTECT] = 2,     [JX_DONATE] = 2,
+    [JX_MAP_QUERY] = 3,
     [JX_CONTINUE] = 4,     [JX_GIVE] = 4,
     [JX_OBJ_KILL] = 2,     [JX_COPY_BATCH] = 4,    [JX_TICK] = 6};
 
@@ -396,6 +398,38 @@ static void hk_map(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t
         hshadow.p[at].va = va + n;
         hshadow.p[at].pa = pa + n;
         hshadow.p[at].perms = perms;
+    }
+}
+
+/* map_query's answer for [va, va + n) of the task in slot ts of space ms,
+ * against the hooks' record of what is mapped: present, its permissions, a
+ * writable page's ceiling, and the page offset exactly for the frame in
+ * slot fs (JOIST_SLOT_NONE: none). */
+static void check_query(const struct joist_kernel *k, uint32_t ms, uint32_t ts, uint64_t va,
+                        uint64_t n, uint32_t fs, const uint64_t *q)
+{
+    const struct joist_cap *tc = joist__slot_c(k, ms, ts);
+    uint32_t space = k->obj[tc->obj - 1u].target - 1u;
+    const struct joist_object *f =
+        fs == JOIST_SLOT_NONE ? NULL : &k->obj[joist__slot_c(k, ms, fs)->obj - 1u];
+    for (uint64_t i = 0; i < n; i++) {
+        int at = hs_page(space, va + i);
+        if ((q[i] != 0) != (at >= 0) || (q[i] != 0 && (q[i] & JOIST_QUERY_PRESENT) == 0)) {
+            hs_fail("map_query: present where the hooks mapped nothing, or the reverse", space);
+            return;
+        }
+        if (at < 0) {
+            continue;
+        }
+        uint64_t pa = hshadow.p[at].pa;
+        int in = f != NULL && pa >= f->base && pa - f->base < f->npages;
+        if ((q[i] & (JOIST_MAP_W | JOIST_MAP_X)) != hshadow.p[at].perms ||
+            ((q[i] & JOIST_MAP_W) != 0 && (q[i] & JOIST_QUERY_CEIL_W) == 0) ||
+            ((q[i] & JOIST_QUERY_FRAME) != 0) != in || (in && JOIST_QUERY_OFF(q[i]) != pa - f->base) ||
+            (!in && JOIST_QUERY_OFF(q[i]) != 0)) {
+            hs_fail("map_query: permissions, ceiling or frame unlike the hooks' record", space);
+            return;
+        }
     }
 }
 
@@ -815,7 +849,8 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_MAP:
     case JX_UNMAP:
     case JX_PROTECT:
-    case JX_DONATE: {
+    case JX_DONATE:
+    case JX_MAP_QUERY: {
         /* From the root half the time: it holds the boot frames, the task
          * capabilities to map into, and its own (slot 10). */
         uint32_t ms = ch(src, 2) == 0 && k->root != 0 ? k->root - 1u : cs;
@@ -839,6 +874,17 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         }
         if (op == JX_PROTECT) {
             return joist_protect(k, ms, ts, va, n, perms);
+        }
+        if (op == JX_MAP_QUERY) {
+            /* Usually naming a frame, now and then none; sometimes too many pages. */
+            uint32_t fs = ch(src, 4) == 0 ? JOIST_SLOT_NONE : pick_slot(k, src, ms, JOIST_OBJ_FRAME);
+            uint64_t qn = ch(src, 8) == 0 ? ch(src, 80) : 1u + ch(src, 12);
+            static uint64_t q[JOIST_QUERY_MAX];
+            joist_err e = joist_map_query(k, ms, ts, va, qn, fs, q);
+            if (e == JOIST_OK) {
+                check_query(k, ms, ts, va, qn, fs, q);
+            }
+            return e;
         }
         uint32_t f = pick_slot(k, src, ms, JOIST_OBJ_FRAME);
         uint64_t off = ch(src, 4) == 0 ? ch(src, 40) : ch(src, 4);

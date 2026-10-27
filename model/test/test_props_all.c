@@ -115,7 +115,8 @@ JT_TEST(props_all_invariants_hold)
         JT_CHECK(st.faults_taken > 100 && st.faults_fatal > 100);
         JT_CHECK(st.mapped > 1000 && st.tables > 1000 && st.frames_dying > 100);
         JT_CHECK(st.result[JX_MAP][0] > 200 && st.result[JX_UNMAP][0] > 200 &&
-                 st.result[JX_PROTECT][0] > 200 && st.result[JX_DONATE][0] > 50);
+                 st.result[JX_PROTECT][0] > 200 && st.result[JX_DONATE][0] > 50 &&
+                 st.result[JX_MAP_QUERY][0] > 200);
         JT_CHECK(st.dying > 1000 && st.dying_deep > 10);
     }
 }

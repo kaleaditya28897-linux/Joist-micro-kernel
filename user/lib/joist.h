@@ -41,6 +41,13 @@ enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRA
 #define J_ROOT_TABLES 6u
 #define J_PAGE      4096u
 #define J_MAP_SPAN  512u /* pages one mapping may span */
+/* map_query's answer per page (0020): 0 absent, else J_QUERY_PRESENT with
+ * the permissions (1 W, 2 X), J_QUERY_CEIL_W, and J_QUERY_FRAME with the
+ * page offset in bits 32-63 for the frame named. */
+#define J_QUERY_MAX     64u
+#define J_QUERY_CEIL_W  0x4u
+#define J_QUERY_PRESENT 0x8u
+#define J_QUERY_FRAME   0x10u
 
 /* Call numbers. */
 enum {
@@ -53,7 +60,7 @@ enum {
     J_SYS_THREAD_SUSPEND, J_SYS_THREAD_RESUME, J_SYS_THREAD_ABORT, J_SYS_THREAD_SET_FAULT,
     J_SYS_TASK_SET_FAULT,
     J_SYS_FRAME_SPLIT = 40, J_SYS_MAP, J_SYS_UNMAP, J_SYS_MAP_REPLACE, J_SYS_PROTECT,
-    J_SYS_SPACE_DONATE,
+    J_SYS_SPACE_DONATE, J_SYS_MAP_QUERY,
     J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP, J_SYS_YIELD,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
@@ -312,6 +319,16 @@ static inline uint64_t j_unmap(uint64_t task, uint64_t va_page)
 static inline uint64_t j_protect(uint64_t task, uint64_t va_page, uint64_t n, uint64_t perms)
 {
     return j_sys4(J_SYS_PROTECT, task, va_page, n, perms);
+}
+/* What is mapped at n (at most J_QUERY_MAX) pages from va_page of a task,
+ * into buf; frame is the frame to report (J_SLOT_NONE: none). */
+static inline uint64_t j_map_query(uint64_t task, uint64_t va_page, uint64_t n, uint64_t frame,
+                                   uint64_t *buf)
+{
+    struct j_regs r = {.rax = J_SYS_MAP_QUERY, .rdi = task, .rsi = va_page, .rdx = n,
+                       .r10 = frame, .r8 = (uint64_t)buf};
+    j_syscall(&r);
+    return r.rax;
 }
 /* Lend a frame to a task's space for its page tables (0021). */
 static inline uint64_t j_space_donate(uint64_t task, uint64_t frame)

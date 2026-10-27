@@ -235,6 +235,17 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_SPACE_DONATE:
         e = joist_space_donate(k, cs, slot_arg(a0), slot_arg(a1));
         break;
+    case ABI_MAP_QUERY: {
+        /* As ABI_THREAD_READ_REGS: the answer first, then the caller's
+         * memory; one that can't take it whole is E_RANGE, nothing written. */
+        uint64_t q[JOIST_QUERY_MAX];
+        e = joist_map_query(k, cs, slot_arg(a0), a1, a2, slot_arg(a3), q);
+        if (e == JOIST_OK && copy_to_user(env->space_of(env->ctx, cs), R->r[ABI_R8], q,
+                                          (size_t)a2 * sizeof q[0]) != KERR_OK) {
+            e = JOIST_E_RANGE;
+        }
+        break;
+    }
     case ABI_SC_CREATE:
         e = a1 > JOIST_PRIO_MAX ? JOIST_E_RIGHTS
                                 : joist_sc_create(k, cs, slot_arg(a0), (uint8_t)a1, a2, a3);

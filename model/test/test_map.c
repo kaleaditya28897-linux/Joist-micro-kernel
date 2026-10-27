@@ -297,6 +297,51 @@ JT_TEST(map_unmap_range_with_holes_gives_tables_back)
     JT_CHECK(clean());
 }
 
+JT_TEST(map_query_reports_pages_and_the_named_frame_only)
+{
+    /* 0020, amended: per page, absent, or present with its permissions and
+     * ceiling, and the page offset only of the frame the caller names. */
+    setup();
+    JT_REQUIRE(joist_map(&k, root, F, 2, 3, TK, 0x401, JOIST_MAP_W) == JOIST_OK);
+    JT_REQUIRE(joist_boot_frame(&k, root, F2, 0x900, 4) == JOIST_OK);
+    JT_REQUIRE(joist_map(&k, root, F2, 1, 1, TK, 0x404, JOIST_MAP_X) == JOIST_OK);
+    uint64_t q[6];
+    const uint64_t pw = JOIST_QUERY_PRESENT | JOIST_MAP_W | JOIST_QUERY_CEIL_W;
+    const uint64_t px = JOIST_QUERY_PRESENT | JOIST_MAP_X | JOIST_QUERY_CEIL_W;
+    JT_REQUIRE(joist_map_query(&k, root, TK, 0x400, 6, F, q) == JOIST_OK);
+    JT_CHECK(q[0] == 0 && q[5] == 0);
+    for (unsigned i = 0; i < 3; i++) {
+        JT_CHECK(q[1 + i] == (pw | JOIST_QUERY_FRAME | ((uint64_t)(2 + i) << 32)));
+        JT_CHECK(JOIST_QUERY_OFF(q[1 + i]) == 2u + i);
+    }
+    JT_CHECK(q[4] == px); /* another frame: present, never which */
+    JT_REQUIRE(joist_map_query(&k, root, TK, 0x400, 6, JOIST_SLOT_NONE, q) == JOIST_OK);
+    JT_CHECK(q[1] == pw && q[3] == pw && q[4] == px);
+    JT_REQUIRE(joist_map_query(&k, root, TK, 0x400, 6, F2, q) == JOIST_OK);
+    JT_CHECK(q[1] == pw && q[4] == (px | JOIST_QUERY_FRAME | ((uint64_t)1 << 32)));
+    /* A read-only-ceiling mapping reports no ceiling. */
+    JT_REQUIRE(joist_cap_derive(&k, root, F, RO, JOIST_R_CONTROL) == JOIST_OK); /* no WRITE */
+    JT_REQUIRE(joist_map(&k, root, RO, 9, 1, TK, 0x410, 0) == JOIST_OK);
+    JT_REQUIRE(joist_map_query(&k, root, TK, 0x410, 1, F, q) == JOIST_OK);
+    JT_CHECK(q[0] == (JOIST_QUERY_PRESENT | JOIST_QUERY_FRAME | ((uint64_t)9 << 32)));
+    /* Errors change nothing, the buffer included. */
+    for (unsigned i = 0; i < 6; i++) {
+        q[i] = 0x5a5a5a5a5a5a5a5aull;
+    }
+    JT_CHECK(joist_map_query(&k, root, TK, 0x400, 0, F, q) == JOIST_E_RANGE);
+    JT_CHECK(joist_map_query(&k, root, TK, 0x400, JOIST_QUERY_MAX + 1u, F, q) == JOIST_E_RANGE);
+    JT_CHECK(joist_map_query(&k, root, TK, JOIST_MAP_SPAN - 1u, 2, F, q) == JOIST_E_RANGE);
+    JT_CHECK(joist_map_query(&k, root, TK, JOIST_USER_PAGES, 1, F, q) == JOIST_E_RANGE);
+    JT_CHECK(joist_map_query(&k, root, F, 0x400, 1, F, q) == JOIST_E_TYPE);  /* not a task */
+    JT_CHECK(joist_map_query(&k, root, TK, 0x400, 1, TK, q) == JOIST_E_TYPE); /* not a frame */
+    JT_REQUIRE(joist_cap_derive(&k, root, F, X, JOIST_R_WRITE) == JOIST_OK); /* no CONTROL */
+    JT_CHECK(joist_map_query(&k, root, TK, 0x400, 1, X, q) == JOIST_E_RIGHTS);
+    for (unsigned i = 0; i < 6; i++) {
+        JT_CHECK(q[i] == 0x5a5a5a5a5a5a5a5aull);
+    }
+    JT_CHECK(clean());
+}
+
 JT_TEST(map_protect_up_to_the_ceiling)
 {
     setup();

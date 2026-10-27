@@ -211,6 +211,11 @@ map-prune-nonempty @@ ../kernel/core/map.c @@ if (n[i] != 0) { @@ if (n[i] != 0 
 map-table-not-zeroed @@ ../kernel/core/map.c @@ memset(node(k, pfn), 0, JOIST_PT_ENTRIES * sizeof(uint64_t)); @@ (void)pfn;
 map-frame-freed-keeps @@ ../kernel/core/map.c @@ if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0)) { @@ if (o->type != JOIST_OBJ_FRAME || o->lent == 0) {
 map-check-frames-unsorted @@ ../kernel/core/map.c @@ sort_by_base(k, byb, nfr); @@ (void)sort_by_base;
+query-shows-other-frames @@ ../kernel/core/map.c @@ if (JOIST_PTE_FRAME(pe) == fo) { @@ if (1) {
+query-no-offset @@ ../kernel/core/map.c @@ q |= JOIST_QUERY_FRAME | (JOIST_PTE_OFF(pe) << 32); @@ q |= JOIST_QUERY_FRAME;
+query-ceiling-lost @@ ../kernel/core/map.c @@ ((pe & JOIST_PTE_CEIL_W) != 0 ? (uint64_t)JOIST_QUERY_CEIL_W : 0u); @@ 0u;
+query-frame-unchecked @@ ../kernel/core/map.c @@ e = joist__control_cap(k, cs, frame_slot, JOIST_OBJ_FRAME, &fo); /* the frame named */ @@ fo = joist__slot_c(k, cs, frame_slot) != NULL ? joist__slot_c(k, cs, frame_slot)->obj - 1u : fo;
+query-no-page-limit @@ ../kernel/core/map.c @@ if (npages > JOIST_QUERY_MAX || bad_run(va, npages)) { @@ if (bad_run(va, npages)) {
 map-destroy-keeps @@ ../kernel/core/map.c @@ clear_run(k, s, lf, st->tsweep * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_ALL, 0); @@ (void)lf;
 map-sweep-skips-tables @@ ../kernel/core/map.c @@ return ((va >> JOIST_PT_SHIFT(2)) + 1u) << (JOIST_PT_SHIFT(2) - JOIST_PT_BITS); @@ return ((va >> JOIST_PT_SHIFT(2)) + 1u) << JOIST_PT_SHIFT(2);
 map-sweep-skips-top @@ ../kernel/core/map.c @@ return ((va >> JOIST_PT_SHIFT(3)) + 1u) << (JOIST_PT_SHIFT(3) - JOIST_PT_BITS); @@ return ((va >> JOIST_PT_SHIFT(3)) + 2u) << (JOIST_PT_SHIFT(3) - JOIST_PT_BITS);

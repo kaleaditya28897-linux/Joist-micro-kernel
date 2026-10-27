@@ -1,7 +1,8 @@
 # 0020 — Page-sized mappings: part of a frame, the page tables as the record
 
 Date: 2026-10-21
-Status: **accepted** (2026-10-21), with `docs/phase4-plan.md` (choice 1).
+Status: **accepted** (2026-10-21), with `docs/phase4-plan.md` (choice 1);
+**amended** 2026-10-27 (how `map_query` names the frame, below).
 Revises: the mapping half of `docs/abi.md`, *Frames and mappings*, and
 invariant I12 (Phase 3 step 3).
 Covers: §5.5 (the kernel manages only page tables and frame capabilities),
@@ -131,6 +132,30 @@ record sizes in today's tree (an object 128 B, a capability 16 B, a mapping
   shadow entry per directory entry, and are left until measured.
 - The model's mapping table, I12's checker, CBMC's harness and the
   growth test's counters all change with it. The model goes first.
+
+## Amendment (2026-10-27): the caller names the frame `map_query` reports
+
+"The frame only if the caller holds that frame with CONTROL" can't be
+checked cheaply: the kernel would search the caller's space (up to 8 192
+slots) for every page it reports, or keep a reverse index from objects to
+the slots that name them. The owner chose to have the caller name the frame:
+
+- **`map_query(task, va, n ≤ 64, frame_slot, buffer)`** reports, per page:
+  absent; or present, its permissions and its rights ceiling, and either
+  "the named frame, at page offset *o*" or "another frame". The named
+  frame needs CONTROL (no frame at all may be named). It never reveals a
+  frame the caller doesn't hold, nor a physical address. O(n), and it
+  changes nothing.
+- Checking `mm` against the kernel (0008) works directly: `mm` knows which
+  frame it mapped at each page and asks.
+- **Open, for Phase 9:** rebuilding `mm` after a restart (class C) from
+  `map_query` alone takes one pass per frame it holds. Whether `mm` keeps a
+  journal instead, or the kernel gains a cheaper way, is settled with
+  `mm`'s restart.
+
+Rejected: opaque frame ids for every page (they reveal which pages of
+other tasks share a frame, against the rule above), and leaving
+`map_query` out of Phase 4 (it drops 0008's check from the real kernel).
 
 ## Priority check
 

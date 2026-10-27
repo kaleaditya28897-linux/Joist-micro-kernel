@@ -176,6 +176,16 @@ static void exhaust(void)
         n++;
     }
     check(e == J_E_NOMEM, "filling the lent pages with tables didn't end in E_NOMEM");
+    /* map_query (0020) through the real call: the first page, mapped with
+     * no permissions but a writing ceiling, the named frame at offset 0;
+     * the next, absent; and no frame when none is named. */
+    static uint64_t q[2];
+    check(n != 0, "no page could be mapped at all");
+    must(j_map_query(task[0], WORK_VA_PAGE, 2, page, q), "map_query");
+    check(q[0] == (J_QUERY_PRESENT | J_QUERY_CEIL_W | J_QUERY_FRAME) && q[1] == 0,
+          "map_query reported the mapped page wrongly");
+    must(j_map_query(task[0], WORK_VA_PAGE, 1, J_SLOT_NONE, q), "map_query");
+    check(q[0] == (J_QUERY_PRESENT | J_QUERY_CEIL_W), "map_query named a frame it was not given");
     for (uint64_t i = 0; i < n; i += 2) {
         must(j_unmap(task[0], WORK_VA_PAGE + i * J_MAP_SPAN), "unmap"); /* half by unmapping */
     }
