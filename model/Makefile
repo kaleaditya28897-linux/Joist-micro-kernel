@@ -153,8 +153,9 @@ tla-mutate:
 # invariant check accepts, the operation keeps every invariant (and every
 # array access, pointer and shift is checked on the way). Operation numbers
 # are those of cbmc/harness_cspace.c (7, 8: grow, shrink; 9, 10: obj_kill,
-# cap_copy_batch, 0022); CBMC_JOBS run at once (each needs 3 to 6 GB, so one
-# at a time on the 8 GB build VM; all fourteen take about 4 hours). Operations 3 (delete) and 6 (task destroy) can cascade; their
+# cap_copy_batch, 0022); CBMC_JOBS run at once (each needs 3.5 to 6.5 GB, so
+# one at a time on the 8 GB build VM, with nothing else on it; all fourteen
+# take about 5 hours). Operations 3 (delete) and 6 (task destroy) can cascade; their
 # formulas exhaust 15 GB even at smaller sizes, split by slot type, with
 # CaDiCaL, or path by path, so they are left to the property tests, the
 # fuzzer and the TLA+ model (docs/phase1-plan.md, work item 8). The page

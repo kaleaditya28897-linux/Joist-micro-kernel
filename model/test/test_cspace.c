@@ -34,6 +34,48 @@ JT_TEST(cspace_create_and_quota)
     JT_CHECK(clean());
 }
 
+JT_TEST(free_objects_last_freed_first_then_unused)
+{
+    /* Choice 10: the next object is the last freed, else the first never
+     * used, found in O(1); the table runs out at JOIST_MAX_OBJECTS. */
+    fresh();
+    joist_cspace a;
+    JT_REQUIRE(joist_cspace_create(&k, JOIST_MAX_OBJECTS + 4u, &a) == JOIST_OK);
+    for (joist_slot s = 0; s < 3; s++) {
+        JT_REQUIRE(joist_obj_create(&k, a, JOIST_OBJ_ENDPOINT, s) == JOIST_OK);
+        JT_CHECK(k.cs[a].slot[s].obj == s + 1u); /* fresh ones in order */
+    }
+    JT_REQUIRE(joist_cap_delete(&k, a, 0) == JOIST_OK);
+    JT_REQUIRE(joist_cap_delete(&k, a, 2) == JOIST_OK);
+    JT_CHECK(k.obj_free == 3u && k.obj_high == 3u && clean());
+    JT_REQUIRE(joist_obj_create(&k, a, JOIST_OBJ_NOTIFICATION, 5) == JOIST_OK);
+    JT_CHECK(k.cs[a].slot[5].obj == 3u); /* the last freed */
+    JT_REQUIRE(joist_obj_create(&k, a, JOIST_OBJ_NOTIFICATION, 6) == JOIST_OK);
+    JT_CHECK(k.cs[a].slot[6].obj == 1u); /* then the one before */
+    JT_REQUIRE(joist_obj_create(&k, a, JOIST_OBJ_NOTIFICATION, 7) == JOIST_OK);
+    JT_CHECK(k.cs[a].slot[7].obj == 4u && k.obj_free == 0 && k.obj_high == 4u); /* then unused */
+    JT_CHECK(clean());
+    /* Fill the table (leaf 0 of each space, one space after another): the
+     * next fails, changing nothing. */
+    joist_cspace c = a;
+    joist_slot s = 8;
+    while (k.objects_live < JOIST_MAX_OBJECTS) {
+        if (s == JOIST_CNODE_LEAF) {
+            JT_REQUIRE(joist_cspace_create(&k, JOIST_CNODE_LEAF, &c) == JOIST_OK);
+            s = 0;
+        }
+        JT_REQUIRE(joist_obj_create(&k, c, JOIST_OBJ_ENDPOINT, s++) == JOIST_OK);
+    }
+    if (s == JOIST_CNODE_LEAF) {
+        JT_REQUIRE(joist_cspace_create(&k, JOIST_CNODE_LEAF, &c) == JOIST_OK);
+        s = 0;
+    }
+    uint32_t quota = k.cs[c].quota;
+    JT_CHECK(joist_obj_create(&k, c, JOIST_OBJ_ENDPOINT, s) == JOIST_E_NOMEM);
+    JT_CHECK(k.cs[c].quota == quota && k.cs[c].slot[s].obj == 0 && k.obj_high == JOIST_MAX_OBJECTS);
+    JT_CHECK(clean());
+}
+
 JT_TEST(obj_create_errors)
 {
     fresh();

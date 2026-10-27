@@ -383,7 +383,12 @@ joist_err joist_request_deadname(struct joist_kernel *k, joist_cspace cs, joist_
 unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned msglen, int msg_free)
 {
     unsigned bad = 0;
-    uint32_t recv_seen[JOIST_MAX_OBJECTS];
+    /* Under the lock, one checker at a time: too large for a kernel stack. */
+    static uint32_t recv_seen[JOIST_MAX_OBJECTS];
+    static uint32_t acct_seen[JOIST_MAX_BADGE_ACCTS]; /* senders each account counts */
+    for (uint32_t j = 0; j < JOIST_MAX_BADGE_ACCTS; j++) {
+        acct_seen[j] = 0;
+    }
     uint32_t fired_seen[JOIST_MAX_BADGE_ACCTS];
     memset(recv_seen, 0, sizeof recv_seen);
     memset(fired_seen, 0, sizeof fired_seen);
@@ -395,10 +400,17 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
         }                                                                                          \
     } while (0)
 
+    /* Every capability once, leaf by leaf (an absent leaf has none): the
+     * checking kernel runs this after every call. */
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
-            const struct joist_cap *cap = joist__slot_c(k, c, i);
-            if (cap == NULL || cap->obj == 0 || cap->obj > JOIST_MAX_OBJECTS) {
+            const struct joist_cap *leaf = joist__leaf_slots_c(k, c, i / JOIST_CNODE_LEAF);
+            if (leaf == NULL) {
+                i += JOIST_CNODE_LEAF - 1u; /* the whole leaf */
+                continue;
+            }
+            const struct joist_cap *cap = &leaf[i % JOIST_CNODE_LEAF];
+            if (cap->obj == 0 || cap->obj > JOIST_MAX_OBJECTS) {
                 continue;
             }
             if (cap->type == JOIST_OBJ_ENDPOINT && (cap->rights & JOIST_R_RECV) != 0) {
@@ -414,6 +426,8 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
                 }
                 if (a == NULL) {
                     VIOLATION("I4: space %u slot %u: badged send capability has no account", c, i);
+                } else {
+                    acct_seen[a - k->acct]++;
                 }
             }
         }
@@ -535,16 +549,7 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
         if (a->next != 0) {
             VIOLATION("I4: live account %u has a queue link", j);
         }
-        uint32_t n = 0;
-        for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
-            for (uint32_t i = 0; i < JOIST_CSPACE_SLOTS; i++) {
-                const struct joist_cap *cap = joist__slot_c(k, c, i);
-                if (cap != NULL && cap->obj == a->obj && cap->badge == a->badge &&
-                    counted_send(cap)) {
-                    n++;
-                }
-            }
-        }
+        uint32_t n = acct_seen[j]; /* counted in the walk above */
         if (n != a->send_caps || n == 0) {
             VIOLATION("I4: account %u (endpoint %u badge %llu) counts %u, %u exist", j, a->obj - 1u,
                       (unsigned long long)a->badge, a->send_caps, n);

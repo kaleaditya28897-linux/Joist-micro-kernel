@@ -128,6 +128,32 @@ void joist__obj_clear(struct joist_kernel *k, uint32_t obj_index)
         o->water = 0;
         o->dying = 0;
         k->objects_live--;
+        k->obj_next[obj_index] = k->obj_free; /* the free list's head (choice 10) */
+        k->obj_free = obj_index + 1u;
+    }
+}
+
+int joist__obj_peek(const struct joist_kernel *k, uint32_t *obj)
+{
+    if (k->obj_free != 0) {
+        *obj = k->obj_free - 1u;
+        return 1;
+    }
+    if (k->obj_high < JOIST_MAX_OBJECTS) {
+        *obj = k->obj_high;
+        return 1;
+    }
+    return 0;
+}
+
+void joist__obj_take(struct joist_kernel *k, uint32_t obj)
+{
+    JOIST_WORK(k);
+    if (k->obj_free == obj + 1u) {
+        k->obj_free = k->obj_next[obj];
+        k->obj_next[obj] = 0;
+    } else {
+        k->obj_high = obj + 1u; /* the first never used */
     }
 }
 
@@ -264,28 +290,24 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
     if (s->quota == 0) {
         return JOIST_E_NOMEM;
     }
-    /* Linear scan of a fixed-size table: bounded by JOIST_MAX_OBJECTS. The
-     * kernel will keep a free list; the bound, not the constant, is the point. */
-    for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
-        JOIST_WORK(k);
-        struct joist_object *o = &k->obj[i];
-        if (o->type == JOIST_OBJ_NONE) {
-            /* Start from zero, not from whatever freeing left (CBMC: a reused
-             * slot must not carry a reply binding or a queue). */
-            memset(o, 0, sizeof *o);
-            o->type = (uint8_t)type;
-            o->refs = 1;
-            o->donor = cs;
-            s->quota--;
-            s->charged++;
-            k->objects_live++;
-            *d = (struct joist_cap){
-                .obj = i + 1u, .type = (uint8_t)type, .rights = full_rights(type), .badge = 0};
-            joist__cap_added(k, d);
-            return JOIST_OK;
-        }
+    uint32_t i;
+    if (!joist__obj_peek(k, &i)) {
+        return JOIST_E_NOMEM;
     }
-    return JOIST_E_NOMEM;
+    joist__obj_take(k, i);
+    struct joist_object *o = &k->obj[i];
+    /* Start from zero, not from whatever freeing left (CBMC: a reused slot
+     * must not carry a reply binding or a queue). */
+    memset(o, 0, sizeof *o);
+    o->type = (uint8_t)type;
+    o->refs = 1;
+    o->donor = cs;
+    s->quota--;
+    s->charged++;
+    k->objects_live++;
+    *d = (struct joist_cap){.obj = i + 1u, .type = (uint8_t)type, .rights = full_rights(type), .badge = 0};
+    joist__cap_added(k, d);
+    return JOIST_OK;
 }
 
 /* Shared body of derive and mint. */
@@ -649,6 +671,46 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     }
     if (live != k->objects_live) {
         VIOLATION("I3: objects_live %u but %u objects are live", k->objects_live, live);
+    }
+    /* The free objects (choice 10): none at or above obj_high was ever
+     * used, and the list from obj_free names each free one below it once,
+     * ending; no other object has a link. */
+    static uint8_t listed[JOIST_MAX_OBJECTS];
+    if (k->obj_high > JOIST_MAX_OBJECTS) {
+        VIOLATION("free objects: high-water mark %u past the table", k->obj_high);
+    } else {
+        uint32_t nfree = 0;
+        for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+            listed[i] = 0;
+            if (i >= k->obj_high && k->obj[i].type != JOIST_OBJ_NONE) {
+                VIOLATION("free objects: object %u in use above the high-water mark %u", i,
+                          k->obj_high);
+            }
+            nfree += (uint32_t)(i < k->obj_high && k->obj[i].type == JOIST_OBJ_NONE);
+        }
+        uint32_t onlist = 0;
+        uint32_t p = k->obj_free;
+        int sound = 1;
+        for (uint32_t n = 0; p != 0 && n < JOIST_MAX_OBJECTS; n++) {
+            if (p > k->obj_high || k->obj[p - 1u].type != JOIST_OBJ_NONE || listed[p - 1u]) {
+                VIOLATION("free objects: the list names %u, in use, unused or twice", p - 1u);
+                sound = 0;
+                break;
+            }
+            listed[p - 1u] = 1;
+            onlist++;
+            p = k->obj_next[p - 1u];
+        }
+        if (sound && p != 0) {
+            VIOLATION("free objects: the list does not end");
+        } else if (sound && onlist != nfree) {
+            VIOLATION("free objects: %u listed of %u free below the mark", onlist, nfree);
+        }
+        for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
+            if (!listed[i] && k->obj_next[i] != 0) {
+                VIOLATION("free objects: object %u off the list has a link", i);
+            }
+        }
     }
     for (uint32_t c = 0; c < JOIST_MAX_CSPACES; c++) {
         if (k->cs[c].charged != charged_seen[c]) {

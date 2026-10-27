@@ -528,6 +528,14 @@ struct joist_kernel {
     struct joist_deadname dn[JOIST_MAX_DEADNAMES];
     struct joist_leaf leaf[JOIST_MAX_LEAVES];
     uint32_t objects_live;
+    /* Free objects (Phase 4, choice 10), found in O(1): every object at or
+     * above obj_high has never been used; below it the free ones form a
+     * list from obj_free (an index plus one; 0, none) through obj_next, the
+     * last freed first. Kept apart from the objects, so a free one stays
+     * all zero. */
+    uint32_t obj_high;
+    uint32_t obj_free;
+    uint32_t obj_next[JOIST_MAX_OBJECTS];
     /* Frames dying (0020) or killed (0022) while still mapped, and the
      * sweep that unmaps them: the next (space, last-level table) to look at, as
      * space * JOIST_PT_SWEEP_SPACE + table. fround: whether the sweep's

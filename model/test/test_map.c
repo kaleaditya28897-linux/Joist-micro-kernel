@@ -96,6 +96,25 @@ JT_TEST(map_boot_frames)
     JT_CHECK(clean());
 }
 
+JT_TEST(map_check_finds_an_overlap_between_frames_far_apart)
+{
+    /* I12's check sorts the frames by their first pages (O(n log n)): an
+     * overlap between frames far apart in the table, and in base order, is
+     * still found, and frames out of base order that don't overlap are not
+     * one. */
+    setup_bare();
+    JT_REQUIRE(joist_boot_frame(&k, root, F2, 0x3000, 4) == JOIST_OK);
+    JT_REQUIRE(joist_boot_frame(&k, root, RO, 0x2000, 4) == JOIST_OK);
+    JT_REQUIRE(joist_boot_frame(&k, root, X, 0x1000, 4) == JOIST_OK);
+    JT_CHECK(clean()); /* made in falling base order: none overlaps */
+    struct joist_object *last = &k.obj[k.cs[root].slot[X].obj - 1u];
+    last->base = 0x10e; /* now over F's last two pages, F made first */
+    char msg[200];
+    JT_CHECK(joist_check_invariants(&k, msg, sizeof msg) != 0 && strstr(msg, "overlap") != NULL);
+    last->base = 0x1000;
+    JT_CHECK(clean());
+}
+
 JT_TEST(map_boot_self)
 {
     setup_bare();

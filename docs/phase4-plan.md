@@ -601,3 +601,78 @@ pages in the harness (2026-10-23).
   - `map-sweep-skips-top` is caught by the general I12 count, at the
     same seed and step as `map-destroy-keeps`, not by a test aimed at
     the top-level stride.
+
+### Step 2, part 4: the capacities, and objects found in O(1) (2026-10-26)
+
+- **Raised** (choice 10): the kernel's build (`kernel/Makefile`, `KSIZES`)
+  now has 64 address spaces, 128 threads, 2 048 objects and 256
+  capability leaves (4 a space, as the model's defaults have), from 16,
+  32, 1 024 and 64. Still compile-time constants. The self-tests' large
+  build (the cascades') keeps its 8 192 objects and takes the new
+  threads and leaves. The kernel's writable tables come to 0.6 MB.
+- **The scans** (choice 10 asks each scan's bound recorded, and an O(1)
+  free list where Phase 4 makes one hot). Full-table scans outside the
+  checks:
+  - Finding a free entry: objects in `joist_obj_create`, `new_frame`,
+    `free_object` (task and thread objects) and `joist_sc_create`, up to
+    2 048 steps; threads in `joist_thread_create` and
+    `joist_thread_spawn`, up to 128; spaces in `joist_cspace_create` and
+    `joist_task_create`, up to 64; leaves in `joist_cspace_grow`, up to
+    256. Every object a `fork` or `mm` makes goes through the first, so
+    it is the one Phase 4 makes hot.
+  - Destruction: `space_finish`, `joist__space_tables_gone`,
+    `joist__object_freed` (a notification's references) and
+    `joist__threads_destroy_owned`, once per destruction or per step of
+    one.
+  - The scheduler: `joist_tick`, `joist_sched_next_event`, `best_for`
+    and `choice`, over the 128 threads; the bench gate did not move.
+- **Objects found in O(1)** (`joist__obj_peek`, `joist__obj_take`): every
+  object at or above a high-water mark has never been used; below it,
+  the free ones form a list, the last freed first, through links kept
+  apart from the objects (so a free one stays all zero, and a state of
+  all zeros is an empty table). The five scans are gone. The check adds:
+  nothing at or above the mark is in use, and the list names each free
+  object below it once and ends. Mutations: `objfree-not-pushed`,
+  `-not-popped`, `-mark-not-raised`, `-link-kept`.
+- **The checks at these sizes:** the checking kernel runs every check
+  after every call. At these sizes three 4-CPU self-tests on it timed
+  out or made too few calls. Measured (a host program at the kernel's
+  sizes, `gprof`): one check took 6.4 ms, 1.6 ms at the old sizes, 71 %
+  of it in the badge accounts' check (I4), which read every slot of
+  every space (64 × 8 192, absent leaves too) once, then again for each
+  live account. Others were quadratic too: frames' overlaps (each frame
+  against every object), reply holders (every thread and object for
+  each waiting caller), dead task and thread objects (every space and
+  thread for each). Now:
+  - the slots are walked leaf by leaf, skipping absent leaves, and each
+    account's senders are counted in that walk;
+  - frames are sorted by their first pages (a heap sort) and swept;
+  - holders are counted for all threads in one pass;
+  - a dead object still named is found from the naming side, which was
+    already checked.
+
+  One check now takes 0.3 ms (21 times less). Mutation
+  `map-check-frames-unsorted`; unit test of an overlap between frames
+  far apart. The accounts' check keeps its tables static, as the others
+  do (8 KB at these sizes: too large for a kernel stack).
+- **Found on the way:**
+  - The first run of the kernel check at these sizes tested the old
+    ones: `make` didn't rebuild objects when `KSIZES` changed, and the
+    build directory was reused. The image's flags are now stamped like
+    its sources (`kflags.list`), so a change rebuilds every object.
+  - `growroot` stopped at 1 100 objects, "past any table's size", which
+    2 048 no longer is: now 2 200.
+- **Verified** (on the build VM, alone, kernel built from nothing; CBMC
+  run by the P53's Claude Code, `/srv/joist/handoff/p4-cbmc14/findings.md`):
+  - `make -C model check`: every test under plain, asan, ubsan, msan, tsan
+    and small, no failure.
+  - Mutations, the whole list: all 224 caught.
+  - `make -C kernel check`: every host test, freestanding build,
+    clang-tidy and scan-build clean, BIOS and UEFI boots, all 74
+    self-tests, the 4-CPU ones on the checking kernel among them. The
+    bench gate: 376, 1 584 and 1 116 cycles (baselines 496, 1 548,
+    1 092).
+  - CBMC, all 14 operations: verified, 0 of about 10 450 (0-10) and
+    10 550 (11-15) properties failed, in 5 h 06 min; peaks 3.6 to 6.2 GB
+    (`cap_copy_batch`). About 100 more properties each than in part 3 (the
+    free objects' check), and 30 to 50 % slower.

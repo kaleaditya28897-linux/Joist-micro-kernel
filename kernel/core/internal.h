@@ -113,6 +113,11 @@ void joist__obj_free(struct joist_kernel *k, uint32_t obj);
  * joist__obj_free, alone for an object nothing waits on and nothing
  * notifies of, with no lifecycle (a frame, map.c). */
 void joist__obj_clear(struct joist_kernel *k, uint32_t obj);
+/* The object the next one made will be (the last freed, or the first never
+ * used), without taking it: 0 if none is free. O(1). */
+int joist__obj_peek(const struct joist_kernel *k, uint32_t *obj);
+/* Take obj, which joist__obj_peek just gave, off the free objects. O(1). */
+void joist__obj_take(struct joist_kernel *k, uint32_t obj);
 /* A task capability with CONTROL to `space` in cs's slot dst, paid by cs,
  * and space's task object (task.c). */
 joist_err joist__task_cap_new(struct joist_kernel *k, joist_cspace cs, joist_slot dst,

@@ -204,22 +204,17 @@ static joist_err space_live(const struct joist_kernel *k, joist_cspace cs)
     return joist__usable(k, cs) ? JOIST_OK : JOIST_E_DEAD;
 }
 
-static int free_object(struct joist_kernel *k, uint32_t *out)
+/* A free object, not yet taken: install takes it. */
+static int free_object(const struct joist_kernel *k, uint32_t *out)
 {
-    for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
-        JOIST_WORK(k);
-        if (k->obj[i].type == JOIST_OBJ_NONE) {
-            *out = i;
-            return 1;
-        }
-    }
-    return 0;
+    return joist__obj_peek(k, out);
 }
 
 /* Install a new object and its capability (all checks already done). */
 static void install(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uint32_t obj,
                     joist_obj_type type, uint32_t target)
 {
+    joist__obj_take(k, obj);
     struct joist_object *o = &k->obj[obj];
     memset(o, 0, sizeof *o);
     o->type = (uint8_t)type;
@@ -679,18 +674,10 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
                 VIOLATION("I1: live thread object %u doesn't name a live thread naming it", o);
             }
         }
-        if ((ob->type == JOIST_OBJ_TASK || ob->type == JOIST_OBJ_THREAD) && ob->dead) {
-            for (uint32_t s = 0; s < JOIST_MAX_CSPACES; s++) {
-                if (k->cs[s].live && k->cs[s].task_obj == o + 1u) {
-                    VIOLATION("I1: dead task object %u still named by live space %u", o, s);
-                }
-            }
-            for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
-                if (k->th[t].state != JOIST_T_FREE && k->th[t].obj == o + 1u) {
-                    VIOLATION("I1: dead thread object %u still names live thread %u", o, t);
-                }
-            }
-        }
+        /* (A dead task or thread object still named by a live space or
+         * thread is found from their side: each live space's and thread's
+         * own object must be live and name it back, above and below. One
+         * pass, not one for each dead object.) */
     }
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         const struct joist_thread_rec *r = &k->th[t];

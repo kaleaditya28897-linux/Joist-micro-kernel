@@ -25,7 +25,9 @@
 #define GROW_SEED 1u
 #endif
 #define NTASK 6u
-#define NOBJ 1100u /* past any table's size: exhaustion is reached, not assumed */
+/* Past any table's size (the kernel's objects: 2 048, kernel/Makefile KSIZES):
+ * exhaustion is reached, not assumed. */
+#define NOBJ 2200u
 #define WORK_VA_PAGE (0x40000000ull / J_PAGE)
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,

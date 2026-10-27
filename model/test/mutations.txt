@@ -56,6 +56,11 @@ leaf-lookup-aliases-leaf0 @@ ../kernel/core/cspace.c @@ return k->leaf[s->leaf[l
 leaf-destroy-leaks-leaves @@ ../kernel/core/task.c @@ joist__leaf_free(k, s, l); @@ (void)l;
 leaf-destroy-only-leaf0 @@ ../kernel/core/task.c @@ for (uint32_t l = 1; l < JOIST_CNODE_ROOT; l++) { @@ for (uint32_t l = 1; l < 1u; l++) {
 budget-unbounded @@ ../kernel/core/cspace.c @@ if (k->budget > UINT32_MAX || (uint64_t)quota > UINT32_MAX - k->budget) { @@ if (0) {
+# The free objects, found in O(1) (Phase 4, choice 10).
+objfree-not-pushed @@ ../kernel/core/cspace.c @@ k->obj_free = obj_index + 1u; @@ (void)0;
+objfree-not-popped @@ ../kernel/core/cspace.c @@ k->obj_free = k->obj_next[obj]; @@ (void)0;
+objfree-mark-not-raised @@ ../kernel/core/cspace.c @@ k->obj_high = obj + 1u; /* the first never used */ @@ (void)0;
+objfree-link-kept @@ ../kernel/core/cspace.c @@ k->obj_next[obj] = 0; @@ (void)0;
 # Capability transfer in messages (Phase 3 step 3).
 xfer-no-grant-check @@ ../kernel/core/ipc.c @@ if ((c->rights & JOIST_R_GRANT) == 0) { @@ if (0) {
 xfer-ncaps-unbounded @@ ../kernel/core/ipc.c @@ if (m->ncaps > JOIST_MSG_CAPS) { @@ if (0) {
@@ -205,6 +210,7 @@ map-protect-past-ceiling @@ ../kernel/core/map.c @@ if (pe != 0 && (pe & JOIST_P
 map-prune-nonempty @@ ../kernel/core/map.c @@ if (n[i] != 0) { @@ if (n[i] != 0 && i != 0) {
 map-table-not-zeroed @@ ../kernel/core/map.c @@ memset(node(k, pfn), 0, JOIST_PT_ENTRIES * sizeof(uint64_t)); @@ (void)pfn;
 map-frame-freed-keeps @@ ../kernel/core/map.c @@ if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0)) { @@ if (o->type != JOIST_OBJ_FRAME || o->lent == 0) {
+map-check-frames-unsorted @@ ../kernel/core/map.c @@ sort_by_base(k, byb, nfr); @@ (void)sort_by_base;
 map-destroy-keeps @@ ../kernel/core/map.c @@ clear_run(k, s, lf, st->tsweep * JOIST_PT_ENTRIES, JOIST_PT_ENTRIES, CLEAR_ALL, 0); @@ (void)lf;
 map-sweep-skips-tables @@ ../kernel/core/map.c @@ return ((va >> JOIST_PT_SHIFT(2)) + 1u) << (JOIST_PT_SHIFT(2) - JOIST_PT_BITS); @@ return ((va >> JOIST_PT_SHIFT(2)) + 1u) << JOIST_PT_SHIFT(2);
 map-sweep-skips-top @@ ../kernel/core/map.c @@ return ((va >> JOIST_PT_SHIFT(3)) + 1u) << (JOIST_PT_SHIFT(3) - JOIST_PT_BITS); @@ return ((va >> JOIST_PT_SHIFT(3)) + 2u) << (JOIST_PT_SHIFT(3) - JOIST_PT_BITS);

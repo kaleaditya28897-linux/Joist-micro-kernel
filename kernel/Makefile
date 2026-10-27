@@ -41,9 +41,12 @@ RUNNER := test/harness.c
 BUILD := build
 
 # The core's table sizes in the kernel (the host tests and model/ use their
-# own): the root task's image and every task's pages are frames and
-# mappings, so these are larger than the model's defaults.
-KSIZES := -DJOIST_MAX_OBJECTS=1024u
+# own): Phase 4's capacities, for fork trees (docs/phase4-plan.md, choice
+# 10): 64 address spaces, 128 threads, 2 048 objects, and capability leaves
+# to match (4 a space, as the model's defaults have). Compile-time
+# constants, not sized from boot memory.
+KSIZES := -DJOIST_MAX_OBJECTS=2048u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=128u \
+          -DJOIST_MAX_LEAVES=256u
 
 # §13's kernel flags.
 KFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding -nostdlib -fno-builtin \
@@ -99,7 +102,13 @@ IMG_OBJ := $(patsubst %.c,$(BUILD)/kernel/%.o,$(IMG_SRC)) $(patsubst %.S,$(BUILD
 # Extra flags for a test build of the image (selftests), e.g. -DJOIST_SELFTEST=1.
 KEXTRA ?=
 
-$(BUILD)/kernel/%.o: %.c $(wildcard include/joist/*.h include/limine/*.h arch/x86_64/*.h mem/*.h elf/*.h core/*.h)
+# The image's compile flags, stamped like the sources: a change of KSIZES or
+# KEXTRA rebuilds every object, so no image mixes objects built for two
+# table sizes (2026-10-26: one did, and its self-tests tested the old size).
+FSTAMP := $(BUILD)/kflags.list
+$(shell mkdir -p $(BUILD); echo '$(KFLAGS) $(KEXTRA)' | cmp -s - $(FSTAMP) || echo '$(KFLAGS) $(KEXTRA)' > $(FSTAMP))
+
+$(BUILD)/kernel/%.o: %.c $(FSTAMP) $(wildcard include/joist/*.h include/limine/*.h arch/x86_64/*.h mem/*.h elf/*.h core/*.h)
 	@mkdir -p $(@D)
 	$(CC) $(KFLAGS) $(KEXTRA) $(IMG_INC) -c $< -o $@
 

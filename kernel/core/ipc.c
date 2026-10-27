@@ -724,6 +724,27 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
             VIOLATION("IPC: endpoint %u tail %u, last queued %u", o, e->qtail, prev);
         }
     }
+    /* The valid reply capabilities naming each thread's current call, as
+     * reply_to links of threads and as reply objects: counted once for all
+     * threads, O(threads + objects), not per waiting caller. */
+    static uint32_t holders[JOIST_MAX_THREADS];
+    for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+        holders[t] = 0;
+    }
+    for (uint32_t s = 0; s < JOIST_MAX_THREADS; s++) {
+        const struct joist_thread_rec *h = &k->th[s];
+        if (h->state != JOIST_T_FREE && h->reply_to != 0 && h->reply_to <= JOIST_MAX_THREADS &&
+            h->reply_seq == k->th[h->reply_to - 1u].call_seq) {
+            holders[h->reply_to - 1u]++;
+        }
+    }
+    for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
+        const struct joist_object *ro = &k->obj[o];
+        if (ro->type == JOIST_OBJ_REPLY && ro->target != 0 && ro->target <= JOIST_MAX_THREADS &&
+            ro->rseq == k->th[ro->target - 1u].call_seq) {
+            holders[ro->target - 1u]++;
+        }
+    }
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         const struct joist_thread_rec *r = &k->th[t];
         if (r->state == JOIST_T_FREE) {
@@ -757,25 +778,10 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
         if (r->state == JOIST_T_BLOCKED_REPLY) {
             /* I6/I10: exactly one valid reply capability names a waiting caller,
              * or it could wait forever with nobody able to answer. */
-            uint32_t holders = 0;
-            for (uint32_t s = 0; s < JOIST_MAX_THREADS; s++) {
-                const struct joist_thread_rec *h = &k->th[s];
-                if (h->state != JOIST_T_FREE && h->reply_to == t + 1u &&
-                    h->reply_seq == r->call_seq) {
-                    holders++;
-                }
-            }
-            for (uint32_t o = 0; o < JOIST_MAX_OBJECTS; o++) {
-                const struct joist_object *ro = &k->obj[o];
-                if (ro->type == JOIST_OBJ_REPLY && ro->target == t + 1u &&
-                    ro->rseq == r->call_seq) {
-                    holders++;
-                }
-            }
-            if (holders != 1) {
+            if (holders[t] != 1) {
                 VIOLATION("I6: caller %u waits for a reply but %u valid reply capabilities "
                           "name it",
-                          t, holders);
+                          t, holders[t]);
             }
         }
     }

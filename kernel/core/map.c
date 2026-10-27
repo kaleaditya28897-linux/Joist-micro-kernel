@@ -206,25 +206,24 @@ static joist_err new_frame(struct joist_kernel *k, uint32_t cs, struct joist_cap
     if (s->quota == 0) {
         return JOIST_E_NOMEM;
     }
-    for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
-        JOIST_WORK(k);
-        struct joist_object *o = &k->obj[i];
-        if (o->type == JOIST_OBJ_NONE) {
-            memset(o, 0, sizeof *o);
-            o->type = JOIST_OBJ_FRAME;
-            o->refs = 1;
-            o->donor = cs;
-            o->base = base;
-            o->npages = npages;
-            s->quota--;
-            s->charged++;
-            k->objects_live++;
-            *d = (struct joist_cap){.obj = i + 1u, .type = JOIST_OBJ_FRAME, .rights = rights, .badge = 0};
-            joist__cap_added(k, d);
-            return JOIST_OK;
-        }
+    uint32_t i;
+    if (!joist__obj_peek(k, &i)) {
+        return JOIST_E_NOMEM;
     }
-    return JOIST_E_NOMEM;
+    joist__obj_take(k, i);
+    struct joist_object *o = &k->obj[i];
+    memset(o, 0, sizeof *o);
+    o->type = JOIST_OBJ_FRAME;
+    o->refs = 1;
+    o->donor = cs;
+    o->base = base;
+    o->npages = npages;
+    s->quota--;
+    s->charged++;
+    k->objects_live++;
+    *d = (struct joist_cap){.obj = i + 1u, .type = JOIST_OBJ_FRAME, .rights = rights, .badge = 0};
+    joist__cap_added(k, d);
+    return JOIST_OK;
 }
 
 joist_err joist_boot_frame(struct joist_kernel *k, joist_cspace cs, joist_slot dst, uint64_t base,
@@ -656,6 +655,42 @@ static uint32_t lent_holding(const struct joist_kernel *k, uint32_t s, uint64_t 
     return 0;
 }
 
+/* Sort the n frames in f by their first page: a heap sort, in place, with
+ * no recursion and loops bounded by n (CBMC unwinds them as the others). */
+static void sift(const struct joist_kernel *k, uint32_t *f, uint32_t at, uint32_t n)
+{
+    for (uint32_t depth = 0; depth < 32u; depth++) {
+        uint32_t big = at;
+        uint32_t l = 2u * at + 1u;
+        if (l < n && k->obj[f[l]].base > k->obj[f[big]].base) {
+            big = l;
+        }
+        if (l + 1u < n && k->obj[f[l + 1u]].base > k->obj[f[big]].base) {
+            big = l + 1u;
+        }
+        if (big == at) {
+            return;
+        }
+        uint32_t t = f[at];
+        f[at] = f[big];
+        f[big] = t;
+        at = big;
+    }
+}
+
+static void sort_by_base(const struct joist_kernel *k, uint32_t *f, uint32_t n)
+{
+    for (uint32_t i = n / 2u; i-- > 0;) {
+        sift(k, f, i, n);
+    }
+    for (uint32_t end = n; end > 1u; end--) {
+        uint32_t t = f[0];
+        f[0] = f[end - 1u];
+        f[end - 1u] = t;
+        sift(k, f, 0, end - 1u);
+    }
+}
+
 unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msglen, int msg_free)
 {
     unsigned bad = 0;
@@ -668,6 +703,8 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
 
     /* Under the lock, one checker at a time: too large for a kernel stack. */
     static uint64_t seen[JOIST_MAX_OBJECTS];
+    static uint32_t byb[JOIST_MAX_OBJECTS]; /* the sound frames, to sort by base */
+    uint32_t nfr = 0;
     uint32_t dying_mapped = 0;
     for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
         seen[i] = 0;
@@ -702,12 +739,21 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
         } else if (a->water != 0 || a->lent_next != 0) {
             VIOLATION("I12: frame %u not lent but carries lending state", i);
         }
-        for (uint32_t j = i + 1u; j < JOIST_MAX_OBJECTS; j++) {
-            const struct joist_object *b = &k->obj[j];
-            if (b->type == JOIST_OBJ_FRAME && a->base < b->base + b->npages &&
-                b->base < a->base + a->npages) {
-                VIOLATION("I12: frames %u and %u overlap", i, j);
-            }
+        byb[nfr++] = i; /* sound: its overlaps are checked below */
+    }
+    /* No two frames overlap: in order of their first pages, none starts
+     * before the furthest end of those before it. O(n log n), not n^2: the
+     * checking kernel runs this after every call (choice 10's 2 048 objects
+     * made the pairwise test the cost of the 4-CPU self-tests). */
+    sort_by_base(k, byb, nfr);
+    uint32_t far = 0; /* the frame ending furthest so far */
+    for (uint32_t n = 0; n < nfr; n++) {
+        const struct joist_object *b = &k->obj[byb[n]];
+        if (n != 0 && b->base < k->obj[far].base + k->obj[far].npages) {
+            VIOLATION("I12: frames %u and %u overlap", far, byb[n]);
+        }
+        if (n == 0 || b->base + b->npages > k->obj[far].base + k->obj[far].npages) {
+            far = byb[n];
         }
     }
     if (dying_mapped != k->frames_dying) {

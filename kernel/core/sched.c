@@ -86,30 +86,29 @@ joist_err joist_sc_create(struct joist_kernel *k, joist_cspace cs, joist_slot ds
     if (s->quota == 0) {
         return JOIST_E_NOMEM;
     }
-    for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
-        JOIST_WORK(k);
-        struct joist_object *o = &k->obj[i];
-        if (o->type == JOIST_OBJ_NONE) {
-            memset(o, 0, sizeof *o);
-            o->type = JOIST_OBJ_SCHED;
-            o->refs = 1;
-            o->donor = cs;
-            o->prio = prio;
-            o->budget = budget;
-            o->period = period;
-            o->remaining = budget; /* the first period starts when it first runs */
-            s->quota--;
-            s->charged++;
-            k->objects_live++;
-            *d = (struct joist_cap){.obj = i + 1u,
-                                    .type = JOIST_OBJ_SCHED,
-                                    .rights = (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT),
-                                    .badge = 0};
-            joist__cap_added(k, d);
-            return JOIST_OK;
-        }
+    uint32_t i;
+    if (!joist__obj_peek(k, &i)) {
+        return JOIST_E_NOMEM;
     }
-    return JOIST_E_NOMEM;
+    joist__obj_take(k, i);
+    struct joist_object *o = &k->obj[i];
+    memset(o, 0, sizeof *o);
+    o->type = JOIST_OBJ_SCHED;
+    o->refs = 1;
+    o->donor = cs;
+    o->prio = prio;
+    o->budget = budget;
+    o->period = period;
+    o->remaining = budget; /* the first period starts when it first runs */
+    s->quota--;
+    s->charged++;
+    k->objects_live++;
+    *d = (struct joist_cap){.obj = i + 1u,
+                            .type = JOIST_OBJ_SCHED,
+                            .rights = (joist_rights)(JOIST_R_CONTROL | JOIST_R_GRANT),
+                            .badge = 0};
+    joist__cap_added(k, d);
+    return JOIST_OK;
 }
 
 joist_err joist_sc_bind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot,
