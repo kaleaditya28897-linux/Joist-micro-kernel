@@ -143,7 +143,7 @@ JT_TEST(preempt_fault_terminates_in_steps)
 {
     setup();
     k.preempt = 1;
-    JT_CHECK(joist_fault(&k, ta, JOIST_FAULT_GP, 0, 0) == JOIST_E_PEER); /* no handler */
+    JT_CHECK(joist_fault(&k, ta, JOIST_FAULT_GP, 0, 0, 0) == JOIST_E_PEER); /* no handler */
     JT_CHECK(k.cs[A].dying && k.th[ta].state == JOIST_T_FREE);
     JT_CHECK(joist_continue(&k, 0) == JOIST_OK && !k.cs[A].live);
     JT_CHECK(clean());

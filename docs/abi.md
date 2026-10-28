@@ -349,7 +349,7 @@ a thread; nothing else is checked (0010).
 | `thread_abort` | thread slot | as above | a thread blocked in `Call`, `Recv` or `Wait`, or waiting for a reply, wakes with `E_ABORTED` (glibc's `EINTR`); a caller that stops waiting leaves the server's reply capability stale (its `Reply` gets `E_PEER`). A running or suspended thread is left alone | O(1) |
 | `thread_suspend` | thread slot | as above | aborts a blocking operation first, then stops the thread; twice is not an error | O(1) |
 | `thread_resume` | thread slot | as above, then `E_STATE` (not suspended) | the thread runs again | O(1) |
-| `thread_set_fault` / `task_set_fault` | thread (or task) slot, handler slot | as above for the capability, then `E_RANGE` (handler past the table) | names the fault handler: a slot in the thread's (or task's) own space, or none. Nothing is checked until a fault | O(1) |
+| `thread_set_fault` / `task_set_fault` | thread (or task) slot, handler slot, flags | as above for the capability, then `E_RANGE` (handler past the table, or an unknown flag) | names the fault handler: a slot in the thread's (or task's) own space, or none. Nothing is checked until a fault. Flag `NO_THREAD_CAP` (1): page faults to this handler bring no thread capability (Phase 4: the badge names the task, and the reply alone resumes the thread), saving the handler a delete per fault | O(1) |
 
 **The register record in the encoding (Phase 3 step 6).** `thread_read_regs`
 and `thread_write_regs` take the thread slot and the address of the record
@@ -367,10 +367,14 @@ call's outputs when it wakes, over what was written.
 kernel's trap handlers raise it, the model's tests call `joist_fault`) is a
 `Call` to its handler: the thread's own, else its task's, provided the slot
 holds an endpoint capability with SEND whose endpoint is alive. The message
-carries the fault kind (page fault, general protection, invalid opcode,
-maths, other), the address and the error code, and as capability 0 a thread
-control capability for the faulting thread, placed in the handler's first
-receive slot like any transferred capability. The call lends the faulting
+carries, in `r[0]`, the fault kind (page fault, general protection, invalid
+opcode, maths, other) in its low byte and, for a page fault, the access it
+made in the next (read 1, write 2, execute 4, and 8 if the page was
+present: a protection fault; independent of the x86 error code; Phase 4);
+in `r[1]` the address, in `r[2]` the error code, in `r[3]` the faulting pc;
+and as capability 0 a thread control capability for the faulting thread,
+placed in the handler's first receive slot like any transferred capability,
+unless the handler was named with `NO_THREAD_CAP` and this is a page fault. The call lends the faulting
 thread's scheduling context like any `Call`, so the fault is charged to the
 thread that faulted. The handler's reply decides: `r[0] = 0` resumes the
 thread (with whatever registers the handler wrote), anything else destroys

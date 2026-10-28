@@ -241,13 +241,17 @@ joist_err joist_recv_slots(struct joist_kernel *k, joist_thread t, const joist_s
 }
 
 /* A fault message delivered from faulting thread f to receiver r carries a
- * thread control capability for f (0009) in position 0, placed in r's first
+ * thread control capability for f (0009), unless its handler asked for none
+ * (then no capability at all), in position 0, placed in r's first
  * receive slot as any transferred capability would be: skipped, never an
  * error, if r offered none or it is taken, or f is a fixture thread with no
  * thread object. */
 static void fault_cap(struct joist_kernel *k, uint32_t f, uint32_t r)
 {
     struct joist_thread_rec *rr = &k->th[r];
+    if (k->th[f].faulting == 2u) {
+        return; /* the handler asked for none (JOIST_FAULT_NO_THREAD_CAP) */
+    }
     rr->msg.ncaps = 1;
     rr->msg.cap[0] = JOIST_SLOT_NONE;
     uint32_t o = k->th[f].obj;
@@ -428,9 +432,9 @@ joist_err joist_call(struct joist_kernel *k, joist_thread t, joist_slot slot,
 }
 
 joist_err joist__fault_call(struct joist_kernel *k, uint32_t t, uint32_t obj, joist_badge badge,
-                            const struct joist_msg *m)
+                            int with_cap, const struct joist_msg *m)
 {
-    k->th[t].faulting = 1;
+    k->th[t].faulting = with_cap ? 1u : 2u;
     k->th[t].deadline = JOIST_FOREVER;
     return call_on(k, t, obj, badge, m);
 }
@@ -767,6 +771,9 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
             r->state != JOIST_T_BLOCKED_REPLY) {
             VIOLATION("0009: thread %u is faulting in state %u, not in its fault call", t,
                       r->state);
+        }
+        if (r->faulting > 2u || (r->fault_flags & ~(unsigned)JOIST_FAULT_NO_THREAD_CAP) != 0) {
+            VIOLATION("0009: thread %u fault state %u, flags 0x%x", t, r->faulting, r->fault_flags);
         }
         /* A caller blocks, so it can never receive its own call (CBMC). */
         if (r->reply_to == t + 1u) {

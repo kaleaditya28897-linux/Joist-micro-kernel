@@ -740,3 +740,70 @@ mappings and to `cap_copy_batch`; the Testing table says the same.
   (`RefuseIntoDying` false) leaks, as it must. `make -C model
   tla-mutate`: all 12 mutations caught, each by the property it breaks.
   The C model, the kernel and CBMC are unchanged by this part.
+
+### Step 3, part 1: the fault message (2026-10-27)
+
+The order of work's item 5, first half: the fault message gains what `mm`
+needs, and a handler may do without the thread capability.
+
+- **The message** (four registers, as every message: 0001's amendment of
+  2026-10-03): `r[0]` the kind in its low byte and, for a page fault, the
+  access in the next (read, write or execute, and whether the page was
+  present), worked out by the kernel's trap code from the x86 error code
+  so that `mm` never reads it; `r[1]` the address; `r[2]` the error code,
+  as before; `r[3]` the faulting pc, new. `JOIST_FAULT_KIND`,
+  `JOIST_FAULT_ACCESS` (`J_` in the user library).
+- **No thread capability on request:** `thread_set_fault` and
+  `task_set_fault` take flags; `JOIST_FAULT_NO_THREAD_CAP` makes page
+  faults to that handler bring none (the badge names the task, the reply
+  resumes the thread), sparing the handler a `cap_delete` per fault.
+  Other faults still bring one. A fault call made so is marked
+  (`faulting` 2), and delivery gives no capability; the checks bound both
+  values and the flags.
+- **Tests:** the model's unit tests (the pc and the access, the flag for
+  the thread's handler and the task's, other kinds unaffected, unknown
+  flags refused); the executor sets the flag at random; `faultroot` on
+  the real kernel checks the pc and the access, and serves one faulter
+  without a thread capability. Mutations: `fault-no-pc`, `-no-access`,
+  `-nocap-ignored`, `-nocap-every-kind`, `-flags-unchecked`,
+  `-task-flags-ignored`.
+- **The fault round trip, measured** (`faultroot`'s `test_bench`: a
+  `faulter` touches 256 fresh pages; the handler receives each fault, maps
+  a page there and replies, deleting the thread capability if it got one;
+  the faulter times each round trip with the TSC). On nested KVM (the
+  build VM's QEMU inside the P53's), medians in cycles:
+
+  | | with the capability | without |
+  |---|---:|---:|
+  | 1 CPU (`pcid-fault`) | 61 038 | 60 202 |
+  | 2 CPUs, 6 runs (mean of medians) | 135 645 | 135 441 |
+  | 4 CPUs | 136 052 | 135 874 |
+
+  - Leaving out the thread capability saves nothing measurable here
+    (within ±2 %, either sign): its cost, a capability insert and a
+    delete, is lost in the round trip.
+  - The round trip itself is large: 61 000 cycles on one CPU, 40 times an
+    IPC round trip (1 572). The IPC benchmark's server-with-its-own-context
+    row is of the same size, and the handler here has its own context, so
+    the cost is probably the switch between scheduling contexts (a timer
+    reprogrammed, which traps to the host under nested KVM). On more than
+    one CPU the times fall in two groups: the fastest are the one-CPU
+    figure, the median is about twice that, likely the wake-up of a thread
+    on another CPU. Neither is checked yet, and no figure here is a
+    baseline until it is measured on the P53 itself (not nested).
+  - Data: `/srv/joist/handoff/p4-fault/findings.md` (the P53's Claude
+    Code ran and recorded it).
+- **Verified** (on the build VM, alone, the kernel built from nothing;
+  CBMC, the last mutation and the second kernel check by the P53's Claude
+  Code):
+  - `make -C model check`: every test under plain, asan, ubsan, msan,
+    tsan and small, no failure.
+  - Mutations, the whole list: all 235 caught (`fault-flag-unset`, left
+    stale by the change, retargeted and caught alone).
+  - `make -C kernel check`: every host test, freestanding build,
+    clang-tidy and scan-build clean, BIOS and UEFI boots, all 74
+    self-tests (the 8 `fault` variants among them, with the benchmark).
+    The bench gate: 372, 1 572 and 1 116 cycles (baselines 496, 1 548,
+    1 092).
+  - CBMC, all 15 operations: verified, 0 of about 10 560 (0-10) and
+    10 655 (11-16) properties failed, 6.6 hours.

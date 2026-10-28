@@ -1138,6 +1138,16 @@ static int has_handler(uint32_t t)
     return K.th[t].fault_slot != 0 || K.cs[K.th[t].cs].fault_slot != 0;
 }
 
+/* A page fault's access (JOIST_ACCESS_*) from the x86 error code: bit 0 the
+ * page was present, bit 1 a write, bit 4 an instruction fetch (NX). */
+static uint64_t pf_access(uint64_t code)
+{
+    uint64_t a = (code & 0x10u) != 0 ? JOIST_ACCESS_EXEC
+                 : (code & 0x2u) != 0 ? JOIST_ACCESS_WRITE
+                                      : JOIST_ACCESS_READ;
+    return a | ((code & 0x1u) != 0 ? JOIST_ACCESS_PRESENT : 0u);
+}
+
 static void fault(uint32_t t, uint64_t vector, uint64_t addr, uint64_t code, uint64_t pc)
 {
     int root = K.root == K.th[t].cs + 1u;
@@ -1159,7 +1169,8 @@ static void fault(uint32_t t, uint64_t vector, uint64_t addr, uint64_t code, uin
      * be named and hold nothing usable): with none it has destroyed the
      * task, or the root's thread, and that is reported, not silent. */
     uint32_t cs = K.th[t].cs;
-    if (joist_fault(&K, t, fault_kind(vector), addr, code) == JOIST_E_PEER) {
+    if (joist_fault(&K, t, fault_kind(vector), addr, code, vector == 14u ? pf_access(code) : 0) ==
+        JOIST_E_PEER) {
         kputs(root ? "joist: a root task thread" : "joist: task ");
         if (!root) {
             kputu(cs);

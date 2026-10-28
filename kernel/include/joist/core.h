@@ -369,16 +369,31 @@ struct joist_hooks {
 #define JOIST_PT_SWEEP_SPACE (JOIST_USER_PAGES / JOIST_PT_ENTRIES)
 
 /* Fault messages (0009): what a fault handler receives, in the message
- * registers: r[0] the kind, r[1] the address (page faults), r[2] the
- * architecture's error code; capability 0, a thread control capability for
- * the faulting thread. The handler's reply says what happens: r[0] ==
- * JOIST_FAULT_RESUME resumes it, anything else terminates it. */
+ * registers: r[0] the kind (JOIST_FAULT_KIND) and, for a page fault, the
+ * access it made (JOIST_FAULT_ACCESS: JOIST_ACCESS_*, read, write or
+ * execute, and whether the page was present; independent of the
+ * architecture's code; Phase 4, 0007); r[1] the address (page faults);
+ * r[2] the architecture's error code; r[3] the faulting pc;
+ * capability 0, a thread control capability for the faulting thread,
+ * unless the handler asked for none on page faults
+ * (JOIST_FAULT_NO_THREAD_CAP: the badge names the task). The handler's
+ * reply says what happens: r[0] == JOIST_FAULT_RESUME resumes it, anything
+ * else terminates it. */
 #define JOIST_FAULT_PAGE   1u
 #define JOIST_FAULT_GP     2u
 #define JOIST_FAULT_UD     3u
 #define JOIST_FAULT_MATH   4u
 #define JOIST_FAULT_OTHER  5u
 #define JOIST_FAULT_RESUME 0u
+#define JOIST_FAULT_KIND(r0)   ((r0) & 0xffu)
+#define JOIST_FAULT_ACCESS(r0) (((r0) >> 8) & 0xffu)
+#define JOIST_ACCESS_READ    0x1u
+#define JOIST_ACCESS_WRITE   0x2u
+#define JOIST_ACCESS_EXEC    0x4u
+#define JOIST_ACCESS_PRESENT 0x8u /* the page was mapped: a protection fault */
+/* joist_thread_set_fault, joist_task_set_fault: page faults bring no thread
+ * capability (saving the handler a delete per fault). */
+#define JOIST_FAULT_NO_THREAD_CAP 0x1u
 
 /* The IPC buffer (0001 amendment, item 1; Phase 3's exit): a message can
  * carry up to this many 64-bit words beyond its registers, from the
@@ -453,7 +468,8 @@ struct joist_thread_rec {
      * (looked up when a fault happens; 0 for none), and whether this thread
      * is blocked in a fault call now. */
     uint32_t fault_slot;
-    uint8_t faulting;
+    uint8_t fault_flags; /* JOIST_FAULT_NO_THREAD_CAP, for this thread's handler */
+    uint8_t faulting;    /* 1 in a fault call; 2 in one that brings no thread capability */
     /* Its IPC buffer: a page-aligned user address, 0 for none. */
     uint64_t ipc_buf;
     /* The run queues (choice 9, Phase 3 step 10): the queue it is on (a CPU,
@@ -485,6 +501,7 @@ struct joist_cspace_state {
                           context (seL4's MCP); a child starts with its parent's */
     uint32_t fault_slot; /* the task's fault handler, for threads without their own:
                             a slot in this space plus one, 0 for none (0009) */
+    uint8_t fault_flags; /* JOIST_FAULT_NO_THREAD_CAP, for the task's handler */
     /* Destruction in progress (decision 0016): the space is still live, but
      * acts as dead to every operation and accepts no capability (TLA+'s
      * rule); its threads are gone, and its slots are being swept from
@@ -1123,14 +1140,16 @@ joist_err joist_thread_resume(struct joist_kernel *k, joist_cspace cs, joist_slo
 
 /* Name the fault handler of a thread, or of a task (for its threads without
  * their own): a slot in the thread's or task's own space, looked up when a
- * fault happens, or JOIST_SLOT_NONE for none. Nothing is checked until then. */
+ * fault happens, or JOIST_SLOT_NONE for none. Nothing is checked until then.
+ * flags: JOIST_FAULT_NO_THREAD_CAP, or 0 (JOIST_E_RANGE for any other). */
 joist_err joist_thread_set_fault(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot,
-                                 joist_slot handler);
+                                 joist_slot handler, unsigned flags);
 joist_err joist_task_set_fault(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
-                               joist_slot handler);
+                               joist_slot handler, unsigned flags);
 
 /* A fault in running thread t (the kernel's trap handlers call this; the
- * model's tests and executor call it directly). The handler is the thread's,
+ * model's tests and executor call it directly); access is a page fault's
+ * JOIST_ACCESS_* (ignored for other kinds), in the message's r[0]. The handler is the thread's,
  * else its task's: an endpoint capability with SEND, alive. With one, the
  * fault is a Call to it (JOIST_BLOCKED; the thread's context is lent as for
  * any Call, so the fault is charged to the faulting thread, 0009); its reply
@@ -1139,7 +1158,7 @@ joist_err joist_task_set_fault(struct joist_kernel *k, joist_cspace cs, joist_sl
  * is terminated, or, for the root task, which can't be, the thread
  * (JOIST_E_PEER). JOIST_E_RANGE/JOIST_E_STATE (thread not running). */
 joist_err joist_fault(struct joist_kernel *k, joist_thread t, uint64_t kind, uint64_t addr,
-                      uint64_t code);
+                      uint64_t code, uint64_t access);
 
 /* Read a capability (for tests and the eventual ABI's inspection call). */
 joist_err joist_cap_read(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,

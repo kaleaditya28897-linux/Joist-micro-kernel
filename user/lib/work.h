@@ -27,9 +27,13 @@ enum {
     FAULT_DIV,     /* a division by zero */
     FAULT_TLS,     /* reads the word at its TLS base into arg */
     FAULT_BLOCK,   /* a Recv for ever on the endpoint in slot 0; arg is its result */
-    FAULT_REGS     /* puts the registers it started with (RDI, RSI) into arg */
+    FAULT_REGS,    /* puts the registers it started with (RDI, RSI) into arg */
+    FAULT_BENCH    /* touches arg fresh pages from FAULT_BENCH_VA, one fault each, timing
+                    * each round trip: aux the median, arg the fastest (TSC cycles) */
 };
 #define FAULT_VA 0x50000000ull
+#define FAULT_BENCH_VA 0x60000000ull /* a last-level table's 512 pages (2 MiB aligned) */
+#define FAULT_BENCH_MAX 512u
 
 struct work {
     volatile uint64_t role;

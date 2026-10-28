@@ -635,6 +635,9 @@ unsigned joist__check_task(const struct joist_kernel *k, char *msg, unsigned msg
         }
         /* Every index is range-checked before use: the checker must report a
          * corrupt state, not read outside the tables (found by CBMC). */
+        if ((st->fault_flags & ~(unsigned)JOIST_FAULT_NO_THREAD_CAP) != 0) {
+            VIOLATION("0009: space %u fault flags 0x%x", s, st->fault_flags);
+        }
         if (st->task_obj > JOIST_MAX_OBJECTS) {
             VIOLATION("I1: space %u names task object %u out of range", s, st->task_obj);
         } else if (st->task_obj != 0) {

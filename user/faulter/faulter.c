@@ -48,6 +48,29 @@ void _start(uint64_t a, uint64_t b)
     case FAULT_REGS:
         w->arg = a << 32 | b;
         break;
+    case FAULT_BENCH: {
+        /* Each touch faults; the handler maps the page and replies: the
+         * time from just before the touch to just after is one round trip
+         * through the kernel, the handler and back. */
+        static uint64_t d[FAULT_BENCH_MAX];
+        uint64_t n = w->arg < FAULT_BENCH_MAX ? w->arg : FAULT_BENCH_MAX;
+        for (uint64_t i = 0; i < n; i++) {
+            uint64_t t0 = work_tsc();
+            *(volatile uint64_t *)(uintptr_t)(FAULT_BENCH_VA + i * J_PAGE) = i;
+            d[i] = work_tsc() - t0;
+        }
+        for (uint64_t i = 1; i < n; i++) { /* insertion sort: n is small */
+            uint64_t x = d[i];
+            uint64_t j = i;
+            for (; j > 0 && d[j - 1u] > x; j--) {
+                d[j] = d[j - 1u];
+            }
+            d[j] = x;
+        }
+        w->aux = n != 0 ? d[n / 2u] : 0;
+        w->arg = n != 0 ? d[0] : 0;
+        break;
+    }
     default:
         break;
     }

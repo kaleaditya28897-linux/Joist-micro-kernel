@@ -13,6 +13,8 @@
  * except terminating a task, which is task destruction. */
 #include "internal.h"
 
+_Static_assert(JOIST_MSG_REGS >= 4u, "a fault message takes four registers");
+
 /* The live thread named by a thread capability with CONTROL in cs. */
 static joist_err thread_of(const struct joist_kernel *k, joist_cspace cs, joist_slot slot,
                            uint32_t *t)
@@ -98,33 +100,42 @@ joist_err joist_thread_resume(struct joist_kernel *k, joist_cspace cs, joist_slo
     return JOIST_OK;
 }
 
+static int bad_handler(joist_slot handler, unsigned flags)
+{
+    return (handler != JOIST_SLOT_NONE && handler >= JOIST_CSPACE_SLOTS) ||
+           (flags & ~(unsigned)JOIST_FAULT_NO_THREAD_CAP) != 0;
+}
+
 joist_err joist_thread_set_fault(struct joist_kernel *k, joist_cspace cs, joist_slot th_slot,
-                                 joist_slot handler)
+                                 joist_slot handler, unsigned flags)
 {
     uint32_t t;
     joist_err e = thread_of(k, cs, th_slot, &t);
     if (e != JOIST_OK) {
         return e;
     }
-    if (handler != JOIST_SLOT_NONE && handler >= JOIST_CSPACE_SLOTS) {
+    if (bad_handler(handler, flags)) {
         return JOIST_E_RANGE;
     }
     k->th[t].fault_slot = handler == JOIST_SLOT_NONE ? 0 : handler + 1u;
+    k->th[t].fault_flags = (uint8_t)flags;
     return JOIST_OK;
 }
 
 joist_err joist_task_set_fault(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
-                               joist_slot handler)
+                               joist_slot handler, unsigned flags)
 {
     uint32_t obj;
     joist_err e = joist__control_cap(k, cs, task_slot, JOIST_OBJ_TASK, &obj);
     if (e != JOIST_OK) {
         return e;
     }
-    if (handler != JOIST_SLOT_NONE && handler >= JOIST_CSPACE_SLOTS) {
+    if (bad_handler(handler, flags)) {
         return JOIST_E_RANGE;
     }
-    k->cs[k->obj[obj].target - 1u].fault_slot = handler == JOIST_SLOT_NONE ? 0 : handler + 1u;
+    struct joist_cspace_state *st = &k->cs[k->obj[obj].target - 1u];
+    st->fault_slot = handler == JOIST_SLOT_NONE ? 0 : handler + 1u;
+    st->fault_flags = (uint8_t)flags;
     return JOIST_OK;
 }
 
@@ -147,7 +158,7 @@ static int handler_ep(const struct joist_kernel *k, uint32_t cs, uint32_t slot1,
 }
 
 joist_err joist_fault(struct joist_kernel *k, joist_thread t, uint64_t kind, uint64_t addr,
-                      uint64_t code)
+                      uint64_t code, uint64_t access)
 {
     if (t >= JOIST_MAX_THREADS) {
         return JOIST_E_RANGE;
@@ -159,13 +170,22 @@ joist_err joist_fault(struct joist_kernel *k, joist_thread t, uint64_t kind, uin
     uint32_t cs = r->cs;
     uint32_t obj;
     joist_badge badge;
-    if (handler_ep(k, cs, r->fault_slot, &obj, &badge) ||
-        handler_ep(k, cs, k->cs[cs].fault_slot, &obj, &badge)) {
+    unsigned flags = 0;
+    int found = handler_ep(k, cs, r->fault_slot, &obj, &badge);
+    if (found) {
+        flags = r->fault_flags;
+    } else if (handler_ep(k, cs, k->cs[cs].fault_slot, &obj, &badge)) {
+        found = 1;
+        flags = k->cs[cs].fault_flags;
+    }
+    if (found) {
         struct joist_msg m = {0};
-        m.r[0] = kind;
+        m.r[0] = kind | (kind == JOIST_FAULT_PAGE ? (access & 0xffu) << 8 : 0u);
         m.r[1] = addr;
         m.r[2] = code;
-        return joist__fault_call(k, t, obj, badge, &m);
+        m.r[3] = r->regs.pc;
+        int with_cap = kind != JOIST_FAULT_PAGE || (flags & JOIST_FAULT_NO_THREAD_CAP) == 0;
+        return joist__fault_call(k, t, obj, badge, with_cap, &m);
     }
     /* No handler: a faulting system with no handler must stop, not spin
      * (0009). The task goes; the root task can't (0013), so its thread does. */

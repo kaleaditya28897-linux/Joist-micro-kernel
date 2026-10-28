@@ -68,8 +68,8 @@ enum {
 #define ABI_THREAD_SUSPEND   34u /* thread */
 #define ABI_THREAD_RESUME    35u /* thread */
 #define ABI_THREAD_ABORT     36u /* thread */
-#define ABI_THREAD_SET_FAULT 37u /* thread, handler slot */
-#define ABI_TASK_SET_FAULT   38u /* task, handler slot */
+#define ABI_THREAD_SET_FAULT 37u /* thread, handler slot, flags (JOIST_FAULT_NO_THREAD_CAP) */
+#define ABI_TASK_SET_FAULT   38u /* task, handler slot, flags */
 #define ABI_FRAME_SPLIT      40u /* frame, at, dst */
 #define ABI_MAP              41u /* frame, page offset, pages, task, va page, perms */
 #define ABI_UNMAP            42u /* task, va page, pages (joist_unmap_range) */

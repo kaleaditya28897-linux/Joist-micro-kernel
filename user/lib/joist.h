@@ -376,6 +376,15 @@ static inline uint64_t j_thread_write_regs(uint64_t thread, const struct j_threa
  * to end the thread. */
 enum { J_FAULT_PAGE = 1, J_FAULT_GP, J_FAULT_UD, J_FAULT_MATH, J_FAULT_OTHER };
 #define J_FAULT_RESUME 0u
+/* A fault message's r[0]: the kind, and a page fault's access beside it;
+ * r[3] the faulting pc (core.h, Fault messages). */
+#define J_FAULT_KIND(r0)   ((r0) & 0xffu)
+#define J_FAULT_ACCESS(r0) (((r0) >> 8) & 0xffu)
+#define J_ACCESS_READ    0x1u
+#define J_ACCESS_WRITE   0x2u
+#define J_ACCESS_EXEC    0x4u
+#define J_ACCESS_PRESENT 0x8u
+#define J_FAULT_NO_THREAD_CAP 0x1u /* set_fault flag: page faults bring no thread capability */
 static inline uint64_t j_thread_set_fault(uint64_t thread, uint64_t handler)
 {
     return j_sys4(J_SYS_THREAD_SET_FAULT, thread, handler, 0, 0);
@@ -383,6 +392,14 @@ static inline uint64_t j_thread_set_fault(uint64_t thread, uint64_t handler)
 static inline uint64_t j_task_set_fault(uint64_t task, uint64_t handler)
 {
     return j_sys4(J_SYS_TASK_SET_FAULT, task, handler, 0, 0);
+}
+static inline uint64_t j_thread_set_fault_flags(uint64_t thread, uint64_t handler, uint64_t flags)
+{
+    return j_sys4(J_SYS_THREAD_SET_FAULT, thread, handler, flags, 0);
+}
+static inline uint64_t j_task_set_fault_flags(uint64_t task, uint64_t handler, uint64_t flags)
+{
+    return j_sys4(J_SYS_TASK_SET_FAULT, task, handler, flags, 0);
 }
 static inline uint64_t j_task_destroy(uint64_t task)
 {

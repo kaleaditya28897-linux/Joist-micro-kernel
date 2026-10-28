@@ -81,6 +81,12 @@ sc-unbind-while-lent @@ ../kernel/core/sched.c @@ if (r->sc_to != 0 && r->sc_fro
 sc-mcp-raisable @@ ../kernel/core/sched.c @@ if (mcp > k->cs[cs].mcp) { @@ if (0) {
 sc-mcp-not-inherited @@ ../kernel/core/task.c @@ n->mcp = k->cs[cs].mcp; @@ n->mcp = JOIST_PRIO_MAX;
 # Thread control and faults (Phase 3 step 3; 0009, 0010).
+fault-no-pc @@ ../kernel/core/fault.c @@ m.r[3] = r->regs.pc; @@ (void)0;
+fault-no-access @@ ../kernel/core/fault.c @@ m.r[0] = kind | (kind == JOIST_FAULT_PAGE ? (access & 0xffu) << 8 : 0u); @@ m.r[0] = kind; (void)access;
+fault-nocap-ignored @@ ../kernel/core/ipc.c @@ if (k->th[f].faulting == 2u) { @@ if (0) {
+fault-nocap-every-kind @@ ../kernel/core/fault.c @@ int with_cap = kind != JOIST_FAULT_PAGE || (flags & JOIST_FAULT_NO_THREAD_CAP) == 0; @@ int with_cap = (flags & JOIST_FAULT_NO_THREAD_CAP) == 0;
+fault-flags-unchecked @@ ../kernel/core/fault.c @@            (flags & ~(unsigned)JOIST_FAULT_NO_THREAD_CAP) != 0; @@            (flags & 0u) != 0;
+fault-task-flags-ignored @@ ../kernel/core/fault.c @@ flags = k->cs[cs].fault_flags; @@ flags = 0;
 fault-no-thread-cap @@ ../kernel/core/ipc.c @@ if (o == 0 || rr->nrecv == 0 || !joist__usable(k, rr->cs)) { @@ if (1) {
 fault-verdict-ignored @@ ../kernel/core/ipc.c @@ if (m->r[0] != JOIST_FAULT_RESUME) { @@ if (0) {
 fault-unresolved-runs @@ ../kernel/core/ipc.c @@         r->state = JOIST_T_SUSPENDED; @@         (void)0;
@@ -90,7 +96,7 @@ fault-root-destroyed @@ ../kernel/core/fault.c @@ if (k->root == cs + 1u) { @@ i
 abort-ignores-reply-wait @@ ../kernel/core/fault.c @@ r->state == JOIST_T_BLOCKED_REPLY || r->state == JOIST_T_BLOCKED_WAIT; @@ r->state == JOIST_T_BLOCKED_WAIT;
 suspend-leaves-queued @@ ../kernel/core/fault.c @@     if (blocked(&k->th[t])) { @@     if (0) {
 resume-anything @@ ../kernel/core/fault.c @@ if (k->th[t].state != JOIST_T_SUSPENDED) { @@ if (0) {
-fault-flag-unset @@ ../kernel/core/ipc.c @@ k->th[t].faulting = 1; @@ (void)t;
+fault-flag-unset @@ ../kernel/core/ipc.c @@ k->th[t].faulting = with_cap ? 1u : 2u; @@ (void)t; (void)with_cap;
 # Frames and mappings (Phase 3 step 3; 0013; I12).
 map-boot-overlap @@ ../kernel/core/map.c @@ if (o->type == JOIST_OBJ_FRAME && base < o->base + o->npages && o->base < base + npages) { @@ if (o->type == JOIST_OBJ_FRAME && 0) {
 # Preemptible destruction (Phase 3 step 3; 0016; TLA+'s rule).

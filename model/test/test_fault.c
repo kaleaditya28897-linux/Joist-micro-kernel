@@ -99,9 +99,9 @@ JT_TEST(fault_suspend_and_resume)
 JT_TEST(fault_goes_to_thread_handler_and_resumes)
 {
     setup();
-    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP) == JOIST_OK);
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP, 0) == JOIST_OK);
     JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_PAGE, 0xdead000, 6) == JOIST_BLOCKED);
+    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_PAGE, 0xdead000, 6, 0) == JOIST_BLOCKED);
     JT_CHECK(k.th[w].faulting && k.th[w].state == JOIST_T_BLOCKED_REPLY);
     JT_CHECK(k.th[h].msg.r[0] == JOIST_FAULT_PAGE && k.th[h].msg.r[1] == 0xdead000 &&
              k.th[h].msg.r[2] == 6);
@@ -118,12 +118,71 @@ JT_TEST(fault_goes_to_thread_handler_and_resumes)
     JT_CHECK(clean());
 }
 
+JT_TEST(fault_message_carries_the_pc_and_the_access)
+{
+    /* Phase 4 (0007): the faulting pc in r[3]; a page fault's access, read,
+     * write or execute and whether the page was present, in r[0] beside
+     * the kind, independent of the architecture's code (r[2]). */
+    setup();
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP, 0) == JOIST_OK);
+    k.th[w].regs.pc = 0x401234;
+    JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x5000, 7,
+                           JOIST_ACCESS_WRITE | JOIST_ACCESS_PRESENT) == JOIST_BLOCKED);
+    const struct joist_msg *m = &k.th[h].msg;
+    JT_CHECK(JOIST_FAULT_KIND(m->r[0]) == JOIST_FAULT_PAGE &&
+             JOIST_FAULT_ACCESS(m->r[0]) == (JOIST_ACCESS_WRITE | JOIST_ACCESS_PRESENT));
+    JT_CHECK(m->r[1] == 0x5000 && m->r[2] == 7 && m->r[3] == 0x401234);
+    struct joist_msg resume = {0};
+    JT_REQUIRE(joist_reply(&k, h, &resume) == JOIST_OK);
+    /* Another kind carries no access, whatever is passed. */
+    JT_REQUIRE(joist_cap_delete(&k, T, HCAP) == JOIST_OK);
+    JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_UD, 0, 0, JOIST_ACCESS_EXEC) == JOIST_BLOCKED);
+    JT_CHECK(k.th[h].msg.r[0] == JOIST_FAULT_UD && k.th[h].msg.r[3] == 0x401234);
+    JT_REQUIRE(joist_reply(&k, h, &resume) == JOIST_OK);
+    JT_CHECK(clean());
+}
+
+JT_TEST(fault_no_thread_capability_on_page_faults_if_asked)
+{
+    /* JOIST_FAULT_NO_THREAD_CAP: a page fault brings no capability (the
+     * badge names the task) and the reply still resumes the thread; other
+     * faults still bring one. The task's handler's flag holds for threads
+     * without their own handler. */
+    setup();
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP, JOIST_FAULT_NO_THREAD_CAP) == JOIST_OK);
+    JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x6000, 4, JOIST_ACCESS_READ) == JOIST_BLOCKED);
+    JT_CHECK(k.th[h].msg.ncaps == 0 && k.cs[T].slot[HCAP].obj == 0 && k.th[w].faulting == 2u);
+    struct joist_msg resume = {0};
+    JT_REQUIRE(joist_reply(&k, h, &resume) == JOIST_OK);
+    JT_CHECK(k.th[w].state == JOIST_T_RUNNING && !k.th[w].faulting);
+    JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_GP, 0, 0, 0) == JOIST_BLOCKED);
+    JT_CHECK(k.th[h].msg.ncaps == 1 && k.th[h].msg.cap[0] == HCAP && k.th[w].faulting == 1u);
+    JT_REQUIRE(joist_reply(&k, h, &resume) == JOIST_OK);
+    JT_REQUIRE(joist_cap_delete(&k, T, HCAP) == JOIST_OK);
+    /* Through the task's handler. */
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, JOIST_SLOT_NONE, 0) == JOIST_OK);
+    JT_REQUIRE(joist_task_set_fault(&k, root, R_TASK, FEP, JOIST_FAULT_NO_THREAD_CAP) == JOIST_OK);
+    JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x6000, 4, JOIST_ACCESS_READ) == JOIST_BLOCKED);
+    JT_CHECK(k.th[h].msg.ncaps == 0 && k.cs[T].slot[HCAP].obj == 0);
+    JT_REQUIRE(joist_reply(&k, h, &resume) == JOIST_OK);
+    /* An unknown flag: refused, nothing set. */
+    JT_CHECK(joist_thread_set_fault(&k, root, R_W, FEP, 0x2u) == JOIST_E_RANGE);
+    JT_CHECK(joist_task_set_fault(&k, root, R_TASK, FEP, 0x80u) == JOIST_E_RANGE);
+    JT_CHECK(k.th[w].fault_slot == 0 && k.cs[T].fault_flags == JOIST_FAULT_NO_THREAD_CAP);
+    JT_CHECK(clean());
+}
+
 JT_TEST(fault_handler_terminates_thread)
 {
     setup();
-    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP) == JOIST_OK);
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP, 0) == JOIST_OK);
     JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_UD, 0, 0) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_UD, 0, 0, 0) == JOIST_BLOCKED);
     struct joist_msg kill = {0};
     kill.r[0] = 1;
     JT_CHECK(joist_reply(&k, h, &kill) == JOIST_OK);
@@ -136,7 +195,7 @@ JT_TEST(fault_handler_terminates_thread)
 JT_TEST(fault_without_handler_terminates_task)
 {
     setup();
-    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_GP, 0, 0) == JOIST_E_PEER);
+    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_GP, 0, 0, 0) == JOIST_E_PEER);
     JT_CHECK(!k.cs[T].live && k.th[w].state == JOIST_T_FREE && k.th[h].state == JOIST_T_FREE);
     JT_CHECK(clean());
 }
@@ -144,10 +203,10 @@ JT_TEST(fault_without_handler_terminates_task)
 JT_TEST(fault_falls_back_to_task_handler)
 {
     setup();
-    JT_REQUIRE(joist_task_set_fault(&k, root, R_TASK, FEP) == JOIST_OK);
-    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, 9) == JOIST_OK); /* names an empty slot */
+    JT_REQUIRE(joist_task_set_fault(&k, root, R_TASK, FEP, 0) == JOIST_OK);
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, 9, 0) == JOIST_OK); /* names an empty slot */
     JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_MATH, 0, 0) == JOIST_BLOCKED);
+    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_MATH, 0, 0, 0) == JOIST_BLOCKED);
     JT_CHECK(k.th[h].msg.r[0] == JOIST_FAULT_MATH && k.th[w].faulting);
     JT_CHECK(clean());
 }
@@ -155,15 +214,15 @@ JT_TEST(fault_falls_back_to_task_handler)
 JT_TEST(fault_unresolved_leaves_thread_suspended)
 {
     setup();
-    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP) == JOIST_OK);
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP, 0) == JOIST_OK);
     JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x10, 4) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x10, 4, 0) == JOIST_BLOCKED);
     JT_REQUIRE(joist_thread_kill(&k, root, R_H) == JOIST_OK); /* the handler dies */
     JT_CHECK(k.th[w].state == JOIST_T_SUSPENDED && !k.th[w].faulting &&
              k.th[w].result == JOIST_E_PEER);
     JT_REQUIRE(joist_thread_resume(&k, root, R_W) == JOIST_OK);
     /* Aborting a fault call also leaves the thread stopped. */
-    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x10, 4) == JOIST_BLOCKED); /* nobody receives */
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x10, 4, 0) == JOIST_BLOCKED); /* nobody receives */
     JT_CHECK(k.th[w].state == JOIST_T_BLOCKED_SEND);
     JT_REQUIRE(joist_thread_abort(&k, root, R_W) == JOIST_OK);
     JT_CHECK(k.th[w].state == JOIST_T_SUSPENDED && k.th[w].result == JOIST_E_ABORTED);
@@ -173,8 +232,8 @@ JT_TEST(fault_unresolved_leaves_thread_suspended)
 JT_TEST(fault_queued_then_received_carries_capability)
 {
     setup();
-    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP) == JOIST_OK);
-    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x20, 0) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP, 0) == JOIST_OK);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0x20, 0, 0) == JOIST_BLOCKED);
     JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_OK);
     JT_CHECK(k.th[h].msg.r[1] == 0x20 && k.th[h].msg.cap[0] == HCAP);
     struct joist_cap c;
@@ -188,9 +247,9 @@ JT_TEST(fault_is_charged_to_the_faulting_thread)
     setup();
     JT_REQUIRE(joist_sc_create(&k, root, R_SC, 9, 2, 4) == JOIST_OK);
     JT_REQUIRE(joist_sc_bind(&k, root, R_SC, R_W) == JOIST_OK);
-    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP) == JOIST_OK);
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, FEP, 0) == JOIST_OK);
     JT_REQUIRE(joist_recv(&k, h, FEP, JOIST_FOREVER) == JOIST_BLOCKED);
-    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0, 0) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_fault(&k, w, JOIST_FAULT_PAGE, 0, 0, 0) == JOIST_BLOCKED);
     JT_CHECK(k.th[h].run_sc == k.cs[root].slot[R_SC].obj && k.th[w].run_sc == 0);
     struct joist_msg resume = {0};
     JT_REQUIRE(joist_reply(&k, h, &resume) == JOIST_OK);
@@ -206,8 +265,8 @@ JT_TEST(fault_dead_handler_endpoint_is_no_handler)
     JT_REQUIRE(joist_obj_create(&k, T, JOIST_OBJ_ENDPOINT, 7) == JOIST_OK);
     JT_REQUIRE(joist_cap_derive(&k, T, 7, 8, JOIST_R_SEND) == JOIST_OK);
     JT_REQUIRE(joist_cap_delete(&k, T, 7) == JOIST_OK); /* the last RECV: dead */
-    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, 8) == JOIST_OK);
-    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_PAGE, 0, 0) == JOIST_E_PEER);
+    JT_REQUIRE(joist_thread_set_fault(&k, root, R_W, 8, 0) == JOIST_OK);
+    JT_CHECK(joist_fault(&k, w, JOIST_FAULT_PAGE, 0, 0, 0) == JOIST_E_PEER);
     JT_CHECK(!k.cs[T].live);
     JT_CHECK(clean());
 }
@@ -217,8 +276,8 @@ JT_TEST(fault_in_root_task_ends_only_the_thread)
     setup();
     joist_thread rt;
     JT_REQUIRE(joist_thread_create(&k, root, &rt) == JOIST_OK);
-    JT_CHECK(joist_fault(&k, rt, JOIST_FAULT_GP, 0, 0) == JOIST_E_PEER);
+    JT_CHECK(joist_fault(&k, rt, JOIST_FAULT_GP, 0, 0, 0) == JOIST_E_PEER);
     JT_CHECK(k.cs[root].live && k.th[rt].state == JOIST_T_FREE);
-    JT_CHECK(joist_fault(&k, rt, JOIST_FAULT_GP, 0, 0) == JOIST_E_STATE);
+    JT_CHECK(joist_fault(&k, rt, JOIST_FAULT_GP, 0, 0, 0) == JOIST_E_STATE);
     JT_CHECK(clean());
 }

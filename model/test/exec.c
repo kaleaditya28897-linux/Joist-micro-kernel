@@ -841,9 +841,12 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_SET_FAULT: {
         /* A handler slot that usually holds an endpoint, sometimes not. */
         joist_slot hs = ch(src, 8) == 0 ? JOIST_SLOT_NONE : pick_slot(k, src, cs, JOIST_OBJ_ENDPOINT);
+        /* No thread capability on page faults half the time; an unknown
+         * flag now and then. */
+        unsigned flags = ch(src, 16) == 0 ? ch(src, 4) : ch(src, 2) * JOIST_FAULT_NO_THREAD_CAP;
         return ch(src, 3) == 0
-                   ? joist_task_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK), hs)
-                   : joist_thread_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD), hs);
+                   ? joist_task_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK), hs, flags)
+                   : joist_thread_set_fault(k, cs, pick_slot(k, src, cs, JOIST_OBJ_THREAD), hs, flags);
     }
     case JX_SPLIT:
     case JX_MAP:
@@ -990,7 +993,7 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
         /* Resume pending destruction: a few slots, or to the end. */
         return joist_continue(k, ch(src, 4) == 0 ? 0 : 1u + ch(src, 4));
     case JX_FAULT:
-        return joist_fault(k, pick_thread(k, src, 0), 1u + ch(src, 5), step, ch(src, 16));
+        return joist_fault(k, pick_thread(k, src, 0), 1u + ch(src, 5), step, ch(src, 16), ch(src, 16));
     case JX_GROW:
     case JX_SHRINK: {
         /* A real leaf index (1 .. root - 1) 3 times in 4; else any, 0 and

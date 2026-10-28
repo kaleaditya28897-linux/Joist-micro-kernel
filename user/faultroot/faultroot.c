@@ -50,11 +50,30 @@ static void fault_wait(struct j_msg *m, struct j_thread_regs *regs, uint64_t bad
     *m = (struct j_msg){0};
     check(j_recv(fault_ep, m, WAIT_NS) == J_OK, "no fault arrived");
     check(m->badge == badge, "a fault from the wrong task");
-    check(m->r[0] == kind, "the wrong kind of fault");
+    check(J_FAULT_KIND(m->r[0]) == kind, "the wrong kind of fault");
     check(J_CAPS_COUNT(m->caps) == 1 && J_CAPS_SLOT(m->caps, 0) == got_thread,
           "a fault came without its thread capability");
     must(j_thread_read_regs(got_thread, regs), "thread_read_regs");
     check(regs->pc >= CHILD_LO && regs->pc < CHILD_LO + 0x10000u, "a fault's pc isn't in the program");
+    check(m->r[3] == regs->pc, "a fault message's pc isn't the thread's");
+}
+
+/* A page fault from a task whose handler asked for no thread capability
+ * (J_FAULT_NO_THREAD_CAP): the message alone, the pc in it. */
+static void fault_wait_bare(struct j_msg *m, uint64_t badge)
+{
+    *m = (struct j_msg){0};
+    check(j_recv(fault_ep, m, WAIT_NS) == J_OK, "no fault arrived");
+    check(m->badge == badge && J_FAULT_KIND(m->r[0]) == J_FAULT_PAGE, "not the page fault expected");
+    check(J_CAPS_COUNT(m->caps) == 0, "a fault brought a thread capability it was asked not to");
+    check(m->r[3] >= CHILD_LO && m->r[3] < CHILD_LO + 0x10000u, "a fault's pc isn't in the program");
+}
+
+static void fault_reply_bare(uint64_t verdict)
+{
+    struct j_msg m = {0};
+    m.r[0] = verdict;
+    must(j_reply(&m), "reply (fault)");
 }
 
 /* Answer the fault: resume, or not. */
@@ -96,6 +115,7 @@ static void test_pager(void)
     fault_wait(&m, &regs, badge, J_FAULT_PAGE);
     check(m.r[1] == FAULT_VA, "a page fault's address is wrong");
     check((m.r[2] & 7u) == 6u, "a page fault's error code isn't user, write, not present");
+    check(J_FAULT_ACCESS(m.r[0]) == J_ACCESS_WRITE, "a page fault's access isn't a write, not present");
     uint64_t page = page_alloc();
     volatile uint64_t *here = (volatile uint64_t *)(uintptr_t)PAGER_VA;
     must(j_map(page, J_ROOT_SELF, PAGER_VA / J_PAGE, J_MAP_W), "map (pager, here)");
@@ -111,18 +131,21 @@ static void test_pager(void)
      * next touch must fault, not find the page through a translation the
      * CPU kept (with PCID, switching to a task no longer forgets them). */
     struct worker g = faulter_new(FAULT_PAGE2, 0, &badge);
+    /* This one's handler asks for no thread capability (0007): the badge
+     * names the task, and the reply alone resumes the thread. */
+    must(j_task_set_fault_flags(g.task, HANDLER, J_FAULT_NO_THREAD_CAP), "task_set_fault (flags)");
     go(&g);
-    fault_wait(&m, &regs, badge, J_FAULT_PAGE);
+    fault_wait_bare(&m, badge);
     page = page_alloc();
     must(j_map(page, g.task, FAULT_VA / J_PAGE, J_MAP_W), "map (pager, second faulter)");
-    fault_reply(J_FAULT_RESUME);
+    fault_reply_bare(J_FAULT_RESUME);
     sleep_ns(SHORT_NS); /* it has written, and spins with the page in its TLB */
     check(g.w->count == 1, "the second faulter isn't waiting");
     must(j_unmap(g.task, FAULT_VA / J_PAGE), "unmap (from the faulter)");
     g.w->aux = 1;
-    fault_wait(&m, &regs, badge, J_FAULT_PAGE);
+    fault_wait_bare(&m, badge);
     check(m.r[1] == FAULT_VA && g.w->count == 1, "a write to an unmapped page went through");
-    fault_reply(1);
+    fault_reply_bare(1);
     j_puts("fault: pager ok: a page fault resolved by mapping the page; unmapped, it faults again\n");
 }
 
@@ -294,6 +317,68 @@ static void test_control(void)
     j_puts("fault: control ok: suspend, resume, kill, abort, registers, TLS base, untrusted values\n");
 }
 
+/* 7. The fault round trip, measured (Phase 4 step 3, 0007): a faulter
+ * touches fresh pages one after another; this handler does what mm will for
+ * each (receive the fault, map a page there, reply), and, if it was given
+ * one, deletes the thread capability. The faulter times each round trip. */
+#ifndef BENCH_FAULTS
+#define BENCH_FAULTS 256u
+#endif
+static uint64_t bench_run(int bare, uint64_t *fastest)
+{
+    uint64_t badge;
+    struct worker f = faulter_new(FAULT_BENCH, BENCH_FAULTS, &badge);
+    if (bare) {
+        must(j_task_set_fault_flags(f.task, HANDLER, J_FAULT_NO_THREAD_CAP),
+             "task_set_fault (flags)");
+    }
+    uint64_t page = page_alloc();
+    go(&f);
+    for (unsigned i = 0; i < BENCH_FAULTS; i++) {
+        struct j_msg m = {0};
+        if (!bare) {
+            must(j_recv_slots(got_thread, J_SLOT_NONE, 1), "recv_slots");
+        }
+        check(j_recv(fault_ep, &m, WAIT_NS) == J_OK && m.badge == badge &&
+                  J_FAULT_KIND(m.r[0]) == J_FAULT_PAGE && J_FAULT_ACCESS(m.r[0]) == J_ACCESS_WRITE &&
+                  m.r[1] == FAULT_BENCH_VA + i * J_PAGE,
+              "the benchmark's fault isn't the next page written");
+        check(J_CAPS_COUNT(m.caps) == (bare ? 0u : 1u),
+              "the benchmark's fault has the wrong capabilities");
+        must(j_map(page, f.task, m.r[1] / J_PAGE, J_MAP_W), "map (benchmark)");
+        struct j_msg r = {0};
+        r.r[0] = J_FAULT_RESUME;
+        must(j_reply(&r), "reply (benchmark)");
+        if (!bare) {
+            must(j_cap_delete(got_thread), "cap_delete (thread)");
+        }
+    }
+    for (unsigned i = 0; i < 50u && f.w->count != 2; i++) {
+        sleep_ns(SHORT_NS);
+    }
+    check(f.w->count == 2, "the benchmark's faulter didn't finish");
+    must(j_unmap_range(f.task, FAULT_BENCH_VA / J_PAGE, BENCH_FAULTS), "unmap_range (benchmark)");
+    *fastest = f.w->arg;
+    return f.w->aux;
+}
+
+static void test_bench(void)
+{
+    uint64_t fast_cap;
+    uint64_t fast_bare;
+    uint64_t med_cap = bench_run(0, &fast_cap);
+    uint64_t med_bare = bench_run(1, &fast_bare);
+    j_puts("fault: bench: a page fault, mapped and resumed: median ");
+    j_putu(med_cap);
+    j_puts(" cycles with a thread capability (fastest ");
+    j_putu(fast_cap);
+    j_puts("), ");
+    j_putu(med_bare);
+    j_puts(" without (fastest ");
+    j_putu(fast_bare);
+    j_puts(")\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free)
 {
@@ -311,6 +396,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_no_handler();
     test_unresolved();
     test_control();
+    test_bench();
     j_puts("fault: all ok\n");
     j_exit(0);
 }
