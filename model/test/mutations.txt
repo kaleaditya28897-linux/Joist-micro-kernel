@@ -272,3 +272,11 @@ mm-split-without-room @@ ../servers/mm/mmlib.c @@ if (splits > free_n) { @@ if (
 mm-protect-uncovered @@ ../servers/mm/mmlib.c @@ if (covered != n) { @@ if (covered != n && 0) {
 mm-protect-kernel-skipped @@ ../servers/mm/mmlib.c @@ if (m->k.protect(m->k.ctx, tk->slot, lo, j - i, pp) != 0) { @@ if (0) {
 mm-write-past-region @@ ../servers/mm/mmlib.c @@ if ((write && (r->perms & MM_W) == 0) || @@ if ((0) ||
+mm-clone-no-downgrade @@ ../servers/mm/mmlib.c @@ if (m->k.protect(m->k.ctx, pt->slot, lo, j - i, r->perms & ~MM_W) != 0) { @@ if (0) {
+mm-clone-child-writable @@ ../servers/mm/mmlib.c @@ unsigned perms = r->shared ? r->perms : r->perms & ~MM_W; @@ unsigned perms = r->perms;
+mm-clone-no-reference @@ ../servers/mm/mmlib.c @@         m->pg[e->page].refs++; @@         (void)0;
+mm-cow-not-copied @@ ../servers/mm/mmlib.c @@ if (!r->shared && m->pg[p].refs > 1u) { @@ if (!r->shared && m->pg[p].refs > 1u && 0) {
+mm-cow-copy-empty @@ ../servers/mm/mmlib.c @@ memcpy(bytes(m, (uint32_t)q), bytes(m, p), PAGE_BYTES); @@ (void)0;
+mm-cow-old-kept @@ ../servers/mm/mmlib.c @@     page_unref(m, p); @@     (void)0;
+mm-share-cow-kept @@ ../servers/mm/mmlib.c @@ } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u) { @@ } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u && 0) {
+mm-share-region-private @@ ../servers/mm/mmlib.c @@ tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = r.perms, .shared = 1}; @@ tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = r.perms, .shared = 0};

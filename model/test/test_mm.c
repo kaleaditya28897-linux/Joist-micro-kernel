@@ -15,15 +15,18 @@
 #include <string.h>
 
 static struct joist_kernel k;
-static joist_cspace root, T;
+static joist_cspace root, T, C, D;
 static struct mm m;
-static uint32_t t;
+static uint32_t t, c, d; /* mm's indices for T, C and D */
 
-enum { TK = 0, MEM = 1, SELF = 2, POOL = 3 }; /* root's slots */
+/* Root's slots: T, the task mm serves; C and D, two more (a clone's child,
+ * a task to share with); a frame lent to each for its tables; the pool. */
+enum { TK = 0, MEM = 1, SELF = 2, POOL = 3, TC = 4, TD = 5, MEMC = 6, MEMD = 7 };
 
-/* Memory for T's page tables (lent pages), as test_map.c. */
+/* Memory for the tasks' page tables (lent pages), as test_map.c: 32 pages
+ * each, from MEM_BASE. */
 #define MEM_BASE 0x4000u
-#define MEM_PAGES 32u
+#define MEM_PAGES 96u
 static uint64_t mem[MEM_PAGES][JOIST_PAGE_SIZE / 8u];
 
 /* The pool's frame: POOL_PAGES pages at POOL_BASE, its bytes simulated. */
@@ -97,9 +100,11 @@ static void setup(void)
     memset(mem, 0, sizeof mem);
     memset(pool, 0xa5, sizeof pool); /* a page mm hands out must be zeroed */
     k.hooks.page = page;
-    if (joist_boot(&k, 64, &root) != JOIST_OK ||
-        joist_boot_frame(&k, root, MEM, MEM_BASE, MEM_PAGES) != JOIST_OK ||
+    if (joist_boot(&k, 128, &root) != JOIST_OK ||
+        joist_boot_frame(&k, root, MEM, MEM_BASE, 32) != JOIST_OK ||
         joist_boot_frame(&k, root, POOL, POOL_BASE, POOL_PAGES) != JOIST_OK ||
+        joist_boot_frame(&k, root, MEMC, MEM_BASE + 32u, 32) != JOIST_OK ||
+        joist_boot_frame(&k, root, MEMD, MEM_BASE + 64u, 32) != JOIST_OK ||
         joist_boot_self(&k, root, SELF) != JOIST_OK || joist_task_create(&k, root, 20, TK) != JOIST_OK ||
         joist_space_donate(&k, root, TK, MEM) != JOIST_OK) {
         jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
@@ -112,10 +117,23 @@ static void setup(void)
     }
 }
 
-/* The kernel's entry for page va of T, 0 if none. */
-static uint64_t pte(uint64_t va)
+/* C and D, served by mm too, each with its tables' pages. */
+static void more_tasks(void)
 {
-    uint64_t e = k.cs[T].pt_top[va >> JOIST_PT_SHIFT(3)];
+    if (joist_task_create(&k, root, 20, TC) != JOIST_OK || joist_space_donate(&k, root, TC, MEMC) != JOIST_OK ||
+        joist_task_create(&k, root, 20, TD) != JOIST_OK || joist_space_donate(&k, root, TD, MEMD) != JOIST_OK ||
+        mm_task_add(&m, TC, &c) != MM_OK || mm_task_add(&m, TD, &d) != MM_OK) {
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
+        return;
+    }
+    C = k.obj[k.cs[root].slot[TC].obj - 1u].target - 1u;
+    D = k.obj[k.cs[root].slot[TD].obj - 1u].target - 1u;
+}
+
+/* The kernel's entry for page va of space s, 0 if none. */
+static uint64_t pte_in(joist_cspace s, uint64_t va)
+{
+    uint64_t e = k.cs[s].pt_top[va >> JOIST_PT_SHIFT(3)];
     for (unsigned l = 2; e != 0 && l > 0; l--) {
         e = ((const uint64_t *)page(NULL, JOIST_PT_SHADOW(e)))[(va >> JOIST_PT_SHIFT(l)) &
                                                                 (JOIST_PT_ENTRIES - 1u)];
@@ -123,16 +141,27 @@ static uint64_t pte(uint64_t va)
     return e == 0 ? 0 : ((const uint64_t *)page(NULL, JOIST_PT_SHADOW(e)))[va & (JOIST_PT_ENTRIES - 1u)];
 }
 
-/* The bytes T sees at page va, through the kernel's entry: NULL if unmapped. */
-static uint8_t *seen(uint64_t va)
+static uint64_t pte(uint64_t va)
 {
-    uint64_t e = pte(va);
+    return pte_in(T, va);
+}
+
+/* The bytes space s sees at page va, through the kernel's entry: NULL if
+ * unmapped. */
+static uint8_t *seen_in(joist_cspace s, uint64_t va)
+{
+    uint64_t e = pte_in(s, va);
     if (e == 0) {
         return NULL;
     }
     const struct joist_object *f = &k.obj[JOIST_PTE_FRAME(e)];
     uint64_t pfn = f->base + JOIST_PTE_OFF(e);
     return pfn >= POOL_BASE && pfn < POOL_BASE + POOL_PAGES ? pool[pfn - POOL_BASE] : NULL;
+}
+
+static uint8_t *seen(uint64_t va)
+{
+    return seen_in(T, va);
 }
 
 /* ---- tests ---- */
@@ -280,5 +309,139 @@ JT_TEST(mm_task_gone_frees_its_pages)
     mm_task_gone(&m, t);
     JT_CHECK(m.nfree == POOL_PAGES && !m.task[t].live);
     JT_CHECK(mm_map_anon(&m, t, 0x400, 8, MM_W) == MM_E_STATE);
+    JT_CHECK(clean());
+}
+
+/* ---- part B: clone, copy on write, sharing ---- */
+
+/* T with 4 written pages at 0x400 (bytes 0x11, 0x12, ...). */
+static void t_with_pages(void)
+{
+    more_tasks();
+    if (mm_map_anon(&m, t, 0x400, 8, MM_W) != MM_OK) {
+        jt_fail(__FILE__, __LINE__, "map_anon", 0);
+        return;
+    }
+    for (uint64_t i = 0; i < 4; i++) {
+        if (mm_fault(&m, t, 0x400 + i, MM_ACCESS_WRITE) != 1) {
+            jt_fail(__FILE__, __LINE__, "fault", 0);
+            return;
+        }
+        seen(0x400 + i)[0] = (uint8_t)(0x11u + i);
+    }
+}
+
+JT_TEST(mm_clone_maps_the_pages_read_only_into_the_child)
+{
+    setup();
+    t_with_pages();
+    uint32_t used = POOL_PAGES - m.nfree;
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    for (uint64_t i = 0; i < 4; i++) {
+        uint64_t pe = pte(0x400 + i);
+        uint64_t ce = pte_in(C, 0x400 + i);
+        /* The same page, read-only in both. */
+        JT_CHECK(pe != 0 && ce != 0 && JOIST_PTE_FRAME(pe) == JOIST_PTE_FRAME(ce) &&
+                 JOIST_PTE_OFF(pe) == JOIST_PTE_OFF(ce));
+        JT_CHECK((pe & JOIST_PTE_W) == 0 && (ce & JOIST_PTE_W) == 0);
+        JT_CHECK(seen_in(C, 0x400 + i)[0] == 0x11u + i);
+    }
+    JT_CHECK(POOL_PAGES - m.nfree == used); /* nothing copied yet */
+    JT_CHECK(pte_in(C, 0x404) == 0 && m.task[c].reg[0].n != 0); /* the regions too */
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_cow_write_copies_then_upgrades_the_last)
+{
+    setup();
+    t_with_pages();
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    uint32_t used = POOL_PAGES - m.nfree;
+    /* The child writes: it gets a copy, the parent keeps the original. */
+    JT_CHECK(mm_fault(&m, c, 0x401, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == 1);
+    JT_CHECK((pte_in(C, 0x401) & JOIST_PTE_W) != 0 && POOL_PAGES - m.nfree == used + 1u);
+    JT_CHECK(seen_in(C, 0x401)[0] == 0x12 && seen(0x401)[0] == 0x12);
+    seen_in(C, 0x401)[0] = 0x99;
+    JT_CHECK(seen(0x401)[0] == 0x12); /* not the parent's */
+    /* The parent writes the same page: now its last reference, so no copy. */
+    JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == 1);
+    JT_CHECK((pte(0x401) & JOIST_PTE_W) != 0 && POOL_PAGES - m.nfree == used + 1u);
+    /* A page still shared stays read-only for the other. */
+    JT_CHECK(mm_fault(&m, t, 0x402, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == 1);
+    JT_CHECK((pte_in(C, 0x402) & JOIST_PTE_W) == 0 && seen_in(C, 0x402)[0] == 0x13);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_clone_refusals)
+{
+    setup();
+    t_with_pages();
+    JT_CHECK(mm_clone(&m, t, t) == MM_E_STATE);
+    JT_REQUIRE(mm_map_anon(&m, c, 0x800, 1, 0) == MM_OK);
+    JT_CHECK(mm_clone(&m, t, c) == MM_E_STATE); /* not a new task */
+    JT_CHECK(mm_clone(&m, t, d + 1u) == MM_E_STATE);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_share_maps_the_same_pages_and_keeps_them_shared_in_a_clone)
+{
+    setup();
+    t_with_pages();
+    JT_REQUIRE(mm_share(&m, t, 0x401, 3, d, 0x900) == MM_OK); /* 0x401-0x403, all mapped */
+    for (uint64_t i = 0; i < 3; i++) {
+        uint64_t te = pte(0x401 + i);
+        uint64_t de = pte_in(D, 0x900 + i);
+        JT_CHECK(te != 0 && de != 0 && JOIST_PTE_FRAME(te) == JOIST_PTE_FRAME(de) &&
+                 JOIST_PTE_OFF(te) == JOIST_PTE_OFF(de) && (de & JOIST_PTE_W) != 0);
+    }
+    seen_in(D, 0x900)[1] = 0x77;
+    JT_CHECK(seen(0x401)[1] == 0x77); /* one page */
+    /* A clone of T maps the shared pages writable, still the same page;
+     * the private one read-only. */
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    JT_CHECK((pte_in(C, 0x401) & JOIST_PTE_W) != 0 && seen_in(C, 0x401)[1] == 0x77);
+    JT_CHECK((pte_in(C, 0x400) & JOIST_PTE_W) == 0 && (pte(0x400) & JOIST_PTE_W) == 0);
+    seen_in(C, 0x402)[2] = 0x55;
+    JT_CHECK(seen(0x402)[2] == 0x55 && seen_in(D, 0x901)[2] == 0x55);
+    /* A write fault on a shared page that isn't writable: made so, no copy. */
+    JT_REQUIRE(joist_protect(&k, root, TK, 0x401, 1, 0) == JOIST_OK);
+    uint32_t used = POOL_PAGES - m.nfree;
+    JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == 1);
+    JT_CHECK((pte(0x401) & JOIST_PTE_W) != 0 && POOL_PAGES - m.nfree == used);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_share_copies_a_cow_page_first_and_makes_missing_ones)
+{
+    setup();
+    t_with_pages();
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK); /* T's pages now COW-shared with C */
+    uint32_t used = POOL_PAGES - m.nfree;
+    JT_REQUIRE(mm_share(&m, t, 0x403, 3, d, 0x900) == MM_OK); /* 0x403 COW; 0x404-5 absent */
+    JT_CHECK(POOL_PAGES - m.nfree == used + 3u); /* a copy and two new pages */
+    JT_CHECK(seen(0x403)[0] == 0x14 && seen_in(C, 0x403)[0] == 0x14);
+    seen(0x403)[0] = 0x66;
+    JT_CHECK(seen_in(D, 0x900)[0] == 0x66 && seen_in(C, 0x403)[0] == 0x14); /* C keeps its own */
+    JT_CHECK(pte(0x404) != 0 && pte_in(D, 0x901) != 0 && seen_in(D, 0x902)[0] == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_share_refusals_and_unmapping_one_side)
+{
+    setup();
+    t_with_pages();
+    JT_CHECK(mm_share(&m, t, 0x406, 4, d, 0x900) == MM_E_STATE); /* past T's region */
+    JT_CHECK(mm_share(&m, t, 0x3ff, 2, d, 0x900) == MM_E_STATE); /* starts outside */
+    JT_CHECK(mm_share(&m, t, 0x400, 2, t, 0x900) == MM_E_STATE); /* itself */
+    JT_REQUIRE(mm_map_anon(&m, d, 0x901, 1, 0) == MM_OK);
+    JT_CHECK(mm_share(&m, t, 0x400, 2, d, 0x900) == MM_E_STATE); /* D has a region there */
+    JT_CHECK(mm_share(&m, t, 0x400, 0, d, 0x700) == MM_E_RANGE);
+    JT_REQUIRE(mm_share(&m, t, 0x400, 2, d, 0x700) == MM_OK);
+    /* T unmaps its side: D keeps the pages and what is in them. */
+    uint32_t used = POOL_PAGES - m.nfree;
+    JT_REQUIRE(mm_unmap(&m, t, 0x400, 2) == MM_OK);
+    JT_CHECK(pte(0x400) == 0 && seen_in(D, 0x700)[0] == 0x11 && POOL_PAGES - m.nfree == used);
+    JT_REQUIRE(mm_unmap(&m, d, 0x700, 2) == MM_OK);
+    JT_CHECK(POOL_PAGES - m.nfree == used - 2u);
     JT_CHECK(clean());
 }

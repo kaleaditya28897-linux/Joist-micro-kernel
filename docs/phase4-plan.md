@@ -866,3 +866,25 @@ needs, and a handler may do without the thread capability.
   - **Verified** (the build VM): `make -C model check`, every test under
     plain, asan, ubsan, msan, tsan and small; mutations `mm-`: all 10
     caught. The kernel is unchanged.
+- **Part B, clone, copy on write and sharing** (2026-10-28), in the same
+  library:
+  - `mm_clone(parent, child)` (the server makes the child task and gives
+    it its badge): the parent's regions copied; its writable private
+    pages made read-only first, in runs (0011: before the child can see
+    them); then every page mapped into the child, read-only if private
+    (copy on write), as it is if shared.
+  - A write fault on a present page: a COW-shared page is copied into a
+    fresh one and put in its place with the conditional `map_replace`
+    (0020); the last reference is made writable (`protect`).
+  - `mm_share(t, va, n, o, ova)`: the range, inside one of t's regions,
+    mapped into o where o has none; both become shared regions. A COW
+    page in it is copied first, and a missing one made, so both map the
+    same page. Everything checked before anything changes. A clone keeps
+    shared pages shared (POSIX's `MAP_SHARED` across `fork`).
+  - Regions carry a `shared` flag (a split keeps it; `protect` refuses a
+    range mixing shared and private). `mm_check` adds: no page is mapped
+    from a shared region and a private one at once.
+  - Tests: 6 more in `test_mm.c` (three tasks); mutations `mm-clone-*`,
+    `mm-cow-*`, `mm-share-*`.
+  - **Verified** (the build VM): `make -C model check`, every build;
+    mutations `mm-`: all 18 caught. The kernel is unchanged.

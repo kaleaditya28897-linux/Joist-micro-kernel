@@ -1,8 +1,11 @@
 /* mmlib.c - the memory manager's logic (decision 0023). See mmlib.h.
  *
- * Part A of Phase 4's item 6: the pool of pages, tasks, regions of
- * anonymous memory, unmapping, protection, and demand-zero faults. Clone,
- * copy-on-write and sharing are the next part. */
+ * The pool of pages, the tasks mm serves, their regions of anonymous
+ * memory, unmapping and protection, demand-zero faults (part A of Phase
+ * 4's item 6); clone with copy on write, and sharing between tasks (part
+ * B). A page's references are its mappings: more than one in private
+ * regions is a COW share, read-only in all of them until written; any
+ * number in shared regions is a true share, never COW. */
 #include "mmlib.h"
 
 #include <string.h>
@@ -223,7 +226,8 @@ static int regions_cut(struct mm_task *tk, uint64_t va, uint64_t n)
         } else if (r->va < va && va + n < end) {
             for (unsigned j = 0; j < MM_REGIONS; j++) {
                 if (tk->reg[j].n == 0) {
-                    tk->reg[j] = (struct mm_region){.va = va + n, .n = end - (va + n), .perms = r->perms};
+                    tk->reg[j] = (struct mm_region){
+                        .va = va + n, .n = end - (va + n), .perms = r->perms, .shared = r->shared};
                     break;
                 }
             }
@@ -274,11 +278,11 @@ int mm_unmap(struct mm *m, uint32_t t, uint64_t va, uint64_t n)
     return MM_OK;
 }
 
-/* The permissions page p takes in a region with perms: no write while it
- * is shared (a copy on the first write: the next part). */
-static unsigned page_perms(const struct mm *m, uint32_t p, unsigned perms)
+/* The permissions page p takes in a region with perms: in a private
+ * region, no write while COW-shared (it is copied on the first write). */
+static unsigned page_perms(const struct mm *m, uint32_t p, unsigned perms, int shared)
 {
-    return m->pg[p].refs > 1u ? perms & ~MM_W : perms;
+    return !shared && m->pg[p].refs > 1u ? perms & ~MM_W : perms;
 }
 
 int mm_protect(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms)
@@ -291,13 +295,19 @@ int mm_protect(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms
     }
     struct mm_task *tk = &m->task[t];
     /* Every page of the range must be in a region (as mprotect's ENOMEM). */
+    /* ...and all of them shared, or none (the range becomes one region). */
     uint64_t covered = 0;
+    int shared = -1;
     for (unsigned i = 0; i < MM_REGIONS; i++) {
         const struct mm_region *r = &tk->reg[i];
         if (r->n != 0 && va < r->va + r->n && r->va < va + n) {
             uint64_t lo = r->va > va ? r->va : va;
             uint64_t hi = r->va + r->n < va + n ? r->va + r->n : va + n;
             covered += hi - lo;
+            if (shared >= 0 && shared != r->shared) {
+                return MM_E_STATE;
+            }
+            shared = r->shared;
         }
     }
     if (covered != n) {
@@ -320,7 +330,7 @@ int mm_protect(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms
     (void)regions_cut(tk, va, n);
     for (unsigned i = 0; i < MM_REGIONS; i++) {
         if (tk->reg[i].n == 0) {
-            tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = perms};
+            tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = perms, .shared = (uint8_t)shared};
             break;
         }
     }
@@ -328,11 +338,11 @@ int mm_protect(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms
     uint32_t i = map_from(tk, va);
     while (i < tk->nmap && tk->map[i].va < va + n) {
         uint64_t lo = tk->map[i].va;
-        unsigned pp = page_perms(m, tk->map[i].page, perms);
+        unsigned pp = page_perms(m, tk->map[i].page, perms, shared);
         uint32_t j = i + 1u;
         while (j < tk->nmap && tk->map[j].va == lo + (j - i) && tk->map[j].va < va + n &&
                tk->map[j].va / MM_SPAN == lo / MM_SPAN &&
-               page_perms(m, tk->map[j].page, perms) == pp) {
+               page_perms(m, tk->map[j].page, perms, shared) == pp) {
             j++;
         }
         if (m->k.protect(m->k.ctx, tk->slot, lo, j - i, pp) != 0) {
@@ -344,6 +354,30 @@ int mm_protect(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms
 }
 
 /* ---- faults ---- */
+
+/* Task t's mapping mi is a COW share: give it a copy of its own, mapped in
+ * the old page's place with perms, conditionally (0020: the replace fails,
+ * changing nothing, unless the old page is still there). */
+static int cow_break(struct mm *m, uint32_t t, uint32_t mi, unsigned perms)
+{
+    struct mm_task *tk = &m->task[t];
+    uint32_t p = tk->map[mi].page;
+    int64_t q = page_new(m);
+    if (q < 0) {
+        return MM_E_NOMEM;
+    }
+    memcpy(bytes(m, (uint32_t)q), bytes(m, p), PAGE_BYTES);
+    const struct mm_page *gq = &m->pg[q];
+    const struct mm_page *gp = &m->pg[p];
+    if (m->k.map_replace(m->k.ctx, m->frame[gq->frame].slot, gq->off, tk->slot, tk->map[mi].va,
+                         perms, m->frame[gp->frame].slot, gp->off) != 0) {
+        page_unref(m, (uint32_t)q);
+        return MM_E_KERNEL;
+    }
+    tk->map[mi].page = (uint32_t)q;
+    page_unref(m, p);
+    return MM_OK;
+}
 
 /* Map fresh zeroed pages into task t from va: one for a write, and for a
  * read up to MM_AROUND, while each is unmapped, in the region and in va's
@@ -396,12 +430,166 @@ int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
     if ((write && (r->perms & MM_W) == 0) || ((access & MM_ACCESS_EXEC) && (r->perms & MM_X) == 0)) {
         return 0; /* not allowed by the region */
     }
-    if (map_at(tk, va) >= 0) {
-        /* Mapped: another thread's fault got there first, or a write to a
-         * page that is not writable yet (a shared one: the next part). */
-        return (access & MM_ACCESS_PRESENT) == 0 || !write;
+    int64_t mi = map_at(tk, va);
+    if (mi < 0) {
+        return demand_zero(m, t, r, va, write);
     }
-    return demand_zero(m, t, r, va, write);
+    if (!write || (access & MM_ACCESS_PRESENT) == 0) {
+        return 1; /* another thread's fault got there first */
+    }
+    /* A write to a page that is there but not writable: in a private
+     * region, a COW share (copy it, unless this is its last reference). */
+    uint32_t p = tk->map[mi].page;
+    if (!r->shared && m->pg[p].refs > 1u) {
+        return cow_break(m, t, (uint32_t)mi, r->perms) == MM_OK;
+    }
+    return m->k.protect(m->k.ctx, tk->slot, va, 1, r->perms) == 0;
+}
+
+/* ---- clone and share (part B) ---- */
+
+int mm_clone(struct mm *m, uint32_t parent, uint32_t child)
+{
+    if (!task_ok(m, parent) || !task_ok(m, child) || parent == child) {
+        return MM_E_STATE;
+    }
+    struct mm_task *pt = &m->task[parent];
+    struct mm_task *ct = &m->task[child];
+    for (unsigned i = 0; i < MM_REGIONS; i++) {
+        if (ct->reg[i].n != 0) {
+            return MM_E_STATE; /* not a new task */
+        }
+    }
+    if (ct->nmap != 0) {
+        return MM_E_STATE;
+    }
+    memcpy(ct->reg, pt->reg, sizeof ct->reg);
+    /* The parent's writable private pages, read-only first (0011: before
+     * the child can see them), in runs within one region and one span. */
+    uint32_t i = 0;
+    while (i < pt->nmap) {
+        uint64_t lo = pt->map[i].va;
+        int ri = region_of(pt, lo);
+        const struct mm_region *r = &pt->reg[ri];
+        if (r->shared || (r->perms & MM_W) == 0 || m->pg[pt->map[i].page].refs > 1u) {
+            i++; /* shared, or not writable now */
+            continue;
+        }
+        uint32_t j = i + 1u;
+        while (j < pt->nmap && pt->map[j].va == lo + (j - i) && region_of(pt, pt->map[j].va) == ri &&
+               pt->map[j].va / MM_SPAN == lo / MM_SPAN && m->pg[pt->map[j].page].refs == 1u) {
+            j++;
+        }
+        if (m->k.protect(m->k.ctx, pt->slot, lo, j - i, r->perms & ~MM_W) != 0) {
+            return MM_E_KERNEL;
+        }
+        i = j;
+    }
+    /* Then every page into the child: read-only if private, as it is if
+     * shared. In order, so the child's table stays sorted. */
+    for (i = 0; i < pt->nmap; i++) {
+        const struct mm_map *e = &pt->map[i];
+        const struct mm_region *r = &pt->reg[region_of(pt, e->va)];
+        unsigned perms = r->shared ? r->perms : r->perms & ~MM_W;
+        if (kmap(m, child, e->va, e->page, perms) != MM_OK) {
+            return MM_E_KERNEL;
+        }
+        ct->map[ct->nmap++] = *e;
+        m->pg[e->page].refs++;
+    }
+    return MM_OK;
+}
+
+int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint64_t ova)
+{
+    if (!task_ok(m, t) || !task_ok(m, o) || t == o) {
+        return MM_E_STATE;
+    }
+    if (bad_range(va, n) || bad_range(ova, n)) {
+        return MM_E_RANGE;
+    }
+    struct mm_task *tk = &m->task[t];
+    struct mm_task *ok = &m->task[o];
+    int ri = region_of(tk, va);
+    if (ri < 0 || va + n > tk->reg[ri].va + tk->reg[ri].n) {
+        return MM_E_STATE; /* not within one of t's regions */
+    }
+    const struct mm_region r = tk->reg[ri];
+    unsigned ofree = 0;
+    for (unsigned i = 0; i < MM_REGIONS; i++) {
+        const struct mm_region *q = &ok->reg[i];
+        ofree += q->n == 0;
+        if (q->n != 0 && ova < q->va + q->n && q->va < ova + n) {
+            return MM_E_STATE; /* o has a region there */
+        }
+    }
+    /* Room, all of it checked before anything changes: o's table takes n
+     * pages, t's the pages not there yet; the pool, those and the COW
+     * pages to copy; t's regions, the cut and the new one; o's, one. */
+    if (ofree == 0 || n > MM_TASK_PAGES - ok->nmap) {
+        return MM_E_NOMEM;
+    }
+    uint64_t mapped = 0;
+    uint64_t cow = 0;
+    for (uint32_t i = map_from(tk, va); i < tk->nmap && tk->map[i].va < va + n; i++) {
+        mapped++;
+        cow += !r.shared && m->pg[tk->map[i].page].refs > 1u;
+    }
+    if (n - mapped > MM_TASK_PAGES - tk->nmap || n - mapped + cow > m->nfree) {
+        return MM_E_NOMEM;
+    }
+    unsigned need = 1;
+    unsigned have = 0;
+    for (unsigned i = 0; i < MM_REGIONS; i++) {
+        const struct mm_region *q = &tk->reg[i];
+        have += q->n == 0 || (va <= q->va && q->va + q->n <= va + n);
+        need += q->n != 0 && q->va < va && va + n < q->va + q->n;
+    }
+    if (need > have) {
+        return MM_E_NOMEM;
+    }
+    /* The regions first: shared in both. */
+    (void)regions_cut(tk, va, n);
+    for (unsigned i = 0; i < MM_REGIONS; i++) {
+        if (tk->reg[i].n == 0) {
+            tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = r.perms, .shared = 1};
+            break;
+        }
+    }
+    for (unsigned i = 0; i < MM_REGIONS; i++) {
+        if (ok->reg[i].n == 0) {
+            ok->reg[i] = (struct mm_region){.va = ova, .n = n, .perms = r.perms, .shared = 1};
+            break;
+        }
+    }
+    /* Then each page: made if not there, its own if COW-shared, writable
+     * as the region says; then mapped into o too. */
+    for (uint64_t k = 0; k < n; k++) {
+        int64_t mi = map_at(tk, va + k);
+        if (mi < 0) {
+            int64_t p = page_new(m);
+            if (p < 0 || map_add(tk, va + k, (uint32_t)p) != MM_OK) {
+                return MM_E_NOMEM; /* (checked above: not reached) */
+            }
+            mi = map_at(tk, va + k);
+            if (kmap(m, t, va + k, (uint32_t)p, r.perms) != MM_OK) {
+                return MM_E_KERNEL;
+            }
+        } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u) {
+            if (cow_break(m, t, (uint32_t)mi, r.perms) != MM_OK) {
+                return MM_E_KERNEL;
+            }
+        } else if (m->k.protect(m->k.ctx, tk->slot, va + k, 1, r.perms) != 0) {
+            return MM_E_KERNEL;
+        }
+        uint32_t p = tk->map[mi].page;
+        if (kmap(m, o, ova + k, p, r.perms) != MM_OK) {
+            return MM_E_KERNEL;
+        }
+        (void)map_add(ok, ova + k, p);
+        m->pg[p].refs++;
+    }
+    return MM_OK;
 }
 
 /* ---- the self-check ---- */
@@ -429,8 +617,10 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
 {
     unsigned bad = 0;
     static uint32_t refs[MM_PAGES];
+    static uint32_t shared_refs[MM_PAGES]; /* of those, mappings in shared regions */
     for (uint32_t p = 0; p < MM_PAGES; p++) {
         refs[p] = 0;
+        shared_refs[p] = 0;
     }
     for (uint32_t t = 0; t < MM_MAX_TASKS; t++) {
         const struct mm_task *tk = &m->task[t];
@@ -464,7 +654,8 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
             if (i != 0 && tk->map[i - 1u].va >= e->va) {
                 FAULT("mm: task %u's mappings out of order at %u", t, i);
             }
-            if (region_of(tk, e->va) < 0) {
+            int ri = region_of(tk, e->va);
+            if (ri < 0) {
                 FAULT("mm: task %u maps page %llu outside its regions", t, (unsigned long long)e->va);
             }
             if (e->page >= m->npages) {
@@ -472,12 +663,19 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
                 continue;
             }
             refs[e->page]++;
+            shared_refs[e->page] += ri >= 0 && tk->reg[ri].shared;
         }
     }
     uint32_t nfree = 0;
     for (uint32_t p = 0; p < m->npages; p++) {
         if (m->pg[p].refs != refs[p]) {
             FAULT("mm: page %u counts %u references, %u mappings name it", p, m->pg[p].refs, refs[p]);
+        }
+        if (shared_refs[p] != 0 && shared_refs[p] != refs[p]) {
+            /* A page shared by COW and truly shared at once: a write would
+             * copy it for one mapper and change it under another. */
+            FAULT("mm: page %u is mapped in %u shared and %u private regions", p, shared_refs[p],
+                  refs[p] - shared_refs[p]);
         }
         nfree += m->pg[p].refs == 0;
     }

@@ -67,6 +67,7 @@ struct mm_kops {
 struct mm_region {
     uint64_t va, n;    /* first page, pages; n == 0: unused */
     unsigned perms;    /* MM_W, MM_X */
+    uint8_t shared;    /* shared with another task (mm_share): never COW */
 };
 
 struct mm_map {
@@ -119,6 +120,16 @@ void mm_task_gone(struct mm *m, uint32_t t);
 int mm_map_anon(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms);
 int mm_unmap(struct mm *m, uint32_t t, uint64_t va, uint64_t n);
 int mm_protect(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms);
+/* MM_CLONE's records (0023): child is a task mm has just been given, empty
+ * (the server made it and gave it its badge). The parent's writable private
+ * pages are made read-only first, then every page is mapped into the child
+ * (read-only if private: copy on write; as it is if shared). */
+int mm_clone(struct mm *m, uint32_t parent, uint32_t child);
+/* MM_SHARE: the pages of [va, va + n) of task t, which must lie in one of
+ * its regions, mapped into task o at [ova, ova + n) too, where o has no
+ * region; both become shared regions. A page t shares by COW is copied
+ * first, and one not there yet is made, so both map the same page. */
+int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint64_t ova);
 
 /* A fault in task t at page va with the kernel's access bits: 1 to resume
  * the thread (the page is there now), 0 to end it. */
