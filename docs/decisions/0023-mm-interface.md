@@ -1,7 +1,7 @@
 # 0023 — `mm`: how it runs, how tasks reach it, what it does
 
 Date: 2026-10-28
-Status: **draft**, for the owner's acceptance.
+Status: **accepted** (the owner, 2026-10-28).
 Settles: `docs/phase4-plan.md`, choice 6 (`servers/mm`) and the order of
 work's item 6, as far as the interface and the structure go.
 Covers: §5.3 (time charged to whoever caused the work), §9.1 (`mm` in the

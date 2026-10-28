@@ -31,6 +31,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0020 | Page-sized mappings: part of a frame, the page tables as the record | accepted | Phase 4 |
 | 0021 | Page tables paid for by memory the memory manager donates | accepted | Phase 4 |
 | 0022 | Revoke by killing the object; the capability copy for `fork` in batches | accepted | Phase 4 |
+| 0023 | `mm`: how it runs (passive), how tasks reach it, what it does | accepted | Phase 4 |
 
 **All entries were accepted on 2026-10-01** by the project owner, at the close
 of Phase 0 (`docs/phase0-exit.md`). The recommendations taken were: 0002 on

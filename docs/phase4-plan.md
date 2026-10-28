@@ -838,3 +838,13 @@ needs, and a handler may do without the thread capability.
   KVM: the emulated test's timing, not load. **Open, for the exit step:**
   a longer window, or a threshold that suits emulation. The bench gate:
   372, 1 572 and 1 116 cycles.
+
+### Step 6: `mm` designed (2026-10-28)
+
+- **Decision 0023 accepted** (the owner, 2026-10-28): `mm` is passive (it
+  runs on its clients' time, after step 3's measurements); one endpoint,
+  one badged capability per task in a fixed slot, which is also the task's
+  fault handler; a task's death reaches `mm` as no-senders on its badge;
+  requests `MM_MAP_ANON`, `MM_UNMAP`, `MM_PROTECT`, `MM_CLONE`,
+  `MM_SHARE`; the fault rules; the records; `servers/mm/mmlib.c` built for
+  the host and the server, and its refinement test. No kernel change.
