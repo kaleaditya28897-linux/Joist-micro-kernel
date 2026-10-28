@@ -888,3 +888,22 @@ needs, and a handler may do without the thread capability.
     `mm-cow-*`, `mm-share-*`.
   - **Verified** (the build VM): `make -C model check`, every build;
     mutations `mm-`: all 18 caught. The kernel is unchanged.
+- **Part C, the refinement test** (`model/test/test_mm_refine.c`,
+  2026-10-28; the Testing table's "COW, refined"): an abstract machine, in
+  which each task's pages hold values in cells, a clone copies private
+  cells and aliases shared ones, and a share aliases two tasks' pages,
+  against the kernel model with `mm`'s library and the fault path (each
+  read and write goes through the kernel's page tables and faults into
+  `mm` where the page is absent or not writable). 48 seeds of 600 random
+  steps (map, read, write, unmap, protect, share, clone, exit) over six
+  task places and a window of 256 pages across two tables' spans. After
+  every step: every value read is the abstract one, `mm_check` and the
+  kernel's invariants hold, and `mm`'s records cover the kernel's
+  mappings exactly, page by page.
+  - A first version passed while doing little (13 reads of a written
+    page in all; most faults refused): reads and writes now go mostly to
+    pages in a region, and the test asserts floors. A run does about
+    2 200 reads of written pages, 5 100 writes, 800 COW copies, 640
+    clones, 550 shares, 1 800 unmaps, 120 protects and 440 exits.
+  - **Verified** (the build VM): `make -C model check`, every build;
+    mutations `mm-`: all 18 caught.
