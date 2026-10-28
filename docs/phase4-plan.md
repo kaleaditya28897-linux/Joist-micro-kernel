@@ -807,3 +807,14 @@ needs, and a handler may do without the thread capability.
     1 092).
   - CBMC, all 15 operations: verified, 0 of about 10 560 (0-10) and
     10 655 (11-16) properties failed, 6.6 hours.
+
+### Step 3, part 2: the fused reply decided, and the fault's cost (2026-10-28)
+
+- **Measured on the P53 itself** (KVM, pinned cores; `docs/phase4-data/step3-fault/`):
+  the fault round trip is about 11 000 cycles on one CPU (9 200 at best)
+  and a median of about 25 500 on two (the fastest still near 11 000).
+  Leaving out the thread capability saves nothing measurable.
+- **No fused reply** (the owner, 2026-10-28): it would save one kernel
+  entry, about 3 % of the round trip, so the plan's condition ("if the
+  measurement shows the extra kernel entry matters") is not met. The cost
+  is elsewhere: it is looked for first, before `mm` is built on the path.

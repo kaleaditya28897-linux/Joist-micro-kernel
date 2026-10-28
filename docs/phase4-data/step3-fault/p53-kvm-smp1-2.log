@@ -1,0 +1,28 @@
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/faulter.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 252 MiB usable in 5 ranges, 24 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fd54000), direct map at 0xffff800000000000
+joist: frames: 64622 free of 65265 covered (252 MiB)
+joist: page tables: the kernel's own, loaded (64359 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625093 LAPIC counts per tick
+joist: modules: 2
+joist: cpus: 1 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 1
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+fault: resume ok: an invalid instruction, skipped by its handler
+fault: pager ok: a page fault resolved by mapping the page; unmapped, it faults again
+fault: terminate ok: a privileged instruction, ended by its handler
+joist: task 5 faulted (#DE divide error at 0x00000000004000ee) with no handler: destroyed
+joist: task 5 faulted (#UD invalid opcode at 0x0000000000400060) with no handler: destroyed
+fault: no handler ok: the task is gone
+fault: unresolved ok: an unanswered fault leaves the thread suspended and mendable
+fault: control ok: suspend, resume, kill, abort, registers, TLS base, untrusted values
+fault: bench: a page fault, mapped and resumed: median 11212 cycles with a thread capability (fastest 9778), 10404 without (fastest 9246)
+fault: all ok
+joist: root task exited with code 0 (timer ticks so far: 43)
+joist: finish code 0
