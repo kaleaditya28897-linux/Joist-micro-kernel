@@ -1,6 +1,6 @@
 #!/bin/sh
 # Mutation check: apply each mutation in test/mutations.txt to its own scratch
-# copy of the tree (model/ and the kernel's core, which it tests), build, run
+# copy of the tree (model/, the kernel's core and mm's library, which it tests), build, run
 # the whole test suite, and require a failure (property or unit test). The
 # working tree is never modified.
 # usage: mutate.sh CC
@@ -25,6 +25,8 @@ if [ "${1:-}" = "--one" ]; then
     cp -r "$MUT_HERE" "$w/model"
     rm -rf "$w/model/build"
     cp -r "$MUT_HERE/../kernel/core" "$MUT_HERE/../kernel/include" "$w/kernel/"
+    mkdir -p "$w/servers"
+    cp -r "$MUT_HERE/../servers/mm" "$w/servers/" # mm's library (decision 0023)
     if ! python3 - "$w/model/$file" "$from" "$to" <<'PY'
 import sys
 p, a, b = sys.argv[1:]

@@ -848,3 +848,21 @@ needs, and a handler may do without the thread capability.
   requests `MM_MAP_ANON`, `MM_UNMAP`, `MM_PROTECT`, `MM_CLONE`,
   `MM_SHARE`; the fault rules; the records; `servers/mm/mmlib.c` built for
   the host and the server, and its refinement test. No kernel change.
+- **Part A, `mm`'s library** (`servers/mm/mmlib.{h,c}`, 2026-10-28): the
+  pool of pages (frames `mm` is given, a free list, every page zeroed when
+  handed out), the tasks it serves, their regions (at most 16 each; an
+  unmap or protect splits them, refused without room), each task's mapped
+  pages (a sorted array), and the requests `MM_MAP_ANON`, `MM_UNMAP`,
+  `MM_PROTECT`; demand-zero faults (a read maps up to 16 pages in the
+  region and the table's span, a write one), and the refusals (outside
+  every region, beyond its permissions, the pool spent). It calls the
+  kernel through `struct mm_kops`. `mm_check` checks its records (every
+  page's references against the mappings that name it, the free list,
+  the regions). Built into the model's tests; `model/test/test_mm.c` (9
+  tests) runs it against the kernel model, reading what a task sees
+  through the kernel's page tables, not `mm`'s records.
+  - `mutate.sh` now copies `servers/mm` into each mutant (the first run
+    found every `mm-` mutation stale).
+  - **Verified** (the build VM): `make -C model check`, every test under
+    plain, asan, ubsan, msan, tsan and small; mutations `mm-`: all 10
+    caught. The kernel is unchanged.
