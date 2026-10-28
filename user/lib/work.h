@@ -40,6 +40,17 @@ enum {
 #define FAULT_BENCH_T0(w) ((volatile uint64_t *)((volatile char *)(w) + 64))
 #define FAULT_BENCH_T1(w) (FAULT_BENCH_T0(w) + FAULT_BENCH_MAX)
 
+/* The memory manager's test program (mmclient; Phase 4 step 6, part D),
+ * a client of mm through MM_SLOT. Each sets count to 1, does its thing, and
+ * sets count to 2 if it gets past it; arg is 0, or the number of the first
+ * step that went wrong. */
+enum {
+    MMC_BASIC = 20, /* map anonymous memory, read, write, protect, unmap, map again */
+    MMC_RO_WRITE,   /* a write to a page mm made read-only: mm ends the thread */
+    MMC_OUTSIDE     /* a read outside every region: mm ends the thread */
+};
+#define MMC_VA 0x08000000ull /* where it asks for memory: a last-level table's 512 pages */
+
 struct work {
     volatile uint64_t role;
     volatile uint64_t arg;

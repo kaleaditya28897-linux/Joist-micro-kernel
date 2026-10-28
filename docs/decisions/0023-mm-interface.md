@@ -1,7 +1,9 @@
 # 0023 — `mm`: how it runs, how tasks reach it, what it does
 
 Date: 2026-10-28
-Status: **accepted** (the owner, 2026-10-28).
+Status: **accepted** (the owner, 2026-10-28); an **amendment proposed**
+2026-10-28, awaiting the owner (how a passive `mm` collects no-senders,
+below).
 Settles: `docs/phase4-plan.md`, choice 6 (`servers/mm`) and the order of
 work's item 6, as far as the interface and the structure go.
 Covers: §5.3 (time charged to whoever caused the work), §9.1 (`mm` in the
@@ -141,6 +143,35 @@ How a client names the task a request concerns:
 - `mm` restarting (Phase 9) rebuilds its records from what it holds (its
   task capabilities, its frames) and `map_query`: one pass per frame
   (0020's amendment). Not built now.
+
+## Amendment (proposed 2026-10-28): a passive `mm` collects no-senders lazily
+
+*Decision* says `mm`, "woken", collects the badges of tasks gone. A passive
+`mm` (the owner's choice) can't be woken: it has no time of its own to run
+on when a notification is signalled. Building the server showed this.
+
+- **`mm` collects at the start of every message** it gets, before looking
+  at it: `nosenders_next` until it returns no badge, and for each badge
+  `mm_task_gone` and its task capability deleted. The no-senders binding
+  stays (without one the kernel frees a badge's account at once and
+  queues nothing); its notification is never waited on. The root binds it
+  when it starts `mm` (it holds the endpoint with RECV too).
+- **No confusion of tasks:** a task's index, and so its badge, is used
+  again only after `mm_task_gone`, which only collection calls. A badge
+  still queued names the task that held it.
+- **No request fails for a dead task's memory:** collection comes before
+  everything a message does, so every death queued by then has given its
+  pages back before any is allocated.
+- **What it costs:** one more system call per message (`nosenders_next`
+  finding nothing), and a dead task's pages held until the next message to
+  `mm`. The call's cost is measured with the step's exit measurements; if
+  it shows, the alternative is to collect only when the pool runs short
+  or every Nth message.
+
+Rejected: a thread of `mm` with its own context waiting on the
+notification (the owner chose passive: 0023, *Consequences*); the root
+relaying deaths to `mm` (`mm` would trust the root for every task's death,
+and the root would have to watch every task).
 
 ## Priority check
 

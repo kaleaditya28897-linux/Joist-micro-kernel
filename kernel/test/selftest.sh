@@ -72,6 +72,8 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # (faultinj-SEED).
     faultinj-[0-9]*) kextra=""; root=faultinj; mods="fiworker"; uextra="-DFAULTINJ_SEED=${n#faultinj-}"
         ubuild=build/faultinj-${n#faultinj-} ;;
+    # Phase 4 step 6: the memory manager (servers/mm) and its clients.
+    mmroot) kextra=""; root=mmroot; mods="mm mmclient" ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -97,7 +99,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|revoke: all ok|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|revoke: all ok|mm: (all ok|FAILED)|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $log; fail=1
     fi
@@ -257,4 +259,12 @@ run revokeroot 1 "revoke: batch ok" "revoke: kill ok" "revoke: dead task ok" "re
     "root task exited with code 0"
 run kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
+# Phase 4 step 6, decision 0023 (servers/mm, user/mmroot): the memory
+# manager started passive, tasks handed to it, anonymous memory mapped on
+# demand, protected and unmapped through it, faults it refuses ending the
+# thread, and every task forgotten and its pages back once it is destroyed.
+run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" \
+    "mm: all ok" "root task exited with code 0"
+run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
+run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 exit $fail

@@ -8,9 +8,14 @@
  * number in shared regions is a true share, never COW. */
 #include "mmlib.h"
 
-#include <string.h>
 #if __STDC_HOSTED__
 #include <stdio.h>
+#include <string.h>
+#else /* the server: the kernel's string functions are linked in */
+#include <stddef.h>
+void *memcpy(void *dst, const void *src, size_t n);
+void *memmove(void *dst, const void *src, size_t n);
+void *memset(void *dst, int c, size_t n);
 #endif
 
 #define PAGE_BYTES 4096u

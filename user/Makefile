@@ -5,7 +5,8 @@
 # benchroot and ipcbench, the IPC benchmark: step 8; smproot, the
 # multiprocessor test: step 9; faultinj and fiworker, the fault-injection
 # test: the exit; docs/phase3-plan.md; scaleroot, the lock study's scaling
-# test; revokeroot, decision 0022's calls),
+# test; revokeroot, decision 0022's calls; mm, the memory manager, with
+# mmroot and mmclient, its test: Phase 4 step 6),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
 ifeq ($(origin CC),default)
@@ -22,6 +23,11 @@ BUILD := build
 # Extra flags, e.g. UEXTRA="-DSYSFUZZ_SEED=7 -DSYSFUZZ_CALLS=10000000".
 UEXTRA ?=
 UFLAGS += $(UEXTRA)
+# The memory manager's table sizes (servers/mm/mmlib.h), for it and for the
+# programs that talk to it.
+MMFLAGS := -DMM_MAX_TASKS=16u -DMM_TASK_PAGES=512u -DMM_PAGES=1024u
+UFLAGS += $(MMFLAGS)
+MM := ../servers/mm
 PROGS := hello badptr ud rowrite spin
 # Programs with an assembly part: prog/prog.c plus prog/*.S.
 ASMPROGS := sysfuzz sysrethole
@@ -31,7 +37,7 @@ ASMPROGS := sysfuzz sysrethole
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
 LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot scaleroot growroot fuzzchild \
-            fiworker faultinj revokeroot
+            fiworker faultinj revokeroot mmroot mmclient mm
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -44,9 +50,10 @@ $(BUILD)/elf.o: ../kernel/elf/elf.c ../kernel/elf/elf.h
 	$(CC) $(UFLAGS) -I../kernel/include -I../kernel/elf -c $< -o $@
 
 define libprog
-$(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h lib/loader.h lib/work.h lib/testroot.h lib/fi.h ../kernel/elf/elf.h
+$(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h lib/loader.h lib/work.h lib/testroot.h lib/fi.h ../kernel/elf/elf.h \
+                 $(MM)/mm_proto.h $(MM)/mmlib.h
 	@mkdir -p $$(@D)
-	$$(CC) $$(UFLAGS) -I../kernel/include -I../kernel/elf -c $$< -o $$@
+	$$(CC) $$(UFLAGS) -I../kernel/include -I../kernel/elf -I$(MM) -c $$< -o $$@
 $(BUILD)/$(1).elf: $(BUILD)/$(1).o $(BUILD)/string.o $(2) user.ld
 	$$(LD) -static -nostdlib -z max-page-size=0x1000 -z noexecstack -T user.ld \
 	    $(BUILD)/$(1).o $(BUILD)/string.o $(2) -o $$@
@@ -68,6 +75,19 @@ $(eval $(call libprog,fuzzchild,))
 $(eval $(call libprog,fiworker,))
 $(eval $(call libprog,faultinj,$(BUILD)/elf.o))
 $(eval $(call libprog,revokeroot,$(BUILD)/elf.o))
+$(eval $(call libprog,mmroot,$(BUILD)/elf.o))
+$(eval $(call libprog,mmclient,))
+
+# The memory manager: its loop and its library, from servers/mm.
+$(BUILD)/mmlib.o: $(MM)/mmlib.c $(MM)/mmlib.h
+	@mkdir -p $(@D)
+	$(CC) $(UFLAGS) -c $< -o $@
+$(BUILD)/mm.o: $(MM)/mm.c $(MM)/mm_proto.h $(MM)/mmlib.h lib/joist.h
+	@mkdir -p $(@D)
+	$(CC) $(UFLAGS) -c $< -o $@
+$(BUILD)/mm.elf: $(BUILD)/mm.o $(BUILD)/mmlib.o $(BUILD)/string.o user.ld
+	$(LD) -static -nostdlib -z max-page-size=0x1000 -z noexecstack -T user.ld \
+	    $(BUILD)/mm.o $(BUILD)/mmlib.o $(BUILD)/string.o -o $@
 
 # One rule per program: a pattern can't use % twice (prog/prog.c).
 define prog

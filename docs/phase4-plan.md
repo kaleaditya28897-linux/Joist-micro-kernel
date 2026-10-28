@@ -907,3 +907,33 @@ needs, and a handler may do without the thread capability.
     clones, 550 shares, 1 800 unmaps, 120 protects and 440 exits.
   - **Verified** (the build VM): `make -C model check`, every build;
     mutations `mm-`: all 18 caught.
+- **Part D1, the server** (`servers/mm/mm.c`, `mm_proto.h`; the test
+  `user/mmroot`, `user/mmclient`; 2026-10-28): `mm` on the real kernel, as
+  0023 says. One thread with no context of its own, a ReplyRecv loop
+  around the library; the kernel calls through system calls; its pool
+  mapped at `MM_POOL_VA` in its own space for zeroing and copying.
+  - The root fills `mm`'s first slots (its endpoint, itself, the pool, the
+    table pages), binds no-senders, runs `mm`'s thread on a context for
+    one call (`MM_REQ_INIT`), then takes the context away. `MM_REQ_ADOPT`
+    hands `mm` a task: `mm` lends it a run of table pages, gives it its
+    badged capability in `MM_SLOT` and makes that its fault handler with
+    no thread capability. `MM_REQ_STATUS`: tasks served, free pages,
+    `mm_check`. Clients: `MAP_ANON`, `UNMAP`, `PROTECT`; `CLONE` and
+    `SHARE` come with D2.
+  - A passive `mm` can't be woken by no-senders: it collects queued
+    badges at the start of every message instead (0023's proposed
+    amendment).
+  - The test: `mm` started passive; a client maps 64 pages, reads zeroes,
+    writes, protects, unmaps and maps again, and is refused what isn't its
+    to ask; a write to a read-only page and a read outside every region end
+    the thread (it is gone, not faulting for ever); after each client is
+    destroyed, `mm` serves nobody, has every page back and finds its
+    records sound; then the first client again (badges and table runs used
+    a second time). Emulated, on 2 real CPUs, and on the checking kernel
+    (`kernel/test/selftest.sh`, `mmroot`).
+  - **Verified** (the build VM): `mmroot` emulated, on 2 KVM CPUs and on
+    the checking kernel; two mutants of `mm.c` each caught by their check
+    (every refused fault resumed: "didn't end the thread", which the first
+    version of the test missed; collection removed: "didn't forget a
+    destroyed client"); `make -C model check`, every build (mmlib's
+    freestanding includes changed). The kernel is unchanged.
