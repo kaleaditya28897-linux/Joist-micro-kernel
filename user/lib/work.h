@@ -33,7 +33,12 @@ enum {
 };
 #define FAULT_VA 0x50000000ull
 #define FAULT_BENCH_VA 0x60000000ull /* a last-level table's 512 pages (2 MiB aligned) */
-#define FAULT_BENCH_MAX 512u
+#define FAULT_BENCH_MAX 240u
+/* FAULT_BENCH also leaves, after the struct in its page, each fault's TSC
+ * just before the touch (t0) and just after (t1), for its handler to break
+ * the round trip down with its own stamps. */
+#define FAULT_BENCH_T0(w) ((volatile uint64_t *)((volatile char *)(w) + 64))
+#define FAULT_BENCH_T1(w) (FAULT_BENCH_T0(w) + FAULT_BENCH_MAX)
 
 struct work {
     volatile uint64_t role;

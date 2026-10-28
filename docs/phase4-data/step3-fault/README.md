@@ -36,3 +36,34 @@ six times, so they are not figures for the fault path.
 - Two CPUs: the median doubles (about 25 500) while the fastest stays
   near the one-CPU figure: some faults take a slower path, likely a
   wake-up across CPUs. Not yet explained.
+
+## Where the time goes (2026-10-28)
+
+`faultroot` now stamps the TSC when its Recv returns, its map returns and
+its reply returns; with the faulter's stamps before and after the touch,
+each round trip splits in four. A third run has a **passive** handler: a
+thread with no scheduling context of its own, running on the time each
+fault lends it, answering and waiting in one ReplyRecv. Logs:
+`p53-kvm-breakdown-smp*.log` (the P53, KVM, pinned cores). Medians, in
+cycles:
+
+| | to the handler | map | reply | back | round trip |
+|---|---:|---:|---:|---:|---:|
+| 1 CPU, own context, with capability | 4 194 | 714 | 598 | 5 088 | 10 948 |
+| 1 CPU, own context, without | 4 210 | 662 | 594 | 4 580 | 10 472 |
+| 1 CPU, **passive**, without | 1 000 | 470 | (in back) | 1 094 | **2 564** |
+| 2 CPUs, own context, with | 5 662 | 954 | 13 260 | 5 994 | 25 910 |
+| 2 CPUs, own context, without | 5 828 | 806 | 11 966 | 5 182 | 25 320 |
+| 2 CPUs, **passive**, without | 1 082 | 500 | (in back) | 1 122 | **2 704** |
+
+- **The cost was the change of scheduling context**, twice a fault:
+  about 4 200 cycles each way (each sets the timer; under KVM a timer
+  write is a trap to the host, Phase 3's step 10). The kernel calls
+  themselves are cheap (map 470-950, reply 600). A passive handler,
+  running on the faulting thread's time, needs no change and takes a
+  quarter of the time: about 2 600 cycles, 2 700 on two CPUs.
+- **On two CPUs**, with its own context, the handler's reply took about
+  12 000 cycles: it wakes the faulter on the other CPU. A passive
+  handler stays on the faulter's CPU, so two CPUs cost almost nothing more.
+- Leaving out the thread capability saves 500-700 cycles in "back" (the
+  delete), which the own-context round trip hid.

@@ -56,8 +56,11 @@ void _start(uint64_t a, uint64_t b)
         uint64_t n = w->arg < FAULT_BENCH_MAX ? w->arg : FAULT_BENCH_MAX;
         for (uint64_t i = 0; i < n; i++) {
             uint64_t t0 = work_tsc();
+            FAULT_BENCH_T0(w)[i] = t0;
             *(volatile uint64_t *)(uintptr_t)(FAULT_BENCH_VA + i * J_PAGE) = i;
-            d[i] = work_tsc() - t0;
+            uint64_t t1 = work_tsc();
+            FAULT_BENCH_T1(w)[i] = t1;
+            d[i] = t1 - t0;
         }
         for (uint64_t i = 1; i < n; i++) { /* insertion sort: n is small */
             uint64_t x = d[i];

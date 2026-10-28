@@ -322,8 +322,60 @@ static void test_control(void)
  * each (receive the fault, map a page there, reply), and, if it was given
  * one, deletes the thread capability. The faulter times each round trip. */
 #ifndef BENCH_FAULTS
-#define BENCH_FAULTS 256u
+#define BENCH_FAULTS FAULT_BENCH_MAX
 #endif
+/* This handler's stamps, per fault: its Recv returned (tr), its map
+ * returned (tm), its reply returned (tp). With the faulter's t0 and t1
+ * they split each round trip in four (bench_breakdown). */
+static uint64_t tr[BENCH_FAULTS], tm[BENCH_FAULTS], tp[BENCH_FAULTS];
+
+static uint64_t median_of(uint64_t *v, unsigned n)
+{
+    for (unsigned i = 1; i < n; i++) { /* insertion sort: n is small */
+        uint64_t x = v[i];
+        unsigned j = i;
+        for (; j > 0 && v[j - 1u] > x; j--) {
+            v[j] = v[j - 1u];
+        }
+        v[j] = x;
+    }
+    return n != 0 ? v[n / 2u] : 0;
+}
+
+/* The median of each part of the round trip: to the handler (the fault,
+ * delivered, the handler running: t0 to tr), its map (tr to tm), its reply
+ * (tm to tp), and back (its capability delete if any, its next Recv, the
+ * faulter running again: tp to t1). */
+static void bench_breakdown(const struct work *w, const char *how)
+{
+    static uint64_t part[BENCH_FAULTS];
+    const volatile uint64_t *t0 = FAULT_BENCH_T0(w);
+    const volatile uint64_t *t1 = FAULT_BENCH_T1(w);
+    j_puts("fault: bench: ");
+    j_puts(how);
+    j_puts(": to the handler ");
+    for (unsigned i = 0; i < BENCH_FAULTS; i++) {
+        part[i] = tr[i] - t0[i];
+    }
+    j_putu(median_of(part, BENCH_FAULTS));
+    j_puts(", map ");
+    for (unsigned i = 0; i < BENCH_FAULTS; i++) {
+        part[i] = tm[i] - tr[i];
+    }
+    j_putu(median_of(part, BENCH_FAULTS));
+    j_puts(", reply ");
+    for (unsigned i = 0; i < BENCH_FAULTS; i++) {
+        part[i] = tp[i] - tm[i];
+    }
+    j_putu(median_of(part, BENCH_FAULTS));
+    j_puts(", back ");
+    for (unsigned i = 0; i < BENCH_FAULTS; i++) {
+        part[i] = t1[i] - tp[i];
+    }
+    j_putu(median_of(part, BENCH_FAULTS));
+    j_puts(" cycles (medians)\n");
+}
+
 static uint64_t bench_run(int bare, uint64_t *fastest)
 {
     uint64_t badge;
@@ -339,16 +391,20 @@ static uint64_t bench_run(int bare, uint64_t *fastest)
         if (!bare) {
             must(j_recv_slots(got_thread, J_SLOT_NONE, 1), "recv_slots");
         }
-        check(j_recv(fault_ep, &m, WAIT_NS) == J_OK && m.badge == badge &&
+        uint64_t e = j_recv(fault_ep, &m, WAIT_NS);
+        tr[i] = work_tsc();
+        check(e == J_OK && m.badge == badge &&
                   J_FAULT_KIND(m.r[0]) == J_FAULT_PAGE && J_FAULT_ACCESS(m.r[0]) == J_ACCESS_WRITE &&
                   m.r[1] == FAULT_BENCH_VA + i * J_PAGE,
               "the benchmark's fault isn't the next page written");
         check(J_CAPS_COUNT(m.caps) == (bare ? 0u : 1u),
               "the benchmark's fault has the wrong capabilities");
         must(j_map(page, f.task, m.r[1] / J_PAGE, J_MAP_W), "map (benchmark)");
+        tm[i] = work_tsc();
         struct j_msg r = {0};
         r.r[0] = J_FAULT_RESUME;
         must(j_reply(&r), "reply (benchmark)");
+        tp[i] = work_tsc();
         if (!bare) {
             must(j_cap_delete(got_thread), "cap_delete (thread)");
         }
@@ -358,6 +414,75 @@ static uint64_t bench_run(int bare, uint64_t *fastest)
     }
     check(f.w->count == 2, "the benchmark's faulter didn't finish");
     must(j_unmap_range(f.task, FAULT_BENCH_VA / J_PAGE, BENCH_FAULTS), "unmap_range (benchmark)");
+    bench_breakdown(f.w, bare ? "without a thread capability" : "with a thread capability");
+    *fastest = f.w->arg;
+    return f.w->aux;
+}
+
+/* The same with a passive handler (Phase 4 step 3: is the cost the change
+ * of scheduling context?): a thread of this task with no context of its
+ * own, running only on the time each fault lends it (0009), answering and
+ * waiting in one call (ReplyRecv: after a plain reply it would have no time
+ * left to wait again). No thread capability; its reply and next wait are
+ * one call, so "reply" reads 0 and "back" holds both. */
+static uint64_t ph_page, ph_task;
+static volatile unsigned ph_n;
+static uint8_t ph_stack[16384] __attribute__((aligned(16)));
+
+static void passive_handler(void)
+{
+    struct j_msg m = {0};
+    if (j_recv(fault_ep, &m, J_FOREVER) != J_OK) { /* the start-up handshake */
+        die("the passive handler's first Recv failed");
+    }
+    for (unsigned i = 0;; i++) {
+        m = (struct j_msg){0};
+        m.r[0] = J_FAULT_RESUME;
+        uint64_t e = j_reply_recv(fault_ep, &m, J_FOREVER);
+        uint64_t now = work_tsc();
+        if (i >= BENCH_FAULTS) {
+            die("the passive handler got more faults than the benchmark makes");
+        }
+        tr[i] = now;
+        if (e != J_OK || J_FAULT_KIND(m.r[0]) != J_FAULT_PAGE ||
+            m.r[1] != FAULT_BENCH_VA + i * J_PAGE) {
+            die("the passive handler's fault isn't the next page written");
+        }
+        if (j_map(ph_page, ph_task, m.r[1] / J_PAGE, J_MAP_W) != J_OK) {
+            die("the passive handler's map failed");
+        }
+        tm[i] = tp[i] = work_tsc();
+        ph_n = i + 1u;
+    }
+}
+
+static uint64_t bench_passive(uint64_t *fastest)
+{
+    uint64_t badge;
+    struct worker f = faulter_new(FAULT_BENCH, BENCH_FAULTS, &badge);
+    must(j_task_set_fault_flags(f.task, HANDLER, J_FAULT_NO_THREAD_CAP),
+         "task_set_fault (flags)");
+    ph_page = page_alloc();
+    ph_task = f.task;
+    uint64_t th = slot_new();
+    uint64_t sc = slot_new();
+    must(j_thread_spawn(J_ROOT_SELF, th, (uint64_t)(uintptr_t)passive_handler,
+                        (uint64_t)(uintptr_t)(ph_stack + sizeof ph_stack - 8u)),
+         "thread_spawn (passive handler)");
+    /* It reaches its Recv on a context of its own, answers one call (so it
+     * is waiting before the context goes, docs/abi.md), and gives it up. */
+    must(j_sc_create(sc, 200, 10 * J_MS, 10 * J_MS), "sc_create (passive handler)");
+    must(j_sc_bind(sc, th), "sc_bind (passive handler)");
+    struct j_msg h = {0};
+    must(j_call(fault_ep, &h, J_FOREVER), "call (passive handler start)");
+    must(j_sc_unbind(sc), "sc_unbind (passive handler)");
+    go(&f);
+    for (unsigned i = 0; i < 50u && f.w->count != 2; i++) {
+        sleep_ns(SHORT_NS);
+    }
+    check(f.w->count == 2 && ph_n == BENCH_FAULTS, "the passive handler's benchmark didn't finish");
+    must(j_unmap_range(f.task, FAULT_BENCH_VA / J_PAGE, BENCH_FAULTS), "unmap_range (benchmark)");
+    bench_breakdown(f.w, "a passive handler, without a thread capability");
     *fastest = f.w->arg;
     return f.w->aux;
 }
@@ -376,6 +501,13 @@ static void test_bench(void)
     j_putu(med_bare);
     j_puts(" without (fastest ");
     j_putu(fast_bare);
+    j_puts(")\n");
+    uint64_t fast_passive;
+    uint64_t med_passive = bench_passive(&fast_passive);
+    j_puts("fault: bench: the same with a passive handler: median ");
+    j_putu(med_passive);
+    j_puts(" cycles (fastest ");
+    j_putu(fast_passive);
     j_puts(")\n");
 }
 

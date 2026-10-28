@@ -818,3 +818,23 @@ needs, and a handler may do without the thread capability.
   entry, about 3 % of the round trip, so the plan's condition ("if the
   measurement shows the extra kernel entry matters") is not met. The cost
   is elsewhere: it is looked for first, before `mm` is built on the path.
+- **Where the cost was** (`docs/phase4-data/step3-fault/`, *Where the time
+  goes*): the handler's change of scheduling context, twice a fault (about
+  4 200 cycles each, the timer set each time; a trap to the host under
+  KVM). With a **passive** handler, running on the faulting thread's lent
+  time and answering with ReplyRecv, a fault takes about 2 600 cycles on
+  one CPU and 2 700 on two, against 10 500 and 25 300. `faultroot`
+  measures all three now (own context with and without a thread
+  capability, passive). For `mm` (item 6): run passive, on its clients'
+  time; that is for the owner to settle with `mm`'s design.
+- **Verified** (the build VM, alone, the kernel built from nothing):
+  `make -C kernel check`: every host test, freestanding build,
+  clang-tidy and scan-build clean, BIOS and UEFI boots, the 8 `fault` and
+  7 `faultinj` variants with the new measurements; 73 of 74 self-tests.
+  The one failure was `smp4-smp` (emulated, 4 CPUs: "spinners on separate
+  CPUs didn't run at the same time"), which then failed once more in
+  three reruns alone, with nothing else on the P53 or the VM (its cores
+  as they should be). This is its fourth failure across runs, never under
+  KVM: the emulated test's timing, not load. **Open, for the exit step:**
+  a longer window, or a threshold that suits emulation. The bench gate:
+  372, 1 572 and 1 116 cycles.
