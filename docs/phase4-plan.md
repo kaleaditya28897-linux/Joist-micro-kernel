@@ -921,8 +921,8 @@ needs, and a handler may do without the thread capability.
     `mm_check`. Clients: `MAP_ANON`, `UNMAP`, `PROTECT`; `CLONE` and
     `SHARE` come with D2.
   - A passive `mm` can't be woken by no-senders: it collects queued
-    badges at the start of every message instead (0023's proposed
-    amendment).
+    badges at the start of every message instead (0023's amendment,
+    accepted).
   - The test: `mm` started passive; a client maps 64 pages, reads zeroes,
     writes, protects, unmaps and maps again, and is refused what isn't its
     to ask; a write to a read-only page and a read outside every region end

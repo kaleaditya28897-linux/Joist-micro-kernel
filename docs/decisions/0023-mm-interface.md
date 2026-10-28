@@ -1,9 +1,8 @@
 # 0023 — `mm`: how it runs, how tasks reach it, what it does
 
 Date: 2026-10-28
-Status: **accepted** (the owner, 2026-10-28); an **amendment proposed**
-2026-10-28, awaiting the owner (how a passive `mm` collects no-senders,
-below).
+Status: **accepted** (the owner, 2026-10-28); **amended** 2026-10-28 (how
+a passive `mm` collects no-senders, below; accepted by the owner).
 Settles: `docs/phase4-plan.md`, choice 6 (`servers/mm`) and the order of
 work's item 6, as far as the interface and the structure go.
 Covers: §5.3 (time charged to whoever caused the work), §9.1 (`mm` in the
@@ -144,7 +143,7 @@ How a client names the task a request concerns:
   task capabilities, its frames) and `map_query`: one pass per frame
   (0020's amendment). Not built now.
 
-## Amendment (proposed 2026-10-28): a passive `mm` collects no-senders lazily
+## Amendment (2026-10-28, accepted): a passive `mm` collects no-senders lazily
 
 *Decision* says `mm`, "woken", collects the badges of tasks gone. A passive
 `mm` (the owner's choice) can't be woken: it has no time of its own to run
