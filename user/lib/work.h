@@ -47,9 +47,46 @@ enum {
 enum {
     MMC_BASIC = 20, /* map anonymous memory, read, write, protect, unmap, map again */
     MMC_RO_WRITE,   /* a write to a page mm made read-only: mm ends the thread */
-    MMC_OUTSIDE     /* a read outside every region: mm ends the thread */
+    MMC_OUTSIDE,    /* a read outside every region: mm ends the thread */
+    MMC_FORK,       /* clone; parent and child write the same pages, each seeing its own */
+    MMC_CLONE_FULL, /* clones refused, and undone: mm's table pages spent, the child's too few */
+    MMC_SHARE,      /* SHARE refused without consent, then shared, and kept across a clone */
+    MMC_CHILD       /* a child: does what its parent posts in its work page (MMC_C_*) */
 };
 #define MMC_VA 0x08000000ull /* where it asks for memory: a last-level table's 512 pages */
+
+/* How mmclient makes a child (MMC_FORK, MMC_SHARE): CLONE, its capabilities
+ * copied, its thread spawned, then a call to the root (in MMC_ROOT_SLOT)
+ * with the child's task and thread capabilities: the root loads the
+ * program's image into it, gives it a work page, mapped in the parent too
+ * at MMC_KID_VA(n) (n is the parent's number for it), and a context. */
+#define MMC_ROOT_SLOT 12u /* a client's capability to the root (each its own badge) */
+#define MMC_COPY_END  12u /* a child gets copies of its parent's slots below this */
+#define MMC_KID_SLOT  16u /* the parent's capabilities to its children, from here ... */
+#define MMC_KID_THREAD 48u /* ... and to their threads, from here */
+#define MMC_KIDS      24u
+#define MMC_STACK     0x400000ull /* a child's stack top: loader.h's CHILD_LO, as ld_image
+                                   * gives it */
+#define MMC_KID_VA(n) (WORK_VA + ((uint64_t)(n) + 1u) * 0x1000ull)
+#define MMC_FULL_REGIONS 8u /* MMC_CLONE_FULL's pages, a table's span apart: more tables
+                             * than a child is lent */
+enum { MMC_RQ_START = 1 }; /* to the root: r[1] the child's role, r[2] n; caps its task, thread */
+
+/* A child's commands: its parent writes the arguments and the command,
+ * then bumps SEQ; the child does it, puts its result in RES and sets ACK
+ * to SEQ. Words of the work page after struct work. */
+#define MMC_W(w, i) (((volatile uint64_t *)(w))[8u + (i)])
+enum { MMC_SEQ, MMC_ACK, MMC_CMD, MMC_A0, MMC_A1, MMC_A2, MMC_RES };
+enum {
+    MMC_C_EXIT = 1, /* count = 2, and exit */
+    MMC_C_FILL,     /* pages a0 to a0 + a1 of MMC_VA written with tag a2 */
+    MMC_C_CHECK,    /* -> how many words of those pages aren't tag a2's */
+    MMC_C_ACCEPT,   /* -> MM_REQ_SHARE_ACCEPT's result: from id a0, at page a1, a2 pages */
+    MMC_C_ID,       /* -> its id (MM_REQ_ID) */
+    MMC_C_READ,     /* -> word a1 of page a0 of MMC_VA */
+    MMC_C_POKE,     /* word a1 of page a0 of MMC_VA set to a2 */
+    MMC_C_UNMAP     /* -> MM_REQ_UNMAP's result: pages a0 (a va page) to a0 + a1 */
+};
 
 struct work {
     volatile uint64_t role;

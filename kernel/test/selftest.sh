@@ -262,9 +262,12 @@ run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 # Phase 4 step 6, decision 0023 (servers/mm, user/mmroot): the memory
 # manager started passive, tasks handed to it, anonymous memory mapped on
 # demand, protected and unmapped through it, faults it refuses ending the
-# thread, and every task forgotten and its pages back once it is destroyed.
+# thread, and every task forgotten and its pages back once it is destroyed;
+# part D2: a fork through mm's CLONE (each side sees only its own writes,
+# the child destroyed and forgotten), SHARE only with the target's consent
+# and kept across a clone, refused clones undone.
 run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" \
-    "mm: all ok" "root task exited with code 0"
+    "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: all ok" "root task exited with code 0"
 run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 exit $fail

@@ -12,7 +12,13 @@
  * not bytes). A fault message's r[0] is the fault kind and access
  * (JOIST_FAULT_KIND, JOIST_FAULT_ACCESS: below 0x10000), so the two can't
  * be confused. The reply: r[0] the result (MM_OK or an MM_E_*: mmlib.h)
- * or, for a fault, JOIST_FAULT_RESUME (0) or not. */
+ * or, for a fault, JOIST_FAULT_RESUME (0) or not.
+ *
+ * A task's id (MM_REQ_ID) is its index in mm's records and a generation
+ * that mm bumps each time the index is used again: an id names one task,
+ * never a later one with its index. It carries no authority; SHARE takes
+ * it only with the target's consent (MM_REQ_SHARE_ACCEPT: 0023's
+ * amendment of 2026-10-29). */
 #ifndef JOIST_MM_PROTO_H
 #define JOIST_MM_PROTO_H
 
@@ -23,9 +29,18 @@ enum {
     MM_REQ_MAP_ANON = MM_REQ_BASE + 1u, /* va page, pages, permissions */
     MM_REQ_UNMAP,                       /* va page, pages */
     MM_REQ_PROTECT,                     /* va page, pages, permissions */
-    MM_REQ_CLONE,                       /* -> a task capability to the child (D2) */
-    MM_REQ_SHARE                        /* (D2) */
+    MM_REQ_CLONE,                       /* -> r[1] the child's id, and a task capability to
+                                         * it (CONTROL, GRANT) in the reply's caps */
+    MM_REQ_SHARE,                       /* va page, pages, the target's id: only if the
+                                         * target accepted exactly that */
+    MM_REQ_ID,                          /* -> r[1] the caller's own id */
+    MM_REQ_SHARE_ACCEPT                 /* the sharer's id, va page, pages: where this
+                                         * task takes its pages (one pending per task, a
+                                         * new one replacing it; 0 pages withdraws it) */
 };
+#define MM_ID(t, gen) ((uint64_t)(gen) << 16 | (t))
+#define MM_ID_TASK(id) ((uint32_t)((id) & 0xffffu))
+#define MM_ID_GEN(id)  ((id) >> 16)
 /* The root's (MM_ROOT_BADGE only). */
 enum {
     MM_REQ_INIT = MM_REQ_BASE + 0x100u, /* pool pages, table pages: what it was given */
@@ -37,19 +52,27 @@ enum {
 
 #define MM_ROOT_BADGE 0x7fff0000u /* above any task's (a task's is its index plus one) */
 
-/* The slots of mm's own space the root fills before starting it. */
+/* The slots of mm's own space. The root fills the first four before
+ * starting it, and slots from MM_S_ROOT to MM_S_CHILD as it hands mm
+ * tasks; the rest are mm's. mm adds the second leaf (MM_S_CHILD on) at
+ * MM_REQ_INIT: a task it makes itself (MM_REQ_CLONE) is in MM_S_CHILD plus
+ * its index. Collection deletes a task's slot, whichever range it is in. */
 enum {
-    MM_S_EP = 0,     /* its endpoint: RECV, SEND, GRANT */
-    MM_S_SELF = 1,   /* a task capability (CONTROL) to mm itself: to map its pool */
-    MM_S_POOL = 2,   /* the frame whose pages it manages */
-    MM_S_TABLES = 3, /* a frame of pages to lend its tasks for their page tables */
-    MM_S_TMP = 4,    /* mm's own: a badged capability on its way to a task */
-    MM_S_FREE = 16,  /* mm's own from here (the table runs it lends) ... */
-    MM_S_ROOT = 64   /* ... to here; from here on, the root's (task capabilities) */
+    MM_S_EP = 0,      /* its endpoint: RECV, SEND, GRANT */
+    MM_S_SELF = 1,    /* a task capability (CONTROL) to mm itself: to map its pool */
+    MM_S_POOL = 2,    /* the frame whose pages it manages */
+    MM_S_TABLES = 3,  /* a frame of pages to lend its tasks for their page tables */
+    MM_S_TMP = 4,     /* mm's own: a badged capability on its way to a task */
+    MM_S_FREE = 16,   /* mm's own from here (the table runs it lends) ... */
+    MM_S_ROOT = 64,   /* ... to here; from here, the root's (task capabilities) ... */
+    MM_S_CHILD = 128  /* ... to here; from here, the tasks mm made (MM_MAX_TASKS) */
 };
 
 #define MM_POOL_VA 0x10000000ull  /* where mm maps its pool in its own space (its first
                                    * gigabyte, where the loader lent it tables) */
 #define MM_TABLE_PAGES 16u        /* pages lent to each task for its page tables */
+#define MM_CHILD_QUOTA 8u         /* quota a task mm makes starts with, from mm's own: mm
+                                   * pays it and the task object (task_create's donation
+                                   * plus one), and gets both back when the task goes */
 
 #endif

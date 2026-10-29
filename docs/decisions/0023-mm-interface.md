@@ -2,7 +2,9 @@
 
 Date: 2026-10-28
 Status: **accepted** (the owner, 2026-10-28); **amended** 2026-10-28 (how
-a passive `mm` collects no-senders, below; accepted by the owner).
+a passive `mm` collects no-senders, below; accepted by the owner) and
+2026-10-29 (`MM_SHARE` by both sides' consent, below; accepted by the
+owner).
 Settles: `docs/phase4-plan.md`, choice 6 (`servers/mm`) and the order of
 work's item 6, as far as the interface and the structure go.
 Covers: §5.3 (time charged to whoever caused the work), §9.1 (`mm` in the
@@ -171,6 +173,48 @@ Rejected: a thread of `mm` with its own context waiting on the
 notification (the owner chose passive: 0023, *Consequences*); the root
 relaying deaths to `mm` (`mm` would trust the root for every task's death,
 and the root would have to watch every task).
+
+## Amendment (2026-10-29, accepted by the owner): SHARE by both sides' consent
+
+*Decision*'s `MM_SHARE` names the other task by a capability passed in the
+message. Building it (part D2) showed that this can't be made safe. A
+received capability's `cap_read` gives its type, rights and badge, never
+which object it names; so `mm` can't tell which task a task capability in
+a message is for. Anyone holding a task capability to any task could mint
+it with a misleading badge, and `mm` would map pages into whatever task it
+named, or refuse the right one, on the badge's word.
+
+The owner chose instead (2026-10-29), with no kernel change:
+
+- **`MM_REQ_ID`:** a task asks `mm` for its own id, through its own badge.
+  The id is the task's index in `mm`'s records and a generation, which
+  `mm` bumps each time the index is used again; so an id names one task,
+  never a later one with its index. An id carries no authority: it only
+  says which task a request means.
+- **`MM_REQ_SHARE_ACCEPT`** (sharer's id, first page, pages): the target,
+  through its own badge, says it will take that many pages from that task
+  at that address. `mm` keeps one pending acceptance per task; a new one
+  replaces the old, and one with no pages withdraws it. A new task (an
+  index used again) starts with none.
+- **`MM_REQ_SHARE`** (first page, pages, the target's id): the sharer,
+  through its own badge. `mm` maps only if the target is live, with that
+  generation, and has an acceptance pending that names this sharer's id
+  and the same page count; it then calls `mm_share` with the address the
+  target gave, and the acceptance is used up. Anything else is refused
+  (`MM_E_STATE`): no acceptance, another count, another sharer, an id
+  whose generation is stale, the target gone.
+- **Nothing is mapped into a task that didn't ask for it**, and nothing in
+  a message is trusted to say which task is which: both sides are named by
+  the badges they call through, as every other request is.
+
+How the two tasks learn each other's ids is theirs to arrange (a parent
+learns its child's from `MM_REQ_CLONE`'s reply; anyone can ask for its own
+and pass it on). Knowing an id gives nothing without the target's consent.
+
+Rejected: checking the passed capability against `mm`'s own (the kernel
+has no call that compares two capabilities' objects, and adding one is a
+kernel change for one server's sake); a capability to `mm` per pair of
+tasks (unbounded badges).
 
 ## Priority check
 

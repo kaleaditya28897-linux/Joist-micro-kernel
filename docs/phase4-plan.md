@@ -937,3 +937,49 @@ needs, and a handler may do without the thread capability.
     version of the test missed; collection removed: "didn't forget a
     destroyed client"); `make -C model check`, every build (mmlib's
     freestanding includes changed). The kernel is unchanged.
+- **Part D2, CLONE and SHARE over IPC** (2026-10-29):
+  - `MM_REQ_CLONE`: `mm` makes the child as the loader makes a task, from
+    its own quota: `task_create` (a donation of `MM_CHILD_QUOTA`, 8) into
+    its slot `MM_S_CHILD` plus the child's index (a second leaf of `mm`'s
+    table, added at `MM_REQ_INIT`), a run of table pages lent, its badge
+    given into `MM_SLOT`, its fault flags set; then `mm_clone`. The reply
+    carries the child's id and a task capability to it (CONTROL, GRANT).
+    Any failure after the records are made is undone: the child destroyed,
+    its destruction finished on the caller's time, and the child forgotten
+    (by collection if its badge had been given). `task_create`'s donation
+    and the task object are charged to `mm`'s quota and come back when the
+    child goes; the root now loads `mm` with a donation for
+    `MM_MAX_TASKS` children (`ld_load_quota`).
+  - `MM_REQ_SHARE` by both sides' consent (0023's amendment of
+    2026-10-29, the owner's decision): `MM_REQ_ID` (index and generation),
+    `MM_REQ_SHARE_ACCEPT` by the target, `MM_REQ_SHARE` by the sharer,
+    mapped only if the target accepted exactly that sharer and count; the
+    acceptance is used up. A passed task capability can't say which task
+    it names.
+  - The test (`mmroot`, `mmclient`): a client forks a child that runs the
+    same program as a command loop driven through its work page (the root
+    loads the image into the child, when the parent sends it the child's
+    task and thread capabilities, and gives it a work page and a context).
+    Parent and child each write the same pages and each sees only its own,
+    each looking straight after the other wrote; pages neither wrote keep
+    the old pattern in both; the child destroyed by its parent is
+    forgotten and its pages come back (exact counts from `MM_REQ_STATUS`,
+    the kernel's spaces level). SHARE refused without an acceptance, with
+    another count, with another generation, to a stale id (the target
+    destroyed and its index used again, the new task having accepted), and
+    a second time once used; shared both ways at different addresses, and
+    still shared with a child cloned later (whose private pages are its
+    own). CLONE refused when `mm`'s table pages are spent (each refusal
+    leaves no task or space), again after, then granted once children are
+    gone; and refused part way, `mm_clone` failing on a child whose lent
+    pages can't hold its parent's tables (the badge already given).
+  - Found: `MM_SLOT`'s capability has no GRANT (`mm` gives it SEND only),
+    so `cap_copy_batch` skips it rather than stopping there with
+    `E_OCCUPIED`; the client handles both.
+  - **Verified** (the build VM): `mmroot` emulated, on 2 KVM CPUs and on
+    the checking kernel; five hand mutants each fail it: the child mapped
+    before the parent's downgrade (the downgrade then skips every page),
+    CLONE's undo skipped, SHARE without the acceptance check, without the
+    generation check, and the acceptance not used up (missed at first:
+    the repeat was refused for another reason; the test now frees the
+    place first). `mmlib.c` is unchanged, the kernel too.

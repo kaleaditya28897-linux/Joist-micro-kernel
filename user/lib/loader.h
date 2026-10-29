@@ -218,8 +218,9 @@ static void give_page(uint64_t tslot, uint64_t va, unsigned perms, const uint8_t
     must(j_map(f, tslot, va / J_PAGE, perms), "map (task)");
 }
 
-/* Load module `index` as a new task in slot tslot; its entry point. */
-static uint64_t ld_load(uint64_t index, uint64_t tslot)
+/* Module `index`'s image, and a stack, in the task in tslot, which has its
+ * tables already; its entry point. */
+static uint64_t ld_image(uint64_t index, uint64_t tslot)
 {
     uint64_t mslot = ld_mod_first + index;
     uint64_t pages = j_frame_pages(mslot);
@@ -238,8 +239,6 @@ static uint64_t ld_load(uint64_t index, uint64_t tslot)
     if (elf_validate(img, pages * J_PAGE, CHILD_LO, USER_TOP, &im) != KERR_OK) {
         die("a module was refused by the ELF validator");
     }
-    must(j_task_create(DONATION, tslot), "task_create");
-    ld_tables(tslot);
     for (uint32_t i = 0; i < im.nsegments; i++) {
         const struct elf_segment *s = &im.seg[i];
         unsigned perms = ((s->flags & ELF_SEG_W) ? J_MAP_W : 0u) | ((s->flags & ELF_SEG_X) ? J_MAP_X : 0u);
@@ -256,6 +255,21 @@ static uint64_t ld_load(uint64_t index, uint64_t tslot)
         give_page(tslot, CHILD_LO - (uint64_t)(i + 1u) * J_PAGE, J_MAP_W, img, 0, 0);
     }
     return im.entry;
+}
+
+/* Load module `index` as a new task in slot tslot, with `donation` of the
+ * caller's quota for its own; its entry point. */
+static uint64_t ld_load_quota(uint64_t index, uint64_t tslot, uint64_t donation)
+{
+    must(j_task_create(donation, tslot), "task_create");
+    ld_tables(tslot);
+    return ld_image(index, tslot);
+}
+
+/* Load module `index` as a new task in slot tslot; its entry point. */
+static uint64_t ld_load(uint64_t index, uint64_t tslot)
+{
+    return ld_load_quota(index, tslot, DONATION);
 }
 
 /* A second stack in the task in tslot, for a second thread: STACK_PAGES

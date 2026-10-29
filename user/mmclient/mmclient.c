@@ -1,7 +1,9 @@
 /* mmclient - a task the memory manager serves (Phase 4 step 6, part D;
  * decision 0023), run by mmroot. Its role is in its work page (work.h:
  * MMC_*); it reaches mm through its capability in MM_SLOT, and mm answers
- * its page faults. */
+ * its page faults. A parent role makes children with mm's CLONE (work.h
+ * says how) and drives them, each running this program as MMC_CHILD,
+ * through their work pages. */
 #include "../lib/joist.h"
 #include "mm_proto.h"
 #include "mmlib.h"
@@ -12,11 +14,20 @@ void _start(void);
 #define PAGES 64u
 #define WORDS (J_PAGE / 8u)
 
-static uint64_t req(uint64_t r0, uint64_t a, uint64_t b, uint64_t c)
+/* A request to mm; its r[1] in *out if out isn't 0. */
+static uint64_t req2(uint64_t r0, uint64_t a, uint64_t b, uint64_t c, uint64_t *out)
 {
     struct j_msg m = {.r = {r0, a, b, c}};
     uint64_t e = j_call(MM_SLOT, &m, J_FOREVER);
+    if (out != 0) {
+        *out = m.r[1];
+    }
     return e != J_OK ? 0xffu : m.r[0];
+}
+
+static uint64_t req(uint64_t r0, uint64_t a, uint64_t b, uint64_t c)
+{
+    return req2(r0, a, b, c, 0);
 }
 
 static volatile uint64_t *page(uint64_t i)
@@ -89,8 +100,8 @@ static uint64_t basic(void)
     if (req(MM_REQ_UNMAP, va + PAGES, 1, 0) == 0xffu) {
         return 13;
     }
-    if (req(MM_REQ_CLONE, 0, 0, 0) != MM_E_STATE) {
-        return 14; /* part D2 */
+    if (req(MM_REQ_SHARE, va, 1, MM_ID(0, 0)) != MM_E_STATE) {
+        return 14; /* nobody accepted it */
     }
     /* What was written is still there. */
     for (uint64_t i = 0; i < PAGES; i++) {
@@ -98,6 +109,451 @@ static uint64_t basic(void)
             return 15;
         }
     }
+    return 0;
+}
+
+/* ---- children (MMC_FORK, MMC_CLONE_FULL, MMC_SHARE) ---- */
+
+/* The value a page of MMC_VA holds at word w when written with tag. */
+static uint64_t tagged(uint64_t tag, uint64_t i, uint64_t w)
+{
+    return tag << 40 | i << 12 | w;
+}
+
+/* Words 0, 1 and the last of pages [first, first + n) of MMC_VA. */
+static void fill(uint64_t first, uint64_t n, uint64_t tag)
+{
+    for (uint64_t i = first; i < first + n; i++) {
+        page(i)[0] = tagged(tag, i, 0);
+        page(i)[1] = tagged(tag, i, 1);
+        page(i)[WORDS - 1u] = tagged(tag, i, WORDS - 1u);
+    }
+}
+
+/* How many of those words don't hold tag's values. */
+static uint64_t check(uint64_t first, uint64_t n, uint64_t tag)
+{
+    uint64_t bad = 0;
+    for (uint64_t i = first; i < first + n; i++) {
+        bad += page(i)[0] != tagged(tag, i, 0);
+        bad += page(i)[1] != tagged(tag, i, 1);
+        bad += page(i)[WORDS - 1u] != tagged(tag, i, WORDS - 1u);
+    }
+    return bad;
+}
+
+/* MMC_CHILD: do what the parent posts, until told to exit. */
+static void child(struct work *w)
+{
+    uint64_t seen = 0;
+    for (;;) {
+        while (MMC_W(w, MMC_SEQ) == seen) {
+            (void)j_yield();
+        }
+        seen = MMC_W(w, MMC_SEQ);
+        uint64_t a0 = MMC_W(w, MMC_A0);
+        uint64_t a1 = MMC_W(w, MMC_A1);
+        uint64_t a2 = MMC_W(w, MMC_A2);
+        uint64_t res = 0;
+        switch (MMC_W(w, MMC_CMD)) {
+        case MMC_C_EXIT:
+            MMC_W(w, MMC_ACK) = seen;
+            return;
+        case MMC_C_FILL:
+            fill(a0, a1, a2);
+            break;
+        case MMC_C_CHECK:
+            res = check(a0, a1, a2);
+            break;
+        case MMC_C_ACCEPT:
+            res = req(MM_REQ_SHARE_ACCEPT, a0, a1, a2);
+            break;
+        case MMC_C_READ:
+            res = page(a0)[a1];
+            break;
+        case MMC_C_POKE:
+            page(a0)[a1] = a2;
+            break;
+        case MMC_C_UNMAP:
+            res = req(MM_REQ_UNMAP, a0, a1, 0);
+            break;
+        case MMC_C_ID:
+            if (req2(MM_REQ_ID, 0, 0, 0, &res) != MM_OK) {
+                res = 0;
+            }
+            break;
+        default:
+            res = 0xbad;
+            break;
+        }
+        MMC_W(w, MMC_RES) = res;
+        MMC_W(w, MMC_ACK) = seen;
+    }
+}
+
+struct kid {
+    uint64_t task, thread, id, seq;
+    struct work *w;
+};
+static struct kid kids[MMC_KIDS];
+static unsigned nkids;
+
+/* Post a command to child k and wait for its result. */
+static uint64_t cmd(struct kid *k, uint64_t c, uint64_t a0, uint64_t a1, uint64_t a2)
+{
+    MMC_W(k->w, MMC_A0) = a0;
+    MMC_W(k->w, MMC_A1) = a1;
+    MMC_W(k->w, MMC_A2) = a2;
+    MMC_W(k->w, MMC_CMD) = c;
+    MMC_W(k->w, MMC_SEQ) = ++k->seq;
+    while (MMC_W(k->w, MMC_ACK) != k->seq) {
+        (void)j_yield();
+    }
+    return MMC_W(k->w, MMC_RES);
+}
+
+/* CLONE alone: a child with this task's memory, in kids[nkids] (its task
+ * capability and id), but no thread. mm's result. */
+static uint64_t clone_only(void)
+{
+    struct kid *k = &kids[nkids];
+    k->task = MMC_KID_SLOT + nkids;
+    k->thread = MMC_KID_THREAD + nkids;
+    k->seq = 0;
+    if (j_recv_slots(k->task, J_SLOT_NONE, 1) != J_OK) {
+        return 0xfe;
+    }
+    struct j_msg m = {.r = {MM_REQ_CLONE, 0, 0, 0}};
+    if (j_call(MM_SLOT, &m, J_FOREVER) != J_OK) {
+        return 0xff;
+    }
+    if (m.r[0] != MM_OK) {
+        return m.r[0];
+    }
+    if (J_CAPS_COUNT(m.caps) != 1 || J_CAPS_SLOT(m.caps, 0) != k->task) {
+        return 0xfd; /* the child's capability didn't arrive */
+    }
+    k->id = m.r[1];
+    nkids++;
+    return MM_OK;
+}
+
+/* A child in `role`, running (work.h): 0, or what went wrong. */
+static uint64_t fork_kid(uint64_t role)
+{
+    if (nkids == MMC_KIDS || clone_only() != MM_OK) {
+        return 1;
+    }
+    struct kid *k = &kids[nkids - 1u];
+    /* Its capabilities: the batch stops where the child has one already
+     * (MM_SLOT, if this task's copy could be copied), and goes on after. */
+    uint64_t first = 0;
+    while (first < MMC_COPY_END) {
+        uint64_t done;
+        uint64_t skipped;
+        uint64_t e = j_cap_copy_batch(k->task, first, MMC_COPY_END - first, J_R_ALL, 0, &done,
+                                      &skipped);
+        if (e == J_E_OCCUPIED && first + done == MM_SLOT) {
+            first += done + 1u;
+        } else if (e == J_OK) {
+            first += done;
+        } else {
+            return 2;
+        }
+    }
+    if (j_thread_spawn(k->task, k->thread, (uint64_t)(uintptr_t)_start, MMC_STACK) != J_OK) {
+        return 3;
+    }
+    struct j_msg m = {.r = {MMC_RQ_START, role, nkids - 1u, 0},
+                      .caps = 2u | (uint64_t)k->task << 2 | (uint64_t)J_R_ALL << 18 |
+                              (uint64_t)k->thread << 22 | (uint64_t)J_R_ALL << 38};
+    if (j_call(MMC_ROOT_SLOT, &m, J_FOREVER) != J_OK || m.r[0] != 0) {
+        return 4;
+    }
+    k->w = (struct work *)(uintptr_t)MMC_KID_VA(nkids - 1u);
+    return 0;
+}
+
+/* Wait for the root to look (it sets aux to `mark` plus one). */
+static void pause_for_root(struct work *w, uint64_t mark)
+{
+    w->aux = mark;
+    while (w->aux == mark) {
+        (void)j_yield();
+    }
+}
+
+/* Destroy child k, finish its destruction, and have mm collect it. */
+static uint64_t kill_kid(struct kid *k)
+{
+    if (j_task_destroy(k->task) != J_OK) {
+        return 1;
+    }
+    int more = 1;
+    for (unsigned i = 0; more && i < 1000u; i++) {
+        if (j_continue(0, &more) != J_OK) {
+            return 2;
+        }
+    }
+    (void)j_cap_delete(k->task);
+    (void)j_cap_delete(k->thread);
+    uint64_t id;
+    return req2(MM_REQ_ID, 0, 0, 0, &id) == MM_OK ? 0 : 3;
+}
+
+/* Its exit, waited for, then its destruction. */
+static uint64_t end_kid(struct kid *k)
+{
+    (void)cmd(k, MMC_C_EXIT, 0, 0, 0);
+    while (k->w->count != 2) {
+        (void)j_yield();
+    }
+    return kill_kid(k);
+}
+
+#define FORK_PAGES 16u
+
+/* MMC_FORK: parent and child write the same pages, each its own pattern,
+ * and see only their own; the pages neither wrote are the old pattern in
+ * both. Then the child goes and mm forgets it. */
+static uint64_t fork_test(struct work *w)
+{
+    uint64_t va = MMC_VA / J_PAGE;
+    if (req(MM_REQ_MAP_ANON, va, FORK_PAGES, MM_W) != MM_OK) {
+        return 1;
+    }
+    fill(0, FORK_PAGES, 1);
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 2;
+    }
+    struct kid *k = &kids[0];
+    if (cmd(k, MMC_C_CHECK, 0, FORK_PAGES, 1) != 0) {
+        return 3; /* the child doesn't see what was there at the clone */
+    }
+    /* Pages 0-3 written by the parent first, 4-7 by the child first; each
+     * looks straight after the other wrote. */
+    fill(0, 4, 2);
+    if (cmd(k, MMC_C_CHECK, 0, 4, 1) != 0) {
+        return 8; /* the child sees the parent's writes */
+    }
+    (void)cmd(k, MMC_C_FILL, 0, 8, 3);
+    if (check(4, 4, 1) != 0) {
+        return 9; /* the parent sees the child's */
+    }
+    fill(4, 4, 2);
+    if (check(0, 8, 2) != 0 || check(8, FORK_PAGES - 8u, 1) != 0) {
+        return 4;
+    }
+    if (cmd(k, MMC_C_CHECK, 0, 8, 3) != 0 || cmd(k, MMC_C_CHECK, 8, FORK_PAGES - 8u, 1) != 0) {
+        return 5;
+    }
+    pause_for_root(w, 1); /* two tasks, 16 + 8 pages */
+    if (end_kid(k) != 0) {
+        return 6;
+    }
+    if (check(0, 8, 2) != 0 || check(8, FORK_PAGES - 8u, 1) != 0) {
+        return 7;
+    }
+    pause_for_root(w, 3); /* one task, 16 pages */
+    return 0;
+}
+
+
+/* MMC_CLONE_FULL: clones until mm's table pages are spent, each refused
+ * one undone (no task left over); and a clone refused part way, the
+ * child's tables too few for this task's pages. */
+static uint64_t full_test(struct work *w)
+{
+    uint64_t va = MMC_VA / J_PAGE;
+    if (req(MM_REQ_MAP_ANON, va, 4, MM_W) != MM_OK) {
+        return 1;
+    }
+    fill(0, 4, 1);
+    uint64_t e;
+    while ((e = clone_only()) == MM_OK) {
+        if (nkids == MMC_KIDS) {
+            return 2; /* never refused */
+        }
+    }
+    if (e != MM_E_NOMEM) {
+        return 3;
+    }
+    MMC_W(w, MMC_RES) = nkids;
+    pause_for_root(w, 1); /* 1 + nkids tasks */
+    if (clone_only() != MM_E_NOMEM) {
+        return 4;
+    }
+    while (nkids > 0) {
+        if (kill_kid(&kids[--nkids]) != 0) {
+            return 5;
+        }
+    }
+    if (clone_only() != MM_OK || kill_kid(&kids[--nkids]) != 0) {
+        return 6; /* not given back */
+    }
+    /* One page in each of several tables' spans: the child's lent pages
+     * can't hold their tables, and mm_clone fails part way. */
+    for (uint64_t i = 1; i <= MMC_FULL_REGIONS; i++) {
+        if (req(MM_REQ_MAP_ANON, va + i * MM_SPAN, 1, MM_W) != MM_OK) {
+            return 7;
+        }
+        page(i * MM_SPAN)[0] = i;
+    }
+    if (clone_only() != MM_E_KERNEL) {
+        return 8;
+    }
+    pause_for_root(w, 3); /* one task, 4 + 8 pages */
+    for (uint64_t i = 1; i <= MMC_FULL_REGIONS; i++) {
+        if (page(i * MM_SPAN)[0] != i) {
+            return 9;
+        }
+        page(i * MM_SPAN)[0] = i + 1u; /* writable again (made read-only for the clone) */
+        if (req(MM_REQ_UNMAP, va + i * MM_SPAN, 1, 0) != MM_OK) {
+            return 10;
+        }
+    }
+    if (clone_only() != MM_OK || kill_kid(&kids[--nkids]) != 0) {
+        return 11;
+    }
+    return check(0, 4, 1) == 0 ? 0 : 12;
+}
+
+#define SH_VA   (MMC_VA / J_PAGE + 64u)  /* this task's pages to share */
+#define SH_AT   (MMC_VA / J_PAGE + 128u) /* where the first child takes them */
+#define SH2_VA  (MMC_VA / J_PAGE + 96u)  /* pages shared with the last child */
+#define SH2_AT  (MMC_VA / J_PAGE + 160u)
+#define SH_N    4u
+
+/* MMC_SHARE: SHARE refused without the target's consent, with another
+ * count, or to a stale id (the target destroyed, its index used again);
+ * then shared both ways, and kept shared in a later child. */
+static uint64_t share_test(struct work *w)
+{
+    uint64_t me;
+    if (req2(MM_REQ_ID, 0, 0, 0, &me) != MM_OK || me == 0) {
+        return 1;
+    }
+    if (req(MM_REQ_MAP_ANON, MMC_VA / J_PAGE, 8, MM_W) != MM_OK) {
+        return 2;
+    }
+    fill(0, 8, 1);
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 3;
+    }
+    struct kid *a = &kids[0];
+    if (cmd(a, MMC_C_ID, 0, 0, 0) != a->id) {
+        return 4; /* the child's id isn't what CLONE said */
+    }
+    /* Pages of this task's own, made after the clone (so a has none). */
+    if (req(MM_REQ_MAP_ANON, SH_VA, SH_N, MM_W) != MM_OK) {
+        return 5;
+    }
+    fill(64, SH_N, 4);
+    if (req(MM_REQ_SHARE, SH_VA, SH_N, a->id) != MM_E_STATE) {
+        return 6; /* a hasn't accepted */
+    }
+    if (cmd(a, MMC_C_ACCEPT, me, SH_AT, SH_N) != MM_OK) {
+        return 7;
+    }
+    if (req(MM_REQ_SHARE, SH_VA, SH_N - 1u, a->id) != MM_E_STATE) {
+        return 8; /* not the count a accepted */
+    }
+    if (req(MM_REQ_SHARE, SH_VA, SH_N, MM_ID(MM_ID_TASK(a->id), MM_ID_GEN(a->id) + 1u)) !=
+        MM_E_STATE) {
+        return 9; /* not a's generation */
+    }
+    if (req(MM_REQ_SHARE, SH_VA, SH_N, a->id) != MM_OK) {
+        return 10;
+    }
+    if (req(MM_REQ_SHARE, SH_VA, SH_N, a->id) != MM_E_STATE) {
+        return 11; /* the acceptance is used up */
+    }
+    /* Shared both ways (at other addresses in a): a sees what is there,
+     * writes, and this task sees it; and the other way. */
+    for (uint64_t i = 0; i < SH_N; i++) {
+        if (cmd(a, MMC_C_READ, 128 + i, 0, 0) != tagged(4, 64 + i, 0)) {
+            return 12;
+        }
+    }
+    (void)cmd(a, MMC_C_POKE, 128, 0, 0x5a5a);
+    if (page(64)[0] != 0x5a5a) {
+        return 13;
+    }
+    page(65)[0] = 0x6b6b;
+    if (cmd(a, MMC_C_READ, 129, 0, 0) != 0x6b6b) {
+        return 14;
+    }
+    /* A later child: the shared pages are shared with it too (at the same
+     * addresses), the private ones are its copy. */
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 15;
+    }
+    struct kid *b = &kids[1];
+    if (cmd(b, MMC_C_CHECK, 0, 8, 1) != 0 || cmd(b, MMC_C_READ, 64, 0, 0) != 0x5a5a ||
+        cmd(b, MMC_C_READ, 65, 0, 0) != 0x6b6b || cmd(b, MMC_C_CHECK, 66, 2, 4) != 0) {
+        return 16;
+    }
+    (void)cmd(b, MMC_C_POKE, 66, 0, 0x7c7c); /* shared: seen here and by a */
+    (void)cmd(b, MMC_C_FILL, 0, 1, 7);       /* private: b's own */
+    if (page(66)[0] != 0x7c7c || cmd(a, MMC_C_READ, 130, 0, 0) != 0x7c7c || check(0, 8, 1) != 0) {
+        return 17;
+    }
+    if (cmd(a, MMC_C_CHECK, 0, 1, 1) != 0 || cmd(b, MMC_C_CHECK, 0, 1, 7) != 0) {
+        return 18; /* a private page saw another's write */
+    }
+    page(67)[0] = 0x8d8d;
+    if (cmd(b, MMC_C_READ, 67, 0, 0) != 0x8d8d || cmd(a, MMC_C_READ, 131, 0, 0) != 0x8d8d) {
+        return 19;
+    }
+    pause_for_root(w, 1); /* three tasks */
+    /* A stale id: c destroyed, d made with its index. */
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 20;
+    }
+    struct kid *c = &kids[2];
+    uint64_t cid = c->id;
+    if (end_kid(c) != 0) {
+        return 21;
+    }
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 22;
+    }
+    struct kid *d = &kids[3];
+    if (MM_ID_TASK(d->id) != MM_ID_TASK(cid) || d->id == cid) {
+        return 23; /* (the test needs the index used again) */
+    }
+    if (req(MM_REQ_MAP_ANON, SH2_VA, SH_N, MM_W) != MM_OK) {
+        return 24;
+    }
+    fill(96, SH_N, 9);
+    if (cmd(d, MMC_C_ACCEPT, me, SH2_AT, SH_N) != MM_OK) {
+        return 25;
+    }
+    if (req(MM_REQ_SHARE, SH2_VA, SH_N, cid) != MM_E_STATE) {
+        return 26; /* c's id, though d accepted */
+    }
+    if (req(MM_REQ_SHARE, SH2_VA, SH_N, d->id) != MM_OK) {
+        return 27;
+    }
+    for (uint64_t i = 0; i < SH_N; i++) {
+        if (cmd(d, MMC_C_READ, 160 + i, 0, 0) != tagged(9, 96 + i, 0)) {
+            return 28;
+        }
+    }
+    /* Used up: with the place free again, the same SHARE is refused. */
+    if (cmd(d, MMC_C_UNMAP, SH2_AT, SH_N, 0) != MM_OK ||
+        req(MM_REQ_SHARE, SH2_VA, SH_N, d->id) != MM_E_STATE) {
+        return 31;
+    }
+    if (end_kid(a) != 0 || end_kid(b) != 0 || end_kid(d) != 0) {
+        return 29;
+    }
+    /* Still shared pages, with nobody now: still this task's. */
+    if (page(64)[0] != 0x5a5a || page(65)[0] != 0x6b6b || page(66)[0] != 0x7c7c ||
+        page(67)[0] != 0x8d8d || check(96, SH_N, 9) != 0 || check(0, 8, 1) != 0) {
+        return 30;
+    }
+    pause_for_root(w, 3); /* one task */
     return 0;
 }
 
@@ -127,6 +583,18 @@ void _start(void)
         w->aux = 1;
         w->arg = page(PAGES * 4u)[0]; /* no region: mm ends the thread */
         w->arg = 3;
+        break;
+    case MMC_FORK:
+        w->arg = fork_test(w);
+        break;
+    case MMC_CLONE_FULL:
+        w->arg = full_test(w);
+        break;
+    case MMC_SHARE:
+        w->arg = share_test(w);
+        break;
+    case MMC_CHILD:
+        child(w);
         break;
     default:
         w->arg = 99;
