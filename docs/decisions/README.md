@@ -34,6 +34,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0023 | `mm`: how it runs (passive), how tasks reach it, what it does | accepted, amended 2026-10-28 (lazy no-senders) and 2026-10-29 (SHARE by both sides' consent) | Phase 4 |
 | 0024 | `mm`: guard pages (`MM_NONE`), and what a file-backed region changes | proposed, awaiting the owner | Phase 4 (guard pages), Phase 6 (files) |
 | 0025 | A fallback scheduling context for passive servers (`mm` stranded by a client killed mid-request) | accepted | Phase 4 |
+| 0026 | Toolchain trust: reproducible builds, a full-source bootstrap, and diverse double-compiling | accepted | all phases (toolchain) |
 
 **All entries were accepted on 2026-10-01** by the project owner, at the close
 of Phase 0 (`docs/phase0-exit.md`). The recommendations taken were: 0002 on
