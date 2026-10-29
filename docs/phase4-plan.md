@@ -1062,3 +1062,66 @@ needs, and a handler may do without the thread capability.
   build's kernel and programs are as the self-test runs them (the new
   `#ifndef`s change nothing by default; the full kernel check at the end
   of this hand-off covers them).
+
+### Step 7, part E3: drafts for the owner (2026-10-29; **proposed, awaiting the owner**)
+
+Nothing here is decided. Each is a draft for the owner to accept, change
+or refuse.
+
+- **The fused fault reply** (choice 5; the owner decided "no" on
+  2026-10-28 with step 3's figures, on the condition that the extra kernel
+  entry didn't matter). With `mm`'s own figures (E2, nested KVM): a
+  fused reply saves one kernel entry and exit per fault, which costs
+  about what a call doing nothing much costs (`nosenders_next` finding
+  nothing: about 250 cycles). Against the faults: an upgrade 2 800 (9 %),
+  a copy 8 500 (3 %), a demand-zero write 6 000 (4 %), a demand-zero read
+  52 000 for 16 pages (under 1 %: only one of its 16 `map` calls would be
+  fused). **Proposed: still no fused reply.** The larger saving is
+  elsewhere: `mm` maps a read fault's 16 pages and a clone's pages one
+  `map` call each; mapping runs of pages contiguous in a frame in one call
+  (which the kernel takes already) would save up to 15 calls a read fault
+  and most of a clone's 590 cycles a page. That is `mm`'s change, not the
+  kernel's.
+- **Guard pages, and the file-backed rule:** decision 0024, proposed: a
+  permission `MM_NONE` (`PROT_NONE`, which glibc's `allocate_stack` uses
+  for its guard pages); today a fault outside every region already ends
+  the thread, but a gap can be mapped over silently. File-backed regions:
+  where pages come from, private and shared mappings, truncation and the
+  pager's death, and the one open design question (a passive `mm` can't
+  wait on a file server without stopping every client).
+- **N for the exit run** (the exit criterion: `cowstress` N rounds on 1,
+  2 and 4 CPUs, under KVM on the P53 and on the checking kernel; the
+  refinement test with M seeds). Measured on the build VM (nested): a
+  round of `cowstress` takes about 3.5 s on 2 KVM CPUs, 6.2 s on 4, about
+  6 s on the checking kernel (2 CPUs), and the `mm`-full warm-up a few
+  seconds once. The refinement test runs 48 seeds of 600 steps in 1.2 s
+  (plain) and 1.7 s (asan): 25-35 ms a seed.
+  **Proposed:** N = 200 rounds per configuration, each with its own seed
+  (`COW_SEED` = the CPU count), on the P53 under KVM with 1, 2 and 4 CPUs
+  (1 CPU under KVM needs a self-test case, `kvm-smp[24]` only exist now),
+  and N = 50 on the checking kernel (2 CPUs): on the build VM that would be
+  about 12 min (2 CPUs) and 21 min (4), 5 min on the checking kernel;
+  less on the P53 itself. M = 10 000 seeds (plain, asan, ubsan; about 4 to
+  6 min each on the build VM) and 1 000 under msan and tsan. `COW_STEPS`
+  stays 60. The self-test keeps its 20 and 3 rounds. Before the run: the
+  stranded-`mm` question settled (below), since the exit run would
+  otherwise pass only with the test's rescue.
+- **An outline of the exit record** (`docs/phase4-exit.md`, as Phase 3's):
+  1. What Phase 4 set out to do (the plan's scope) and what was built:
+     items 1-7, the decisions 0020-0024.
+  2. The exit criterion and its evidence: `cowstress` N = ___ rounds on
+     1, 2, 4 CPUs on the P53 (KVM) and on the checking kernel: ___; the
+     refinement test with M = ___ seeds: ___; every listed mutation
+     caught: model ___ of ___, kernel hand mutants ___, `mm` ___; Phase 3's
+     suites, unchanged: ___.
+  3. The measurements (`docs/phase4-data/`): step 3's fault path, step 7's
+     `mm` figures, on the P53: ___.
+  4. Decided on the way: the fused reply ___, guard pages ___, the
+     file-backed rule ___.
+  5. Open, carried to later phases: the passive `mm` stranded by a kill
+     ___; orphaned children of a killed parent ___; CBMC for `obj_kill`
+     and `cap_delete` from states with mapped frames ___; the
+     `map-sweep-skips-top` mutation caught only by I12 ___; the `smp4-smp`
+     emulated flake ___; the region capability (item 8) ___; `mm`
+     restartable (Phase 9) ___.
+  6. Item 8, if it lands after the record: ___.
