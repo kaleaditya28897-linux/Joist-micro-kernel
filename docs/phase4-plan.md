@@ -1110,17 +1110,24 @@ or refuse.
   stays 60. The self-test keeps its 20 and 3 rounds. Before the run: the
   stranded-`mm` question settled (below), since the exit run would
   otherwise pass only with the test's rescue.
+  **Decided by the owner (2026-10-29): N = 1000** rounds per configuration
+  (`cowstress` under KVM on 1, 2 and 4 CPUs, `COW_SEED` the CPU count), and
+  **250 on the checking kernel** (2 CPUs), the proposed 50 scaled the same
+  way; **M as proposed:** 10 000 seeds (plain, asan, ubsan) and 1 000
+  (msan, tsan). `tools/exit-run.sh` runs it all (part E7).
 - **An outline of the exit record** (`docs/phase4-exit.md`, as Phase 3's):
   1. What Phase 4 set out to do (the plan's scope) and what was built:
      items 1-7, the decisions 0020-0024.
-  2. The exit criterion and its evidence: `cowstress` N = ___ rounds on
-     1, 2, 4 CPUs on the P53 (KVM) and on the checking kernel: ___; the
-     refinement test with M = ___ seeds: ___; every listed mutation
+  2. The exit criterion and its evidence: `cowstress` N = 1000 rounds on
+     1, 2, 4 CPUs on the P53 (KVM), and 250 on the checking kernel: ___;
+     the refinement test with M = 10 000 seeds (plain, asan, ubsan) and
+     1 000 (msan, tsan): ___; every listed mutation
      caught: model ___ of ___, kernel hand mutants ___, `mm` ___; Phase 3's
      suites, unchanged: ___.
   3. The measurements (`docs/phase4-data/`): step 3's fault path, step 7's
      `mm` figures, on the P53: ___.
-  4. Decided on the way: the fused reply ___, guard pages ___, the
+  4. Decided on the way: the fused reply (no; `mm` maps runs instead,
+     E6), guard pages ___, the
      file-backed rule ___, orphaned children (a fork confirmed, 0023's
      amendment) ___.
   5. Open, carried to later phases: the passive `mm` stranded by a kill
@@ -1315,7 +1322,26 @@ or refuse.
   `kvm-smp2-cowstress` (20 rounds: 279 forks, 37 kills mid-fork, `mm`
   stranded 0) and `chk-kvm-smp2-cow3`; `make -C model check` (244 tests under plain, asan, ubsan, msan, tsan and small).
 
-### Step 7, part E7: `MM_NONE`, guard pages (decision 0024, 2026-10-29)
+### Step 7, part E7: the exit run's sizes (2026-10-29)
+
+- **The owner's decision** (E3): N = 1000 `cowstress` rounds under KVM on
+  1, 2 and 4 CPUs, 250 on the checking kernel; M = 10 000 refinement seeds
+  (plain, asan, ubsan), 1 000 (msan, tsan). In E3 and the exit outline.
+- **`kvm-smp1-NAME`** in `kernel/test/selftest.sh` (one of the real CPU's),
+  and `kvm-smp1-cowstress` in its list. **The refinement test** takes
+  `JOIST_MM_SEEDS` (default 48) and `JOIST_MM_SEED` to replay one.
+- **`tools/exit-run.sh LOGDIR`** runs it all (`P53=1` boots through
+  `tools/p53/boot.sh`), a log per part and a summary. Not run at full size:
+  the owner runs it on the P53.
+- **Verified** (the build VM): `kvm-smp1-cowstress`, 20 rounds (279 forks,
+  `mm` stranded 0); the script at N = 2, M = 48, every part ok.
+- **Found:** 4 virtual CPUs pinned to 2 host CPUs fail `cowstress` with
+  "mm stranded" (6 boots of 6, the old `mm` and the new; unpinned, ok): `mm`
+  misses the 300 ms it has to answer after a kill. The exit run needs a
+  host CPU per virtual CPU. M under 48 fails the coverage floors, set for
+  48 seeds.
+
+### Step 7, part E8: `MM_NONE`, guard pages (decision 0024, 2026-10-29)
 
 - **The owner accepted 0024**, with two changes from the draft:
   - protecting to `MM_NONE` keeps the pages' contents, as `mprotect`

@@ -6,7 +6,7 @@ draft:
 - **Protecting to `MM_NONE` keeps the pages' contents**, as POSIX's
   `mprotect` does, instead of freeing them. See *Accepted* below.
 - **A passive `mm` and a file server:** option 1, a helper thread.
-`MM_NONE` is built (Phase 4 step 7, part E7). File-backed regions are
+`MM_NONE` is built (Phase 4 step 7, part E8). File-backed regions are
 Phase 6's.
 (Drafted at Phase 4's exit, item 7 of `docs/phase4-plan.md`'s order of
 work.)

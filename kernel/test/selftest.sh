@@ -24,11 +24,12 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # Phase 3 step 9: NAME on 2 or 4 CPUs (smp2-NAME, smp4-NAME); with
     # "kvm" before the count, on the real CPU's (kvm-smp4-NAME), where
     # they truly run at once; with "chk-" first, on a kernel that checks
-    # every invariant before every exit to user mode.
+    # every invariant before every exit to user mode. Phase 4's exit:
+    # kvm-smp1-NAME, on one of the real CPU's.
     full=$n
     case $n in chk-*) n=${n#chk-}; ;; esac
-    case $n in kvm-smp[24]-*) cpu="host -enable-kvm"; n=${n#kvm-} ;; esac
-    case $n in smp[24]-*) smp=${n%%-*}; smp=${smp#smp}; n=${n#smp[24]-} ;; esac
+    case $n in kvm-smp[124]-*) cpu="host -enable-kvm"; n=${n#kvm-} ;; esac
+    case $n in smp[124]-*) smp=${n%%-*}; smp=${smp#smp}; n=${n#smp[124]-} ;; esac
     # One build per kernel and root task, whatever machine it is booted on;
     # one log per run.
     case $full in chk-*) b=build/selftest-chk-$n ;; *) b=build/selftest-$n ;; esac
@@ -283,6 +284,7 @@ run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 # kernel's counters level after every round. One CPU emulated, 2 and 4 on
 # the real CPU, and the checking kernel.
 run cow3 1 "cow: mm full, refused ok" "cow: round 2 ok" "cow: all ok" "root task exited with code 0"
+run kvm-smp1-cowstress 1 "cow: cpus 1" "cow: all ok" "root task exited with code 0"
 run kvm-smp2-cowstress 1 "cow: cpus 2" "cow: all ok" "root task exited with code 0"
 run kvm-smp4-cowstress 1 "cow: cpus 4" "cow: all ok" "root task exited with code 0"
 run chk-kvm-smp2-cow3 1 "cow: all ok" "root task exited with code 0"

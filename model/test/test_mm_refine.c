@@ -17,6 +17,7 @@
 #include "joist/core.h"
 #include "mmlib.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 /* ---- the concrete machine ---- */
@@ -555,14 +556,25 @@ static int run(uint64_t seed, unsigned steps)
     return 1;
 }
 
+/* JOIST_MM_SEEDS seeds (default 48: the exit run's M sets more), or the one
+ * in JOIST_MM_SEED, to replay a failure. */
 JT_TEST(mm_refines_the_abstract_machine)
 {
-    for (uint64_t seed = 1; seed <= 48; seed++) {
+    const char *one = getenv("JOIST_MM_SEED");
+    const char *v = getenv("JOIST_MM_SEEDS");
+    uint64_t first = one != NULL && *one != '\0' ? strtoull(one, NULL, 0) : 1;
+    uint64_t last = one != NULL && *one != '\0' ? first
+                    : v != NULL && *v != '\0'   ? strtoull(v, NULL, 0)
+                                                 : 48;
+    for (uint64_t seed = first; seed <= last; seed++) {
         if (!run(seed, 600)) {
             fprintf(stderr, "  mm refinement: seed %llu: %s\n", (unsigned long long)seed, why);
             JT_CHECK(0);
             return;
         }
+    }
+    if (one != NULL && *one != '\0') {
+        return; /* one seed: the coverage floors are for many */
     }
     fprintf(stderr,
             "  coverage mm: %lu reads of written pages, %lu writes, %lu COW copies, %lu clones, "

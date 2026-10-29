@@ -54,7 +54,9 @@ the sanitizer's.
 | `tla/` | TLA+ model of IPC racing a preemptible task destruction (needs `tlc`, see `docs/phase1-plan.md`, *Tooling*) |
 
 Property tests take `JOIST_PROP_SEEDS`, `JOIST_PROP_STEPS` and, to replay a
-reported failure, `JOIST_PROP_SEED`.
+reported failure, `JOIST_PROP_SEED`.  `mm`'s refinement test (`test_mm_refine.c`)
+takes `JOIST_MM_SEEDS` (default 48; the exit run sets more) and, to replay,
+`JOIST_MM_SEED`.
 
 ## Rules for `../kernel/core/`
 
