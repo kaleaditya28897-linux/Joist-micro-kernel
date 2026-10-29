@@ -209,9 +209,14 @@ static uint64_t adopt(uint64_t slot, uint64_t *badge)
     }
     r = give_badge(t, slot);
     if (r != MM_OK) {
+        /* No badge minted (MM_E_NOMEM): forget it here. A badge minted
+         * but not given has queued its firing: collection forgets it. A
+         * badge given (only its fault handler failed): it stays served,
+         * and goes when its badge does, so that its badge can never name
+         * a later task with its index. */
         collect();
-        if (M.task[t].live && M.task[t].slot == slot) {
-            mm_task_gone(&M, t); /* never had a badge */
+        if (r == MM_E_NOMEM) {
+            mm_task_gone(&M, t);
         }
         return r;
     }
