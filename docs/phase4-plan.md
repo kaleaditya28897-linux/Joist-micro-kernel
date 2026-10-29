@@ -1192,3 +1192,22 @@ or refuse.
   - the `mmroot` and `cowstress` self-tests: emulated, on 2 and 4 KVM CPUs
     and on the checking kernel, with `cowstress`'s rescue off. `mm` was
     stranded 0 times, against 28 and 37 before on 2 and 4 CPUs.
+
+### Decision 0026, layer 1: reproducible builds (2026-10-29)
+
+- **No absolute path in any object:** `-ffile-prefix-map` maps the tree to
+  `joist` in the kernel's and the user programs' flags.
+- **Fixed dates:** every date the ISO records is `SOURCE_DATE_EPOCH`, the
+  last commit's time, or a fixed one without git. That covers the
+  volume's dates (xorriso honours the variable) and each file's date (the
+  staging tree is touched to it before xorriso runs).
+- **`tools/repro-check.sh`** (`make -C kernel repro-check`, now part of the
+  kernel's `make check`) builds every user program and an ISO twice: in
+  different directories, time zones, locales and umasks, two seconds
+  apart. It then compares every artifact byte for byte.
+- **Verified** (the build VM): all 32 artifacts identical (the kernel, 30
+  user programs, the ISO). The first run found the ISO's file dates taken
+  from the copy, now fixed. The ISO still boots under BIOS (`mmroot`) and
+  UEFI.
+- **Layers 2 and 3** (the `live-bootstrap` GCC, then DDC of Clang and lld)
+  are next. The VM now has the disk for them.

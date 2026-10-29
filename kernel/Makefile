@@ -17,6 +17,7 @@
 #   make tidy       clang-tidy (../.clang-tidy: CERT, bugprone, analyzer) on the kernel
 #   make scan       scan-build (the Clang static analyzer) over the kernel build
 #   make mutate     injected bugs in test/mutations.txt must fail the host tests
+#   make repro-check  two builds, in different places and times, are the same bytes
 #   make fuzz-elf   libFuzzer on the ELF validator (FUZZ_TIME seconds, default 60)
 #   make fuzz-syscall  libFuzzer on the system-call dispatcher
 #   make fuzz-abi   libFuzzer over the whole system-call ABI (Phase 3)
@@ -48,10 +49,17 @@ BUILD := build
 KSIZES := -DJOIST_MAX_OBJECTS=2048u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=128u \
           -DJOIST_MAX_LEAVES=256u
 
+# Reproducible builds (decision 0026): the tree's absolute path never goes
+# into an object (its debug information names the tree as "joist"), and
+# every date the ISO records is the last commit's (without git, a fixed one).
+REPRO := -ffile-prefix-map=$(abspath ..)=joist
+SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || echo 1700000000)
+export SOURCE_DATE_EPOCH
+
 # §13's kernel flags.
 KFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding -nostdlib -fno-builtin \
           -fstack-protector-strong -fno-pic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only \
-          -O2 -g $(WARN) $(KSIZES)
+          -O2 -g $(REPRO) $(WARN) $(KSIZES)
 
 SANITIZERS := asan ubsan msan tsan
 SAN_asan  := -fsanitize=address
@@ -153,6 +161,8 @@ $(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf $(ROOT_ELF) $(MODULE_
 	    echo "    module_path: boot():/boot/$$m.elf" >> $(BUILD)/iso/boot/limine/limine.conf || exit 1; \
 	done
 	cp $(LIMINE_DIR)/BOOTX64.EFI $(BUILD)/iso/EFI/BOOT/
+	@# Every file's date in the ISO is SOURCE_DATE_EPOCH, not when it was copied (0026).
+	find $(BUILD)/iso -exec touch -h -d @$(SOURCE_DATE_EPOCH) {} +
 	xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot \
 	    -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 \
 	    --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image \
@@ -228,8 +238,14 @@ scan:
 	@scan-build --status-bugs -o $(BUILD)/scan --use-cc=$(CC) $(MAKE) -s BUILD=$(BUILD)/scan-kernel \
 	    $(BUILD)/scan-kernel/joist.elf | tail -1
 
-check: test $(SANITIZERS) freestanding tidy scan boot-test selftest
-	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding; clang-tidy and scan-build clean; the kernel boots under BIOS and UEFI; selftests pass"
+check: test $(SANITIZERS) freestanding tidy scan boot-test selftest repro-check
+	@echo "check: host tests pass under plain, $(SANITIZERS); kernel sources compile freestanding; clang-tidy and scan-build clean; the kernel boots under BIOS and UEFI; selftests pass; builds reproducible"
+
+# Two builds of everything, in different places, times and locales, must be
+# the same bytes (decision 0026, layer 1).
+.PHONY: repro-check
+repro-check:
+	@sh ../tools/repro-check.sh
 
 mutate:
 	@sh test/mutate.sh "$(CC)"

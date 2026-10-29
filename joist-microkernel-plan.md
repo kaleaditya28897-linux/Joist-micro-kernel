@@ -340,6 +340,7 @@ Ranked by what their compromise costs:
 | Component | Trusted for | If compromised |
 |---|---|---|
 | **Kernel** | Everything: isolation, capability integrity, scheduling. | Total loss. This is why it is small, audited, and verified (§8.1). |
+| **Toolchain** (compiler, linker, binary tools) | Compiling exactly what the source says. | Total loss, invisibly: a subverted compiler inserts code no source review can see. Mitigated by decision **0026**: reproducible builds, Clang and lld verified by diverse double-compiling against a GCC from a full-source bootstrap (`live-bootstrap`, from a hex0 seed). Not covered: the sources themselves, the build machine's own OS, `xorriso`, QEMU, firmware. |
 | **Bootstrap chain** (firmware, GRUB/Limine, boot modules) | Delivering an unmodified kernel and root task. | Total loss, invisibly. Measured/verified boot is **out of scope for now** and recorded as such. |
 | **Root task** | Holds every capability at boot and hands out the rest. | Total loss. It must be small, do nothing but partition and delegate, and then drop what it no longer needs. |
 | **RS** (reincarnation server) | Starting and restarting servers; holds the capabilities to create tasks and grant hardware access. | Can start arbitrary servers with arbitrary privilege. Second only to the root task. |
@@ -552,7 +553,7 @@ Keep Hurd, glibc, and MIG changes as clean patch series on top of upstream so th
 
 ## 13. Tooling
 
-- **Compiler:** Clang, pinned to one LLVM major version in the build scripts; linker `ld.lld`; `llvm-objcopy`, `llvm-objdump`, `llvm-ar`.
+- **Compiler:** Clang, pinned to one LLVM major version in the build scripts; linker `ld.lld`; `llvm-objcopy`, `llvm-objdump`, `llvm-ar`. Built from a pinned LLVM release and verified by diverse double-compiling (decision **0026**); every build reproducible (`tools/repro-check.sh`).
 - **Kernel flags (x86_64):** `--target=x86_64-unknown-none-elf -std=c17 -ffreestanding -nostdlib -fno-builtin -fno-stack-protector -fno-pic -mcmodel=kernel -mno-red-zone -mgeneral-regs-only -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow` (add `-fstack-protector-strong` with an in-kernel canary once the basics work).
 - **Build system:** plain Makefiles (KISS). No CMake or meta-build layers.
 - **Formatting and linting:** `clang-format` with a checked-in style file; `clang-tidy` config checked in.
