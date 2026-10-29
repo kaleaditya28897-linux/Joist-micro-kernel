@@ -6,7 +6,8 @@
 # multiprocessor test: step 9; faultinj and fiworker, the fault-injection
 # test: the exit; docs/phase3-plan.md; scaleroot, the lock study's scaling
 # test; revokeroot, decision 0022's calls; mm, the memory manager, with
-# mmroot and mmclient, its test: Phase 4 step 6),
+# mmroot and mmclient, its test: Phase 4 step 6; cowstress and cowworker,
+# Phase 4's exit test),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
 ifeq ($(origin CC),default)
@@ -37,7 +38,7 @@ ASMPROGS := sysfuzz sysrethole
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
 LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot scaleroot growroot fuzzchild \
-            fiworker faultinj revokeroot mmroot mmclient mm
+            fiworker faultinj revokeroot mmroot mmclient mm cowstress cowworker
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -51,7 +52,7 @@ $(BUILD)/elf.o: ../kernel/elf/elf.c ../kernel/elf/elf.h
 
 define libprog
 $(BUILD)/$(1).o: $(1)/$(1).c lib/joist.h lib/loader.h lib/work.h lib/testroot.h lib/fi.h ../kernel/elf/elf.h \
-                 $(MM)/mm_proto.h $(MM)/mmlib.h
+                 lib/mmhost.h lib/cow.h $(MM)/mm_proto.h $(MM)/mmlib.h
 	@mkdir -p $$(@D)
 	$$(CC) $$(UFLAGS) -I../kernel/include -I../kernel/elf -I$(MM) -c $$< -o $$@
 $(BUILD)/$(1).elf: $(BUILD)/$(1).o $(BUILD)/string.o $(2) user.ld
@@ -77,6 +78,8 @@ $(eval $(call libprog,faultinj,$(BUILD)/elf.o))
 $(eval $(call libprog,revokeroot,$(BUILD)/elf.o))
 $(eval $(call libprog,mmroot,$(BUILD)/elf.o))
 $(eval $(call libprog,mmclient,))
+$(eval $(call libprog,cowstress,$(BUILD)/elf.o))
+$(eval $(call libprog,cowworker,))
 
 # The memory manager: its loop and its library, from servers/mm.
 $(BUILD)/mmlib.o: $(MM)/mmlib.c $(MM)/mmlib.h

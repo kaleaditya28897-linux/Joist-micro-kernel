@@ -11,7 +11,7 @@ boot() { # ISO LOG: boot it, return QEMU's exit status
     if [ -n "${P53:-}" ]; then
         ../tools/p53/boot.sh "$1" bios 60 "$2"
     else
-        timeout ${QEMU_TIMEOUT:-60} qemu-system-x86_64 -M q35 -m 256M ${cpu:+-cpu $cpu} ${smp:+-smp $smp} -cdrom "$1" -display none -no-reboot \
+        timeout ${tmo:-${QEMU_TIMEOUT:-60}} qemu-system-x86_64 -M q35 -m 256M ${cpu:+-cpu $cpu} ${smp:+-smp $smp} -cdrom "$1" -display none -no-reboot \
             -serial file:"$2" -device isa-debug-exit,iobase=0xf4,iosize=0x04
     fi
 }
@@ -19,7 +19,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
        #  build; N a name: the normal kernel with user/N as the root task)
     n=$1; want=$2; shift 2
     ub="-fsanitize=undefined -fsanitize-trap=undefined"
-    mods=""; uextra=""; ubuild=build; ksizes=""; cpu=""; smp=""
+    mods=""; uextra=""; ubuild=build; ksizes=""; cpu=""; smp=""; tmo=""
     chk="-DRUN_CHECK_INVARIANTS"
     # Phase 3 step 9: NAME on 2 or 4 CPUs (smp2-NAME, smp4-NAME); with
     # "kvm" before the count, on the real CPU's (kvm-smp4-NAME), where
@@ -74,6 +74,12 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
         ubuild=build/faultinj-${n#faultinj-} ;;
     # Phase 4 step 6: the memory manager (servers/mm) and its clients.
     mmroot) kextra=""; root=mmroot; mods="mm mmclient" ;;
+    # Phase 4's exit: fork trees through mm under stress (user/cowstress);
+    # cow3, three rounds, for emulation and the checking kernel. Longer than
+    # the usual time limit.
+    cow3) kextra=""; root=cowstress; mods="mm cowworker"; uextra="-DCOW_ROUNDS=3u"; ubuild=build/cow3
+        tmo=600 ;;
+    cowstress) kextra=""; root=cowstress; mods="mm cowworker"; tmo=600 ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -99,7 +105,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|revoke: all ok|mm: (all ok|FAILED)|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|revoke: all ok|mm: (all ok|FAILED)|cow: (all ok|FAILED)|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $log; fail=1
     fi
@@ -270,4 +276,13 @@ run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "
     "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: all ok" "root task exited with code 0"
 run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
+# Phase 4's exit (docs/phase4-plan.md, *Testing*): cowstress, fork trees
+# 4-6 deep through mm, two writers a task on the same pages, tasks killed
+# mid-fault and mid-fork, every page verified after every step, the
+# kernel's counters level after every round. One CPU emulated, 2 and 4 on
+# the real CPU, and the checking kernel.
+run cow3 1 "cow: mm full, refused ok" "cow: round 2 ok" "cow: all ok" "root task exited with code 0"
+run kvm-smp2-cowstress 1 "cow: cpus 2" "cow: all ok" "root task exited with code 0"
+run kvm-smp4-cowstress 1 "cow: cpus 4" "cow: all ok" "root task exited with code 0"
+run chk-kvm-smp2-cow3 1 "cow: all ok" "root task exited with code 0"
 exit $fail

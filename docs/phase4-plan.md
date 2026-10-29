@@ -983,3 +983,55 @@ needs, and a handler may do without the thread capability.
     generation check, and the acceptance not used up (missed at first:
     the repeat was refused for another reason; the test now frees the
     place first). `mmlib.c` is unchanged, the kernel too.
+
+### Step 7, part E1: `cowstress` (2026-10-29)
+
+- **`user/cowstress`** (the root) and **`user/cowworker`** (every task of
+  its trees), the Testing table's row "In QEMU and on the P53". Rounds of
+  fork trees through `mm`'s CLONE, 4 to 6 deep (the depth limit cycles
+  4, 5, 6 by round). Each task has 32 pages from `mm`, each in two slots,
+  one per thread: the main thread, which does what the root posts, and a
+  helper with its own stack (`ld_stack`), which writes alongside it, so two
+  threads of a task take COW faults on the same pages at once. A slot
+  written holds its tag (the task's record, a generation, the writer), its
+  address, words made from them and a checksum. Steps, chosen from the
+  seed: writes by some tasks, a fork (the deepest task that may, three
+  times in four), an exit, a kill while the task writes (at a write chosen
+  from the seed), a kill from just before its CLONE (after a delay chosen
+  from the seed). The root keeps what every slot must hold (a child starts
+  with its parent's) and after every step every task reads all its pages
+  back and the root compares, and `mm`'s records must be sound and serve
+  the tasks there are. A round ends with every page read once more, every
+  task exiting, everything destroyed, orphans reaped, `mm` with every page
+  back, and the kernel's counters (objects, threads, spaces, leaves,
+  mappings, pending destructions, table pool, free frames, lent table
+  pages) as they were after the first round. Before the rounds, one task
+  forks until `mm`, its records full, refuses (so every index has its
+  table run before the counters are taken).
+- `user/lib/mmhost.h`: `mmroot`'s side of starting `mm` and its clients'
+  children, shared with `cowstress` (and `mmbench`).
+- Rounds `COW_ROUNDS` (20; 3 for emulation and the checking kernel, the
+  self-test `cow3`), steps `COW_STEPS` (60), seed `COW_SEED`.
+- **Found, for the owner** (not fixed; `cowstress` works around them and
+  counts them):
+  - **A passive `mm` is stranded when a client is killed while `mm` runs
+    on its time** (in a fault or a CLONE): killing a thread takes back
+    the context it lent (docs/abi.md, *Donation*), and `mm`, with none of
+    its own, stops mid-request for ever; every later caller queues behind
+    it. Under KVM on 2 CPUs it happened 28 times in 117 kills over 20
+    rounds, on 4 CPUs 37 times. With `COW_RESCUE=0` the test fails
+    ("mm stranded"); by default, after each kill, the root asks `mm` for
+    its records with a timeout and, if no answer comes, binds a context of
+    its own to `mm`'s thread until `mm` is back in its Recv.
+  - **A child whose parent is killed between its CLONE and its start is an
+    orphan**: no thread, and only `mm` (and its own `MM_SLOT`) names it,
+    so its badge never goes and nothing destroys it. `cowstress` reaps them
+    at the end of each round (37 over 20 rounds on 2 CPUs).
+- **Verified** (the build VM, nested KVM): `cow3` emulated (1 CPU),
+  `smp4-cow3` emulated, `kvm-smp2-cowstress` and `kvm-smp4-cowstress` (20
+  rounds each: 279 forks, trees 6 deep, 1 243 verifications, 80 kills
+  mid-fault and 37 mid-fork), `chk-kvm-smp2-cow3`; three hand mutants of
+  `mm`, each caught by `cow3`: no copy on a COW write fault ("a page
+  doesn't hold what was written"), `page_unref` freeing at one reference
+  ("mm's records are unsound"), collection skipped ("mm didn't get every
+  page back"). The whole `kernel/test/selftest.sh`: 81 of 81 ok.
