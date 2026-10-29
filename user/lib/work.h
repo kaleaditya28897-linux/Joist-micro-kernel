@@ -51,8 +51,17 @@ enum {
     MMC_FORK,       /* clone; parent and child write the same pages, each seeing its own */
     MMC_CLONE_FULL, /* clones refused, and undone: mm's table pages spent, the child's too few */
     MMC_SHARE,      /* SHARE refused without consent, then shared, and kept across a clone */
-    MMC_CHILD       /* a child: does what its parent posts in its work page (MMC_C_*) */
+    MMC_CHILD,      /* a child: does what its parent posts in its work page (MMC_C_*) */
+    MMC_BENCH       /* mm's costs, timed (TSC): faults, a request, protect, clones of up to
+                     * arg pages; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
 };
+#define MMC_B 100u
+enum {
+    MMC_B_ZERO_W, MMC_B_ZERO_R, MMC_B_COPY, MMC_B_UPGRADE, MMC_B_REQ, MMC_B_PROT_RO, MMC_B_PROT_W,
+    MMC_B_CLONE /* then one for each size in MMC_BENCH_SIZES */
+};
+#define MMC_BENCH_SIZES 256u, 4096u, 65536u /* 1, 16 and 256 MiB */
+#define MMC_BENCH_VA 0x40000000ull          /* where the clones' pages are (the second GiB) */
 #define MMC_VA 0x08000000ull /* where it asks for memory: a last-level table's 512 pages */
 
 /* How mmclient makes a child (MMC_FORK, MMC_SHARE): CLONE, its capabilities

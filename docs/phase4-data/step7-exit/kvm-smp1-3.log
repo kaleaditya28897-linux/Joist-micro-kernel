@@ -1,0 +1,31 @@
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/mm.elf`...
+limine: Loading module `boot():/boot/mmclient.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 252 MiB usable in 6 ranges, 26 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fd54000), direct map at 0xffff800000000000
+joist: frames: 64595 free of 65265 covered (252 MiB)
+joist: page tables: the kernel's own, loaded (64332 frames free after)
+joist: timer: 20 ticks at 100 Hz, 624975 LAPIC counts per tick
+joist: modules: 3
+joist: cpus: 1 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 1
+joist: root task: 8 MiB of memory, 2 module(s); entering it at 0x0000000000400000
+mmbench: started, passive ok
+mmbench: cpus 1, pool 512 pages, clones up to 256 pages
+mmbench: nosenders_next, nothing queued: median 246, fastest 244 cycles
+mmbench: a demand-zero write fault (one page): median 5960, fastest 5892 cycles
+mmbench: a demand-zero read fault (16 pages): median 51944, fastest 51270 cycles
+mmbench: a write fault that copies (COW, another reference): median 8430, fastest 8334 cycles
+mmbench: a write fault that upgrades (COW, the last reference): median 2824, fastest 2792 cycles
+mmbench: a request (MM_REQ_ID), round trip: median 1170, fastest 1166 cycles
+mmbench: protect, 512 pages, to read-only: median 19220, fastest 19088 cycles
+mmbench: protect, 512 pages, to writable: median 20736, fastest 20578 cycles
+mmbench: CLONE of 1 MiB, every page mapped: median 157804, fastest 157430 cycles
+mmbench: done
+joist: root task exited with code 0 (timer ticks so far: 34)
+joist: finish code 0

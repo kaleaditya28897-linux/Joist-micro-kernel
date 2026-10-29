@@ -557,6 +557,161 @@ static uint64_t share_test(struct work *w)
     return 0;
 }
 
+/* ---- the benchmark (MMC_BENCH) ---- */
+
+#define BENCH_N 240u
+static uint64_t smp[BENCH_N];
+
+/* The median and the fastest of n samples, into result k. */
+static void bench_put(struct work *w, unsigned k, unsigned n)
+{
+    for (unsigned i = 1; i < n; i++) { /* insertion sort: n is small */
+        uint64_t x = smp[i];
+        unsigned j = i;
+        for (; j > 0 && smp[j - 1u] > x; j--) {
+            smp[j] = smp[j - 1u];
+        }
+        smp[j] = x;
+    }
+    MMC_W(w, MMC_B + 2u * k) = n != 0 ? smp[n / 2u] : 0;
+    MMC_W(w, MMC_B + 2u * k + 1u) = n != 0 ? smp[0] : 0;
+}
+
+/* A write to page i of MMC_VA, timed. */
+static uint64_t touch_w(uint64_t i)
+{
+    uint64_t t0 = work_tsc();
+    page(i)[0] = i + 1u;
+    return work_tsc() - t0;
+}
+
+static uint64_t bench(struct work *w)
+{
+    uint64_t va = MMC_VA / J_PAGE;
+    /* Demand-zero writes, then copies: each page written again while a
+     * child (with no thread) holds a reference to it. */
+    if (req(MM_REQ_MAP_ANON, va, BENCH_N, MM_W) != MM_OK) {
+        return 1;
+    }
+    for (uint64_t i = 0; i < BENCH_N; i++) {
+        smp[i] = touch_w(i);
+    }
+    bench_put(w, MMC_B_ZERO_W, BENCH_N);
+    if (clone_only() != MM_OK) {
+        return 2;
+    }
+    for (uint64_t i = 0; i < BENCH_N; i++) {
+        smp[i] = touch_w(i);
+    }
+    bench_put(w, MMC_B_COPY, BENCH_N);
+    if (kill_kid(&kids[--nkids]) != 0 || req(MM_REQ_UNMAP, va, BENCH_N, 0) != MM_OK) {
+        return 3;
+    }
+    /* Upgrades: read-only after a clone, the child gone, the last
+     * reference this task's. */
+    if (req(MM_REQ_MAP_ANON, va, BENCH_N, MM_W) != MM_OK) {
+        return 4;
+    }
+    for (uint64_t i = 0; i < BENCH_N; i++) {
+        page(i)[0] = 1;
+    }
+    if (clone_only() != MM_OK || kill_kid(&kids[--nkids]) != 0) {
+        return 5;
+    }
+    for (uint64_t i = 0; i < BENCH_N; i++) {
+        smp[i] = touch_w(i);
+    }
+    bench_put(w, MMC_B_UPGRADE, BENCH_N);
+    if (req(MM_REQ_UNMAP, va, BENCH_N, 0) != MM_OK) {
+        return 6;
+    }
+    /* Demand-zero reads: each maps MM_AROUND pages, so one every
+     * MM_AROUND pages faults, over a table's span mapped afresh each time. */
+    unsigned n = 0;
+    while (n < BENCH_N) {
+        if (req(MM_REQ_MAP_ANON, va, MM_SPAN, MM_W) != MM_OK) {
+            return 7;
+        }
+        for (uint64_t i = 0; i < MM_SPAN && n < BENCH_N; i += MM_AROUND) {
+            uint64_t t0 = work_tsc();
+            uint64_t v = page(i)[0];
+            smp[n++] = work_tsc() - t0;
+            if (v != 0) {
+                return 8;
+            }
+        }
+        if (req(MM_REQ_UNMAP, va, MM_SPAN, 0) != MM_OK) {
+            return 9;
+        }
+    }
+    bench_put(w, MMC_B_ZERO_R, BENCH_N);
+    /* A request's round trip (MM_REQ_ID: the least mm does). */
+    for (unsigned i = 0; i < BENCH_N; i++) {
+        uint64_t id;
+        uint64_t t0 = work_tsc();
+        uint64_t e = req2(MM_REQ_ID, 0, 0, 0, &id);
+        smp[i] = work_tsc() - t0;
+        if (e != MM_OK) {
+            return 10;
+        }
+    }
+    bench_put(w, MMC_B_REQ, BENCH_N);
+    /* protect over a table's span, every page mapped: read-only, then
+     * writable again, each a request to mm and one kernel call. */
+    if (req(MM_REQ_MAP_ANON, va, MM_SPAN, MM_W) != MM_OK) {
+        return 11;
+    }
+    for (uint64_t i = 0; i < MM_SPAN; i += MM_AROUND) {
+        (void)page(i)[0];
+    }
+    uint64_t ro[BENCH_N / 4u];
+    for (unsigned i = 0; i < BENCH_N / 4u; i++) {
+        uint64_t t0 = work_tsc();
+        uint64_t e = req(MM_REQ_PROTECT, va, MM_SPAN, 0);
+        uint64_t t1 = work_tsc();
+        e |= req(MM_REQ_PROTECT, va, MM_SPAN, MM_W);
+        smp[i] = work_tsc() - t1;
+        ro[i] = t1 - t0;
+        if (e != MM_OK) {
+            return 12;
+        }
+    }
+    bench_put(w, MMC_B_PROT_W, BENCH_N / 4u);
+    for (unsigned i = 0; i < BENCH_N / 4u; i++) {
+        smp[i] = ro[i];
+    }
+    bench_put(w, MMC_B_PROT_RO, BENCH_N / 4u);
+    if (req(MM_REQ_UNMAP, va, MM_SPAN, 0) != MM_OK) {
+        return 13;
+    }
+    /* Clones of each size up to arg pages, every page mapped (by reads),
+     * the child destroyed between. */
+    static const uint64_t sizes[] = {MMC_BENCH_SIZES};
+    for (unsigned k = 0; k < sizeof sizes / sizeof sizes[0] && sizes[k] <= w->arg; k++) {
+        uint64_t cva = MMC_BENCH_VA / J_PAGE;
+        if (req(MM_REQ_MAP_ANON, cva, sizes[k], MM_W) != MM_OK) {
+            return 14;
+        }
+        for (uint64_t i = 0; i < sizes[k]; i += MM_AROUND) {
+            (void)((volatile uint64_t *)(uintptr_t)((cva + i) * J_PAGE))[0];
+        }
+        unsigned times = sizes[k] >= 65536u ? 3u : sizes[k] >= 4096u ? 5u : 9u;
+        for (unsigned i = 0; i < times; i++) {
+            uint64_t t0 = work_tsc();
+            uint64_t e = clone_only();
+            smp[i] = work_tsc() - t0;
+            if (e != MM_OK || kill_kid(&kids[--nkids]) != 0) {
+                return 15;
+            }
+        }
+        bench_put(w, MMC_B_CLONE + k, times);
+        if (req(MM_REQ_UNMAP, cva, sizes[k], 0) != MM_OK) {
+            return 16;
+        }
+    }
+    return 0;
+}
+
 void _start(void)
 {
     struct work *w = (struct work *)(uintptr_t)WORK_VA;
@@ -595,6 +750,9 @@ void _start(void)
         break;
     case MMC_CHILD:
         child(w);
+        break;
+    case MMC_BENCH:
+        w->aux = bench(w);
         break;
     default:
         w->arg = 99;

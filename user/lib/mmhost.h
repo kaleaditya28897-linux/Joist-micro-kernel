@@ -115,7 +115,7 @@ static void start_mm(void)
 
 /* mm's records: tasks served, free pages (unless ANY_FREE), and its own
  * check. */
-static void expect_mm(uint64_t tasks, uint64_t free, const char *what)
+static __attribute__((unused)) void expect_mm(uint64_t tasks, uint64_t free, const char *what)
 {
     struct j_msg r = ask(MM_REQ_STATUS, 0);
     check(r.r[0] == MM_OK && r.r[3] == 0, "mm's records are unsound");
@@ -203,7 +203,7 @@ static struct work *rec_page(unsigned i)
 /* Every capability of record i's dropped, its task destroyed if it is a
  * child (E_GONE if that happened already), and the root's view of its
  * work page unmapped. */
-static void rec_free(unsigned i)
+static __attribute__((unused)) void rec_free(unsigned i)
 {
     struct rec *r = &recs[i];
     if (!r->live) {
@@ -263,7 +263,7 @@ static uint64_t start_kid(unsigned p, const struct j_msg *m, unsigned *kid)
 
 /* One request to the root, if one comes within ns: 1 if one came. A
  * child started is in *kid (NRECS if none). */
-static int host_serve(uint64_t ns, unsigned *kid)
+static __attribute__((unused)) int host_serve(uint64_t ns, unsigned *kid)
 {
     *kid = NRECS;
     struct j_msg m = {0};

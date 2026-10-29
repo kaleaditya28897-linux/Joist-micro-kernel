@@ -1035,3 +1035,30 @@ needs, and a handler may do without the thread capability.
   doesn't hold what was written"), `page_unref` freeing at one reference
   ("mm's records are unsound"), collection skipped ("mm didn't get every
   page back"). The whole `kernel/test/selftest.sh`: 81 of 81 ok.
+
+### Step 7, part E2: the exit measurements (2026-10-29)
+
+- **`user/mmbench`** (the root) and `mmclient`'s role `MMC_BENCH`: the
+  fault round trip through `mm` (demand-zero write and read, write that
+  copies, write that upgrades), a request's round trip, `protect` over
+  512 pages, CLONE of 1, 16 and 256 MiB, and `nosenders_next` finding
+  nothing (0023's amendment's figure). Medians and fastest, TSC cycles.
+  Data, logs and the large build's recipe:
+  `docs/phase4-data/step7-exit/`. **All under KVM on the build VM, which
+  is nested**: not the P53's own figures.
+- Medians on one CPU: upgrade about 2 800 cycles, copy 8 500, demand-zero
+  write 6 000, demand-zero read (16 pages) 52 000, a request 1 170,
+  protect of 512 pages 19 500-21 000, CLONE of 1 MiB 160 000, of 16 MiB
+  3.1 M and of 256 MiB 38 M (the large build). `nosenders_next` with
+  nothing queued: about 250, a fifth of the cheapest request.
+- Found: `mm` maps a read fault's 16 pages and a clone's pages one `map`
+  call each (a run would do); a clone's fixed cost grows with
+  `MM_TASK_PAGES` (each task record is cleared whole: 1 MiB in the large
+  build, which makes its 1 MiB clone 5 times slower).
+- `kernel/arch/x86_64/run.h`: `RUN_POOL_FRAMES` and `RUN_POOL_PAGES` may be
+  set at build time (the large build's root memory); `mm_proto.h`:
+  `MM_TABLE_PAGES` too. Defaults unchanged.
+- **Verified:** the measurements are the verification; the default
+  build's kernel and programs are as the self-test runs them (the new
+  `#ifndef`s change nothing by default; the full kernel check at the end
+  of this hand-off covers them).

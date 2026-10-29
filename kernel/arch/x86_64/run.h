@@ -22,8 +22,12 @@
  * to its space for its page tables (0021). */
 #define RUN_ROOT_SC      0u /* its own scheduling context */
 #define RUN_POOL_FIRST   1u
+#ifndef RUN_POOL_FRAMES
 #define RUN_POOL_FRAMES  4u
-#define RUN_POOL_PAGES   512u
+#endif
+#ifndef RUN_POOL_PAGES
+#define RUN_POOL_PAGES   512u /* (larger for mm's benchmark of large clones) */
+#endif
 #define RUN_ROOT_SELF    5u /* its own task capability (joist_boot_self) */
 #define RUN_ROOT_TABLES  6u /* a frame lent to its own space for its page tables (0021) */
 #define RUN_ROOT_TABLE_PAGES 256u

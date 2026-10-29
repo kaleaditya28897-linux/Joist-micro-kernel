@@ -70,7 +70,9 @@ enum {
 
 #define MM_POOL_VA 0x10000000ull  /* where mm maps its pool in its own space (its first
                                    * gigabyte, where the loader lent it tables) */
+#ifndef MM_TABLE_PAGES
 #define MM_TABLE_PAGES 16u        /* pages lent to each task for its page tables */
+#endif
 #define MM_CHILD_QUOTA 8u         /* quota a task mm makes starts with, from mm's own: mm
                                    * pays it and the task object (task_create's donation
                                    * plus one), and gets both back when the task goes */

@@ -7,7 +7,7 @@
 # test: the exit; docs/phase3-plan.md; scaleroot, the lock study's scaling
 # test; revokeroot, decision 0022's calls; mm, the memory manager, with
 # mmroot and mmclient, its test: Phase 4 step 6; cowstress and cowworker,
-# Phase 4's exit test),
+# Phase 4's exit test; mmbench, mm's costs measured),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
 ifeq ($(origin CC),default)
@@ -26,6 +26,7 @@ UEXTRA ?=
 UFLAGS += $(UEXTRA)
 # The memory manager's table sizes (servers/mm/mmlib.h), for it and for the
 # programs that talk to it.
+# (A build may set them on the command line: mmbench's large clones.)
 MMFLAGS := -DMM_MAX_TASKS=16u -DMM_TASK_PAGES=512u -DMM_PAGES=1024u
 UFLAGS += $(MMFLAGS)
 MM := ../servers/mm
@@ -38,7 +39,7 @@ ASMPROGS := sysfuzz sysrethole
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
 LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot scaleroot growroot fuzzchild \
-            fiworker faultinj revokeroot mmroot mmclient mm cowstress cowworker
+            fiworker faultinj revokeroot mmroot mmclient mm cowstress cowworker mmbench
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -80,6 +81,7 @@ $(eval $(call libprog,mmroot,$(BUILD)/elf.o))
 $(eval $(call libprog,mmclient,))
 $(eval $(call libprog,cowstress,$(BUILD)/elf.o))
 $(eval $(call libprog,cowworker,))
+$(eval $(call libprog,mmbench,$(BUILD)/elf.o))
 
 # The memory manager: its loop and its library, from servers/mm.
 $(BUILD)/mmlib.o: $(MM)/mmlib.c $(MM)/mmlib.h
