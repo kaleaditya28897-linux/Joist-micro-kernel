@@ -53,7 +53,7 @@ static __attribute__((unused)) void worker_stop(struct worker *k)
     must(j_cap_delete(k->sc), "cap_delete (context)");
 }
 
-static void sleep_ns(uint64_t ns)
+static __attribute__((unused)) void sleep_ns(uint64_t ns)
 {
     struct j_msg m = {0};
     if (j_recv(nobody, &m, ns) != J_E_TIMEOUT) {

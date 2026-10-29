@@ -52,14 +52,15 @@ enum {
     MMC_CLONE_FULL, /* clones refused, and undone: mm's table pages spent, the child's too few */
     MMC_SHARE,      /* SHARE refused without consent, then shared, and kept across a clone */
     MMC_CHILD,      /* a child: does what its parent posts in its work page (MMC_C_*) */
-    MMC_BENCH,      /* mm's costs, timed (TSC): faults, a request, protect, clones of up to
-                     * arg pages; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
+    MMC_BENCH,      /* mm's costs, timed (TSC): faults, a request, protect, SHARE, clones of
+                     * up to arg pages; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
     MMC_ORPHAN      /* a fork cancelled; then it exits with one child confirmed and one
                      * pending: mm destroys the pending one with it, serves the other */
 };
 #define MMC_B 100u
 enum {
     MMC_B_ZERO_W, MMC_B_ZERO_R, MMC_B_COPY, MMC_B_UPGRADE, MMC_B_REQ, MMC_B_PROT_RO, MMC_B_PROT_W,
+    MMC_B_SHARE,
     MMC_B_CLONE /* then one for each size in MMC_BENCH_SIZES */
 };
 #define MMC_BENCH_SIZES 256u, 4096u, 65536u /* 1, 16 and 256 MiB */

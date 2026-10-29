@@ -3,7 +3,8 @@
  * MMC_BENCH: it times, with the TSC, demand-zero faults (a write, and a
  * read that maps MM_AROUND pages), a write that copies a page another task
  * shares (COW), one that only makes the last reference writable, a request
- * (MM_REQ_ID), protect over a table's span, and clones of 1, 16 and 256 MiB
+ * (MM_REQ_ID), protect over a table's span, SHARE of 64 pages into a child
+ * (which this root starts, as mmroot does), and clones of 1, 16 and 256 MiB
  * as far as MMB_CLONE_PAGES allows. Here: nosenders_next finding nothing,
  * which mm calls at the start of every message (0023's amendment). Each is
  * printed as a median and the fastest, in cycles.
@@ -106,10 +107,14 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     must(j_cap_give(mm_task, k.task, MM_S_ROOT, J_R_ALL), "cap_give (client, to mm)");
     struct j_msg r = ask(MM_REQ_ADOPT, MM_S_ROOT);
     check(r.r[0] == MM_OK, "mm's ADOPT failed");
+    unsigned ri = rec_new();
+    must(j_cap_derive(k.task, recs[ri].task, J_R_ALL), "cap_derive (client)");
+    give_root_cap(ri); /* for SHARE's child */
     must(j_thread_spawn(k.task, k.thread, entry, CHILD_LO), "thread_spawn (client)");
     worker_run(&k, 100, 10 * J_MS, 10 * J_MS);
     for (unsigned i = 0; i < 600000u && k.w->count < 2; i++) {
-        sleep_ns(J_MS);
+        unsigned kid;
+        (void)host_serve(J_MS, &kid);
     }
     if (k.w->count != 2 || k.w->aux != 0) {
         j_puts("mmbench: the client failed at step ");
@@ -125,6 +130,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
         "a request (MM_REQ_ID), round trip",
         "protect, 512 pages, to read-only",
         "protect, 512 pages, to writable",
+        "SHARE, 64 pages none there yet, round trip",
     };
     for (unsigned i = 0; i < MMC_B_CLONE; i++) {
         put(names[i], MMC_W(k.w, MMC_B + 2u * i), MMC_W(k.w, MMC_B + 2u * i + 1u));

@@ -632,6 +632,7 @@ static uint64_t share_test(struct work *w)
 /* ---- the benchmark (MMC_BENCH) ---- */
 
 #define BENCH_N 240u
+#define BENCH_SHARE 64u /* SHARE's pages */
 static uint64_t smp[BENCH_N];
 
 /* The median and the fastest of n samples, into result k. */
@@ -781,6 +782,32 @@ static uint64_t bench(struct work *w)
             return 16;
         }
     }
+    /* SHARE of BENCH_SHARE pages, none there yet, into a running child
+     * that accepted: mm makes each page, maps it here, then into the
+     * child. Both sides unmapped between. */
+    uint64_t me;
+    if (req2(MM_REQ_ID, 0, 0, 0, &me) != MM_OK || fork_kid(MMC_CHILD) != 0) {
+        return 17;
+    }
+    struct kid *a = &kids[nkids - 1u];
+    for (unsigned i = 0; i < BENCH_N / 4u; i++) {
+        if (req(MM_REQ_MAP_ANON, va, BENCH_SHARE, MM_W) != MM_OK ||
+            cmd(a, MMC_C_ACCEPT, me, va + MM_SPAN, BENCH_SHARE) != MM_OK) {
+            return 18;
+        }
+        uint64_t t0 = work_tsc();
+        uint64_t e = req(MM_REQ_SHARE, va, BENCH_SHARE, a->id);
+        smp[i] = work_tsc() - t0;
+        if (e != MM_OK || req(MM_REQ_UNMAP, va, BENCH_SHARE, 0) != MM_OK ||
+            cmd(a, MMC_C_UNMAP, va + MM_SPAN, BENCH_SHARE, 0) != MM_OK) {
+            return 19;
+        }
+    }
+    bench_put(w, MMC_B_SHARE, BENCH_N / 4u);
+    if (end_kid(a) != 0) {
+        return 20;
+    }
+    nkids--;
     return 0;
 }
 

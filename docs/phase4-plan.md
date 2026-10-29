@@ -1076,12 +1076,16 @@ or refuse.
   nothing: about 250 cycles). Against the faults: an upgrade 2 800 (9 %),
   a copy 8 500 (3 %), a demand-zero write 6 000 (4 %), a demand-zero read
   52 000 for 16 pages (under 1 %: only one of its 16 `map` calls would be
-  fused). **Proposed: still no fused reply.** The larger saving is
+  fused). Proposed: still no fused reply. The larger saving is
   elsewhere: `mm` maps a read fault's 16 pages and a clone's pages one
   `map` call each; mapping runs of pages contiguous in a frame in one call
   (which the kernel takes already) would save up to 15 calls a read fault
   and most of a clone's 590 cycles a page. That is `mm`'s change, not the
   kernel's.
+  **Decided by the owner (2026-10-29): no fused reply.** In its place `mm`
+  maps contiguous runs of pages with one `map` call, before the exit run
+  (part E6: a clone about 4 times cheaper a page, a read fault about a
+  tenth).
 - **Guard pages, and the file-backed rule:** decision 0024, proposed: a
   permission `MM_NONE` (`PROT_NONE`, which glibc's `allocate_stack` uses
   for its guard pages); today a fault outside every region already ends
@@ -1254,3 +1258,59 @@ or refuse.
   - keep leaving the child pending;
   - a clone never pending;
   - a new task keeping an old pending link.
+
+### Step 7, part E6: `mm` maps runs (2026-10-29)
+
+- **The owner's choice** (2026-10-29): no fused fault reply (E3); instead
+  `mm` maps contiguous runs of pages with one `map` call, before the exit
+  run.
+- **A run** (`servers/mm/mmlib.c`, `struct run`, `run_add`, `run_flush`):
+  consecutive pages of a task's space, backed by consecutive offsets of
+  one frame, with the same permissions, within one table's span
+  (`MM_SPAN`: what one `map` call may cover; a run is then at most 512
+  pages). Each page is recorded first, then joins the run; a page that
+  doesn't continue it maps the run so far and starts the next.
+- **Where:** a read fault's pages (up to `MM_AROUND`), a clone's pages
+  into the child, SHARE's new pages into the caller and then all of them
+  into the other task. `cow_break` maps one page with `map_replace`, as
+  before.
+- **A run that fails:** the kernel's `map` maps all of a run or none, so
+  `run_flush` undoes the run's records, and mm's records still match the
+  kernel's mappings. Each caller does what it did before: the read fault
+  resumes the thread only if the faulting page is there; CLONE and SHARE
+  return `MM_E_KERNEL`. One difference: the pages of a failed run before
+  the failing one aren't kept (the per-page code kept them); the failures
+  that can happen there (`E_NOMEM` for a table, the task gone) would have
+  failed on the run's first page too.
+- **SHARE** now maps all of the caller's new pages, then all of the
+  other task's, where it did both for each page in turn. Its old code
+  left a new page's record when its `map` failed (mm then took the page as
+  there, and answered its faults "already there"); the run's undo fixes
+  that.
+- **The free list's order:** `mm_unmap` and `mm_task_gone` give pages back
+  last first, so pages unmapped together come back in order (a run). They
+  gave them back first first, so after the first unmap no two pages made
+  a run (E2 found it).
+- **Tests** (`model/test/test_mm.c`, the kernel calls counted, and the
+  k-th `map` made to fail): a read fault's 16 pages in one call, again
+  after an unmap; runs stopping at a second frame, a gap, other
+  permissions and a table's span; SHARE's two calls; a run failing part
+  way in a read fault, a clone and SHARE (mm's records match the kernel's
+  mappings after each).
+- **Mutants** (`model/test/mutations.txt`), each caught: a run past a
+  frame, across permissions, across a span, across a gap, one page too
+  long, one too short, a failed run's records kept, the last run never
+  mapped (read fault, clone, SHARE), pages given back first first.
+- **`mmbench`:** a SHARE row (64 pages, none there yet, into a running
+  child; the bench's root now starts the client's child, as `mmroot`
+  does).
+- **Measured** (`docs/phase4-data/step7-runs/`; nested KVM on the build
+  VM, under another hand-off's load; before and after alternating):
+  a CLONE of 256 MiB 40 M cycles before, 10.1 M after (about 600 cycles a
+  page, then 140); of 1 MiB 177 000, then 66 000; a read fault's 16
+  pages 57 000, then 51 000 (zeroing is most of what is left); SHARE of
+  64 pages 270 000, then 215 000. The other rows are unchanged.
+- **Verified** (the build VM): the host tests; the `mm` mutations (29,
+  each caught); `mmroot` (emulated, `kvm-smp2`, `chk-kvm-smp2`), `cow3`,
+  `kvm-smp2-cowstress` (20 rounds: 279 forks, 37 kills mid-fork, `mm`
+  stranded 0) and `chk-kvm-smp2-cow3`; `make -C model check` (244 tests under plain, asan, ubsan, msan, tsan and small).

@@ -117,13 +117,65 @@ static int bad_perms(unsigned perms)
     return (perms & ~(MM_W | MM_X)) != 0 || perms == (MM_W | MM_X);
 }
 
-/* Map page p into task t at va with perms. */
-static int kmap(struct mm *m, uint32_t t, uint64_t va, uint32_t p, unsigned perms)
+/* Pages being mapped into task t with one kernel call: consecutive pages
+ * of its space from va, mm's pages from p (so consecutive offsets in one
+ * frame), the same permissions, within one table's span (what one call may
+ * map). Each is recorded before it joins the run, as if mapped. */
+struct run {
+    uint32_t t;
+    uint32_t p;
+    uint64_t va, n;
+    unsigned perms;
+};
+
+/* The run's records undone: its pages were never mapped. */
+static void run_undo(struct mm *m, const struct run *r)
 {
-    const struct mm_page *g = &m->pg[p];
-    return m->k.map(m->k.ctx, m->frame[g->frame].slot, g->off, 1, m->task[t].slot, va, perms) == 0
-               ? MM_OK
-               : MM_E_KERNEL;
+    struct mm_task *tk = &m->task[r->t];
+    uint32_t i = map_from(tk, r->va);
+    for (uint64_t k = r->n; k-- > 0;) {
+        page_unref(m, tk->map[i + k].page); /* the last first: see mm_unmap */
+    }
+    memmove(&tk->map[i], &tk->map[i + r->n], (tk->nmap - i - r->n) * sizeof tk->map[0]);
+    tk->nmap -= (uint32_t)r->n;
+}
+
+/* Map the run, if it has pages, and empty it. The kernel maps all of it or
+ * none: if none, its records go too. */
+static int run_flush(struct mm *m, struct run *r)
+{
+    if (r->n == 0) {
+        return MM_OK;
+    }
+    const struct mm_page *g = &m->pg[r->p];
+    int e = m->k.map(m->k.ctx, m->frame[g->frame].slot, g->off, r->n, m->task[r->t].slot, r->va,
+                     r->perms) == 0
+                ? MM_OK
+                : MM_E_KERNEL;
+    if (e != MM_OK) {
+        run_undo(m, r);
+    }
+    r->n = 0;
+    return e;
+}
+
+/* Page p, just recorded at va in task t, mapped with perms: added to the
+ * run if it continues it, else the run so far is mapped and a new one
+ * begins with it. If that mapping fails, p's record goes too. */
+static int run_add(struct mm *m, struct run *r, uint32_t t, uint64_t va, uint32_t p, unsigned perms)
+{
+    if (r->n != 0 && t == r->t && va == r->va + r->n && va / MM_SPAN == r->va / MM_SPAN &&
+        p == r->p + r->n && m->pg[p].frame == m->pg[r->p].frame && perms == r->perms) {
+        r->n++;
+        return MM_OK;
+    }
+    int e = run_flush(m, r);
+    *r = (struct run){.t = t, .p = p, .va = va, .n = 1, .perms = perms};
+    if (e != MM_OK) {
+        run_undo(m, r);
+        r->n = 0;
+    }
+    return e;
 }
 
 /* ---- set-up ---- */
@@ -172,8 +224,8 @@ void mm_task_gone(struct mm *m, uint32_t t)
     }
     struct mm_task *tk = &m->task[t];
     /* Its space is gone with its tables: only mm's records are left. */
-    for (uint32_t i = 0; i < tk->nmap; i++) {
-        page_unref(m, tk->map[i].page);
+    for (uint32_t i = tk->nmap; i-- > 0;) {
+        page_unref(m, tk->map[i].page); /* the last first: see mm_unmap */
     }
     memset(tk, 0, sizeof *tk);
 }
@@ -275,7 +327,9 @@ int mm_unmap(struct mm *m, uint32_t t, uint64_t va, uint64_t n)
             last++;
         }
     }
-    for (uint32_t i = first; i < last; i++) {
+    /* The last first, so the free list gives them back in order: pages
+     * taken together again are a run in their frame (one map call). */
+    for (uint32_t i = last; i-- > first;) {
         page_unref(m, tk->map[i].page); /* unmapped above */
     }
     memmove(&tk->map[first], &tk->map[last], (tk->nmap - last) * sizeof tk->map[0]);
@@ -386,7 +440,8 @@ static int cow_break(struct mm *m, uint32_t t, uint32_t mi, unsigned perms)
 
 /* Map fresh zeroed pages into task t from va: one for a write, and for a
  * read up to MM_AROUND, while each is unmapped, in the region and in va's
- * span. 1 if the faulting page is there. */
+ * span; in runs. It stops at the first page it can't take or map. 1 if the
+ * faulting page is there. */
 static int demand_zero(struct mm *m, uint32_t t, const struct mm_region *r, uint64_t va,
                        int write)
 {
@@ -395,6 +450,7 @@ static int demand_zero(struct mm *m, uint32_t t, const struct mm_region *r, uint
     uint64_t span_end = (va / MM_SPAN + 1u) * MM_SPAN;
     end = end < span_end ? end : span_end;
     unsigned want = write ? 1u : MM_AROUND;
+    struct run run = {0};
     for (unsigned k = 0; k < want && va + k < end; k++) {
         uint64_t at = va + k;
         if (map_at(tk, at) >= 0) {
@@ -402,22 +458,18 @@ static int demand_zero(struct mm *m, uint32_t t, const struct mm_region *r, uint
         }
         int64_t p = page_new(m);
         if (p < 0) {
-            return k != 0;
+            break;
         }
         if (map_add(tk, at, (uint32_t)p) != MM_OK) {
             page_unref(m, (uint32_t)p);
-            return k != 0;
+            break;
         }
-        if (kmap(m, t, at, (uint32_t)p, r->perms) != MM_OK) {
-            /* Undo the record: the page was never mapped. */
-            uint32_t i = map_from(tk, at);
-            memmove(&tk->map[i], &tk->map[i + 1u], (tk->nmap - i - 1u) * sizeof tk->map[0]);
-            tk->nmap--;
-            page_unref(m, (uint32_t)p);
-            return k != 0;
+        if (run_add(m, &run, t, at, (uint32_t)p, r->perms) != MM_OK) {
+            return map_at(tk, va) >= 0;
         }
     }
-    return 1;
+    (void)run_flush(m, &run);
+    return map_at(tk, va) >= 0;
 }
 
 int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
@@ -490,19 +542,20 @@ int mm_clone(struct mm *m, uint32_t parent, uint32_t child)
         }
         i = j;
     }
-    /* Then every page into the child: read-only if private, as it is if
-     * shared. In order, so the child's table stays sorted. */
+    /* Then every page into the child, in runs: read-only if private, as
+     * it is if shared. In order, so the child's table stays sorted. */
+    struct run run = {0};
     for (i = 0; i < pt->nmap; i++) {
         const struct mm_map *e = &pt->map[i];
         const struct mm_region *r = &pt->reg[region_of(pt, e->va)];
         unsigned perms = r->shared ? r->perms : r->perms & ~MM_W;
-        if (kmap(m, child, e->va, e->page, perms) != MM_OK) {
-            return MM_E_KERNEL;
-        }
         ct->map[ct->nmap++] = *e;
         m->pg[e->page].refs++;
+        if (run_add(m, &run, child, e->va, e->page, perms) != MM_OK) {
+            return MM_E_KERNEL;
+        }
     }
-    return MM_OK;
+    return run_flush(m, &run);
 }
 
 int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint64_t ova)
@@ -567,34 +620,43 @@ int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint
             break;
         }
     }
-    /* Then each page: made if not there, its own if COW-shared, writable
-     * as the region says; then mapped into o too. */
+    /* Then t's pages: made if not there (mapped in runs), its own if
+     * COW-shared, writable as the region says. */
+    struct run run = {0};
     for (uint64_t k = 0; k < n; k++) {
         int64_t mi = map_at(tk, va + k);
         if (mi < 0) {
             int64_t p = page_new(m);
             if (p < 0 || map_add(tk, va + k, (uint32_t)p) != MM_OK) {
+                (void)run_flush(m, &run);
                 return MM_E_NOMEM; /* (checked above: not reached) */
             }
-            mi = map_at(tk, va + k);
-            if (kmap(m, t, va + k, (uint32_t)p, r.perms) != MM_OK) {
+            if (run_add(m, &run, t, va + k, (uint32_t)p, r.perms) != MM_OK) {
                 return MM_E_KERNEL;
             }
         } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u) {
             if (cow_break(m, t, (uint32_t)mi, r.perms) != MM_OK) {
+                (void)run_flush(m, &run);
                 return MM_E_KERNEL;
             }
         } else if (m->k.protect(m->k.ctx, tk->slot, va + k, 1, r.perms) != 0) {
+            (void)run_flush(m, &run);
             return MM_E_KERNEL;
         }
-        uint32_t p = tk->map[mi].page;
-        if (kmap(m, o, ova + k, p, r.perms) != MM_OK) {
-            return MM_E_KERNEL;
-        }
+    }
+    if (run_flush(m, &run) != MM_OK) {
+        return MM_E_KERNEL;
+    }
+    /* Then all of them into o too, in runs. */
+    for (uint64_t k = 0; k < n; k++) {
+        uint32_t p = tk->map[map_at(tk, va + k)].page;
         (void)map_add(ok, ova + k, p);
         m->pg[p].refs++;
+        if (run_add(m, &run, o, ova + k, p, r.perms) != MM_OK) {
+            return MM_E_KERNEL;
+        }
     }
-    return MM_OK;
+    return run_flush(m, &run); /* o's last run */
 }
 
 /* ---- the self-check ---- */

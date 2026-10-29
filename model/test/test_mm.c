@@ -20,8 +20,9 @@ static struct mm m;
 static uint32_t t, c, d; /* mm's indices for T, C and D */
 
 /* Root's slots: T, the task mm serves; C and D, two more (a clone's child,
- * a task to share with); a frame lent to each for its tables; the pool. */
-enum { TK = 0, MEM = 1, SELF = 2, POOL = 3, TC = 4, TD = 5, MEMC = 6, MEMD = 7 };
+ * a task to share with); a frame lent to each for its tables; the pool, and
+ * its second part when a test splits it. */
+enum { TK = 0, MEM = 1, SELF = 2, POOL = 3, TC = 4, TD = 5, MEMC = 6, MEMD = 7, POOL2 = 8 };
 
 /* Memory for the tasks' page tables (lent pages), as test_map.c: 32 pages
  * each, from MEM_BASE. */
@@ -42,10 +43,17 @@ static void *page(void *ctx, uint64_t pfn)
 
 /* ---- mm's kernel calls, on the model ---- */
 
+/* mm's map calls, counted; the one numbered map_fail (from 1) fails, as
+ * the kernel would, changing nothing. */
+static unsigned maps, map_fail;
+
 static int k_map(void *ctx, uint32_t fs, uint64_t off, uint64_t n, uint32_t ts, uint64_t va,
                  unsigned perms)
 {
     (void)ctx;
+    if (++maps == map_fail) {
+        return 1;
+    }
     return joist_map(&k, root, fs, off, n, ts, va, perms) != JOIST_OK;
 }
 
@@ -68,10 +76,19 @@ static int k_protect(void *ctx, uint32_t ts, uint64_t va, uint64_t n, unsigned p
     return joist_protect(&k, root, ts, va, n, perms) != JOIST_OK;
 }
 
+/* The pool's frame, or its two halves when a test splits it (POOL keeps
+ * the first pool_split pages, POOL2 has the rest). */
+static uint64_t pool_split = POOL_PAGES;
+
 static uint8_t *k_page(void *ctx, uint32_t fs, uint64_t off)
 {
     (void)ctx;
-    return fs == POOL && off < POOL_PAGES ? pool[off] : NULL;
+    if (fs == POOL2) {
+        off += pool_split;
+    } else if (fs != POOL || off >= pool_split) {
+        return NULL;
+    }
+    return off < POOL_PAGES ? pool[off] : NULL;
 }
 
 static const struct mm_kops kops = {
@@ -97,6 +114,9 @@ static int clean(void)
 static void setup(void)
 {
     joist_init(&k);
+    maps = 0;
+    map_fail = 0;
+    pool_split = POOL_PAGES;
     memset(mem, 0, sizeof mem);
     memset(pool, 0xa5, sizeof pool); /* a page mm hands out must be zeroed */
     k.hooks.page = page;
@@ -444,4 +464,176 @@ JT_TEST(mm_share_refusals_and_unmapping_one_side)
     JT_REQUIRE(mm_unmap(&m, d, 0x700, 2) == MM_OK);
     JT_CHECK(POOL_PAGES - m.nfree == used - 2u);
     JT_CHECK(clean());
+}
+
+/* ---- runs: contiguous pages mapped with one call ---- */
+
+/* mm's records of task ti and space s's mappings agree over [lo, hi): a
+ * page is mapped exactly where mm has a record of it, and is the page the
+ * record names. */
+static int agrees(uint32_t ti, joist_cspace s, uint64_t lo, uint64_t hi)
+{
+    const struct mm_task *tk = &m.task[ti];
+    for (uint64_t va = lo; va < hi; va++) {
+        const uint8_t *want = NULL;
+        for (uint32_t i = 0; i < tk->nmap; i++) {
+            if (tk->map[i].va == va) {
+                const struct mm_page *g = &m.pg[tk->map[i].page];
+                want = k_page(NULL, m.frame[g->frame].slot, g->off);
+            }
+        }
+        if (seen_in(s, va) != want) {
+            fprintf(stderr, "  page %llx: mm's records and the kernel's differ\n",
+                    (unsigned long long)va);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* mm's pool in two frames, the first of `first` pages. Its free list is
+ * put in page order across both (as pages given back in order leave it),
+ * so a read fault's pages go on from one frame into the other. */
+static void two_frames(uint64_t first)
+{
+    pool_split = first;
+    mm_init(&m, &kops);
+    if (joist_frame_split(&k, root, POOL, first, POOL2) != JOIST_OK ||
+        mm_add_frame(&m, POOL, first) != MM_OK ||
+        mm_add_frame(&m, POOL2, POOL_PAGES - first) != MM_OK || mm_task_add(&m, TK, &t) != MM_OK) {
+        jt_fail(__FILE__, __LINE__, "mm could not be set up as written", 0);
+        return;
+    }
+    for (uint32_t p = 0; p < POOL_PAGES; p++) {
+        m.pg[p].next = p + 1u < POOL_PAGES ? p + 2u : 0;
+    }
+    m.free = 1;
+}
+
+JT_TEST(mm_read_fault_maps_its_pages_in_one_call)
+{
+    setup();
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 40, MM_W) == MM_OK);
+    JT_CHECK(mm_fault(&m, t, 0x402, MM_ACCESS_READ) == 1);
+    JT_CHECK(maps == 1); /* 16 pages, one run */
+    /* Unmapped, asked for and read again: the pages come back in order,
+     * still one run. */
+    JT_REQUIRE(mm_unmap(&m, t, 0x400, 40) == MM_OK);
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 40, MM_W) == MM_OK);
+    maps = 0;
+    JT_CHECK(mm_fault(&m, t, 0x400, MM_ACCESS_READ) == 1 && maps == 1);
+    for (uint64_t i = 0; i < MM_AROUND; i++) {
+        JT_CHECK(JOIST_PTE_OFF(pte(0x400 + i)) == i);
+    }
+    JT_CHECK(agrees(t, T, 0x3f0, 0x430) && clean());
+}
+
+JT_TEST(mm_runs_stop_at_a_frame)
+{
+    setup();
+    two_frames(3);
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 40, MM_W) == MM_OK);
+    JT_CHECK(mm_fault(&m, t, 0x400, MM_ACCESS_READ) == 1);
+    JT_CHECK(maps == 2); /* 3 pages in one frame, 13 in the other */
+    JT_CHECK(JOIST_PTE_FRAME(pte(0x402)) != JOIST_PTE_FRAME(pte(0x403)));
+    JT_CHECK(JOIST_PTE_OFF(pte(0x403)) == 0 && pte(0x40f) != 0 && pte(0x410) == 0);
+    JT_CHECK(agrees(t, T, 0x3f0, 0x430) && clean());
+}
+
+JT_TEST(mm_clone_runs_stop_at_gaps_permissions_and_spans)
+{
+    setup();
+    more_tasks();
+    /* Pages 0 and 1 at 0x400, 2 at 0x403: consecutive in the pool, not in
+     * the task. */
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 8, MM_W) == MM_OK);
+    JT_REQUIRE(mm_fault(&m, t, 0x400, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_fault(&m, t, 0x401, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_fault(&m, t, 0x403, MM_ACCESS_WRITE) == 1);
+    /* Pages 3 to 6 at 0x408: consecutive, but the child maps the first two
+     * read-only and the others executable. */
+    JT_REQUIRE(mm_map_anon(&m, t, 0x408, 2, MM_W) == MM_OK);
+    JT_REQUIRE(mm_map_anon(&m, t, 0x40a, 2, MM_X) == MM_OK);
+    JT_REQUIRE(mm_fault(&m, t, 0x408, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_fault(&m, t, 0x409, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_fault(&m, t, 0x40a, MM_ACCESS_READ) == 1); /* both */
+    /* Pages 7 to 10 across a table's span. */
+    JT_REQUIRE(mm_map_anon(&m, t, MM_SPAN - 2u, 4, MM_W) == MM_OK);
+    for (uint64_t va = MM_SPAN - 2u; va < MM_SPAN + 2u; va++) {
+        JT_REQUIRE(mm_fault(&m, t, va, MM_ACCESS_WRITE) == 1);
+    }
+    maps = 0;
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    JT_CHECK(maps == 6); /* 0-1, 2; 3-4, 5-6; 7-8, 9-10 */
+    JT_CHECK((pte_in(C, 0x409) & (JOIST_PTE_W | JOIST_PTE_X)) == 0);
+    JT_CHECK((pte_in(C, 0x40a) & JOIST_PTE_X) != 0 && (pte_in(C, 0x40a) & JOIST_PTE_W) == 0);
+    JT_CHECK(agrees(c, C, 0x3f0, 0x410) && agrees(c, C, MM_SPAN - 4u, MM_SPAN + 4u));
+    JT_CHECK(agrees(t, T, 0x3f0, 0x410) && agrees(t, T, MM_SPAN - 4u, MM_SPAN + 4u) && clean());
+}
+
+JT_TEST(mm_share_maps_runs_into_both)
+{
+    setup();
+    t_with_pages(); /* pages 0-3 at 0x400 */
+    maps = 0;
+    JT_REQUIRE(mm_share(&m, t, 0x400, 8, d, 0x900) == MM_OK);
+    JT_CHECK(maps == 2); /* T's 4 new pages, then D's 8 */
+    JT_CHECK(agrees(t, T, 0x3f0, 0x410) && agrees(d, D, 0x8f0, 0x910) && clean());
+}
+
+JT_TEST(mm_read_fault_run_fails_part_way)
+{
+    setup();
+    two_frames(3);
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 40, MM_W) == MM_OK);
+    /* The second run fails: the first is there, with the faulting page. */
+    map_fail = 2;
+    JT_CHECK(mm_fault(&m, t, 0x400, MM_ACCESS_READ) == 1);
+    JT_CHECK(pte(0x402) != 0 && pte(0x403) == 0 && m.task[t].nmap == 3);
+    JT_CHECK(m.nfree == POOL_PAGES - 3u && agrees(t, T, 0x3f0, 0x430) && clean());
+    /* The first fails: nothing is there, and the thread ends. */
+    maps = 0;
+    map_fail = 1;
+    JT_CHECK(mm_fault(&m, t, 0x410, MM_ACCESS_READ) == 0);
+    JT_CHECK(pte(0x410) == 0 && m.task[t].nmap == 3 && m.nfree == POOL_PAGES - 3u);
+    JT_CHECK(agrees(t, T, 0x3f0, 0x430) && clean());
+    /* And the next fault maps them. */
+    JT_CHECK(mm_fault(&m, t, 0x410, MM_ACCESS_READ) == 1 && pte(0x41f) != 0);
+    JT_CHECK(agrees(t, T, 0x3f0, 0x430) && clean());
+}
+
+JT_TEST(mm_clone_run_fails_part_way)
+{
+    setup();
+    more_tasks();
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 8, MM_W) == MM_OK);
+    JT_REQUIRE(mm_fault(&m, t, 0x400, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_fault(&m, t, 0x401, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_fault(&m, t, 0x403, MM_ACCESS_WRITE) == 1);
+    maps = 0;
+    map_fail = 2; /* the child's second run */
+    JT_CHECK(mm_clone(&m, t, c) == MM_E_KERNEL);
+    JT_CHECK(m.task[c].nmap == 2 && pte_in(C, 0x401) != 0 && pte_in(C, 0x403) == 0);
+    JT_CHECK(agrees(c, C, 0x3f0, 0x410) && clean());
+}
+
+JT_TEST(mm_share_run_fails_part_way)
+{
+    /* D's run fails: T's side is done, D has nothing. */
+    setup();
+    t_with_pages();
+    maps = 0;
+    map_fail = 2;
+    JT_CHECK(mm_share(&m, t, 0x402, 4, d, 0x900) == MM_E_KERNEL);
+    JT_CHECK(pte(0x405) != 0 && pte_in(D, 0x900) == 0 && m.task[d].nmap == 0);
+    JT_CHECK(agrees(t, T, 0x3f0, 0x410) && agrees(d, D, 0x8f0, 0x910) && clean());
+    /* T's run fails: its new pages are not there, nor in mm's records. */
+    setup();
+    t_with_pages();
+    uint32_t free_before = m.nfree;
+    maps = 0;
+    map_fail = 1;
+    JT_CHECK(mm_share(&m, t, 0x402, 4, d, 0x900) == MM_E_KERNEL);
+    JT_CHECK(pte(0x404) == 0 && m.task[t].nmap == 4 && m.nfree == free_before);
+    JT_CHECK(agrees(t, T, 0x3f0, 0x410) && agrees(d, D, 0x8f0, 0x910) && clean());
 }

@@ -280,6 +280,18 @@ mm-cow-copy-empty @@ ../servers/mm/mmlib.c @@ memcpy(bytes(m, (uint32_t)q), byte
 mm-cow-old-kept @@ ../servers/mm/mmlib.c @@     page_unref(m, p); @@     (void)0;
 mm-share-cow-kept @@ ../servers/mm/mmlib.c @@ } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u) { @@ } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u && 0) {
 mm-share-region-private @@ ../servers/mm/mmlib.c @@ tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = r.perms, .shared = 1}; @@ tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = r.perms, .shared = 0};
+# Phase 4 step 7, part E6: runs of pages mapped with one call.
+mm-run-past-a-frame @@ ../servers/mm/mmlib.c @@ p == r->p + r->n && m->pg[p].frame == m->pg[r->p].frame && perms == r->perms) { @@ p == r->p + r->n && perms == r->perms) {
+mm-run-across-perms @@ ../servers/mm/mmlib.c @@ p == r->p + r->n && m->pg[p].frame == m->pg[r->p].frame && perms == r->perms) { @@ p == r->p + r->n && m->pg[p].frame == m->pg[r->p].frame) {
+mm-run-across-a-span @@ ../servers/mm/mmlib.c @@ va == r->va + r->n && va / MM_SPAN == r->va / MM_SPAN && @@ va == r->va + r->n &&
+mm-run-across-a-gap @@ ../servers/mm/mmlib.c @@ va == r->va + r->n && va / MM_SPAN == r->va / MM_SPAN && @@ va / MM_SPAN == r->va / MM_SPAN &&
+mm-run-one-too-long @@ ../servers/mm/mmlib.c @@ g->off, r->n, m->task[r->t].slot, r->va, @@ g->off, r->n + 1u, m->task[r->t].slot, r->va,
+mm-run-one-too-short @@ ../servers/mm/mmlib.c @@ g->off, r->n, m->task[r->t].slot, r->va, @@ g->off, r->n - 1u, m->task[r->t].slot, r->va,
+mm-run-failed-kept @@ ../servers/mm/mmlib.c @@         run_undo(m, r); @@         (void)0;
+mm-run-fault-no-flush @@ ../servers/mm/mmlib.c @@     (void)run_flush(m, &run); @@     (void)0;
+mm-run-clone-no-flush @@ ../servers/mm/mmlib.c @@     return run_flush(m, &run); @@     return MM_OK;
+mm-run-share-no-flush @@ ../servers/mm/mmlib.c @@ return run_flush(m, &run); /* o's last run */ @@ return MM_OK;
+mm-unmap-frees-in-order @@ ../servers/mm/mmlib.c @@     for (uint32_t i = last; i-- > first;) { @@     for (uint32_t i = first; i < last; i++) {
 # Decision 0025: the fallback context.
 fb-taken-while-receiving @@ ../kernel/core/sched.c @@ r->state != JOIST_T_BLOCKED_RECV && r->state != JOIST_T_BLOCKED_WAIT) { @@ 1) {
 fb-kept-after-receive @@ ../kernel/core/sched.c @@ if (r->fb_sc != 0 && r->run_sc == r->fb_sc && r->sc_to == 0) { @@ if (0) {
