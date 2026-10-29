@@ -40,9 +40,19 @@
 enum { MM_OK = 0, MM_E_RANGE = 1, MM_E_NOMEM = 2, MM_E_STATE = 3, MM_E_KERNEL = 4 };
 
 /* Permissions, as the kernel's (JOIST_MAP_W, JOIST_MAP_X); a region with
- * neither may be read. */
+ * neither may be read. MM_NONE, alone: no access at all (PROT_NONE, and a
+ * guard page: 0024). The kernel maps nothing there and a fault ends the
+ * thread, but mm keeps the pages a region had: made accessible again, each
+ * is mapped back at its first fault, holding what it held (POSIX's
+ * mprotect). */
 #define MM_W 1u
 #define MM_X 2u
+#define MM_NONE 4u
+
+/* The kernel's errors mm tells apart (JOIST_E_*, J_E_*): a page mapped
+ * already (map), or not the old page (map_replace). */
+#define MM_KE_OCCUPIED 3
+#define MM_KE_STATE 13
 
 /* A fault's access, as the kernel's message gives it (JOIST_ACCESS_*). */
 #define MM_ACCESS_READ 0x1u
@@ -51,7 +61,8 @@ enum { MM_OK = 0, MM_E_RANGE = 1, MM_E_NOMEM = 2, MM_E_STATE = 3, MM_E_KERNEL = 
 #define MM_ACCESS_PRESENT 0x8u
 
 /* What mm needs of the kernel, all in its own space (slots are mm's). Each
- * returns 0 on success. page() gives mm's own view of one of its pages (in
+ * returns 0 on success, or the kernel's error (map and map_replace: mm
+ * tells MM_KE_OCCUPIED and MM_KE_STATE apart). page() gives mm's own view of one of its pages (in
  * the server, its mapping of the frame; on the host, simulated memory). */
 struct mm_kops {
     void *ctx;
@@ -66,7 +77,7 @@ struct mm_kops {
 
 struct mm_region {
     uint64_t va, n;    /* first page, pages; n == 0: unused */
-    unsigned perms;    /* MM_W, MM_X */
+    unsigned perms;    /* MM_W, MM_X, or MM_NONE alone */
     uint8_t shared;    /* shared with another task (mm_share): never COW */
 };
 

@@ -1,8 +1,15 @@
 # 0024 — `mm`: guard pages, and regions backed by a file
 
 Date: 2026-10-29
-Status: **proposed, awaiting the owner** (drafted at Phase 4's exit, item
-7 of `docs/phase4-plan.md`'s order of work; nothing here is built).
+Status: **accepted** (the owner, 2026-10-29), with two changes from the
+draft:
+- **Protecting to `MM_NONE` keeps the pages' contents**, as POSIX's
+  `mprotect` does, instead of freeing them. See *Accepted* below.
+- **A passive `mm` and a file server:** option 1, a helper thread.
+`MM_NONE` is built (Phase 4 step 7, part E7). File-backed regions are
+Phase 6's.
+(Drafted at Phase 4's exit, item 7 of `docs/phase4-plan.md`'s order of
+work.)
 Settles, if accepted: the plan's item 7, "the guard pages" and "the
 file-backed rule written down".
 Covers: 0007 (external memory objects as page-fault IPC), 0008 (`mm` owns
@@ -102,7 +109,43 @@ external memory object, reached by IPC) rather than zeroes:
   The refinement test's abstract machine gains files (a page's value is the
   file's until written).
 
-## Consequences, if accepted
+## Accepted (the owner, 2026-10-29)
+
+**1. Guard pages: `MM_NONE`, as proposed, except for what protecting to
+it does to pages already there.** The draft freed them. Then
+`mprotect(PROT_NONE)` followed by `mprotect(PROT_READ | PROT_WRITE)` would
+have lost the data, where POSIX keeps it, and JITs, garbage collectors and
+sanitizers rely on that.
+
+**What is built instead:**
+- **Protecting to `MM_NONE`** removes only the kernel's mappings (x86 has
+  no present entry that refuses reads). `mm` keeps the pages, their
+  references and its records.
+- **The region made accessible again:** each page is mapped back at its
+  first fault, holding what it held. The kernel reports such a fault as
+  *not present* while `mm`'s records have the page, which `mm` used to
+  take as "another thread's fault got there first".
+  - **`mm` now maps the page.** The kernel's `E_OCCUPIED` means another
+    thread did get there first, and the thread is resumed.
+  - **A COW page** comes back read-only, and copies at its first write.
+- **`cow_break` and a page the kernel doesn't map:** a `map_replace`
+  refused with `E_STATE`, the old page not mapped, falls back to a plain
+  `map` of the copy (SHARE of such a page).
+- **CLONE** keeps a no-access region's pages in the child, referenced
+  but not mapped.
+- **SHARE** refuses a no-access region.
+- **`mm_kops`'s `map` and `map_replace`** return the kernel's error instead
+  of 1, so `mm` can tell these two apart (`MM_KE_OCCUPIED`,
+  `MM_KE_STATE`).
+
+**2. File-backed regions: option 1.** A request that needs the file
+server is handed to a helper thread of `mm`'s (the reply saved with
+`reply_save`), which finishes the fault while `mm`'s main loop goes on. A
+slow or hostile file server then stalls only the faults on its own files.
+Its own scheduling context, or time lent through a second endpoint, is
+for Phase 6 to settle with the rest of file-backed regions.
+
+## Consequences
 
 - `MM_NONE` is a small change to `mmlib` (a permission, the fault rule, the
   protect rule) with its tests; nothing in the kernel.

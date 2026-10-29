@@ -114,7 +114,8 @@ static int bad_range(uint64_t va, uint64_t n)
 
 static int bad_perms(unsigned perms)
 {
-    return (perms & ~(MM_W | MM_X)) != 0 || perms == (MM_W | MM_X);
+    return (perms & ~(MM_W | MM_X | MM_NONE)) != 0 || perms == (MM_W | MM_X) ||
+           ((perms & MM_NONE) != 0 && perms != MM_NONE);
 }
 
 /* Pages being mapped into task t with one kernel call: consecutive pages
@@ -299,6 +300,9 @@ static int regions_cut(struct mm_task *tk, uint64_t va, uint64_t n)
     return MM_OK;
 }
 
+static int kernel_unmap(struct mm *m, struct mm_task *tk, uint64_t va, uint64_t n, uint32_t *last);
+static int unmap_pages(struct mm *m, struct mm_task *tk, uint64_t va, uint64_t n);
+
 int mm_unmap(struct mm *m, uint32_t t, uint64_t va, uint64_t n)
 {
     if (!task_ok(m, t)) {
@@ -312,20 +316,40 @@ int mm_unmap(struct mm *m, uint32_t t, uint64_t va, uint64_t n)
     if (e != MM_OK) {
         return e;
     }
-    /* The kernel first, a table's span at a time where anything is mapped;
-     * then the pages, so none is free while still mapped. */
-    uint32_t first = map_from(tk, va);
-    uint32_t last = first;
-    while (last < tk->nmap && tk->map[last].va < va + n) {
-        uint64_t lo = tk->map[last].va;
+    return unmap_pages(m, tk, va, n);
+}
+
+/* The kernel's mappings of task tk's pages in [va, va + n) removed, a
+ * table's span at a time where mm has pages; mm's records stay. The index
+ * past the range's records in *last, if last isn't NULL. */
+static int kernel_unmap(struct mm *m, struct mm_task *tk, uint64_t va, uint64_t n, uint32_t *last)
+{
+    uint32_t i = map_from(tk, va);
+    while (i < tk->nmap && tk->map[i].va < va + n) {
+        uint64_t lo = tk->map[i].va;
         uint64_t chunk_end = (lo / MM_SPAN + 1u) * MM_SPAN;
         uint64_t hi = chunk_end < va + n ? chunk_end : va + n;
         if (m->k.unmap(m->k.ctx, tk->slot, lo, hi - lo) != 0) {
             return MM_E_KERNEL;
         }
-        while (last < tk->nmap && tk->map[last].va < hi) {
-            last++;
+        while (i < tk->nmap && tk->map[i].va < hi) {
+            i++;
         }
+    }
+    if (last != NULL) {
+        *last = i;
+    }
+    return MM_OK;
+}
+
+/* The pages task tk has in [va, va + n) unmapped and given back: the
+ * kernel first, then the pages, so none is free while still mapped. */
+static int unmap_pages(struct mm *m, struct mm_task *tk, uint64_t va, uint64_t n)
+{
+    uint32_t first = map_from(tk, va);
+    uint32_t last;
+    if (kernel_unmap(m, tk, va, n, &last) != MM_OK) {
+        return MM_E_KERNEL;
     }
     /* The last first, so the free list gives them back in order: pages
      * taken together again are a run in their frame (one map call). */
@@ -393,6 +417,12 @@ int mm_protect(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perms
             break;
         }
     }
+    /* No access: the kernel's mappings go (x86 has no present entry that
+     * refuses reads); mm keeps the pages, mapped again at their first
+     * fault once the range is accessible. */
+    if (perms == MM_NONE) {
+        return kernel_unmap(m, tk, va, n, NULL);
+    }
     /* The mapped pages: runs of the same permissions within one span. */
     uint32_t i = map_from(tk, va);
     while (i < tk->nmap && tk->map[i].va < va + n) {
@@ -428,8 +458,14 @@ static int cow_break(struct mm *m, uint32_t t, uint32_t mi, unsigned perms)
     memcpy(bytes(m, (uint32_t)q), bytes(m, p), PAGE_BYTES);
     const struct mm_page *gq = &m->pg[q];
     const struct mm_page *gp = &m->pg[p];
-    if (m->k.map_replace(m->k.ctx, m->frame[gq->frame].slot, gq->off, tk->slot, tk->map[mi].va,
-                         perms, m->frame[gp->frame].slot, gp->off) != 0) {
+    int e = m->k.map_replace(m->k.ctx, m->frame[gq->frame].slot, gq->off, tk->slot,
+                             tk->map[mi].va, perms, m->frame[gp->frame].slot, gp->off);
+    if (e == MM_KE_STATE) {
+        /* Not mapped (its range was of no access since): map the copy. */
+        e = m->k.map(m->k.ctx, m->frame[gq->frame].slot, gq->off, 1, tk->slot, tk->map[mi].va,
+                     perms);
+    }
+    if (e != 0) {
         page_unref(m, (uint32_t)q);
         return MM_E_KERNEL;
     }
@@ -483,6 +519,9 @@ int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
         return 0; /* outside every region */
     }
     const struct mm_region *r = &tk->reg[ri];
+    if (r->perms == MM_NONE) {
+        return 0; /* a guard: no access */
+    }
     int write = (access & MM_ACCESS_WRITE) != 0;
     if ((write && (r->perms & MM_W) == 0) || ((access & MM_ACCESS_EXEC) && (r->perms & MM_X) == 0)) {
         return 0; /* not allowed by the region */
@@ -491,12 +530,21 @@ int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
     if (mi < 0) {
         return demand_zero(m, t, r, va, write);
     }
-    if (!write || (access & MM_ACCESS_PRESENT) == 0) {
+    uint32_t p = tk->map[mi].page;
+    if ((access & MM_ACCESS_PRESENT) == 0) {
+        /* mm has the page but the kernel doesn't map it: another thread's
+         * fault got there first (the map finds it there), or its range was
+         * of no access since. A COW page goes back read-only; a write then
+         * faults again, and copies. */
+        int e = m->k.map(m->k.ctx, m->frame[m->pg[p].frame].slot, m->pg[p].off, 1, tk->slot, va,
+                         page_perms(m, p, r->perms, r->shared));
+        return e == 0 || e == MM_KE_OCCUPIED;
+    }
+    if (!write) {
         return 1; /* another thread's fault got there first */
     }
     /* A write to a page that is there but not writable: in a private
      * region, a COW share (copy it, unless this is its last reference). */
-    uint32_t p = tk->map[mi].page;
     if (!r->shared && m->pg[p].refs > 1u) {
         return cow_break(m, t, (uint32_t)mi, r->perms) == MM_OK;
     }
@@ -551,6 +599,9 @@ int mm_clone(struct mm *m, uint32_t parent, uint32_t child)
         unsigned perms = r->shared ? r->perms : r->perms & ~MM_W;
         ct->map[ct->nmap++] = *e;
         m->pg[e->page].refs++;
+        if (perms == MM_NONE) {
+            continue; /* kept, as in the parent, but not mapped */
+        }
         if (run_add(m, &run, child, e->va, e->page, perms) != MM_OK) {
             return MM_E_KERNEL;
         }
@@ -573,6 +624,9 @@ int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint
         return MM_E_STATE; /* not within one of t's regions */
     }
     const struct mm_region r = tk->reg[ri];
+    if (r.perms == MM_NONE) {
+        return MM_E_STATE; /* no pages to share */
+    }
     unsigned ofree = 0;
     for (unsigned i = 0; i < MM_REGIONS; i++) {
         const struct mm_region *q = &ok->reg[i];

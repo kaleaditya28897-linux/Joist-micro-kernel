@@ -1314,3 +1314,47 @@ or refuse.
   each caught); `mmroot` (emulated, `kvm-smp2`, `chk-kvm-smp2`), `cow3`,
   `kvm-smp2-cowstress` (20 rounds: 279 forks, 37 kills mid-fork, `mm`
   stranded 0) and `chk-kvm-smp2-cow3`; `make -C model check` (244 tests under plain, asan, ubsan, msan, tsan and small).
+
+### Step 7, part E7: `MM_NONE`, guard pages (decision 0024, 2026-10-29)
+
+- **The owner accepted 0024**, with two changes from the draft:
+  - protecting to `MM_NONE` keeps the pages' contents, as `mprotect`
+    does;
+  - file servers get a helper thread (option 1, for Phase 6).
+- **The code** (`servers/mm/mmlib.c`):
+  - **The permission:** `MM_NONE`, alone (`MM_NONE | MM_W` and
+    `MM_NONE | MM_X` are refused).
+  - **A fault** in a no-access region ends the thread.
+  - **Protecting to it** removes the kernel's mappings only
+    (`kernel_unmap`, split out of `mm_unmap`).
+  - **A not-present fault on a page `mm` has** maps it back, with
+    `E_OCCUPIED` meaning another thread's fault got there first.
+  - **`cow_break`** falls back to a plain `map` when `map_replace` finds
+    no old page.
+  - **CLONE** keeps a no-access region's pages unmapped in the child.
+  - **SHARE** refuses such a region.
+  - **The kernel's errors:** `mm_kops`'s `map` and `map_replace` return
+    them, and `mm.c` and the tests check that `MM_KE_OCCUPIED` and
+    `MM_KE_STATE` match `J_E_*` and `JOIST_E_*`.
+- **The tests:**
+  - **Host** (`model/test/test_mm.c`):
+    - every access refused, and the region never mapped over;
+    - a round trip to `MM_NONE` and back keeps the contents, with
+      another thread's fault resumed;
+    - a clone keeps such pages, then copies one on write;
+    - SHARE copies a COW page the kernel doesn't map.
+  - **`mmroot`'s guard page** (`MMC_GUARD`), on the real kernel:
+    - the round trip keeps the contents;
+    - the guard can't be mapped over;
+    - touching it ends the thread.
+  - **Mutants:** nine, `mm-none-*` in `model/test/mutations.txt`.
+- **Verified** (the build VM):
+  - the host tests (247);
+  - the nine `mm-none-*` mutants, each caught. The first run found two
+    gaps, now closed:
+    - a fault in a no-access region served anyway was refused only by the
+      kernel; the tests now require `mm` to refuse it without a kernel call;
+    - a failed re-map resumed rather than ended had no test; it does now.
+  - `mmroot` (emulated, `kvm-smp2`, `chk-kvm-smp2`, with the guard page);
+  - `cow3`, `kvm-smp2-cowstress` and `kvm-smp4-cowstress` (20 rounds,
+    `mm` stranded 0), `chk-kvm-smp2-cow3`.

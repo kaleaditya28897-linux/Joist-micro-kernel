@@ -273,7 +273,7 @@ run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 # the child destroyed and forgotten), SHARE only with the target's consent
 # and kept across a clone, refused clones undone, a child still pending
 # when its parent goes destroyed with it.
-run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" \
+run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" "mm: guard page ok" \
     "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: orphans ok" "mm: all ok" "root task exited with code 0"
 run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"

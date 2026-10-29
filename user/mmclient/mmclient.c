@@ -427,6 +427,42 @@ static uint64_t full_test(struct work *w)
     return check(0, 4, 1) == 0 ? 0 : 12;
 }
 
+/* MMC_GUARD (0024): its pages made of no access and accessible again hold
+ * what they held; a guard below them can't be mapped over; then it
+ * touches the guard, and mm ends the thread. */
+static uint64_t guard(struct work *w)
+{
+    uint64_t va = MMC_VA / J_PAGE;
+    if (req(MM_REQ_MAP_ANON, va + 1u, 4, MM_W) != MM_OK) {
+        return 1;
+    }
+    for (uint64_t i = 1; i <= 4; i++) {
+        page(i)[0] = val(i, 0);
+    }
+    if (req(MM_REQ_PROTECT, va + 2u, 2, MM_NONE) != MM_OK ||
+        req(MM_REQ_PROTECT, va + 2u, 2, MM_W) != MM_OK) {
+        return 2;
+    }
+    for (uint64_t i = 1; i <= 4; i++) {
+        if (page(i)[0] != val(i, 0)) {
+            return 3; /* lost while of no access */
+        }
+    }
+    page(3)[1] = 5; /* and writable again */
+    if (req(MM_REQ_MAP_ANON, va, 1, MM_NONE) != MM_OK) {
+        return 4;
+    }
+    if (req(MM_REQ_MAP_ANON, va, 1, MM_W) != MM_E_STATE) {
+        return 5; /* mapped over the guard */
+    }
+    if (req(MM_REQ_MAP_ANON, va + 8u, 1, MM_NONE | MM_W) != MM_E_RANGE) {
+        return 6;
+    }
+    w->aux = 1;
+    w->arg = page(0)[0]; /* the guard: mm ends the thread */
+    return 7;
+}
+
 #define ORPHAN_PAGES 8u
 
 /* MMC_ORPHAN: a fork cancelled, and confirmations refused (another task's
@@ -851,6 +887,10 @@ void _start(void)
         break;
     case MMC_ORPHAN:
         w->arg = orphan_test(w);
+        break;
+    case MMC_GUARD:
+        w->arg = 0;
+        w->arg = guard(w);
         break;
     case MMC_CHILD:
         child(w);

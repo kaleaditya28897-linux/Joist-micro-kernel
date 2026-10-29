@@ -331,6 +331,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_basic();
     test_ended(MMC_RO_WRITE, "read-only write");
     test_ended(MMC_OUTSIDE, "outside");
+    test_ended(MMC_GUARD, "guard page");
     test_fork();
     test_share();
     test_clone_full();

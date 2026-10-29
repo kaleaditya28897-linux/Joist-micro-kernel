@@ -54,8 +54,10 @@ enum {
     MMC_CHILD,      /* a child: does what its parent posts in its work page (MMC_C_*) */
     MMC_BENCH,      /* mm's costs, timed (TSC): faults, a request, protect, SHARE, clones of
                      * up to arg pages; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
-    MMC_ORPHAN      /* a fork cancelled; then it exits with one child confirmed and one
+    MMC_ORPHAN,     /* a fork cancelled; then it exits with one child confirmed and one
                      * pending: mm destroys the pending one with it, serves the other */
+    MMC_GUARD       /* MM_NONE (0024): pages made of no access and back keep what they held;
+                     * a guard can't be mapped over, and a touch ends the thread */
 };
 #define MMC_B 100u
 enum {

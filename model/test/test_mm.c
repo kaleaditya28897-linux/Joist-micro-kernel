@@ -46,22 +46,24 @@ static void *page(void *ctx, uint64_t pfn)
 /* mm's map calls, counted; the one numbered map_fail (from 1) fails, as
  * the kernel would, changing nothing. */
 static unsigned maps, map_fail;
+_Static_assert(MM_KE_OCCUPIED == JOIST_E_OCCUPIED && MM_KE_STATE == JOIST_E_STATE,
+               "mmlib's copies of the kernel's errors");
 
 static int k_map(void *ctx, uint32_t fs, uint64_t off, uint64_t n, uint32_t ts, uint64_t va,
                  unsigned perms)
 {
     (void)ctx;
     if (++maps == map_fail) {
-        return 1;
+        return JOIST_E_NOMEM;
     }
-    return joist_map(&k, root, fs, off, n, ts, va, perms) != JOIST_OK;
+    return (int)joist_map(&k, root, fs, off, n, ts, va, perms);
 }
 
 static int k_map_replace(void *ctx, uint32_t fs, uint64_t off, uint32_t ts, uint64_t va,
                          unsigned perms, uint32_t ofs, uint64_t ooff)
 {
     (void)ctx;
-    return joist_map_replace(&k, root, fs, off, 1, ts, va, perms, ofs, ooff) != JOIST_OK;
+    return (int)joist_map_replace(&k, root, fs, off, 1, ts, va, perms, ofs, ooff);
 }
 
 static int k_unmap(void *ctx, uint32_t ts, uint64_t va, uint64_t n)
@@ -243,7 +245,7 @@ JT_TEST(mm_map_anon_refusals)
     JT_CHECK(mm_map_anon(&m, t, 0x408, 0, MM_W) == MM_E_RANGE);
     JT_CHECK(mm_map_anon(&m, t, UINT64_MAX, 2, MM_W) == MM_E_RANGE);
     JT_CHECK(mm_map_anon(&m, t, 0x408, 1, MM_W | MM_X) == MM_E_RANGE); /* W^X */
-    JT_CHECK(mm_map_anon(&m, t, 0x408, 1, 0x4u) == MM_E_RANGE);
+    JT_CHECK(mm_map_anon(&m, t, 0x408, 1, 0x8u) == MM_E_RANGE); /* unknown */
     JT_CHECK(mm_map_anon(&m, t + 1u, 0x408, 1, MM_W) == MM_E_STATE); /* not served */
     for (unsigned i = 1; i < MM_REGIONS; i++) {
         JT_REQUIRE(mm_map_anon(&m, t, 0x1000u + 16u * i, 4, 0) == MM_OK);
@@ -636,4 +638,90 @@ JT_TEST(mm_share_run_fails_part_way)
     JT_CHECK(mm_share(&m, t, 0x402, 4, d, 0x900) == MM_E_KERNEL);
     JT_CHECK(pte(0x404) == 0 && m.task[t].nmap == 4 && m.nfree == free_before);
     JT_CHECK(agrees(t, T, 0x3f0, 0x410) && agrees(d, D, 0x8f0, 0x910) && clean());
+}
+
+/* ---- MM_NONE: no access, and guard pages (0024) ---- */
+
+JT_TEST(mm_none_refuses_every_access_and_cannot_be_mapped_over)
+{
+    setup();
+    more_tasks();
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 4, MM_NONE) == MM_OK);
+    maps = 0;
+    for (uint64_t va = 0x400; va < 0x404; va++) {
+        JT_CHECK(mm_fault(&m, t, va, MM_ACCESS_READ) == 0);
+        JT_CHECK(mm_fault(&m, t, va, MM_ACCESS_WRITE) == 0);
+        JT_CHECK(mm_fault(&m, t, va, MM_ACCESS_EXEC) == 0);
+        JT_CHECK(pte(va) == 0);
+    }
+    JT_CHECK(m.nfree == POOL_PAGES && maps == 0); /* nothing taken, nothing asked of the kernel */
+    /* A guard stays: nothing is mapped over it. */
+    JT_CHECK(mm_map_anon(&m, t, 0x402, 1, MM_W) == MM_E_STATE);
+    /* Alone only. */
+    JT_CHECK(mm_map_anon(&m, t, 0x500, 1, MM_NONE | MM_W) == MM_E_RANGE);
+    JT_CHECK(mm_map_anon(&m, t, 0x500, 1, MM_NONE | MM_X) == MM_E_RANGE);
+    JT_CHECK(mm_protect(&m, t, 0x400, 1, MM_NONE | MM_W) == MM_E_RANGE);
+    JT_CHECK(mm_share(&m, t, 0x400, 2, d, 0x900) == MM_E_STATE); /* no pages to share */
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_protect_none_and_back_keeps_the_contents)
+{
+    setup();
+    t_with_pages();
+    uint32_t free_before = m.nfree;
+    JT_REQUIRE(mm_protect(&m, t, 0x401, 2, MM_NONE) == MM_OK);
+    JT_CHECK(pte(0x400) != 0 && pte(0x401) == 0 && pte(0x402) == 0 && pte(0x403) != 0);
+    JT_CHECK(m.nfree == free_before && m.task[t].nmap == 4); /* mm keeps them */
+    maps = 0;
+    JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_READ) == 0);
+    JT_CHECK(mm_fault(&m, t, 0x402, MM_ACCESS_WRITE) == 0);
+    JT_CHECK(maps == 0 && clean()); /* refused by mm, not by the kernel */
+    /* Back: mapped again at the first fault, holding what they held. */
+    JT_REQUIRE(mm_protect(&m, t, 0x401, 2, MM_W) == MM_OK);
+    JT_CHECK(pte(0x401) == 0);
+    /* The kernel refusing (not "already there"): the thread is ended, not
+     * resumed to fault again for ever; the page is kept. */
+    maps = 0;
+    map_fail = 1;
+    JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_READ) == 0);
+    JT_CHECK(pte(0x401) == 0 && m.task[t].nmap == 4);
+    map_fail = 0;
+    JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_READ) == 1);
+    JT_CHECK(seen(0x401) != NULL && seen(0x401)[0] == 0x12u && (pte(0x401) & JOIST_PTE_W) != 0);
+    JT_CHECK(mm_fault(&m, t, 0x402, MM_ACCESS_WRITE) == 1);
+    JT_CHECK(seen(0x402) != NULL && seen(0x402)[0] == 0x13u);
+    /* Another thread's fault on a page mapped since: resumed. */
+    JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_READ) == 1);
+    JT_CHECK(m.nfree == free_before && clean());
+}
+
+JT_TEST(mm_none_pages_kept_across_a_clone_then_copied_on_write)
+{
+    setup();
+    t_with_pages();
+    JT_REQUIRE(mm_protect(&m, t, 0x400, 4, MM_NONE) == MM_OK);
+    uint32_t free_before = m.nfree;
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    JT_CHECK(pte_in(C, 0x400) == 0 && m.task[c].nmap == 4 && m.nfree == free_before);
+    JT_CHECK(mm_fault(&m, c, 0x400, MM_ACCESS_READ) == 0);
+    JT_CHECK(clean());
+    /* The child makes them accessible: shared until written. */
+    JT_REQUIRE(mm_protect(&m, c, 0x400, 4, MM_W) == MM_OK);
+    JT_CHECK(mm_fault(&m, c, 0x401, MM_ACCESS_WRITE) == 1); /* back, read-only: shared */
+    JT_CHECK(seen_in(C, 0x401)[0] == 0x12u && (pte_in(C, 0x401) & JOIST_PTE_W) == 0);
+    JT_CHECK(mm_fault(&m, c, 0x401, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == 1); /* copied */
+    JT_CHECK(m.nfree == free_before - 1u && (pte_in(C, 0x401) & JOIST_PTE_W) != 0);
+    seen_in(C, 0x401)[0] = 0x77u;
+    /* The parent's is as it was; and SHARE copies a COW page the kernel
+     * doesn't map (the parent's range made accessible, never faulted). */
+    JT_REQUIRE(mm_protect(&m, t, 0x400, 4, MM_W) == MM_OK);
+    JT_CHECK(pte(0x400) == 0);
+    JT_CHECK(mm_share(&m, t, 0x400, 2, d, 0x900) == MM_OK);
+    JT_CHECK(seen(0x400) != NULL && seen(0x400)[0] == 0x11u);
+    JT_CHECK(seen_in(D, 0x900)[0] == 0x11u && seen_in(D, 0x901)[0] == 0x12u);
+    JT_CHECK(seen_in(C, 0x401)[0] == 0x77u);
+    JT_CHECK(pte(0x401) == 0); /* its last reference: nothing to copy, mapped at its fault */
+    JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_READ) == 1 && seen(0x401)[0] == 0x12u);
+    JT_CHECK(clean());
 }

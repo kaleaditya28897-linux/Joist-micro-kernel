@@ -50,18 +50,21 @@ static uint64_t pending[MM_MAX_TASKS];
 
 /* ---- the kernel, for mmlib ---- */
 
+_Static_assert(MM_KE_OCCUPIED == J_E_OCCUPIED && MM_KE_STATE == J_E_STATE,
+               "mmlib's copies of the kernel's errors");
+
 static int k_map(void *ctx, uint32_t frame, uint64_t off, uint64_t n, uint32_t task, uint64_t va,
                  unsigned perms)
 {
     (void)ctx;
-    return j_map_run(frame, off, n, task, va, perms) == J_OK ? 0 : 1;
+    return (int)j_map_run(frame, off, n, task, va, perms); /* J_OK is 0 */
 }
 
 static int k_map_replace(void *ctx, uint32_t frame, uint64_t off, uint32_t task, uint64_t va,
                          unsigned perms, uint32_t old_frame, uint64_t old_off)
 {
     (void)ctx;
-    return j_map_replace(frame, off, 1, task, va, perms, old_frame, old_off) == J_OK ? 0 : 1;
+    return (int)j_map_replace(frame, off, 1, task, va, perms, old_frame, old_off);
 }
 
 static int k_unmap(void *ctx, uint32_t task, uint64_t va, uint64_t n)
@@ -408,7 +411,7 @@ static void handle(const struct j_msg *in, struct j_msg *out)
         return;
     }
     uint32_t t = (uint32_t)(b - 1u);
-    if ((r0 == MM_REQ_MAP_ANON || r0 == MM_REQ_PROTECT) && in->r[3] > (MM_W | MM_X)) {
+    if ((r0 == MM_REQ_MAP_ANON || r0 == MM_REQ_PROTECT) && in->r[3] > (MM_W | MM_X | MM_NONE)) {
         out->r[0] = MM_E_RANGE;
         return;
     }

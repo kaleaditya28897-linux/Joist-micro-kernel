@@ -292,6 +292,16 @@ mm-run-fault-no-flush @@ ../servers/mm/mmlib.c @@     (void)run_flush(m, &run); 
 mm-run-clone-no-flush @@ ../servers/mm/mmlib.c @@     return run_flush(m, &run); @@     return MM_OK;
 mm-run-share-no-flush @@ ../servers/mm/mmlib.c @@ return run_flush(m, &run); /* o's last run */ @@ return MM_OK;
 mm-unmap-frees-in-order @@ ../servers/mm/mmlib.c @@     for (uint32_t i = last; i-- > first;) { @@     for (uint32_t i = first; i < last; i++) {
+# Decision 0024: MM_NONE (no access; guard pages).
+mm-none-faults-served @@ ../servers/mm/mmlib.c @@         return 0; /* a guard: no access */ @@         ; /* mutated */
+mm-none-with-w @@ ../servers/mm/mmlib.c @@ ((perms & MM_NONE) != 0 && perms != MM_NONE); @@ 0;
+mm-none-protect-frees @@ ../servers/mm/mmlib.c @@         return kernel_unmap(m, tk, va, n, NULL); @@         return unmap_pages(m, tk, va, n);
+mm-none-protect-keeps-mapped @@ ../servers/mm/mmlib.c @@         return kernel_unmap(m, tk, va, n, NULL); @@         ; /* mutated */
+mm-none-refault-resumes @@ ../servers/mm/mmlib.c @@         return e == 0 || e == MM_KE_OCCUPIED; @@         return e != -1;
+mm-none-refault-cow-writable @@ ../servers/mm/mmlib.c @@                          page_perms(m, p, r->perms, r->shared)); @@                          r->perms);
+mm-none-cow-no-fallback @@ ../servers/mm/mmlib.c @@     if (e == MM_KE_STATE) { @@     if (0) {
+mm-none-clone-maps @@ ../servers/mm/mmlib.c @@             continue; /* kept, as in the parent, but not mapped */ @@             ; /* mutated */
+mm-none-shared @@ ../servers/mm/mmlib.c @@         return MM_E_STATE; /* no pages to share */ @@         ; /* mutated */
 # Decision 0025: the fallback context.
 fb-taken-while-receiving @@ ../kernel/core/sched.c @@ r->state != JOIST_T_BLOCKED_RECV && r->state != JOIST_T_BLOCKED_WAIT) { @@ 1) {
 fb-kept-after-receive @@ ../kernel/core/sched.c @@ if (r->fb_sc != 0 && r->run_sc == r->fb_sc && r->sc_to == 0) { @@ if (0) {
