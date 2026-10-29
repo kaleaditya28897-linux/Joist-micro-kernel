@@ -271,9 +271,10 @@ run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 # thread, and every task forgotten and its pages back once it is destroyed;
 # part D2: a fork through mm's CLONE (each side sees only its own writes,
 # the child destroyed and forgotten), SHARE only with the target's consent
-# and kept across a clone, refused clones undone.
+# and kept across a clone, refused clones undone, a child still pending
+# when its parent goes destroyed with it.
 run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" \
-    "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: all ok" "root task exited with code 0"
+    "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: orphans ok" "mm: all ok" "root task exited with code 0"
 run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 # Phase 4's exit (docs/phase4-plan.md, *Testing*): cowstress, fork trees

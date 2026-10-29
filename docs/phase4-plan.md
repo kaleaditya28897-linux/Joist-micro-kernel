@@ -1117,10 +1117,11 @@ or refuse.
   3. The measurements (`docs/phase4-data/`): step 3's fault path, step 7's
      `mm` figures, on the P53: ___.
   4. Decided on the way: the fused reply ___, guard pages ___, the
-     file-backed rule ___.
+     file-backed rule ___, orphaned children (a fork confirmed, 0023's
+     amendment) ___.
   5. Open, carried to later phases: the passive `mm` stranded by a kill
-     ___; orphaned children of a killed parent ___; CBMC for `obj_kill`
-     and `cap_delete` from states with mapped frames ___; the
+     ___; CBMC for `obj_kill` and `cap_delete` from states with mapped
+     frames ___; the
      `map-sweep-skips-top` mutation caught only by I12 ___; the `smp4-smp`
      emulated flake ___; the region capability (item 8) ___; `mm`
      restartable (Phase 9) ___.
@@ -1211,3 +1212,45 @@ or refuse.
   UEFI.
 - **Layers 2 and 3** (the `live-bootstrap` GCC, then DDC of Clang and lld)
   are next. The VM now has the disk for them.
+
+### Step 7, part E5: orphaned children (0023's amendment, 2026-10-29)
+
+- **The problem** (E1): a task killed between its CLONE and starting its
+  child left a child with no thread that only `mm` names. Its badge never
+  goes, so nothing destroys it, and `cowstress` reaped them by hand.
+- **The owner's choice: a fork is confirmed** (`docs/decisions/0023`,
+  amendment "a fork is confirmed, and an orphan goes with its parent").
+  - `MM_REQ_CLONE`'s child is pending until its parent sends
+    `MM_REQ_CLONE_DONE` (keep, or cancel to destroy it at once).
+  - A parent collected with a child still pending takes the child with
+    it, in the same collection.
+- **The code:**
+  - `servers/mm/mm.c`: `pending[]` (each child's parent's id), `clone_done`,
+    and collection destroying a gone parent's pending children.
+  - `mm_proto.h`: `MM_REQ_CLONE_DONE`, `MM_CLONE_KEEP`, `MM_CLONE_CANCEL`.
+  - `mmclient` and `cowworker` confirm each fork once the root has started
+    the child.
+- **The tests:**
+  - **`mmroot`, the orphans test** (`MMC_ORPHAN`):
+    - a cancelled fork is destroyed;
+    - confirmations of another task's id, a stale generation, an unknown
+      `how`, a child twice, or by a child for its sibling are refused;
+    - a pending child the parent destroyed itself leaves no link: the
+      client the root adopts into its index survives the parent;
+    - the parent exits with one child confirmed and one pending, and the
+      root destroys it. The pending child goes, the confirmed one is still
+      served, and its pages are now its alone (its writes copy nothing).
+  - **`cowstress`** no longer reaps. It checks:
+    - after every step, that `mm` serves exactly the live tasks;
+    - at the end of each round, that no task but `mm` is under the root.
+- **Verified** (the build VM): `mmroot` (emulated, `kvm-smp2`,
+  `chk-kvm-smp2`), `cow3`, `kvm-smp2-cowstress` and `kvm-smp4-cowstress`
+  (20 rounds: 279 forks, 37 kills mid-fork, no orphan left, `mm` stranded
+  0), `chk-kvm-smp2-cow3`.
+- **Mutants of `mm`** (`mmroot` and `cow3`), each caught:
+  - a gone parent's pending children not destroyed;
+  - cancel not destroying;
+  - any task confirming any pending child;
+  - keep leaving the child pending;
+  - a clone never pending;
+  - a new task keeping an old pending link.

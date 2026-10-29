@@ -216,6 +216,70 @@ has no call that compares two capabilities' objects, and adding one is a
 kernel change for one server's sake); a capability to `mm` per pair of
 tasks (unbounded badges).
 
+## Amendment (2026-10-29, accepted by the owner): a fork is confirmed, and an orphan goes with its parent
+
+**The problem** (found by `cowstress`, Phase 4 step 7 part E1):
+- **What happens:** a task killed between its `MM_REQ_CLONE` and starting
+  its child's thread leaves a child with no thread. Only `mm`'s slot names
+  it (and the parent's copy, swept with the parent).
+- **Why nothing destroys it:** the child's own `MM_SLOT` holds the last
+  sender of its badge, so the badge never goes, and `mm` never forgets it.
+- **The same happens** when the reply's task capability can't be placed,
+  or when the parent can't start the child.
+- **Today:** `cowstress` reaped them by hand, with `task_descendant` and
+  `task_reap` from the root (37 in 20 rounds). In general an ancestor
+  could reap, but it can't tell such a child from one that runs.
+
+**The change (the owner's choice):**
+- **`MM_REQ_CLONE`'s child is pending.** `mm` records its parent's id.
+- **`MM_REQ_CLONE_DONE`** (child's id, `MM_CLONE_KEEP` or
+  `MM_CLONE_CANCEL`), from the parent, through its own badge:
+  - **keep:** the fork finished, so its child's thread runs. The child is
+    an ordinary task from then on, and outlives its parent like any other.
+  - **cancel:** `mm` destroys the child at once, on the caller's time. For
+    a spawn that failed, or a reply whose capability didn't arrive (the id
+    is in the reply's registers either way).
+  - **Anything else is refused** (`MM_E_STATE`): an id that isn't a
+    pending child of the caller's (another task's, a stale generation,
+    confirmed or cancelled already), and `MM_E_RANGE` for another
+    `how`.
+- **A parent collected with a child still pending takes the child with
+  it.** `mm` destroys the child in the same collection. Its badge then has
+  no sender, and the same loop collects it. A fork that wasn't confirmed
+  never happened, the way glibc's `fork` destroys a child it couldn't
+  finish (a killed parent just can't do it itself).
+- **When to confirm:** only once the child's thread can run (in the
+  tests, after the root started it). A confirmation sent earlier would
+  leave the same orphan if the parent died before the start.
+
+**Bounds and costs:**
+- **The records:** one id per task (`MM_MAX_TASKS`).
+- **The work:** a collection destroys at most `MM_MAX_TASKS` children, each
+  destruction finished there, on the time of whoever's message ran the
+  collection (as `unmake` already does on a refused CLONE).
+- **The price:** one more call per fork.
+
+**Rejected:**
+- **The child's first message ends its pending:** no extra call, but
+  whether a child survives a parent killed mid-fork would depend on timing.
+- **CLONE spawns the thread itself:** atomic, but it reworks `CLONE`, and
+  `mm` would do more on the caller's time.
+- **The ancestor reaps:** it can't tell an orphan from a child that runs.
+
+**Tested:**
+- **`mmroot`'s orphans test:**
+  - a cancelled fork is destroyed;
+  - confirmations of another task's id, a stale generation, the same
+    child twice, or a sibling's child are refused;
+  - a pending child its parent destroyed leaves no link behind: the task
+    that takes its index next survives the parent;
+  - a parent exits with one child confirmed and one pending, and the root
+    destroys it. The pending child goes with it, and the confirmed one is
+    still served, its pages now its alone (writes copy nothing).
+- **`cowstress`:** it now expects `mm` to serve exactly the live tasks
+  after every step, and no task but `mm` under the root at the end of a
+  round. It no longer reaps.
+
 ## Priority check
 
 - **Reliability first:** `mm`'s records are bounded at build time; a task's

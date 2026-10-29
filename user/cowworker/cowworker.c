@@ -66,7 +66,8 @@ static void helper_wait(void)
 static unsigned nkids;
 
 /* A child: CLONE, the capabilities below MMC_COPY_END copied, its thread
- * spawned, then the root asked to start it. */
+ * spawned, the root asked to start it, then the fork confirmed to mm. A
+ * kill before the confirmation takes the child with this task. */
 static uint64_t fork_kid(void)
 {
     if (nkids == MMC_KIDS) {
@@ -90,6 +91,7 @@ static uint64_t fork_kid(void)
     if (m.r[0] != MM_OK || J_CAPS_COUNT(m.caps) != 1 || J_CAPS_SLOT(m.caps, 0) != task) {
         return COW_E_FAILED | 3u << 8 | m.r[0] << 16;
     }
+    uint64_t id = m.r[1];
     uint64_t first = 0;
     while (first < MMC_COPY_END) {
         uint64_t done;
@@ -113,6 +115,10 @@ static uint64_t fork_kid(void)
     nkids++;
     if (j_call(MMC_ROOT_SLOT, &m, J_FOREVER) != J_OK || m.r[0] != 0) {
         return COW_E_FAILED | 6u << 8;
+    }
+    m = (struct j_msg){.r = {MM_REQ_CLONE_DONE, id, MM_CLONE_KEEP, 0}};
+    if (j_call(MM_SLOT, &m, J_FOREVER) != J_OK || m.r[0] != MM_OK) {
+        return COW_E_FAILED | 7u << 8 | m.r[0] << 16;
     }
     /* The root has its own: this one would hold a unit of this task's
      * quota (it paid for the thread) for as long as this task lives. */

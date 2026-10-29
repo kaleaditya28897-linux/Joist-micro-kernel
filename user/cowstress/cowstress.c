@@ -11,9 +11,10 @@
  * child starts with its parent's), and after every step every task reads
  * all its pages back and the root compares; mm's records must be sound and
  * serve the tasks there are. At the end of a round every task reads its
- * pages once more and exits, everything is destroyed, a child left with
- * nobody to start it (its parent killed mid-fork) is reaped, mm must have
- * every page back, and the kernel's counters must be what they were after
+ * pages once more and exits, everything is destroyed, mm must have every
+ * page back, no task must be left that mm made and nobody started (a child
+ * still pending when its parent was killed mid-fork goes with its parent:
+ * 0023's amendment of 2026-10-29), and the kernel's counters must be what they were after
  * the first round. Before the rounds, one task forks until mm, its records
  * full, refuses (so that mm has a table run for every index, as the root's
  * pages are warmed).
@@ -51,8 +52,8 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
 #ifndef COW_RESCUE
 #define COW_RESCUE 0 /* mm has a fallback (0025): a stranded mm is a failure */
 #endif
-#define MAX_LIVE     (MM_MAX_TASKS - 3u) /* room for the orphans of a round */
-#define MAX_ORPHANS  2u                  /* kills mid-fork a round, at most */
+#define MAX_LIVE     (MM_MAX_TASKS - 3u) /* room over, for the forks in flight */
+#define MAX_KILL_FORKS 2u                /* kills mid-fork a round, at most */
 #define MAX_MADE     24u                 /* tasks made in a round, at most */
 #define WARM_PAGES   (MAX_MADE * 16u)    /* more than they take (it checks) */
 #define WARM_RUNS    6u                  /* the loader's table runs: a round's first tasks */
@@ -70,9 +71,9 @@ static struct model {
 
 static uint64_t rs;  /* the seeded choices */
 static uint64_t gen; /* the last generation handed out */
-static unsigned round_no, max_depth, made, orphans_max;
+static unsigned round_no, max_depth, made, kill_forks;
 static struct {
-    uint64_t writes, forks, refused, exits, kills_fault, kills_fork, stranded, orphans, verifies;
+    uint64_t writes, forks, refused, exits, kills_fault, kills_fork, stranded, verifies;
     unsigned deepest;
 } st;
 static uint64_t rescue_sc;
@@ -158,12 +159,13 @@ static unsigned live_count(void)
     return n;
 }
 
-/* mm sound, serving the live tasks and at most the orphans there may be. */
+/* mm sound, and serving exactly the live tasks: a child pending when its
+ * parent was killed is gone by now (the STATUS collects the parent). */
 static void check_mm(void)
 {
     struct j_msg r = ask(MM_REQ_STATUS, 0);
     unsigned n = live_count();
-    if (r.r[0] != MM_OK || r.r[3] != 0 || r.r[1] < n || r.r[1] > n + orphans_max) {
+    if (r.r[0] != MM_OK || r.r[3] != 0 || r.r[1] != n) {
         j_puts("cow: mm serves ");
         j_putu(r.r[1]);
         j_puts(" tasks for ");
@@ -362,7 +364,7 @@ static void op_kill_fork(void)
 {
     unsigned v = pick(1);
     if (v == NRECS || live_count() < 2u || live_count() >= MAX_LIVE ||
-        orphans_max == MAX_ORPHANS || made >= MAX_MADE) {
+        kill_forks == MAX_KILL_FORKS || made >= MAX_MADE) {
         return;
     }
     MMC_W(recs[v].w, COW_INCLONE) = 0;
@@ -377,7 +379,7 @@ static void op_kill_fork(void)
     while (work_tsc() < until) {
         (void)j_yield();
     }
-    orphans_max++; /* its child, if mm made one, has nobody to start it */
+    kill_forks++; /* its child, if mm made one, goes with it */
     made++;
     kill_task(v);
     st.kills_fork++;
@@ -427,7 +429,7 @@ static int is_base(uint64_t id)
 }
 
 /* Every task gone: the live ones read their pages and exit, then all are
- * destroyed, and any other the root descends from but mm reaped. */
+ * destroyed, and the root must descend from no task but mm. */
 static void round_end(void)
 {
     verify_all();
@@ -446,13 +448,9 @@ static void round_end(void)
     finish_destruction();
     uint64_t id = 0;
     while (j_task_descendant(id, &id) == J_OK) {
-        if (!is_base(id)) {
-            must(j_sys4(J_SYS_TASK_REAP, id, 0, 0, 0), "task_reap (an orphan)");
-            st.orphans++;
-        }
+        check(is_base(id), "an orphan is left: a task mm made that nobody started");
         id++;
     }
-    finish_destruction();
     expect_mm(0, HOST_POOL_PAGES, "mm didn't get every page back at the end of a round");
 }
 
@@ -555,7 +553,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     for (round_no = 0; round_no < COW_ROUNDS; round_no++) {
         rs = cow_mix((uint64_t)COW_SEED << 32 | round_no);
         max_depth = 4u + round_no % 3u;
-        orphans_max = 0;
+        kill_forks = 0;
         made = 0;
         uint32_t mark = ld_mark();
         first_task();
@@ -598,7 +596,6 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
         put_stat(", kills mid-fault ", st.kills_fault);
         put_stat(", mid-fork ", st.kills_fork);
         put_stat(", mm stranded ", st.stranded);
-        put_stat(", orphans reaped ", st.orphans);
         put_stat(", refused ", st.refused);
         j_puts("\n");
     }

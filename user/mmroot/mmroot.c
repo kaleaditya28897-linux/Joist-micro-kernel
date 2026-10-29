@@ -14,7 +14,9 @@
  * the target's consent). A client's child is made by mm; the root learns of
  * it only when the parent sends it the child's task and thread capabilities
  * (MMC_RQ_START, work.h), and then loads the program's image into it, gives
- * it a work page (mapped in the parent too) and a context. */
+ * it a work page (mapped in the parent too) and a context. The parent then
+ * confirms the fork (MM_REQ_CLONE_DONE); a child still pending when its
+ * parent goes is destroyed with it (the orphans test). */
 #define TEST_NAME "mm"
 #include "../lib/testroot.h"
 #include "../lib/mmhost.h"
@@ -117,21 +119,32 @@ static void wait_for(struct worker *k, uint64_t until)
     }
 }
 
+static void sweep(void)
+{
+    int more = 1;
+    for (unsigned i = 0; more && i < 1000u; i++) {
+        must(j_continue(1000, &more), "continue");
+    }
+    check(!more, "a destruction didn't finish");
+}
+
+/* Every record's task let go (a child destroyed), and mm must let them go. */
+static void finish_all(void)
+{
+    for (unsigned i = 0; i < NRECS; i++) {
+        rec_free(i);
+    }
+    sweep();
+    expect_status(0, "mm didn't forget a destroyed client, or lost pages");
+    expect_spaces(0, "a destroyed client's space, or its child's, is left");
+}
+
 /* Destroy it, and any child of it left, finish the sweep, and see mm let
  * them go. */
 static void finish(struct worker *k)
 {
     must(j_task_destroy(k->task), "task_destroy (client)");
-    for (unsigned i = 0; i < NRECS; i++) {
-        rec_free(i);
-    }
-    int more = 1;
-    for (unsigned i = 0; more && i < 1000u; i++) {
-        must(j_continue(1000, &more), "continue");
-    }
-    check(!more, "the client's destruction didn't finish");
-    expect_status(0, "mm didn't forget a destroyed client, or lost pages");
-    expect_spaces(0, "a destroyed client's space, or its child's, is left");
+    finish_all();
 }
 
 static void test_basic(void)
@@ -237,6 +250,72 @@ static void test_share(void)
     j_puts("mm: share ok\n");
 }
 
+/* A command to a child through the root's view of its work page (as its
+ * parent would post it): its result. */
+static uint64_t kid_cmd(struct work *w, uint64_t c, uint64_t a0, uint64_t a1, uint64_t a2)
+{
+    uint64_t seq = MMC_W(w, MMC_SEQ) + 1u;
+    MMC_W(w, MMC_A0) = a0;
+    MMC_W(w, MMC_A1) = a1;
+    MMC_W(w, MMC_A2) = a2;
+    MMC_W(w, MMC_CMD) = c;
+    MMC_W(w, MMC_SEQ) = seq;
+    for (unsigned i = 0; i < WAIT_ROUNDS && MMC_W(w, MMC_ACK) != seq; i++) {
+        sleep_ns(SHORT_NS);
+    }
+    check(MMC_W(w, MMC_ACK) == seq, "a child didn't answer the root");
+    return MMC_W(w, MMC_RES);
+}
+
+/* Orphans (0023's amendment of 2026-10-29): a fork cancelled, and a
+ * pending child destroyed by its parent, whose index another client then
+ * takes; then the parent exits with one child confirmed and one still
+ * pending, and is destroyed. mm must destroy the pending child with it,
+ * and nothing else: the other client stays, and the confirmed child is
+ * still served, its pages now its alone. */
+static void test_orphan(void)
+{
+    struct worker k = client(MMC_ORPHAN);
+    at_mark(&k, 1, "the orphan client failed");
+    expect_mm(1, POOL_PAGES - 8u, "a cancelled fork left a task in mm's records");
+    expect_spaces(1, "a cancelled fork left a space");
+    struct worker x = client(MMC_BASIC); /* in the destroyed child's index */
+    wait_for(&x, 2);
+    check(x.w->count == 2 && x.w->arg == 0, "the basic client failed");
+    go_on(&k, 1);
+    at_mark(&k, 3, "the orphan client failed");
+    expect_mm(4, ANY_FREE, "mm's records after two forks are wrong");
+    expect_spaces(4, "a clone's space isn't there");
+    unsigned b = NRECS;
+    for (unsigned i = 0; i < NRECS; i++) {
+        if (recs[i].live && recs[i].kid) {
+            check(b == NRECS, "the root started more than one child");
+            b = i;
+        }
+    }
+    check(b != NRECS, "the root didn't start the confirmed child");
+    go_on(&k, 3);
+    serve(&k, 99);
+    check(k.w->count == 2 && k.w->arg == 0, "the orphan client failed at the end");
+
+    must(j_task_destroy(k.task), "task_destroy (client)");
+    sweep();
+    expect_mm(2, ANY_FREE, "the child pending when its parent went wasn't destroyed, or more went");
+    expect_spaces(2, "a child pending when its parent went is left, or more went");
+    must(j_task_destroy(x.task), "task_destroy (the basic client)");
+    sweep();
+    expect_mm(1, POOL_PAGES - 8u, "mm's records with the confirmed child alone are wrong");
+    struct work *bw = recs[b].w;
+    check(kid_cmd(bw, MMC_C_CHECK, 0, 8, 1) == 0, "the confirmed child lost its pages");
+    (void)kid_cmd(bw, MMC_C_FILL, 0, 8, 5);
+    check(kid_cmd(bw, MMC_C_CHECK, 0, 8, 5) == 0, "the confirmed child's writes are lost");
+    /* Its parent's and the other child's references went: no copies. */
+    expect_mm(1, POOL_PAGES - 8u, "the parent's references outlived it");
+    (void)kid_cmd(bw, MMC_C_EXIT, 0, 0, 0);
+    finish_all();
+    j_puts("mm: orphans ok\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free)
 {
@@ -255,6 +334,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_fork();
     test_share();
     test_clone_full();
+    test_orphan();
     /* Again, so that badges and table runs are used a second time. */
     test_basic();
     j_puts("mm: all ok\n");

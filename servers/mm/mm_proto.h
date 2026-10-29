@@ -30,14 +30,21 @@ enum {
     MM_REQ_UNMAP,                       /* va page, pages */
     MM_REQ_PROTECT,                     /* va page, pages, permissions */
     MM_REQ_CLONE,                       /* -> r[1] the child's id, and a task capability to
-                                         * it (CONTROL, GRANT) in the reply's caps */
+                                         * it (CONTROL, GRANT) in the reply's caps; the
+                                         * child is pending until MM_REQ_CLONE_DONE */
     MM_REQ_SHARE,                       /* va page, pages, the target's id: only if the
                                          * target accepted exactly that */
     MM_REQ_ID,                          /* -> r[1] the caller's own id */
-    MM_REQ_SHARE_ACCEPT                 /* the sharer's id, va page, pages: where this
+    MM_REQ_SHARE_ACCEPT,                /* the sharer's id, va page, pages: where this
                                          * task takes its pages (one pending per task, a
                                          * new one replacing it; 0 pages withdraws it) */
+    MM_REQ_CLONE_DONE                   /* the child's id, MM_CLONE_KEEP or _CANCEL: the
+                                         * parent's fork finished (its child's thread runs)
+                                         * or given up (mm destroys the child) */
 };
+/* A child still pending when its parent goes is destroyed with it: a fork
+ * not confirmed never happened (0023's amendment of 2026-10-29, "orphans"). */
+enum { MM_CLONE_KEEP = 0, MM_CLONE_CANCEL = 1 };
 #define MM_ID(t, gen) ((uint64_t)(gen) << 16 | (t))
 #define MM_ID_TASK(id) ((uint32_t)((id) & 0xffffu))
 #define MM_ID_GEN(id)  ((id) >> 16)

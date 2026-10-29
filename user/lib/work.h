@@ -52,8 +52,10 @@ enum {
     MMC_CLONE_FULL, /* clones refused, and undone: mm's table pages spent, the child's too few */
     MMC_SHARE,      /* SHARE refused without consent, then shared, and kept across a clone */
     MMC_CHILD,      /* a child: does what its parent posts in its work page (MMC_C_*) */
-    MMC_BENCH       /* mm's costs, timed (TSC): faults, a request, protect, clones of up to
+    MMC_BENCH,      /* mm's costs, timed (TSC): faults, a request, protect, clones of up to
                      * arg pages; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
+    MMC_ORPHAN      /* a fork cancelled; then it exits with one child confirmed and one
+                     * pending: mm destroys the pending one with it, serves the other */
 };
 #define MMC_B 100u
 enum {
@@ -68,7 +70,8 @@ enum {
  * copied, its thread spawned, then a call to the root (in MMC_ROOT_SLOT)
  * with the child's task and thread capabilities: the root loads the
  * program's image into it, gives it a work page, mapped in the parent too
- * at MMC_KID_VA(n) (n is the parent's number for it), and a context. */
+ * at MMC_KID_VA(n) (n is the parent's number for it), and a context. Then
+ * the fork is confirmed to mm (MM_REQ_CLONE_DONE). */
 #define MMC_ROOT_SLOT 12u /* a client's capability to the root (each its own badge) */
 #define MMC_COPY_END  12u /* a child gets copies of its parent's slots below this */
 #define MMC_KID_SLOT  16u /* the parent's capabilities to its children, from here ... */
@@ -94,7 +97,8 @@ enum {
     MMC_C_ID,       /* -> its id (MM_REQ_ID) */
     MMC_C_READ,     /* -> word a1 of page a0 of MMC_VA */
     MMC_C_POKE,     /* word a1 of page a0 of MMC_VA set to a2 */
-    MMC_C_UNMAP     /* -> MM_REQ_UNMAP's result: pages a0 (a va page) to a0 + a1 */
+    MMC_C_UNMAP,    /* -> MM_REQ_UNMAP's result: pages a0 (a va page) to a0 + a1 */
+    MMC_C_DONE      /* -> MM_REQ_CLONE_DONE's result: child id a0, how a1 */
 };
 
 struct work {

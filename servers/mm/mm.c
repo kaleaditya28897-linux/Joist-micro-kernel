@@ -14,6 +14,12 @@
  * its own quota, and for pages shared with a task that agreed to take them
  * (MM_REQ_SHARE, after the other's MM_REQ_SHARE_ACCEPT).
  *
+ * A child is pending until its parent confirms the fork (MM_REQ_CLONE_DONE,
+ * once the child's thread runs) or cancels it. A parent collected with a
+ * child still pending (killed mid-fork, or gone without confirming) takes
+ * that child with it: nobody else would ever start or destroy it (0023's
+ * amendment of 2026-10-29, "orphans").
+ *
  * A task gone: when its slots are swept, the last capability with its badge
  * goes and the kernel queues the badge on mm's endpoint (no-senders, bound
  * by the root). Being passive, mm can't be woken to collect it; it collects
@@ -38,6 +44,9 @@ static uint64_t gen[MM_MAX_TASKS];        /* each index's generation: its id's (
 static struct {
     uint64_t from, va, n;
 } accept[MM_MAX_TASKS];
+/* A child not yet confirmed (MM_REQ_CLONE_DONE): its parent's id; 0 when
+ * confirmed, or not a clone (an id is never 0: a generation starts at 1). */
+static uint64_t pending[MM_MAX_TASKS];
 
 /* ---- the kernel, for mmlib ---- */
 
@@ -134,13 +143,15 @@ static uint64_t table_run_new(void)
 static void collect(void);
 
 /* Records for a new task, whose capability is (or is to be) in `slot`: a
- * fresh generation for its index, and no acceptance pending. */
+ * fresh generation for its index, no acceptance pending, and not a
+ * pending child. */
 static int task_new(uint64_t slot, uint32_t *t)
 {
     int e = mm_task_add(&M, (uint32_t)slot, t);
     if (e == MM_OK) {
         gen[*t]++;
         accept[*t].n = 0;
+        pending[*t] = 0;
     }
     return e;
 }
@@ -224,13 +235,10 @@ static uint64_t adopt(uint64_t slot, uint64_t *badge)
     return MM_OK;
 }
 
-/* Undo a clone that failed after the child's records were made: the child
- * destroyed, its destruction finished (on the caller's time), and the child
- * forgotten. Collection forgets it if its badge had a sender (the last one
- * went with its slots); otherwise it is forgotten here. */
-static void unmake(uint32_t t)
+/* Destroy the task mm made in slot, and finish its destruction (on the
+ * caller's time). Its badge's firing is then queued, if it had a sender. */
+static void destroy(uint64_t slot)
 {
-    uint64_t slot = M.task[t].slot;
     (void)j_task_destroy(slot);
     int more = 1;
     for (unsigned i = 0; more && i < 1000u; i++) {
@@ -238,6 +246,15 @@ static void unmake(uint32_t t)
             break;
         }
     }
+}
+
+/* Undo a clone: the child destroyed and forgotten. Collection forgets it if
+ * its badge had a sender (the last one went with its slots); otherwise it
+ * is forgotten here. */
+static void unmake(uint32_t t)
+{
+    uint64_t slot = M.task[t].slot;
+    destroy(slot);
     collect();
     if (M.task[t].live && M.task[t].slot == slot) {
         (void)j_cap_delete(slot);
@@ -272,7 +289,27 @@ static uint64_t clone(uint32_t parent, uint32_t *t, uint64_t *id)
         unmake(*t);
         return r;
     }
+    pending[*t] = id_of(parent);
     *id = id_of(*t);
+    return MM_OK;
+}
+
+/* MM_REQ_CLONE_DONE: task t's pending child, named by its id, confirmed
+ * (an ordinary task from now on) or cancelled (destroyed now). */
+static uint64_t clone_done(uint32_t t, uint64_t cid, uint64_t how)
+{
+    uint32_t c = MM_ID_TASK(cid);
+    if (how != MM_CLONE_KEEP && how != MM_CLONE_CANCEL) {
+        return MM_E_RANGE;
+    }
+    if (c >= MM_MAX_TASKS || !M.task[c].live || gen[c] != MM_ID_GEN(cid) ||
+        pending[c] != id_of(t)) {
+        return MM_E_STATE; /* not this task's child, gone, or confirmed already */
+    }
+    pending[c] = 0;
+    if (how == MM_CLONE_CANCEL) {
+        unmake(c);
+    }
     return MM_OK;
 }
 
@@ -313,6 +350,9 @@ static uint64_t status(struct j_msg *out)
 
 /* ---- tasks gone ---- */
 
+/* Forget every task whose badge has gone. A task forgotten takes its
+ * pending children with it: each is destroyed, and its own badge's firing,
+ * queued by that, is collected by the same loop. */
 static void collect(void)
 {
     uint64_t b;
@@ -321,8 +361,15 @@ static void collect(void)
             continue; /* not a task's (the root's never goes) */
         }
         uint32_t t = (uint32_t)(b - 1u);
+        uint64_t id = id_of(t);
         (void)j_cap_delete(M.task[t].slot);
         mm_task_gone(&M, t);
+        for (uint32_t c = 0; c < MM_MAX_TASKS; c++) {
+            if (M.task[c].live && pending[c] == id) {
+                pending[c] = 0;
+                destroy(M.task[c].slot);
+            }
+        }
     }
 }
 
@@ -395,6 +442,9 @@ static void handle(const struct j_msg *in, struct j_msg *out)
         accept[t].va = in->r[2];
         accept[t].n = in->r[3];
         out->r[0] = MM_OK;
+        return;
+    case MM_REQ_CLONE_DONE:
+        out->r[0] = clone_done(t, in->r[1], in->r[2]);
         return;
     default: /* INIT, ADOPT and STATUS are the root's */
         out->r[0] = MM_E_STATE;

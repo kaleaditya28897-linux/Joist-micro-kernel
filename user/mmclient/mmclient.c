@@ -177,6 +177,9 @@ static void child(struct work *w)
         case MMC_C_UNMAP:
             res = req(MM_REQ_UNMAP, a0, a1, 0);
             break;
+        case MMC_C_DONE:
+            res = req(MM_REQ_CLONE_DONE, a0, a1, 0);
+            break;
         case MMC_C_ID:
             if (req2(MM_REQ_ID, 0, 0, 0, &res) != MM_OK) {
                 res = 0;
@@ -269,6 +272,10 @@ static uint64_t fork_kid(uint64_t role)
                               (uint64_t)k->thread << 22 | (uint64_t)J_R_ALL << 38};
     if (j_call(MMC_ROOT_SLOT, &m, J_FOREVER) != J_OK || m.r[0] != 0) {
         return 4;
+    }
+    /* It runs: the fork is done, and the child no longer goes with us. */
+    if (req(MM_REQ_CLONE_DONE, k->id, MM_CLONE_KEEP, 0) != MM_OK) {
+        return 5;
     }
     k->w = (struct work *)(uintptr_t)MMC_KID_VA(nkids - 1u);
     return 0;
@@ -416,6 +423,71 @@ static uint64_t full_test(struct work *w)
         return 11;
     }
     return check(0, 4, 1) == 0 ? 0 : 12;
+}
+
+#define ORPHAN_PAGES 8u
+
+/* MMC_ORPHAN: a fork cancelled, and confirmations refused (another task's
+ * id, a stale one, twice, or by a child for its sibling); a pending child
+ * destroyed by this task; then a child confirmed and one not, and this
+ * task exits without a word: the root destroys it, and mm must destroy the
+ * child still pending with it, and only that one. */
+static uint64_t orphan_test(struct work *w)
+{
+    uint64_t me;
+    if (req2(MM_REQ_ID, 0, 0, 0, &me) != MM_OK) {
+        return 1;
+    }
+    if (req(MM_REQ_MAP_ANON, MMC_VA / J_PAGE, ORPHAN_PAGES, MM_W) != MM_OK) {
+        return 2;
+    }
+    fill(0, ORPHAN_PAGES, 1);
+    if (clone_only() != MM_OK) {
+        return 3;
+    }
+    struct kid *a = &kids[nkids - 1u];
+    if (req(MM_REQ_CLONE_DONE, me, MM_CLONE_KEEP, 0) != MM_E_STATE) {
+        return 4; /* not a child of this task's */
+    }
+    if (req(MM_REQ_CLONE_DONE, MM_ID(MM_ID_TASK(a->id), MM_ID_GEN(a->id) + 1u), MM_CLONE_KEEP,
+            0) != MM_E_STATE) {
+        return 5; /* not a's generation */
+    }
+    if (req(MM_REQ_CLONE_DONE, a->id, 2, 0) != MM_E_RANGE) {
+        return 6; /* neither keep nor cancel */
+    }
+    if (req(MM_REQ_CLONE_DONE, a->id, MM_CLONE_CANCEL, 0) != MM_OK) {
+        return 7;
+    }
+    if (j_task_destroy(a->task) != J_E_GONE) {
+        return 8; /* mm didn't destroy it */
+    }
+    if (req(MM_REQ_CLONE_DONE, a->id, MM_CLONE_CANCEL, 0) != MM_E_STATE) {
+        return 9; /* gone already */
+    }
+    (void)j_cap_delete(a->task);
+    nkids--;
+    /* A pending child destroyed by this task itself: its index is free for
+     * the next task mm takes, which must not be taken for this one's. */
+    if (clone_only() != MM_OK || kill_kid(&kids[--nkids]) != 0) {
+        return 10;
+    }
+    pause_for_root(w, 1); /* one task, 8 pages; the root adopts another */
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 11;
+    }
+    struct kid *b = &kids[nkids - 1u];
+    if (req(MM_REQ_CLONE_DONE, b->id, MM_CLONE_KEEP, 0) != MM_E_STATE) {
+        return 12; /* confirmed already */
+    }
+    if (clone_only() != MM_OK) {
+        return 13;
+    }
+    if (cmd(b, MMC_C_DONE, kids[nkids - 1u].id, MM_CLONE_KEEP, 0) != MM_E_STATE) {
+        return 14; /* b confirmed its sibling: only the parent may */
+    }
+    pause_for_root(w, 3); /* three tasks, still 8 pages */
+    return 0;
 }
 
 #define SH_VA   (MMC_VA / J_PAGE + 64u)  /* this task's pages to share */
@@ -747,6 +819,9 @@ void _start(void)
         break;
     case MMC_SHARE:
         w->arg = share_test(w);
+        break;
+    case MMC_ORPHAN:
+        w->arg = orphan_test(w);
         break;
     case MMC_CHILD:
         child(w);
