@@ -166,8 +166,11 @@ tla-mutate:
 # unmap_range, protect, space_donate, map_query; 0020, 0021), from states with page
 # tables in simulated memory; the others from states without (a condemned
 # frame's sweep, which kill and delete may start, is left to the property
-# tests and the mutations).
-CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16
+# tests and the mutations). Operations 17, 18, 20 and 21 are decision 0025's
+# fallback context (sc_bind_fallback, sc_unbind, wait, tick), with two
+# threads; 19 (recv) exhausts 12 GB however it is split (cbmc/run.sh: 19/s,
+# 19/n), so it is left to the unit and property tests, as 3 and 6 are.
+CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21
 CBMC_JOBS ?= 1
 cbmc:
 	@mkdir -p $(BUILD)/cbmc

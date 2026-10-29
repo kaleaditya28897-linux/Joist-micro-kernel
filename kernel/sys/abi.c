@@ -256,6 +256,9 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_SC_UNBIND:
         e = joist_sc_unbind(k, cs, slot_arg(a0));
         break;
+    case ABI_SC_BIND_FALLBACK:
+        e = joist_sc_bind_fallback(k, cs, slot_arg(a0), slot_arg(a1));
+        break;
     case ABI_TASK_SET_MCP:
         e = a1 > JOIST_PRIO_MAX ? JOIST_E_RIGHTS : joist_task_set_mcp(k, cs, slot_arg(a0), (uint8_t)a1);
         break;

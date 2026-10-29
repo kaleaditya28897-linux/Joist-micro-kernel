@@ -17,13 +17,18 @@
 # emulated 4-CPU self-test needs more than two cores; 2026-10-15 and -17;
 # see tools/p53/rc.local-bench and docs/testbed.md).
 #
+# 12 GB of memory (8 until 2026-10-29: CBMC's proofs of the scheduling calls
+# with two threads ran out) and a 100 GB disk (40 until the same day, grown
+# online with QEMU's block_resize, then growpart and resize2fs in the guest:
+# room for decision 0026's bootstrap and LLVM builds).
+#
 # UEFI (OVMF, its variables in efivars.fd), not SeaBIOS as on Proxmox: on
 # the P53, under KVM, a SeaBIOS boot of Linux resets the guest at the
 # kernel's first instruction (found 2026-10-14; the same disk boots by
 # UEFI). The Debian cloud image has both boot paths.
 dir=/srv/joist/vms/joist-dev2
 exec taskset -c 0,1,6-11 qemu-system-x86_64 -name joist-dev2,debug-threads=on \
-    -machine q35,accel=kvm -cpu host -smp 8 -m 8192 \
+    -machine q35,accel=kvm -cpu host -smp 8 -m 12288 \
     -drive if=pflash,format=raw,readonly=on,file=/usr/share/qemu/edk2-x86_64-code.fd \
     -drive if=pflash,format=raw,file=$dir/efivars.fd \
     -drive file=$dir/disk.qcow2,if=virtio,discard=unmap,cache=writeback \

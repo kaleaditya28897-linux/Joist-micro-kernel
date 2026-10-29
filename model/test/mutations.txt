@@ -72,11 +72,11 @@ xfer-wrong-source-space @@ ../kernel/core/ipc.c @@ deliver(k, k->th[s].cs, k->th
 # Scheduling contexts and donation (Phase 3 step 3; I11).
 sc-no-reclaim-on-wake @@ ../kernel/core/ipc.c @@ joist__sc_reclaim(k, t); /* a caller waking @@ (void)0; /* a caller waking
 sc-no-giveback-on-recv @@ ../kernel/core/ipc.c @@ joist__sc_giveback(k, t); /* receiving again @@ (void)0; /* receiving again
-sc-donate-to-active @@ ../kernel/core/sched.c @@ if (r->sc != 0 || r->run_sc != 0 || r->sc_from != 0 || r->sc_to != 0 || f->run_sc == 0 || @@ if (r->sc_from != 0 || r->sc_to != 0 || f->run_sc == 0 ||
+sc-donate-to-active @@ ../kernel/core/sched.c @@ if (r->sc != 0 || (r->run_sc != 0 && r->run_sc != r->fb_sc) || r->sc_from != 0 || @@ if (r->sc_from != 0 ||
 sc-mcp-ignored @@ ../kernel/core/sched.c @@ if (prio > s->mcp || !prio_ok(prio)) { @@ if (!prio_ok(prio)) {
 sc-thread-gone-skipped @@ ../kernel/core/ipc.c @@ joist__sc_thread_gone(k, t); @@ (void)0;
 sc-freed-skipped @@ ../kernel/core/notify.c @@ joist__sc_freed(k, obj); @@ (void)obj;
-sc-reclaim-keeps-links @@ ../kernel/core/sched.c @@ b->run_sc = b->sc; @@ (void)b;
+sc-reclaim-keeps-links @@ ../kernel/core/sched.c @@ b->run_sc = sc_home(b); /* (its place stays @@ (void)b; /* (its place stays
 sc-unbind-while-lent @@ ../kernel/core/sched.c @@ if (r->sc_to != 0 && r->sc_from == 0) { @@ if (0) {
 sc-mcp-raisable @@ ../kernel/core/sched.c @@ if (mcp > k->cs[cs].mcp) { @@ if (0) {
 sc-mcp-not-inherited @@ ../kernel/core/task.c @@ n->mcp = k->cs[cs].mcp; @@ n->mcp = JOIST_PRIO_MAX;
@@ -280,3 +280,15 @@ mm-cow-copy-empty @@ ../servers/mm/mmlib.c @@ memcpy(bytes(m, (uint32_t)q), byte
 mm-cow-old-kept @@ ../servers/mm/mmlib.c @@     page_unref(m, p); @@     (void)0;
 mm-share-cow-kept @@ ../servers/mm/mmlib.c @@ } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u) { @@ } else if (!r.shared && m->pg[tk->map[mi].page].refs > 1u && 0) {
 mm-share-region-private @@ ../servers/mm/mmlib.c @@ tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = r.perms, .shared = 1}; @@ tk->reg[i] = (struct mm_region){.va = va, .n = n, .perms = r.perms, .shared = 0};
+# Decision 0025: the fallback context.
+fb-taken-while-receiving @@ ../kernel/core/sched.c @@ r->state != JOIST_T_BLOCKED_RECV && r->state != JOIST_T_BLOCKED_WAIT) { @@ 1) {
+fb-kept-after-receive @@ ../kernel/core/sched.c @@ if (r->fb_sc != 0 && r->run_sc == r->fb_sc && r->sc_to == 0) { @@ if (0) {
+fb-blocks-donation @@ ../kernel/core/sched.c @@ (r->run_sc != 0 && r->run_sc != r->fb_sc) @@ r->run_sc != 0
+fb-not-on-reclaim @@ ../kernel/core/sched.c @@ b->run_sc = sc_home(b); /* (its place stays @@ b->run_sc = b->sc; /* (its place stays
+fb-not-on-wake @@ ../kernel/core/ipc.c @@     joist__sc_fallback(k, t); @@     (void)t;
+fb-not-on-freed @@ ../kernel/core/sched.c @@             b->run_sc = sc_home(b); @@             b->run_sc = b->sc;
+fb-freed-stays-bound @@ ../kernel/core/sched.c @@             ow->fb_sc = 0; @@             (void)ow;
+fb-unbind-while-running @@ ../kernel/core/sched.c @@             return JOIST_E_STATE; /* it is finishing a request on it */ @@             (void)0; /* mutated */
+fb-dropped-on-quick-wait @@ ../kernel/core/notify.c @@ joist__sc_fallback(k, t); /* not waiting after all: still serving (0025) */ @@ (void)t;
+fb-dropped-on-quick-recv @@ ../kernel/core/ipc.c @@ joist__sc_fallback(k, t); /* not receiving after all: still serving */ @@ (void)t;
+fb-bind-reorders @@ ../kernel/core/sched.c @@     joist__sc_fallback(k, t); /* a thread serving on nothing runs at once */ @@     r->ready_seq = ++k->ready_seq; joist__sc_fallback(k, t);

@@ -68,6 +68,7 @@ enum {
     JX_OBJ_KILL,    /* decision 0022 */
     JX_COPY_BATCH,  /* decision 0022 */
     JX_TICK,
+    JX_SC_FALLBACK, /* decision 0025 */
     JX_OPS
 };
 

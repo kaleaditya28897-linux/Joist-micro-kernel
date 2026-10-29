@@ -123,6 +123,15 @@ void joist__obj_take(struct joist_kernel *k, uint32_t obj);
 joist_err joist__task_cap_new(struct joist_kernel *k, joist_cspace cs, joist_slot dst,
                               uint32_t space);
 
+/* Under CBMC, which invariant check fired: the line of its VIOLATION, in
+ * a global the trace shows (the checker runs there with no message). */
+#ifdef JOIST_CBMC
+extern unsigned joist__cbmc_line;
+#define JOIST_CBMC_NOTE(l) (joist__cbmc_line = (l))
+#else
+#define JOIST_CBMC_NOTE(l) ((void)0)
+#endif
+
 /* Scheduling-context donation (sched.c). */
 /* A Call from `from` was delivered to `to`: lend from's context if `to` is
  * passive. */
@@ -132,6 +141,9 @@ void joist__sc_reclaim(struct joist_kernel *k, uint32_t x);
 /* Thread h stops serving (receives again, waits, dies): give a borrowed
  * context back to its lender. */
 void joist__sc_giveback(struct joist_kernel *k, uint32_t h);
+/* A thread serving with no loan and on nothing goes on its fallback, if it
+ * has one (0025): from a wake-up, or the fallback just bound. */
+void joist__sc_fallback(struct joist_kernel *k, uint32_t t);
 /* Thread t is being destroyed: unwind its donation links, unbind its own
  * context. */
 /* Thread t is about to be stopped, destroyed or have its registers touched

@@ -39,6 +39,10 @@ void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
         r->faulting = 0;
         r->state = JOIST_T_SUSPENDED;
     }
+    /* Woken with no context (a passive thread's Recv timed out or was
+     * aborted; a passive caller's loan came back empty): its fallback, if
+     * it has one (0025). A Call delivered to it next replaces it. */
+    joist__sc_fallback(k, t);
     joist__rq_sync(k, t); /* ready: on its queue (or not, if it stopped) */
 }
 
@@ -474,10 +478,12 @@ joist_err joist_recv(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         if (k->th[s].sc_to == t + 1u) {
             take_place(k, t, s); /* serving a caller that waited: on its context, in its place */
         }
+        joist__sc_fallback(k, t); /* a caller with no time to lend: its fallback (0025) */
         joist_sched_settle(k);
         return JOIST_OK;
     }
     if (timeout == 0) {
+        joist__sc_fallback(k, t); /* not receiving after all: still serving */
         return JOIST_E_TIMEOUT;
     }
     me->state = JOIST_T_BLOCKED_RECV;
@@ -679,6 +685,7 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
 
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
+        JOIST_CBMC_NOTE(__LINE__);                                                                 \
         if (bad++ == 0 && msg_free && msg != NULL && msglen > 0) {                                 \
             JOIST_FMT(msg, msglen, __VA_ARGS__);                                              \
         }                                                                                          \

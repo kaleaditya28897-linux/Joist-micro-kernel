@@ -49,7 +49,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
 #define COW_SEED 1u
 #endif
 #ifndef COW_RESCUE
-#define COW_RESCUE 1
+#define COW_RESCUE 0 /* mm has a fallback (0025): a stranded mm is a failure */
 #endif
 #define MAX_LIVE     (MM_MAX_TASKS - 3u) /* room for the orphans of a round */
 #define MAX_ORPHANS  2u                  /* kills mid-fork a round, at most */

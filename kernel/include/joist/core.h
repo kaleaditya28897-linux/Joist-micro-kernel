@@ -454,11 +454,15 @@ struct joist_thread_rec {
      * runs on now: its own, a borrowed one, or 0. Donation: a Call delivered
      * to a passive receiver lends the caller's run_sc to it; sc_to (on the
      * lender) and sc_from (on the borrower) link the two, so a context lent
-     * on and on forms a chain, and comes back along it (sched.c). */
+     * on and on forms a chain, and comes back along it (sched.c). fb_sc: a
+     * passive thread's fallback (0025), run on only while it serves with
+     * no loan: from a loan taken back, or a wake-up with nothing, to its
+     * next receive or wait. */
     uint32_t sc;
     uint32_t run_sc;
     uint32_t sc_from;
     uint32_t sc_to;
+    uint32_t fb_sc;
     /* Its place among ready threads of its priority: lower runs first. Set
      * from k->ready_seq whenever it becomes ready or uses up a budget, so
      * equal priorities take turns. */
@@ -895,8 +899,18 @@ joist_err joist_sc_create(struct joist_kernel *k, joist_cspace cs, joist_slot ds
 joist_err joist_sc_bind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot,
                         joist_slot th_slot);
 
-/* Unbind the scheduling context in sc_slot from its thread (CONTROL), which
- * becomes passive. JOIST_E_STATE if it is unbound or lent out right now. */
+/* Bind the scheduling context in sc_slot to the thread in th_slot as its
+ * fallback (0025; both need CONTROL). JOIST_E_OCCUPIED if the context is
+ * bound, or the thread has a context of its own or a fallback. The thread
+ * stays passive: Calls still lend it time. It runs on the fallback only
+ * while serving with no loan (a loan taken back mid-request, or woken with
+ * nothing), until it next receives or waits; at once if that is now. */
+joist_err joist_sc_bind_fallback(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot,
+                                 joist_slot th_slot);
+
+/* Unbind the scheduling context in sc_slot from its thread (CONTROL): its
+ * own (the thread becomes passive) or its fallback. JOIST_E_STATE if it is
+ * unbound, lent out right now, or a fallback the thread runs on. */
 joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot);
 
 /* ---- scheduling (Phase 3 step 5; §5.6): who runs, and until when ----

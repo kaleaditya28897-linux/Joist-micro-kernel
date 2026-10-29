@@ -249,9 +249,11 @@ joist_err joist_wait(struct joist_kernel *k, joist_thread t, joist_slot slot, ui
         me->badge = n->word;
         n->word = 0; /* bits clear only when returned (I2) */
         me->result = JOIST_OK;
+        joist__sc_fallback(k, t); /* not waiting after all: still serving (0025) */
         return JOIST_OK;
     }
     if (timeout == 0) {
+        joist__sc_fallback(k, t);
         return JOIST_E_TIMEOUT;
     }
     me->state = JOIST_T_BLOCKED_WAIT;
@@ -395,6 +397,7 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
 
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
+        JOIST_CBMC_NOTE(__LINE__);                                                                 \
         if (bad++ == 0 && msg_free && msg != NULL && msglen > 0) {                                 \
             JOIST_FMT(msg, msglen, __VA_ARGS__);                                              \
         }                                                                                          \

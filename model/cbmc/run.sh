@@ -36,10 +36,25 @@ for arg in "$@"; do
     op=${arg%%:*}
     split=""
     name="op$op"
+    # OP/s, OP/n: a receive with callers queued on its endpoint, or not.
+    case $arg in */s) op=${op%/s}; split="-DJOIST_CBMC_SENDERS=1"; name="op$op-senders" ;;
+                 */n) op=${op%/n}; split="-DJOIST_CBMC_SENDERS=0"; name="op$op-nosenders" ;; esac
     tables=""
+    extra=""
     unwind=4
     unwindset=""
     sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/2/')
+    # 0025's operations (17-21) need two threads, for a loan to stand.
+    case $op in 1[7-9]|2[01])
+        sizes=$(printf '%s' "$sizes" | sed 's/-DJOIST_MAX_THREADS=1u/-DJOIST_MAX_THREADS=2u/') ;;
+    esac
+    # Receiving, waiting and the timer's wake-ups (19-21) exhaust 12 GB with
+    # two spaces: one space, one capability a message, and no IPC buffers.
+    case $op in 19|2[01])
+        sizes=$(printf '%s' "$sizes" | sed 's/-DJOIST_MAX_CSPACES=2u/-DJOIST_MAX_CSPACES=1u/')
+        sizes="$sizes -DJOIST_MSG_CAPS=1u"
+        extra="-DJOIST_CBMC_NO_BUFFERS" ;;
+    esac
     case $op in 1[1-6])
         tables="-DJOIST_CBMC_TABLES -DJOIST_CBMC_SIM_PAGES=${sim_pages}u"
         sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/1/') ;;
@@ -47,7 +62,7 @@ for arg in "$@"; do
     case $arg in *:*) split="-DJOIST_CBMC_SLOT_TYPE=${arg#*:}"; name="op$op-type${arg#*:}" ;; esac
     start=$(date +%s)
     if [ -n "$tables" ]; then
-        loops=$(cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $sizes -DJOIST_CBMC_INDUCTIVE \
+        loops=$(cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $sizes -DJOIST_CBMC -DJOIST_CBMC_INDUCTIVE \
             -DJOIST_CBMC_STEPS=1 -DJOIST_CBMC_OP="$op" $tables "$here/cbmc/harness_cspace.c" \
             "$here"/../kernel/core/*.c --show-loops 2>&1)
         map="$here/../kernel/core/map.c"
@@ -62,8 +77,8 @@ for arg in "$@"; do
         unwindset="--unwindset $free:$((sim_pages + 2)),$lent:$((objects + 2))"
         unwindset="$unwindset,$hfree:$((sim_pages + 2))"
     fi
-    cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $sizes -DJOIST_CBMC_INDUCTIVE -DJOIST_CBMC_STEPS=1 \
-        -DJOIST_CBMC_OP="$op" $tables $split "$here/cbmc/harness_cspace.c" "$here"/../kernel/core/*.c \
+    cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $sizes -DJOIST_CBMC -DJOIST_CBMC_INDUCTIVE -DJOIST_CBMC_STEPS=1 \
+        -DJOIST_CBMC_OP="$op" $tables $extra $split "$here/cbmc/harness_cspace.c" "$here"/../kernel/core/*.c \
         --unwind $unwind $unwindset --unwinding-assertions --bounds-check --pointer-check \
         --signed-overflow-check --undefined-shift-check --trace ${CBMC_EXTRA:-} > "$out/$name.log" 2>&1
     echo "$name: $(( $(date +%s) - start ))s $(grep -E '^VERIFICATION|failed \(' "$out/$name.log" | tr '\n' ' ')"

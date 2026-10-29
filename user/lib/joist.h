@@ -62,6 +62,7 @@ enum {
     J_SYS_FRAME_SPLIT = 40, J_SYS_MAP, J_SYS_UNMAP, J_SYS_MAP_REPLACE, J_SYS_PROTECT,
     J_SYS_SPACE_DONATE, J_SYS_MAP_QUERY,
     J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP, J_SYS_YIELD,
+    J_SYS_SC_BIND_FALLBACK,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
     J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER
@@ -440,6 +441,13 @@ static inline uint64_t j_sc_bind(uint64_t sc, uint64_t thread)
 static inline uint64_t j_sc_unbind(uint64_t sc)
 {
     return j_sys4(J_SYS_SC_UNBIND, sc, 0, 0, 0);
+}
+/* A passive thread's fallback (0025): it stays passive, and runs on this
+ * only while serving with no loan (a caller that died, timed out or was
+ * aborted mid-request), until it next receives or waits. */
+static inline uint64_t j_sc_bind_fallback(uint64_t sc, uint64_t thread)
+{
+    return j_sys4(J_SYS_SC_BIND_FALLBACK, sc, thread, 0, 0);
 }
 
 /* What the kernel has in use (the root task only; kernel/sys/abi.h,

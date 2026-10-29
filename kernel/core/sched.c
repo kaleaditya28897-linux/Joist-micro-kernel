@@ -17,6 +17,12 @@
  *   (reply, timeout, peer death), from wherever along its chain it is; a
  *   borrower gives it back when it stops serving: when it receives or waits
  *   again, or dies. So a deferred reply never strands a client's time.
+ * - Fallback (0025): a passive thread may have a fallback context. It is
+ *   still passive (a Call lends it time, replacing the fallback), but where
+ *   it would be left serving on nothing (its loan taken back mid-request,
+ *   or woken with no context) it runs on the fallback, until it next
+ *   receives or waits. So a server isn't stranded by a client that dies,
+ *   times out or is aborted in the middle of a request.
  *
  * Everything here is O(1) except the chain walks, bounded by
  * JOIST_MAX_THREADS (a chain visits each thread at most once, I11). */
@@ -126,11 +132,31 @@ joist_err joist_sc_bind(struct joist_kernel *k, joist_cspace cs, joist_slot sc_s
     return joist__sc_bind_thread(k, so, k->obj[to].target - 1u);
 }
 
+/* The context a thread falls back to: its own, else its fallback. */
+static uint32_t sc_home(const struct joist_thread_rec *r)
+{
+    return r->sc != 0 ? r->sc : r->fb_sc;
+}
+
+/* Serving, holding no loan, on nothing: on its fallback, if it has one. */
+void joist__sc_fallback(struct joist_kernel *k, uint32_t t)
+{
+    struct joist_thread_rec *r = &k->th[t];
+    if (r->fb_sc != 0 && r->run_sc == 0 && r->sc_from == 0 && r->sc_to == 0 &&
+        r->state != JOIST_T_BLOCKED_RECV && r->state != JOIST_T_BLOCKED_WAIT) {
+        r->run_sc = r->fb_sc;
+        r->ready_seq = ++k->ready_seq; /* ready on it: behind its equals (on no queue
+                                        * before: it ran on nothing) */
+        k->resched = 1;
+        joist__rq_sync(k, t);
+    }
+}
+
 joist_err joist__sc_bind_thread(struct joist_kernel *k, uint32_t so, uint32_t t)
 {
     struct joist_object *o = &k->obj[so];
     struct joist_thread_rec *r = &k->th[t];
-    if (o->target != 0 || r->sc != 0) {
+    if (o->target != 0 || r->sc != 0 || r->fb_sc != 0) {
         return JOIST_E_OCCUPIED;
     }
     o->target = t + 1u;
@@ -143,6 +169,30 @@ joist_err joist__sc_bind_thread(struct joist_kernel *k, uint32_t so, uint32_t t)
         k->resched = 1;                /* it can run now */
         joist__rq_sync(k, t);
     }
+    return JOIST_OK;
+}
+
+joist_err joist_sc_bind_fallback(struct joist_kernel *k, joist_cspace cs, joist_slot sc_slot,
+                                 joist_slot th_slot)
+{
+    uint32_t so;
+    uint32_t to;
+    joist_err e = joist__control_cap(k, cs, sc_slot, JOIST_OBJ_SCHED, &so);
+    if (e == JOIST_OK) {
+        e = joist__control_cap(k, cs, th_slot, JOIST_OBJ_THREAD, &to);
+    }
+    if (e != JOIST_OK) {
+        return e;
+    }
+    struct joist_object *o = &k->obj[so];
+    uint32_t t = k->obj[to].target - 1u;
+    struct joist_thread_rec *r = &k->th[t];
+    if (o->target != 0 || r->sc != 0 || r->fb_sc != 0) {
+        return JOIST_E_OCCUPIED;
+    }
+    o->target = t + 1u;
+    r->fb_sc = so + 1u;
+    joist__sc_fallback(k, t); /* a thread serving on nothing runs at once */
     return JOIST_OK;
 }
 
@@ -159,7 +209,15 @@ joist_err joist_sc_unbind(struct joist_kernel *k, joist_cspace cs, joist_slot sc
     }
     struct joist_thread_rec *r = &k->th[o->target - 1u];
     if (r->sc_to != 0 && r->sc_from == 0) {
-        return JOIST_E_STATE; /* its own context is lent out right now */
+        return JOIST_E_STATE; /* its own context (or fallback) is lent out right now */
+    }
+    if (r->fb_sc == so + 1u) {
+        if (r->run_sc == so + 1u) {
+            return JOIST_E_STATE; /* it is finishing a request on it */
+        }
+        r->fb_sc = 0;
+        o->target = 0;
+        return JOIST_OK;
     }
     if (r->run_sc == so + 1u) {
         r->run_sc = 0;
@@ -192,10 +250,11 @@ void joist__sc_donate(struct joist_kernel *k, uint32_t from, uint32_t to)
 {
     struct joist_thread_rec *f = &k->th[from];
     struct joist_thread_rec *r = &k->th[to];
-    /* Only to a passive receiver holding nothing, from a caller running on
-     * something and not already lending. */
-    if (r->sc != 0 || r->run_sc != 0 || r->sc_from != 0 || r->sc_to != 0 || f->run_sc == 0 ||
-        f->sc_to != 0) {
+    /* Only to a passive receiver holding nothing (but perhaps its fallback,
+     * which the loan replaces), from a caller running on something and not
+     * already lending. */
+    if (r->sc != 0 || (r->run_sc != 0 && r->run_sc != r->fb_sc) || r->sc_from != 0 ||
+        r->sc_to != 0 || f->run_sc == 0 || f->sc_to != 0) {
         return;
     }
     r->run_sc = f->run_sc;
@@ -213,7 +272,7 @@ void joist__sc_reclaim(struct joist_kernel *k, uint32_t x)
     uint32_t sc = 0;
     r->sc_to = 0;
     /* Down the chain to whoever holds it now, unlinking as we go; each
-     * borrower on the way falls back to its own context, if any. */
+     * borrower on the way falls back to its own context, or its fallback. */
     for (uint32_t n = 0; y != 0 && n < JOIST_MAX_THREADS; n++) {
         JOIST_WORK(k);
         struct joist_thread_rec *b = &k->th[y - 1u];
@@ -224,11 +283,11 @@ void joist__sc_reclaim(struct joist_kernel *k, uint32_t x)
         uint32_t bt = y - 1u;
         b->sc_from = 0;
         b->sc_to = 0;
-        b->run_sc = b->sc; /* (its place stays: the reply, ipc.c, gives it a new one) */
+        b->run_sc = sc_home(b); /* (its place stays: the reply, ipc.c, gives it a new one) */
         joist__rq_sync(k, bt);
         y = next;
     }
-    r->run_sc = sc != 0 ? sc : r->sc;
+    r->run_sc = sc != 0 ? sc : sc_home(r);
     joist__rq_sync(k, x);
 }
 
@@ -236,7 +295,12 @@ void joist__sc_giveback(struct joist_kernel *k, uint32_t h)
 {
     struct joist_thread_rec *r = &k->th[h];
     if (r->sc_from == 0) {
-        return; /* holds nothing borrowed */
+        /* Holds nothing borrowed; done serving on its fallback, if it was. */
+        if (r->fb_sc != 0 && r->run_sc == r->fb_sc && r->sc_to == 0) {
+            r->run_sc = 0;
+            joist__rq_sync(k, h);
+        }
+        return;
     }
     if (r->sc_to != 0) {
         joist__sc_reclaim(k, h); /* lent on: pull it back here first */
@@ -261,8 +325,12 @@ void joist__sc_thread_gone(struct joist_kernel *k, uint32_t t)
     if (r->sc != 0) {
         k->obj[r->sc - 1u].target = 0; /* the context outlives its thread, unbound */
     }
+    if (r->fb_sc != 0) {
+        k->obj[r->fb_sc - 1u].target = 0; /* so does a fallback */
+    }
     rq_remove(k, t);
     r->sc = 0;
+    r->fb_sc = 0;
     r->run_sc = 0;
 }
 
@@ -271,7 +339,12 @@ void joist__sc_freed(struct joist_kernel *k, uint32_t obj)
     struct joist_object *o = &k->obj[obj];
     k->resched = 1; /* whoever ran on it can't; borrowers fall back to their own */
     if (o->target != 0) {
-        k->th[o->target - 1u].sc = 0;
+        struct joist_thread_rec *ow = &k->th[o->target - 1u];
+        if (ow->sc == obj + 1u) {
+            ow->sc = 0;
+        } else {
+            ow->fb_sc = 0;
+        }
         o->target = 0;
     }
     for (uint32_t h = 0; h < JOIST_MAX_THREADS; h++) {
@@ -288,7 +361,7 @@ void joist__sc_freed(struct joist_kernel *k, uint32_t obj)
             uint32_t from = b->sc_from;
             b->sc_from = 0;
             b->sc_to = 0;
-            b->run_sc = b->sc;
+            b->run_sc = sc_home(b);
             b->ready_seq = ++k->ready_seq; /* on its own again: behind its equals */
             joist__rq_sync(k, y);
             if (from == 0) {
@@ -857,12 +930,21 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
     unsigned bad = 0;
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
+        JOIST_CBMC_NOTE(__LINE__);                                                                 \
         if (bad++ == 0 && msg_free && msg != NULL && msglen > 0) {                                 \
             JOIST_FMT(msg, msglen, __VA_ARGS__);                                                   \
         }                                                                                          \
     } while (0)
 
-    /* I13: who is on which CPU is recorded at both ends, and a thread on a
+    /* The clock: the time periods count from (the last tick's) is never
+     * ahead of now, which only goes forward. CBMC (0025, operation 21) found
+     * the checker accepting it: a tick from there moves it back, and a
+     * context already due stops being due under a thread still queued. */
+    if (k->tick_now > k->now) {
+        VIOLATION("I14: periods count from %llu, after now (%llu)",
+                  (unsigned long long)k->tick_now, (unsigned long long)k->now);
+    }
+        /* I13: who is on which CPU is recorded at both ends, and a thread on a
      * CPU exists. */
     for (uint32_t c = 0; c < JOIST_MAX_CPUS; c++) {
         uint32_t t = k->on_cpu[c];
@@ -896,7 +978,8 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
                       (unsigned long long)ob->budget, (unsigned long long)ob->period);
         }
         if (ob->target != 0 &&
-            (ob->target > JOIST_MAX_THREADS || k->th[ob->target - 1u].sc != o + 1u)) {
+            (ob->target > JOIST_MAX_THREADS || (k->th[ob->target - 1u].sc != o + 1u &&
+                                                 k->th[ob->target - 1u].fb_sc != o + 1u))) {
             VIOLATION("I11: context %u bound to thread %u, which doesn't own it", o,
                       ob->target - 1u);
         }
@@ -904,13 +987,41 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         const struct joist_thread_rec *r = &k->th[t];
         if (r->state == JOIST_T_FREE) {
-            if (r->sc != 0 || r->run_sc != 0 || r->sc_from != 0 || r->sc_to != 0) {
+            if (r->sc != 0 || r->run_sc != 0 || r->sc_from != 0 || r->sc_to != 0 || r->fb_sc != 0) {
                 VIOLATION("I11: free thread %u still has scheduling links", t);
             }
             continue;
         }
-        const uint32_t named[2] = {r->sc, r->run_sc};
-        for (unsigned i = 0; i < 2; i++) {
+        if (r->state > JOIST_T_SUSPENDED) {
+            VIOLATION("I11: thread %u is in no state there is (%u)", t, r->state);
+        }
+        /* Places in line come from the counter (or are copied from another
+         * thread's), so none is past it: a place taken next is behind every
+         * thread's. CBMC (0025, operation 17) found the checker accepting
+         * one past it. */
+        if (r->ready_seq > k->ready_seq) {
+            VIOLATION("I14: thread %u's place %llu is past the counter's %llu", t,
+                      (unsigned long long)r->ready_seq, (unsigned long long)k->ready_seq);
+        }
+        /* It runs only on what it owns (its own context or its fallback),
+         * or on a loan, which its first lender owns. */
+        if (r->run_sc != 0) {
+            uint32_t o = t;
+            for (uint32_t n = 0; k->th[o].sc_from != 0 && n < JOIST_MAX_THREADS; n++) {
+                if (k->th[o].sc_from > JOIST_MAX_THREADS) {
+                    break;
+                }
+                o = k->th[o].sc_from - 1u;
+            }
+            if (k->th[o].sc_from != 0 ||
+                (k->th[o].sc != r->run_sc && k->th[o].fb_sc != r->run_sc)) {
+                VIOLATION("I11: thread %u runs on context %u, which its loan's first lender "
+                          "(thread %u) doesn't own",
+                          t, r->run_sc - 1u, o);
+            }
+        }
+        const uint32_t named[3] = {r->sc, r->run_sc, r->fb_sc};
+        for (unsigned i = 0; i < 3; i++) {
             if (named[i] != 0 &&
                 (named[i] > JOIST_MAX_OBJECTS || k->obj[named[i] - 1u].type != JOIST_OBJ_SCHED)) {
                 VIOLATION("I11: thread %u names %u, not a scheduling context", t, named[i]);
@@ -918,6 +1029,24 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
         }
         if (r->sc != 0 && r->sc <= JOIST_MAX_OBJECTS && k->obj[r->sc - 1u].target != t + 1u) {
             VIOLATION("I11: thread %u owns context %u, which names another owner", t, r->sc - 1u);
+        }
+        /* 0025: a fallback only for a passive thread, named back by its
+         * context; run on exactly while it serves with no loan. */
+        if (r->fb_sc != 0) {
+            int receiving = r->state == JOIST_T_BLOCKED_RECV || r->state == JOIST_T_BLOCKED_WAIT;
+            if (r->sc != 0) {
+                VIOLATION("I11: thread %u has a context of its own and a fallback", t);
+            }
+            if (r->fb_sc <= JOIST_MAX_OBJECTS && k->obj[r->fb_sc - 1u].target != t + 1u) {
+                VIOLATION("I11: thread %u's fallback %u names another owner", t, r->fb_sc - 1u);
+            }
+            if (receiving && r->run_sc == r->fb_sc) {
+                VIOLATION("I11: thread %u runs on its fallback while receiving or waiting", t);
+            }
+            if (!receiving && r->sc_from == 0 && r->sc_to == 0 && r->run_sc != r->fb_sc) {
+                VIOLATION("I11: thread %u serves with no loan but not on its fallback (on %u)", t,
+                          r->run_sc);
+            }
         }
         if (r->run_sc != 0) {
             for (uint32_t u = t + 1u; u < JOIST_MAX_THREADS; u++) {
@@ -1025,6 +1154,23 @@ unsigned joist__check_sched(const struct joist_kernel *k, char *msg, unsigned ms
     }
     if (queued != eligible) {
         VIOLATION("I14: %u threads on the queues, %u that should be", queued, eligible);
+    }
+    /* No two running threads (whatever their budgets) share a place in
+     * line: a thread gets a new place whenever it becomes ready or uses up
+     * a budget, and a place is copied only to a server from a caller
+     * waiting for its reply (take_place), which gets a new one when it
+     * wakes. Otherwise the queues and the scan would break the tie
+     * differently (CBMC, 0025, operation 21). */
+    for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+        if (k->th[t].state != JOIST_T_RUNNING) {
+            continue;
+        }
+        for (uint32_t u = t + 1u; u < JOIST_MAX_THREADS; u++) {
+            if (k->th[u].state == JOIST_T_RUNNING && k->th[u].ready_seq == k->th[t].ready_seq) {
+                VIOLATION("I14: running threads %u and %u share place %llu", t, u,
+                          (unsigned long long)k->th[t].ready_seq);
+            }
+        }
     }
     /* (Only of a sound state: the choice reads the queues and the threads
      * they name without checking them again.) */

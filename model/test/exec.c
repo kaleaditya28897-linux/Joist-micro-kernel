@@ -63,7 +63,8 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_GIVE] = "give",
                                         [JX_OBJ_KILL] = "obj_kill",
                                         [JX_COPY_BATCH] = "copy_batch",
-                                        [JX_TICK] = "tick"};
+                                        [JX_TICK] = "tick",
+                                        [JX_SC_FALLBACK] = "sc_bind_fallback"};
 
 /* Relative frequency of each operation, out of their sum. */
 static const uint8_t weight[JX_OPS] = {
@@ -80,7 +81,7 @@ static const uint8_t weight[JX_OPS] = {
     [JX_MAP] = 5,          [JX_UNMAP] = 2,         [JX_PROTECT] = 2,     [JX_DONATE] = 2,
     [JX_MAP_QUERY] = 3,
     [JX_CONTINUE] = 4,     [JX_GIVE] = 4,
-    [JX_OBJ_KILL] = 2,     [JX_COPY_BATCH] = 4,    [JX_TICK] = 6};
+    [JX_OBJ_KILL] = 2,     [JX_COPY_BATCH] = 4,    [JX_TICK] = 6,        [JX_SC_FALLBACK] = 3};
 
 static uint64_t boot_budget;
 
@@ -813,6 +814,9 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
                              pick_slot(k, src, cs, JOIST_OBJ_THREAD));
     case JX_SC_UNBIND:
         return joist_sc_unbind(k, cs, pick_slot(k, src, cs, JOIST_OBJ_SCHED));
+    case JX_SC_FALLBACK:
+        return joist_sc_bind_fallback(k, cs, pick_slot(k, src, cs, JOIST_OBJ_SCHED),
+                                      pick_slot(k, src, cs, JOIST_OBJ_THREAD));
     case JX_SET_MCP:
         return joist_task_set_mcp(k, cs, pick_slot(k, src, cs, JOIST_OBJ_TASK),
                                   (uint8_t)ch(src, 256));

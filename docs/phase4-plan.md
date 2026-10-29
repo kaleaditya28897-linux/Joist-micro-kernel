@@ -1125,3 +1125,70 @@ or refuse.
      emulated flake ___; the region capability (item 8) ___; `mm`
      restartable (Phase 9) ___.
   6. Item 8, if it lands after the record: ___.
+
+### Step 7, part E4: the fallback context (decision 0025, 2026-10-29)
+
+- **Why:** E1 found `mm` stranded when a client died while `mm` ran on its
+  lent time. A client's Call timing out or being aborted does the same. The
+  owner chose a fallback context (0025, accepted).
+- **The model** (`kernel/core/sched.c`, `ipc.c`, `notify.c`; `core.h`):
+  - each thread gains `fb_sc`, and `joist_sc_bind_fallback` binds it;
+  - everywhere a borrower fell back to its own context it now falls back
+    to its own, else its fallback;
+  - a wake-up with nothing goes on the fallback;
+  - a Recv or Wait that blocks drops it, and one that returns at once keeps
+    it;
+  - a Call delivered replaces it (donation);
+  - I11 is extended: a thread has its own context or a fallback, and runs
+    on the fallback exactly while it serves with no loan.
+- **The kernel:** `sc_bind_fallback` (system call 55; `docs/abi.md`),
+  `j_sc_bind_fallback` in `user/lib/joist.h`.
+- **`mm`:** the root (`user/lib/mmhost.h`) binds `mm` a fallback
+  (priority 200, 2 ms every 10 ms) instead of starting it on a context of
+  its own for one call. `mm` runs on it to its first Recv, and again only
+  to finish a request whose caller left. `cowstress`'s rescue is off by
+  default now (`COW_RESCUE=0`): a stranded `mm` fails it.
+- **Tests:**
+  - 15 unit tests in `test_sched.c`, one per way a loan is taken back
+    (the client killed, timed out, aborted or suspended, the lent context
+    deleted), plus chains, a fallback lent on, a Recv timeout, the
+    non-blocking Recv and Wait, binding rules, and I11 catching bad links;
+  - `sc_bind_fallback` among the property tests' operations;
+  - mutations `fb-*` (10), and `sc-donate-to-active` and
+    `sc-reclaim-keeps-links` retargeted;
+  - CBMC operations 17-21 (`sc_bind_fallback`, `sc_unbind`, `recv`,
+    `wait`, `tick`) with two threads.
+- **Found on the way:**
+  - the property tests caught a first version that dropped the fallback on
+    entering a Wait that then returned at once, leaving the thread serving
+    on nothing;
+  - CBMC (operation 17) found I11 too weak: it accepted a thread running
+    on a context that neither it nor its loan's first lender owns, and a
+    thread state outside the enumeration. No call reaches such a state,
+    but from one, binding that context as another thread's fallback puts
+    two threads on it. I11 now says both: a thread runs only on its own
+    context, its fallback, or a loan its first lender owns, and its state
+    is one there is;
+  - CBMC (operation 17) found a bug: `sc_bind_fallback` gave the thread a
+    new place in line even when it didn't take the fallback (a server on a
+    loan, queued), so its queue was out of order. The place is now given
+    only when it takes the fallback (a unit test, and the mutation
+    `fb-bind-reorders`);
+  - CBMC (operations 17 and 21, `tick`, never proved before) found three
+    more facts the checker didn't state: the time periods count from is
+    never ahead of now; no thread's place in line is past the counter
+    places come from; and no two running threads share a place, whatever
+    their budgets (the queues and the scan break such a tie differently). I14 now states all
+    three. The proofs also assume the 64-bit place counter hasn't wrapped
+    (2^64 steps);
+  - CBMC needed more memory: the build VM went from 8 to 12 GB. `recv`
+    (operation 19) still doesn't fit with two threads, even split by
+    whether callers are queued, with one space and no IPC buffers; it is
+    left to the unit and property tests.
+- **Verified** (the build VM, 12 GB):
+  - `make -C model check`: every build, 237 tests;
+  - mutations `sc-` and `fb-`: all 21 caught;
+  - CBMC operations 17, 18, 20 and 21: verified;
+  - the `mmroot` and `cowstress` self-tests: emulated, on 2 and 4 KVM CPUs
+    and on the checking kernel, with `cowstress`'s rescue off. `mm` was
+    stranded 0 times, against 28 and 37 before on 2 and 4 CPUs.

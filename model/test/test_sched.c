@@ -272,3 +272,271 @@ JT_TEST(sched_invariants_catch_bad_links)
     k.th[c].sc_to = 0;
     JT_CHECK(clean());
 }
+
+/* ---- the fallback context (0025) ----
+ * s gets a fallback (R_SC2). It is passive: a Call still lends it time.
+ * It runs on the fallback only while serving with no loan, until it next
+ * receives or waits. */
+
+static uint32_t fb_setup(void)
+{
+    setup();
+    if (joist_sc_create(&k, root, R_SC2, 20, 1, 4) != JOIST_OK ||
+        joist_sc_bind_fallback(&k, root, R_SC2, R_S) != JOIST_OK) {
+        jt_fail(__FILE__, __LINE__, "the fallback could not be bound", 0);
+    }
+    return sc_obj(R_SC2);
+}
+
+JT_TEST(sched_fallback_bind_rules)
+{
+    uint32_t fb = fb_setup();
+    /* s was running on nothing (spawned, passive): it is on it at once. */
+    JT_CHECK(k.th[s].fb_sc == fb && k.th[s].sc == 0 && k.th[s].run_sc == fb);
+    JT_CHECK(clean());
+    JT_CHECK(joist_sc_bind_fallback(&k, root, R_SC2, R_S2) == JOIST_E_OCCUPIED); /* bound */
+    JT_REQUIRE(joist_sc_create(&k, root, 6, 20, 1, 4) == JOIST_OK);
+    JT_CHECK(joist_sc_bind_fallback(&k, root, 6, R_C) == JOIST_E_OCCUPIED); /* c has its own */
+    JT_CHECK(joist_sc_bind_fallback(&k, root, 6, R_S) == JOIST_E_OCCUPIED); /* s has one */
+    JT_CHECK(joist_sc_bind(&k, root, 6, R_S) == JOIST_E_OCCUPIED);          /* not both */
+    JT_CHECK(joist_sc_bind_fallback(&k, root, R_C, R_S2) == JOIST_E_TYPE);
+    JT_REQUIRE(joist_cap_derive(&k, root, 6, 7, JOIST_R_GRANT) == JOIST_OK);
+    JT_CHECK(joist_sc_bind_fallback(&k, root, 7, R_S2) == JOIST_E_RIGHTS); /* no CONTROL */
+    /* Receiving: off it. Unbinding refused while on it, fine after. */
+    JT_CHECK(joist_sc_unbind(&k, root, R_SC2) == JOIST_E_STATE);
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(k.th[s].run_sc == 0);
+    JT_CHECK(clean());
+    JT_REQUIRE(joist_sc_unbind(&k, root, R_SC2) == JOIST_OK);
+    JT_CHECK(k.th[s].fb_sc == 0 && k.obj[fb - 1u].target == 0);
+    /* Bound while it waits in a Recv: not run on. */
+    JT_REQUIRE(joist_sc_bind_fallback(&k, root, R_SC2, R_S) == JOIST_OK);
+    JT_CHECK(k.th[s].run_sc == 0 && k.th[s].fb_sc == fb);
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_call_still_lends)
+{
+    uint32_t fb = fb_setup();
+    uint32_t sc = sc_obj(R_SC);
+    struct joist_msg m = {0};
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_call(&k, c, EP, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(k.th[s].run_sc == sc && k.th[s].sc_from == c + 1u && k.th[c].sc_to == s + 1u);
+    JT_CHECK(clean());
+    /* The reply takes the loan back: on the fallback until the next Recv. */
+    JT_REQUIRE(joist_reply(&k, s, &m) == JOIST_OK);
+    JT_CHECK(k.th[c].run_sc == sc && k.th[s].run_sc == fb);
+    JT_CHECK(clean());
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(k.th[s].run_sc == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_queued_call_replaces_it)
+{
+    uint32_t fb = fb_setup();
+    struct joist_msg m = {0};
+    JT_REQUIRE(k.th[s].run_sc == fb);
+    JT_REQUIRE(joist_call(&k, c, EP, &m, JOIST_FOREVER) == JOIST_BLOCKED); /* queued */
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_OK);
+    JT_CHECK(k.th[s].run_sc == sc_obj(R_SC) && k.th[s].sc_from == c + 1u);
+    JT_CHECK(clean());
+}
+
+/* Each way a loan is taken back in the middle of a request: the server goes
+ * on its fallback, can finish (its late reply is refused), and receive. */
+static void fb_midrequest_end(uint32_t fb, joist_err reply)
+{
+    struct joist_msg m = {0};
+    JT_CHECK(k.th[s].state == JOIST_T_RUNNING && k.th[s].run_sc == fb && k.th[s].sc_from == 0);
+    JT_CHECK(clean());
+    JT_CHECK(joist_reply(&k, s, &m) == reply);
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(k.th[s].run_sc == 0);
+    JT_CHECK(clean());
+}
+
+static void fb_midrequest_start(void)
+{
+    struct joist_msg m = {0};
+    if (joist_recv(&k, s, EP, JOIST_FOREVER) != JOIST_BLOCKED ||
+        joist_call(&k, c, EP, &m, 5) != JOIST_BLOCKED || k.th[s].run_sc != sc_obj(R_SC)) {
+        jt_fail(__FILE__, __LINE__, "the request could not be started", 0);
+    }
+}
+
+JT_TEST(sched_fallback_client_killed)
+{
+    uint32_t fb = fb_setup();
+    fb_midrequest_start();
+    JT_REQUIRE(joist_thread_kill(&k, root, R_C) == JOIST_OK);
+    fb_midrequest_end(fb, JOIST_E_PEER);
+}
+
+JT_TEST(sched_fallback_client_timed_out)
+{
+    uint32_t fb = fb_setup();
+    fb_midrequest_start();
+    joist_tick(&k, 10);
+    JT_CHECK(k.th[c].result == JOIST_E_TIMEOUT && k.th[c].run_sc == sc_obj(R_SC));
+    fb_midrequest_end(fb, JOIST_E_PEER);
+}
+
+JT_TEST(sched_fallback_client_aborted)
+{
+    uint32_t fb = fb_setup();
+    fb_midrequest_start();
+    JT_REQUIRE(joist_thread_abort(&k, root, R_C) == JOIST_OK);
+    JT_CHECK(k.th[c].result == JOIST_E_ABORTED && k.th[c].run_sc == sc_obj(R_SC));
+    fb_midrequest_end(fb, JOIST_E_PEER);
+}
+
+JT_TEST(sched_fallback_client_suspended)
+{
+    uint32_t fb = fb_setup();
+    fb_midrequest_start();
+    JT_REQUIRE(joist_thread_suspend(&k, root, R_C) == JOIST_OK);
+    JT_CHECK(k.th[c].state == JOIST_T_SUSPENDED && k.th[c].run_sc == sc_obj(R_SC));
+    fb_midrequest_end(fb, JOIST_E_PEER);
+}
+
+JT_TEST(sched_fallback_lent_context_deleted)
+{
+    uint32_t fb = fb_setup();
+    fb_midrequest_start();
+    JT_REQUIRE(joist_cap_delete(&k, root, R_SC) == JOIST_OK); /* the last capability */
+    fb_midrequest_end(fb, JOIST_OK); /* c still waits: the reply reaches it */
+}
+
+JT_TEST(sched_fallback_without_one_is_as_before)
+{
+    /* No fallback: the server is left on nothing, as Phase 3 had it. */
+    setup();
+    fb_midrequest_start();
+    JT_REQUIRE(joist_thread_kill(&k, root, R_C) == JOIST_OK);
+    JT_CHECK(k.th[s].run_sc == 0 && k.th[s].state == JOIST_T_RUNNING);
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_recv_timeout)
+{
+    /* A passive thread's Recv that times out wakes on its fallback. */
+    uint32_t fb = fb_setup();
+    JT_REQUIRE(joist_recv(&k, s, EP, 5) == JOIST_BLOCKED);
+    JT_CHECK(k.th[s].run_sc == 0);
+    joist_tick(&k, 10);
+    JT_CHECK(k.th[s].state == JOIST_T_RUNNING && k.th[s].result == JOIST_E_TIMEOUT);
+    JT_CHECK(k.th[s].run_sc == fb);
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_in_a_chain)
+{
+    /* c -> s -> s2; only s2 has a fallback. c killed: s2, holding the loan,
+     * goes on its fallback; s, which lent it on, on nothing (it has none). */
+    setup();
+    JT_REQUIRE(joist_sc_create(&k, root, R_SC2, 20, 1, 4) == JOIST_OK);
+    JT_REQUIRE(joist_recv(&k, s2, EP2, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_sc_bind_fallback(&k, root, R_SC2, R_S2) == JOIST_OK);
+    uint32_t fb = sc_obj(R_SC2);
+    struct joist_msg m = {0};
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_call(&k, c, EP, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_call(&k, s, EP2, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(k.th[s2].run_sc == sc_obj(R_SC));
+    JT_REQUIRE(joist_thread_kill(&k, root, R_C) == JOIST_OK);
+    JT_CHECK(k.th[s2].run_sc == fb && k.th[s2].sc_from == 0);
+    JT_CHECK(k.th[s].run_sc == 0 && k.th[s].sc_to == 0 && k.th[s].state == JOIST_T_BLOCKED_REPLY);
+    JT_CHECK(clean());
+    /* s2 finishes on its fallback and answers s, which wakes on nothing. */
+    JT_REQUIRE(joist_reply(&k, s2, &m) == JOIST_OK);
+    JT_CHECK(k.th[s].state == JOIST_T_RUNNING && k.th[s].run_sc == 0);
+    JT_CHECK(k.th[s2].run_sc == fb);
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_lent_on_and_back)
+{
+    /* s on its fallback calls s2 (passive): the fallback is lent on, and
+     * comes back with the reply. */
+    uint32_t fb = fb_setup();
+    struct joist_msg m = {0};
+    JT_REQUIRE(joist_recv(&k, s2, EP2, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(k.th[s].run_sc == fb);
+    JT_REQUIRE(joist_call(&k, s, EP2, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_CHECK(k.th[s2].run_sc == fb && k.th[s].run_sc == 0 && k.th[s].sc_to == s2 + 1u);
+    JT_CHECK(joist_sc_unbind(&k, root, R_SC2) == JOIST_E_STATE); /* lent out */
+    JT_CHECK(clean());
+    JT_REQUIRE(joist_reply(&k, s2, &m) == JOIST_OK);
+    JT_CHECK(k.th[s].run_sc == fb && k.th[s2].run_sc == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_deleted_or_thread_gone)
+{
+    uint32_t fb = fb_setup();
+    JT_REQUIRE(k.th[s].run_sc == fb);
+    JT_REQUIRE(joist_cap_delete(&k, root, R_SC2) == JOIST_OK); /* while running on it */
+    JT_CHECK(k.th[s].fb_sc == 0 && k.th[s].run_sc == 0);
+    JT_CHECK(clean());
+    JT_REQUIRE(joist_sc_create(&k, root, R_SC2, 20, 1, 4) == JOIST_OK);
+    JT_REQUIRE(joist_sc_bind_fallback(&k, root, R_SC2, R_S) == JOIST_OK);
+    JT_REQUIRE(joist_thread_kill(&k, root, R_S) == JOIST_OK);
+    JT_CHECK(k.obj[sc_obj(R_SC2) - 1u].target == 0); /* lives on, unbound */
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_invariants_catch_bad_links)
+{
+    uint32_t fb = fb_setup();
+    char msg[200];
+    k.th[s].run_sc = 0; /* serving, no loan, yet not on its fallback */
+    JT_CHECK(joist_check_invariants(&k, msg, sizeof msg) != 0);
+    k.th[s].run_sc = fb;
+    JT_CHECK(clean());
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_BLOCKED);
+    k.th[s].run_sc = fb; /* on it while receiving */
+    JT_CHECK(joist_check_invariants(&k, msg, sizeof msg) != 0);
+    k.th[s].run_sc = 0;
+    k.th[s].sc = sc_obj(R_SC); /* its own and a fallback */
+    JT_CHECK(joist_check_invariants(&k, msg, sizeof msg) != 0);
+    k.th[s].sc = 0;
+    JT_CHECK(clean());
+}
+
+JT_TEST(sched_fallback_kept_when_not_blocking)
+{
+    /* A Wait that finds bits, or a Recv with no caller and timeout 0,
+     * returns at once: still serving, so still on its fallback. */
+    uint32_t fb = fb_setup();
+    JT_REQUIRE(joist_obj_create(&k, T, JOIST_OBJ_NOTIFICATION, 3) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, T, 3, 4, JOIST_R_SEND, 1) == JOIST_OK);
+    JT_REQUIRE(joist_signal(&k, c, 4) == JOIST_OK);
+    JT_REQUIRE(joist_wait(&k, s, 3, JOIST_FOREVER) == JOIST_OK);
+    JT_CHECK(k.th[s].run_sc == fb);
+    JT_CHECK(clean());
+    JT_REQUIRE(joist_recv(&k, s, EP, 0) == JOIST_E_TIMEOUT);
+    JT_CHECK(k.th[s].run_sc == fb);
+    JT_CHECK(clean());
+}
+
+
+JT_TEST(sched_fallback_bound_to_a_queued_borrower_keeps_its_place)
+{
+    /* Found by CBMC (operation 17): s, queued on c's time ahead of s2 (same
+     * priority, a context of its own made later), gets a fallback. It
+     * doesn't run on it (it has a loan), so its place in line stays. */
+    setup();
+    struct joist_msg m = {0};
+    JT_REQUIRE(joist_sc_create(&k, root, R_SC2, 10, 5, 10) == JOIST_OK);
+    JT_REQUIRE(joist_recv(&k, s, EP, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_call(&k, c, EP, &m, JOIST_FOREVER) == JOIST_BLOCKED);
+    JT_REQUIRE(joist_sc_bind(&k, root, R_SC2, R_S2) == JOIST_OK); /* behind s */
+    JT_REQUIRE(k.th[s].run_sc == sc_obj(R_SC) && k.th[s].ready_seq < k.th[s2].ready_seq);
+    JT_REQUIRE(clean());
+    JT_REQUIRE(joist_sc_create(&k, root, 6, 20, 1, 4) == JOIST_OK);
+    JT_REQUIRE(joist_sc_bind_fallback(&k, root, 6, R_S) == JOIST_OK);
+    JT_CHECK(k.th[s].run_sc == sc_obj(R_SC) && k.th[s].ready_seq < k.th[s2].ready_seq);
+    JT_CHECK(clean());
+}

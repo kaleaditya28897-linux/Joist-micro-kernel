@@ -30,6 +30,7 @@
 #define JOIST_CBMC_STEPS 3
 #endif
 
+unsigned joist__cbmc_line; /* internal.h: the last invariant check that fired */
 unsigned nondet_unsigned(void);
 uint64_t nondet_u64(void);
 struct joist_kernel nondet_kernel(void);
@@ -180,6 +181,18 @@ int main(void)
     k.fround = 0;
 #endif
     __CPROVER_assume(joist_check_invariants(&k, NULL, 0) == 0);
+    /* The place-in-line counter (64 bits, one step per wake-up or turn)
+     * hasn't wrapped: that takes 2^64 steps, centuries at one a nanosecond.
+     * An assumption of the proofs, not a check of the kernel's. */
+    __CPROVER_assume(k.ready_seq < UINT64_MAX / 2u);
+#ifdef JOIST_CBMC_NO_BUFFERS
+    /* 0025's receiving and waiting proofs (cbmc/run.sh): no thread has an
+     * IPC buffer, so no message words are copied (512 words would not fit
+     * the formula in memory). Buffers are the unit and property tests'. */
+    for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        __CPROVER_assume(k.th[i].ipc_buf == 0);
+    }
+#endif
 #else
     joist_cspace root;
     joist_init(&k);
@@ -208,6 +221,17 @@ int main(void)
         unsigned perms = nondet_unsigned();
         joist_err e;
 
+#ifdef JOIST_CBMC_SENDERS
+        /* Split a receive's proof (cbmc/run.sh, OP/s and OP/n): slot a of
+         * space 0 is an endpoint with callers queued (1), or it isn't (0).
+         * The two cover every case. */
+        {
+            const struct joist_cap *q = joist__slot_c(&k, 0, a);
+            int senders = q != NULL && q->obj != 0 && q->type == JOIST_OBJ_ENDPOINT &&
+                          k.obj[q->obj - 1u].qkind == JOIST_Q_SENDERS;
+            __CPROVER_assume(senders == JOIST_CBMC_SENDERS);
+        }
+#endif
 #ifdef JOIST_CBMC_SLOT_TYPE
         /* Split one operation's proof by the type of the capability in slot
          * a (JOIST_OBJ_NONE also covers out-of-range and empty slots), so
@@ -282,6 +306,26 @@ int main(void)
             }
             e = joist_map_query(&k, cs, a, va, n, b, query);
             break;
+        /* Decision 0025, the fallback context: the calls that bind and
+         * unbind one, and those whose paths now take or drop it (receiving
+         * and waiting give a loan back; a timeout wakes a thread). Run with
+         * two threads (cbmc/run.sh), so a loan can stand. */
+        case 17:
+            e = joist_sc_bind_fallback(&k, cs, a, b);
+            break;
+        case 18:
+            e = joist_sc_unbind(&k, cs, a);
+            break;
+        case 19:
+            e = joist_recv(&k, any(JOIST_MAX_THREADS), a, any(1) == 0 ? 0 : nondet_u64());
+            break;
+        case 20:
+            e = joist_wait(&k, any(JOIST_MAX_THREADS), a, any(1) == 0 ? 0 : nondet_u64());
+            break;
+        case 21:
+            joist_tick(&k, nondet_u64());
+            e = JOIST_OK;
+            break;
         default:
             e = joist_task_destroy(&k, cs, a);
             break;
@@ -289,6 +333,8 @@ int main(void)
 
 #ifndef JOIST_CBMC_NO_INVARIANTS
         __CPROVER_assert(joist_check_invariants(&k, NULL, 0) == 0, "invariants hold");
+        /* (Read, so the trace keeps it: the line of the check that fired.) */
+        __CPROVER_assert(joist__cbmc_line == 0, "no invariant check fired");
 #endif
 #if defined(JOIST_CBMC_TABLES) && defined(JOIST_CBMC_INDUCTIVE)
         __CPROVER_assert(pages_distinct(), "I12: every table page held once");

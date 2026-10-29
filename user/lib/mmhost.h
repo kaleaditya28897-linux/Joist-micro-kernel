@@ -101,13 +101,12 @@ static void start_mm(void)
     mm_thread = slot_new();
     uint64_t sc = slot_new();
     must(j_thread_spawn(mm_task, mm_thread, entry, CHILD_LO), "thread_spawn (mm)");
-    must(j_sc_create(sc, 200, 10 * J_MS, 10 * J_MS), "sc_create (mm)");
-    must(j_sc_bind(sc, mm_thread), "sc_bind (mm)");
+    /* Passive with a fallback (0025): it runs on it now, to its first Recv,
+     * and again only to finish a request whose caller left mid-way. */
+    must(j_sc_create(sc, 200, 2 * J_MS, 10 * J_MS), "sc_create (mm's fallback)");
+    must(j_sc_bind_fallback(sc, mm_thread), "sc_bind_fallback (mm)");
     struct j_msg r = ask(MM_REQ_INIT, 0);
     check(r.r[0] == MM_OK, "mm's INIT failed");
-    /* It answered with ReplyRecv, so it is waiting: now it is passive. */
-    must(j_sc_unbind(sc), "sc_unbind (mm)");
-    must(j_cap_delete(sc), "cap_delete (mm's context)");
     r = ask(MM_REQ_INIT, 0);
     check(r.r[0] == MM_E_STATE, "mm took a second INIT");
     j_puts(TEST_NAME ": started, passive ok\n");

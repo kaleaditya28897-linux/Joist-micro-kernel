@@ -567,6 +567,7 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
 
 #define VIOLATION(...)                                                                             \
     do {                                                                                           \
+        JOIST_CBMC_NOTE(__LINE__);                                                                 \
         if (bad++ == 0 && msg != NULL && msglen > 0) {                                             \
             JOIST_FMT(msg, msglen, __VA_ARGS__);                                              \
         }                                                                                          \

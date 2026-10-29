@@ -398,7 +398,8 @@ context's priority and charges its budget (*Scheduling*, below).
 |---|---|---|---|---|
 | `sc_create` | dst, priority, budget, period | `E_RANGE`/`E_DEAD` (space), `E_RANGE` (dst), `E_OCCUPIED`, `E_RANGE` (budget 0, period 0, or budget > period), `E_RIGHTS` (priority above the space's mcp), `E_NOMEM` (quota, then object table) | a new context, unbound, paid by the caller | one table scan |
 | `sc_bind` | context slot, thread slot | for each (context, then thread): `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (CONTROL), `E_GONE`; then `E_OCCUPIED` (either already bound) | the context becomes the thread's own; a thread not holding borrowed time starts running on it | O(1) |
-| `sc_unbind` | context slot | as above for the context, then `E_STATE` (unbound, or lent out right now) | the thread becomes passive | O(1) |
+| `sc_unbind` | context slot | as above for the context, then `E_STATE` (unbound, lent out right now, or a fallback its thread runs on) | the thread becomes passive (or loses its fallback) | O(1) |
+| `sc_bind_fallback` | context slot, thread slot | as `sc_bind`; `E_OCCUPIED` also if the thread has a context of its own or a fallback (0025) | the context becomes the thread's fallback: the thread stays passive, and runs on it only while serving with no loan (a loan taken back mid-request, or woken with nothing) until it next receives or waits; at once if that is now | O(1) |
 | `task_set_mcp` | task slot, mcp | as for a task capability with CONTROL, then `E_RIGHTS` (above the caller's own mcp) | the task's mcp: the highest priority it may give a context. The root's is 255, and a new task starts with its creator's | O(1) |
 
 **Donation.** A `Call` delivered to a passive receiver (no context of its
@@ -414,12 +415,23 @@ be a chain. **The context comes back**:
 - from the server, when it stops serving: when it receives or waits again
   (so saving a reply for later hands the time back at once), or dies.
 
+**A fallback (0025).** A passive thread may have a fallback context
+(`sc_bind_fallback`). It is still passive: a Call delivered to it lends
+the caller's context, replacing the fallback. Wherever it would be left
+serving on nothing (its loan taken back because the caller died, timed
+out or was aborted, or the lent context deleted; or woken from a Recv or
+Wait with nothing) it runs on its fallback instead, until it next
+receives or waits and blocks. A loan whose budget runs out is not taken
+back: the server waits for that context's next period, as before.
+
 Deleting a context unbinds it and unwinds any loan of it; killing a thread
 gives back what it borrowed and takes back, then drops, what it lent. **I11**
 (checked after every operation): no two threads run on one context; a
 context's owner and its thread name each other; every loan is recorded at
 both ends, ends at the thread running on the context, never loops, and its
-lender is waiting for a reply.
+lender is waiting for a reply; a thread has its own context or a fallback,
+not both, and runs on its fallback exactly while it serves (is not blocked
+in a receive or wait) and holds no loan.
 
 **Scheduling (Phase 3 step 5).** Times are in nanoseconds: budgets,
 periods, and the timeouts of `Call`, `Recv` and `Wait` (a timeout is a
