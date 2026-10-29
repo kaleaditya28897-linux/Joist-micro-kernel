@@ -1340,6 +1340,26 @@ or refuse.
   misses the 300 ms it has to answer after a kill. The exit run needs a
   host CPU per virtual CPU. M under 48 fails the coverage floors, set for
   48 seeds.
+- **The fix** (the owner, 2026-10-29): that failure was the test's, not
+  `mm`'s. On its fallback context (0025), a live `mm` answers late on a
+  squeezed host. `cowstress`'s `after_kill` now tells a slow `mm` from a
+  stranded one (`COW_RESCUE` = 0, the default):
+  - on a timeout, the root keeps asking for up to `STUCK_NS` (10 s);
+  - an answer in that time counts as `slow`, with the longest wait
+    (`slow_ms`), both printed: `slow N (at most ms T)`;
+  - no answer at all is `stranded`, and fails the test, as before.
+  `COW_RESCUE=1` is unchanged.
+- **Verified** (the build VM):
+  - **normal:** `kvm-smp4`, 20 rounds, `mm` stranded 0, slow 0;
+  - **squeezed** (4 vCPUs on 2 host CPUs, seed 4): 2 rounds, stranded 0,
+    slow 5, at most 3300 ms. A second boot at 2 rounds ran past its
+    900 s limit with no failure, so it was rerun at 1 round: stranded 0,
+    slow 3, at most 3900 ms;
+  - **the stuck mutant** (`mm`'s fallback unbound after INIT, so a kill
+    mid-request strands it for good) fails with "mm stranded: no answer
+    for 10 s";
+  - `cow3`, `kvm-smp2-cowstress` (20 rounds) and `chk-kvm-smp2-cow3`,
+    each ok, slow 0.
 
 ### Step 7, part E8: `MM_NONE`, guard pages (decision 0024, 2026-10-29)
 

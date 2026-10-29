@@ -10,8 +10,10 @@
 # It stops at nothing: every part runs, and the status says whether all
 # passed. Long: at N = 1000 hours on the P53.
 # Give each boot a host CPU per virtual CPU: 4 virtual CPUs squeezed onto 2
-# host CPUs fail cowstress with "mm stranded" (mm misses the 300 ms it is
-# given to answer after a kill), the old mm and the new alike (part E7).
+# host CPUs make mm miss the 300 ms it is given to answer after a kill.
+# cowstress now tells that apart: a slow mm (an answer within 10 s) is
+# counted ("slow N (at most ms T)"), and only a stranded one (no answer in
+# 10 s) fails the test. But a squeezed run is several times slower (part E7).
 # M under 48 fails the refinement test's coverage floors, which are set for
 # its default 48 seeds.
 #

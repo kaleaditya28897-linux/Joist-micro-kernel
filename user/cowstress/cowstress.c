@@ -21,10 +21,13 @@
  *
  * Killing a task while mm serves it on that task's lent time leaves mm
  * with no time to finish (docs/abi.md: killing a thread takes back what it
- * lent). After every kill the root asks mm for its records with a timeout;
- * if mm doesn't answer, it was stranded, and the root lends it a context of
- * its own until it is back in its Recv (COW_RESCUE), or fails the test
- * (COW_RESCUE=0). The count is printed.
+ * lent); mm finishes on its fallback context (0025). After every kill the
+ * root asks mm for its records with a timeout. With COW_RESCUE, if mm
+ * doesn't answer, it was stranded, and the root lends it a context of its
+ * own until it is back in its Recv. Without (the default), the root keeps
+ * asking for STUCK_NS: a late answer is a slow mm (on a busy host, its
+ * fallback's budget goes slowly), counted with the longest wait; no answer
+ * at all is a stranded mm, and fails the test. The counts are printed.
  *
  * COW_ROUNDS rounds of COW_STEPS steps, from COW_SEED. Workers run at the
  * root's priority, so the root's waits (yields) let them run on one CPU. */
@@ -61,6 +64,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
 #define POLL_NS      J_MS
 #define BOUND_POLLS  20000u              /* 20 s: past it, a task has hung */
 #define RESCUE_NS    (300u * J_MS)
+#define STUCK_NS     (10000u * J_MS) /* no answer for this long: mm is stuck, not slow */
 
 static struct model {
     int live;
@@ -73,7 +77,7 @@ static uint64_t rs;  /* the seeded choices */
 static uint64_t gen; /* the last generation handed out */
 static unsigned round_no, max_depth, made, kill_forks;
 static struct {
-    uint64_t writes, forks, refused, exits, kills_fault, kills_fork, stranded, verifies;
+    uint64_t writes, forks, refused, exits, kills_fault, kills_fork, stranded, slow, slow_ms, verifies;
     unsigned deepest;
 } st;
 static uint64_t rescue_sc;
@@ -232,8 +236,9 @@ static void finish_destruction(void)
     check(!more, "a destruction didn't finish");
 }
 
-/* After a kill: mm answers, or was stranded mid-request on the victim's
- * time and is lent a context until it is back in its Recv. */
+/* After a kill: mm answers at once, late (slow), or never (stranded
+ * mid-request on the victim's time; with COW_RESCUE, lent a context until
+ * it is back in its Recv). */
 static void after_kill(void)
 {
     struct j_msg m = {.r = {MM_REQ_STATUS, 0, 0, 0}};
@@ -242,13 +247,25 @@ static void after_kill(void)
         return;
     }
     check(e == J_E_TIMEOUT, "mm's STATUS failed after a kill");
-    st.stranded++;
 #if COW_RESCUE
+    st.stranded++;
     must(j_sc_bind(rescue_sc, mm_thread), "sc_bind (mm, rescued)");
     (void)ask(MM_REQ_STATUS, 0);
     must(j_sc_unbind(rescue_sc), "sc_unbind (mm, rescued)");
 #else
-    check(0, "mm stranded: a client was killed while mm ran on its time");
+    for (uint64_t waited = RESCUE_NS; waited < STUCK_NS; waited += RESCUE_NS) {
+        m = (struct j_msg){.r = {MM_REQ_STATUS, 0, 0, 0}};
+        e = j_call(mm_root, &m, RESCUE_NS);
+        if (e == J_OK) {
+            st.slow++;
+            uint64_t ms = (waited + RESCUE_NS) / J_MS;
+            st.slow_ms = ms > st.slow_ms ? ms : st.slow_ms;
+            return;
+        }
+        check(e == J_E_TIMEOUT, "mm's STATUS failed after a kill");
+    }
+    st.stranded++;
+    check(0, "mm stranded: no answer for 10 s after a client was killed while mm ran on its time");
 #endif
 }
 
@@ -596,13 +613,17 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
         put_stat(", kills mid-fault ", st.kills_fault);
         put_stat(", mid-fork ", st.kills_fork);
         put_stat(", mm stranded ", st.stranded);
-        put_stat(", refused ", st.refused);
+        put_stat(", slow ", st.slow);
+        put_stat(" (at most ms ", st.slow_ms);
+        put_stat("), refused ", st.refused);
         j_puts("\n");
     }
     put_stat("cow: all ok: verified ", st.verifies);
     put_stat(" times, forks ", st.forks);
     put_stat(", deepest ", st.deepest);
     put_stat(", mm stranded ", st.stranded);
-    j_puts("\n");
+    put_stat(", slow ", st.slow);
+    put_stat(" (at most ms ", st.slow_ms);
+    j_puts(")\n");
     j_exit(0);
 }
