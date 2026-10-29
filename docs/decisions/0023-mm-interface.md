@@ -80,7 +80,7 @@ How a client names the task a request concerns:
   | `MM_MAP_ANON` | first page, pages, permissions | records a region of anonymous memory: demand-zero, nothing mapped until it is touched. Refused if it overlaps a region |
   | `MM_UNMAP` | first page, pages | forgets that part of the task's regions, unmaps it (`unmap_range`), and drops its pages' references |
   | `MM_PROTECT` | first page, pages, permissions | changes the regions' permissions and the mapped pages' (`protect`); a COW page stays read-only until written |
-  | `MM_CLONE` | — | makes an empty task (from `mm`'s own quota, O(1) in the kernel, 0011), gives it its own `MM_SLOT` capability, downgrades the caller's writable private pages to read-only (`protect`, one shootdown a run), maps the same pages read-only into the child, and records them as shared. The reply carries a task capability to the child (CONTROL, GRANT): the caller then copies its capabilities with `cap_copy_batch` (a batch stops at `MM_SLOT`, already filled, with `E_OCCUPIED`, and the caller goes on from the slot after it: 0022) and spawns the child's thread |
+  | `MM_CLONE` | — | makes an empty task (from `mm`'s own quota, O(1) in the kernel, 0011), gives it its own `MM_SLOT` capability, downgrades the caller's writable private pages to read-only (`protect`, one shootdown a run), maps the same pages read-only into the child, and records them as shared. The reply carries a task capability to the child (CONTROL, GRANT): the caller then copies its capabilities with `cap_copy_batch` (0022) and spawns the child's thread. The batch skips `MM_SLOT`: `mm` gives it without GRANT, so the parent's copy never reaches the child, which has its own already (see the correction below) |
   | `MM_SHARE` | first page, pages, the other task (a capability passed in the message), its first page | maps the caller's pages of that range into the other task too, the range becoming a shared region in both. Shared pages are never COW: a later clone of either task maps them into the child as they are, shared with it as well (POSIX: a `MAP_SHARED` mapping stays shared across `fork`) |
 
 - **Faults** (the message of step 3: kind, access, address, pc). A fault in
@@ -279,6 +279,20 @@ tasks (unbounded badges).
 - **`cowstress`:** it now expects `mm` to serve exactly the live tasks
   after every step, and no task but `mm` under the root at the end of a
   round. It no longer reaps.
+
+## Correction (2026-10-29, the owner)
+
+- **What the `MM_CLONE` row said:** a `cap_copy_batch` stops at `MM_SLOT`,
+  already filled, with `E_OCCUPIED`, and the caller goes on after it.
+- **What happens:** `mm` gives each task its `MM_SLOT` capability with SEND
+  only, without GRANT, and the batch skips capabilities without GRANT
+  (`docs/abi.md`, `cap_copy_batch`). The parent's copy never reaches the
+  child, which has its own from `mm`. Found at step 6 (`docs/phase4-plan.md`).
+- **The text changes, not the rights:** skipping is the stronger rule,
+  since a task can't pass its badge on at all (*Decision*: a task never
+  copies its `MM_SLOT` capability). The row now says so.
+- **The clients:** `mmclient` and `cowworker` still go on past a stop at
+  `MM_SLOT`. No path reaches it today; it is kept, since it is harmless.
 
 ## Priority check
 

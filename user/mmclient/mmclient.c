@@ -248,8 +248,10 @@ static uint64_t fork_kid(uint64_t role)
         return 1;
     }
     struct kid *k = &kids[nkids - 1u];
-    /* Its capabilities: the batch stops where the child has one already
-     * (MM_SLOT, if this task's copy could be copied), and goes on after. */
+    /* Its capabilities. The batch skips MM_SLOT: mm gives it without GRANT,
+     * and the child has its own (0023's correction). A stop there, which
+     * only a copy with GRANT would make, goes on after it: kept, though no
+     * path reaches it now. */
     uint64_t first = 0;
     while (first < MMC_COPY_END) {
         uint64_t done;

@@ -92,6 +92,9 @@ static uint64_t fork_kid(void)
         return COW_E_FAILED | 3u << 8 | m.r[0] << 16;
     }
     uint64_t id = m.r[1];
+    /* Its capabilities, as mmclient copies them: the batch skips MM_SLOT
+     * (no GRANT; the child has its own), and a stop there would go on
+     * after it, though no path reaches it now. */
     uint64_t first = 0;
     while (first < MMC_COPY_END) {
         uint64_t done;
