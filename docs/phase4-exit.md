@@ -6,7 +6,7 @@
 
 The final run of every suite is under *Verification*, at the end. It was
 still running on the build VM when the owner accepted this record; its
-rows are filled in as each suite finishes.
+last suite, CBMC, finished on 2026-10-30 at 14:36 (VM clock).
 
 **Corrections (2026-10-30, after acceptance).** The text below is kept as
 accepted; where it differs, these hold:
@@ -220,7 +220,7 @@ The final run of every suite on the tree of this record, on the build VM
 |---|---|
 | model check (plain, ASan, UBSan, MSan, TSan, small) | 6 × 247 tests, 0 failed |
 | model mutate | 284 of 284 caught (the workstation, *Exit criterion*) |
-| model cbmc | running on the build VM |
+| model cbmc | 19 of 19 operations verified: 11 025 to 11 119 properties each, 0 failed; 5 h 57 min in one job (op 7 160 s, op 11 4 037 s the longest) |
 | model tla, tla-mutate | safe and large configurations hold (large: 1 144 512 distinct states); the unsafe one leaks, as expected; every TLA+ mutation caught |
 | model fuzz, fuzz-sanity | passed: each of the 7 planted bugs caught; the fuzzer 60 s clean. The first run failed: `fuzz-sanity.sh` didn't copy `servers/mm`, which the model has needed since step 6, so no mutant built (fixed; *Found along the way*) |
 | kernel check | passed at 5ae1bd6: 87 of 87 self-tests, every host test in five builds, `tidy` and `scan` clean, BIOS and UEFI boots, `repro-check` 32 of 32 |
