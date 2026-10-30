@@ -2,6 +2,7 @@
 
 **Kernel name:** Joist
 **Author:** Aditya
+**License:** GPL-3.0-only (see `LICENSE`)
 **Status:** Planning / pre-implementation
 **Language:** Pure C (C17, freestanding for the kernel) everywhere — kernel, new servers, and reused Hurd code. Small amounts of assembly only where the hardware demands it (boot entry, context switch, interrupt stubs).
 **Compiler:** Clang/LLVM (clang, lld, llvm-objcopy, clang-tidy, clang static analyzer) for everything Joist owns. glibc may fall back to GCC under the pre-committed policy in §13.
