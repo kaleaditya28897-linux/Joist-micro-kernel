@@ -25,7 +25,7 @@ BUILD := build
 UEXTRA ?=
 UFLAGS += $(UEXTRA)
 # Reproducible builds (decision 0026): no absolute path in any object.
-UFLAGS += -ffile-prefix-map=$(abspath ..)=joist
+UFLAGS += '-ffile-prefix-map=$(abspath ..)=joist'
 # The memory manager's table sizes (servers/mm/mmlib.h), for it and for the
 # programs that talk to it.
 # (A build may set them on the command line: mmbench's large clones.)

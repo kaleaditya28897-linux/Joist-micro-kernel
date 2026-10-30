@@ -52,7 +52,7 @@ KSIZES := -DJOIST_MAX_OBJECTS=2048u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=
 # Reproducible builds (decision 0026): the tree's absolute path never goes
 # into an object (its debug information names the tree as "joist"), and
 # every date the ISO records is the last commit's (without git, a fixed one).
-REPRO := -ffile-prefix-map=$(abspath ..)=joist
+REPRO := '-ffile-prefix-map=$(abspath ..)=joist'
 SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || echo 1700000000)
 export SOURCE_DATE_EPOCH
 
