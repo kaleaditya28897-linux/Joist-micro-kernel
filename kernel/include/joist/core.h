@@ -85,6 +85,21 @@
  * JOIST_PT_TOP top-level entries of 2^27 pages each. */
 #define JOIST_USER_PAGES ((uint64_t)JOIST_PT_TOP << JOIST_PT_SHIFT(JOIST_PT_LEVELS))
 #define JOIST_PAGE_SIZE 4096u /* bytes in a page: addresses that the core sees in bytes */
+/* Regions (decision 0030): extents (frame windows) a region may hold, regions
+ * a task may have, last-level tables a region's range may cover, and region
+ * records in all. */
+#ifndef JOIST_REGION_EXTENTS
+#define JOIST_REGION_EXTENTS 8u
+#endif
+#ifndef JOIST_REGIONS_PER_TASK
+#define JOIST_REGIONS_PER_TASK 8u
+#endif
+#ifndef JOIST_REGION_TABLES
+#define JOIST_REGION_TABLES 32u
+#endif
+#ifndef JOIST_MAX_REGIONS
+#define JOIST_MAX_REGIONS 16u
+#endif
 #ifndef JOIST_MAX_DEADNAMES
 #define JOIST_MAX_DEADNAMES 32u
 #endif
@@ -122,7 +137,8 @@ typedef enum {
     JOIST_OBJ_THREAD, /* a thread; its capability is 0010's thread control capability */
     JOIST_OBJ_REPLY,  /* holds one saved reply capability: a deferred reply (0001) */
     JOIST_OBJ_SCHED,  /* a scheduling context: priority, budget, period (§5.6) */
-    JOIST_OBJ_FRAME   /* a range of physical pages (0013: memory as capabilities) */
+    JOIST_OBJ_FRAME,  /* a range of physical pages (0013: memory as capabilities) */
+    JOIST_OBJ_REGION  /* a range of one task's addresses it maps itself (0030) */
 } joist_obj_type;
 
 /* Priorities (§5.6): 0 lowest, JOIST_PRIO_MAX highest. */
@@ -218,11 +234,17 @@ struct joist_object {
     /* Its last capability is gone, but it is still mapped or lent: no new
      * mapping, and freed when neither (0020). refs is 0 meanwhile. */
     uint8_t dying;
+    /* Region extents naming it (0030): it is kept while any does, as while
+     * it is mapped or lent. */
+    uint32_t extents;
 };
 
 /* On a frame capability the RECV bit means "may be mapped writable"; SEND is
  * CONTROL (map, split), as on tasks and threads. */
 #define JOIST_R_WRITE JOIST_R_RECV
+/* On a region (0030): SEND is CONTROL (add an extent), RECV is MAP (map,
+ * unmap and protect inside it: what its task is given), SEND_ONCE is KILL. */
+#define JOIST_R_MAP JOIST_R_RECV
 
 /* Mapping permissions. Readable is implied; never both (W^X). */
 #define JOIST_MAP_W 1u
@@ -533,11 +555,36 @@ struct joist_cspace_state {
     /* Dying, its slots swept: the next last-level table to sweep (its first
      * virtual page / JOIST_PT_ENTRIES). */
     uint64_t tsweep;
+    /* Its regions (0030): record plus one, 0 = none; at most
+     * JOIST_REGIONS_PER_TASK, so a call over pages checks them in O(that). */
+    uint32_t region[JOIST_REGIONS_PER_TASK];
     /* Leaf 0: slots 0 .. JOIST_CNODE_LEAF - 1. */
     struct joist_cap slot[JOIST_CNODE_LEAF];
     /* The other leaves: leaf[i] is the pool index plus one of leaf i, 0 if
      * absent. leaf[0] is unused (leaf 0 is slot[] above). */
     uint32_t leaf[JOIST_CNODE_ROOT];
+};
+
+/* A region (decision 0030): a range of whole last-level tables of one task,
+ * inside which only region calls map, unmap and protect, with pages of its
+ * extents (windows of frames) and permissions within its ceiling. Its object's
+ * target is the record plus one. */
+struct joist_region {
+    uint8_t live;    /* the record is in use */
+    uint8_t dying;   /* killed, or its last capability gone: its range is being swept */
+    uint8_t ceil;    /* the JOIST_MAP_W and JOIST_MAP_X it allows (W^X per page still) */
+    uint32_t obj;    /* its object plus one; 0 once that is freed */
+    uint32_t space;  /* the task's space plus one; 0 once it is gone */
+    uint64_t lo;     /* its first page: a multiple of JOIST_PT_ENTRIES */
+    uint32_t tables; /* last-level tables it covers, 1 .. JOIST_REGION_TABLES */
+    uint32_t tsweep; /* dying: the next of its tables to sweep */
+    uint32_t next;   /* extents in use */
+    struct {
+        uint32_t frame;  /* the frame object plus one */
+        uint64_t off;    /* its first page in the frame */
+        uint64_t npages;
+        uint8_t ceil_w;  /* the frame capability it was added with allowed writing */
+    } ext[JOIST_REGION_EXTENTS];
 };
 
 /* A leaf of the capability table, from the pool (k->leaf). */
@@ -571,6 +618,9 @@ struct joist_kernel {
     uint32_t frames_dying;
     uint64_t fsweep;
     uint8_t fround;
+    /* Regions (0030), and how many are dying (being swept). */
+    struct joist_region reg[JOIST_MAX_REGIONS];
+    uint32_t regions_dying;
     uint64_t now; /* model time: advanced only by joist_tick */
     uint64_t ready_seq; /* the last place given out among ready threads */
     /* While nonzero, joist__rq_sync only notes the threads to file (each
@@ -730,6 +780,62 @@ joist_err joist_cap_copy_batch(struct joist_kernel *k, joist_cspace cs, joist_sl
  * (JOIST_E_STATE, a frame lent to a space, comes with 0021.) O(1) but for
  * the unmapping (0020's sweep will make that preemptible). */
 joist_err joist_obj_kill(struct joist_kernel *k, joist_cspace cs, joist_slot slot);
+
+/* ---- regions (decision 0030) ----
+ *
+ * A region is a range of one task's addresses, whole last-level tables,
+ * inside which only these calls act: plain map, map_replace, unmap_range and
+ * protect refuse a run that overlaps one (JOIST_E_STATE). The memory manager
+ * makes it and adds extents (windows of frames it holds); the task, given a
+ * capability with JOIST_R_MAP alone, maps pages of those extents anywhere in
+ * the range itself. Killing it (joist_obj_kill), or deleting its last
+ * capability, unmaps its range on the destruction work list, a table a step.
+ * Each call over pages covers at most one last-level table, as map does. */
+
+/* An empty region over [lo, lo + tables * JOIST_PT_ENTRIES) of the task in
+ * task_slot (CONTROL), allowing `ceil` (JOIST_MAP_W, JOIST_MAP_X), in cs's
+ * slot dst with every right, paid by cs. The range must be in the user
+ * half, hold no page table (so nothing is mapped there) and meet no other
+ * region of the task. Results: as task capabilities with CONTROL; then
+ * JOIST_E_RANGE (dst, an unknown ceiling bit, lo not on a table, tables 0 or
+ * over JOIST_REGION_TABLES, past the user half), JOIST_E_OCCUPIED (dst),
+ * JOIST_E_STATE (a table or a region already there), JOIST_E_NOMEM (cs's
+ * quota, no object, no record, or the task's JOIST_REGIONS_PER_TASK used).
+ * O(tables + JOIST_MAX_REGIONS). */
+joist_err joist_region_create(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                              uint64_t lo, uint32_t tables, unsigned ceil, joist_slot dst);
+/* Add an extent: pages [off, off + npages) of the frame in frame_slot
+ * (CONTROL), to the region in region_slot (CONTROL); its index in *ext. It
+ * may be mapped writable only if the frame capability has JOIST_R_WRITE.
+ * Results: as for the two capabilities (JOIST_E_GONE: dead, or its task
+ * gone), then JOIST_E_RANGE (no pages, past the frame), JOIST_E_STATE (the
+ * frame is lent, or the region is dying), JOIST_E_NOMEM (its
+ * JOIST_REGION_EXTENTS used). O(1). */
+joist_err joist_region_add(struct joist_kernel *k, joist_cspace cs, joist_slot region_slot,
+                           joist_slot frame_slot, uint64_t off, uint64_t npages, uint32_t *ext);
+/* Map pages [page, page + npages) of extent `ext` at virtual page va of the
+ * region's task, inside the region and one last-level table, with perms
+ * within its ceiling (writable only if the extent allows). Results: for the
+ * region capability JOIST_E_RANGE, JOIST_E_EMPTY, JOIST_E_TYPE,
+ * JOIST_E_RIGHTS (JOIST_R_MAP), JOIST_E_GONE (killed, dying, or its task
+ * gone, or the extent's frame killed); then JOIST_E_RIGHTS (perms: unknown,
+ * W and X, beyond the ceiling or the extent), JOIST_E_RANGE (no such extent,
+ * past it, outside the region or a table), JOIST_E_OCCUPIED, JOIST_E_NOMEM
+ * (lent pages, 0021). O(npages). */
+joist_err joist_region_map(struct joist_kernel *k, joist_cspace cs, joist_slot region_slot,
+                           uint32_t ext, uint64_t page, uint64_t npages, uint64_t va,
+                           unsigned perms);
+/* Unmap [va, va + npages) inside the region (JOIST_R_MAP), as
+ * joist_unmap_range. Results as joist_region_map's capability, then
+ * JOIST_E_RANGE (outside the region or a table). O(npages + a table). */
+joist_err joist_region_unmap(struct joist_kernel *k, joist_cspace cs, joist_slot region_slot,
+                             uint64_t va, uint64_t npages);
+/* Change the permissions of what is mapped in [va, va + npages) inside the
+ * region (JOIST_R_MAP), as joist_protect, within the region's ceiling.
+ * Results as joist_region_unmap's, and JOIST_E_RIGHTS (perms: unknown, W
+ * and X, beyond the ceiling, or writable beyond a page's extent). O(npages). */
+joist_err joist_region_protect(struct joist_kernel *k, joist_cspace cs, joist_slot region_slot,
+                               uint64_t va, uint64_t npages, unsigned perms);
 
 /* ---- threads and IPC (Phase 1 work item 2; I6, I7, I10) ----
  *

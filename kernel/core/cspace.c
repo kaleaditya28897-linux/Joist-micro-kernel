@@ -15,6 +15,8 @@ static joist_rights full_rights(joist_obj_type t)
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
     case JOIST_OBJ_FRAME: /* CONTROL, WRITE (the RECV bit), KILL (0022), GRANT */
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_KILL | JOIST_R_GRANT);
+    case JOIST_OBJ_REGION: /* CONTROL, MAP (the RECV bit), KILL, GRANT (0030) */
+        return (joist_rights)(JOIST_R_CONTROL | JOIST_R_MAP | JOIST_R_KILL | JOIST_R_GRANT);
     case JOIST_OBJ_TASK:
     case JOIST_OBJ_THREAD:
     case JOIST_OBJ_REPLY:
@@ -127,6 +129,7 @@ void joist__obj_clear(struct joist_kernel *k, uint32_t obj_index)
         o->lent_next = 0;
         o->water = 0;
         o->dying = 0;
+        o->extents = 0;
         k->objects_live--;
         k->obj_next[obj_index] = k->obj_free; /* the free list's head (choice 10) */
         k->obj_free = obj_index + 1u;
@@ -281,7 +284,7 @@ joist_err joist_obj_create(struct joist_kernel *k, joist_cspace cs, joist_obj_ty
     }
     /* Tasks, threads and scheduling contexts have their own constructors. */
     if (full_rights(type) == 0 || type == JOIST_OBJ_TASK || type == JOIST_OBJ_THREAD ||
-        type == JOIST_OBJ_SCHED || type == JOIST_OBJ_FRAME) {
+        type == JOIST_OBJ_SCHED || type == JOIST_OBJ_FRAME || type == JOIST_OBJ_REGION) {
         return JOIST_E_TYPE;
     }
     if (d->obj != 0) {
@@ -457,13 +460,13 @@ joist_err joist_cspace_destroy(struct joist_kernel *k, joist_cspace cs)
 
 /* ---- revoke by kill (decision 0022) ---- */
 
-/* Can objects of type t be killed? Frames; regions when they exist
- * (docs/phase4-plan.md, choice 7). Endpoints, tasks and threads die their
- * own ways. */
+/* Can objects of type t be killed? Frames (0022) and regions (0030).
+ * Endpoints, tasks and threads die their own ways. */
 static int killable(joist_obj_type t)
 {
     switch (t) {
     case JOIST_OBJ_FRAME:
+    case JOIST_OBJ_REGION:
         return 1;
     case JOIST_OBJ_NONE:
     case JOIST_OBJ_ENDPOINT:
@@ -524,6 +527,10 @@ joist_err joist_obj_kill(struct joist_kernel *k, joist_cspace cs, joist_slot slo
             uint32_t done = 0;
             (void)joist__frames_sweep(k, &done);
         }
+        break;
+    case JOIST_OBJ_REGION:
+        /* Its range unmapped on the work list, its extents given back. */
+        joist__region_ends(k, obj);
         break;
     case JOIST_OBJ_NONE:
     case JOIST_OBJ_ENDPOINT:
@@ -724,8 +731,9 @@ unsigned joist_check_invariants(const struct joist_kernel *k, char *msg, unsigne
     unsigned note = joist__check_notify(k, msg, msglen, bad + ipc == 0);
     unsigned task = joist__check_task(k, msg, msglen, bad + ipc + note == 0);
     unsigned sched = joist__check_sched(k, msg, msglen, bad + ipc + note + task == 0);
-    return bad + ipc + note + task + sched +
-           joist__check_map(k, msg, msglen, bad + ipc + note + task + sched == 0);
+    unsigned map = joist__check_map(k, msg, msglen, bad + ipc + note + task + sched == 0);
+    return bad + ipc + note + task + sched + map +
+           joist__check_region(k, msg, msglen, bad + ipc + note + task + sched + map == 0);
 }
 
 #if !__STDC_HOSTED__

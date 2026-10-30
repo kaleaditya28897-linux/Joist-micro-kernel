@@ -70,6 +70,7 @@ static void space_finish(struct joist_kernel *k, uint32_t s)
     if (k->hooks.space_gone != NULL) {
         k->hooks.space_gone(k->hooks.ctx, s); /* its hardware tables, all at once */
     }
+    joist__regions_space_gone(k, s); /* its regions lose their task and their extents */
     joist__space_tables_gone(k, s); /* the frames lent for them are their owners' again */
     /* I3: hand everything this space still owns to its parent, and its
      * children too, so no quota is lost and the parent chain stays live. */
@@ -137,6 +138,10 @@ int joist__drain_pending(struct joist_kernel *k)
         k->npending--;
         space_finish(k, s);
     }
+    /* Regions killed or let go (0030): their ranges, a table per step. */
+    if (joist__regions_sweep(k, &done)) {
+        return 1;
+    }
     /* Frames that died while mapped (0020): unmapped everywhere, a table per
      * step, after the spaces (whose own sweeps unmap their share). */
     return joist__frames_sweep(k, &done);
@@ -167,6 +172,9 @@ void joist__lifecycle_freed(struct joist_kernel *k, uint32_t obj)
          * task could still receive a capability. Beginning clears the
          * space's back-pointer to this object, which is about to be freed. */
         joist__space_destroy(k, o->target - 1u);
+    }
+    if (o->type == JOIST_OBJ_REGION && o->target != 0) {
+        joist__region_ends(k, obj); /* its range unmapped, its record freed when done */
     }
     if (o->type == JOIST_OBJ_THREAD && !o->dead && o->target != 0) {
         uint32_t t = o->target - 1u;

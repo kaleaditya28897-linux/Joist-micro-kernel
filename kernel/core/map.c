@@ -169,16 +169,25 @@ static void frame_unmapped(struct joist_kernel *k, uint32_t f)
     o->mapcount--;
     if (condemned(o) && o->mapcount == 0) {
         k->frames_dying--;
-        if (o->dying && o->lent == 0) {
+        if (o->dying && o->lent == 0 && o->extents == 0) {
             frame_release(k, f);
         }
+    }
+}
+
+void joist__frame_extent_gone(struct joist_kernel *k, uint32_t f)
+{
+    struct joist_object *o = &k->obj[f];
+    o->extents--;
+    if (o->dying && o->mapcount == 0 && o->lent == 0 && o->extents == 0) {
+        frame_release(k, f);
     }
 }
 
 int joist__frame_last_ref(struct joist_kernel *k, uint32_t obj)
 {
     struct joist_object *o = &k->obj[obj];
-    if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0)) {
+    if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0 && o->extents == 0)) {
         return 0;
     }
     if (o->mapcount != 0 && !o->dead) {
@@ -288,8 +297,8 @@ joist_err joist_frame_split(struct joist_kernel *k, joist_cspace cs, joist_slot 
     }
     /* Only an unshared, unmapped, unlent frame: otherwise someone's view of
      * it, a mapping of it or a space's tables in it would change under them. */
-    if (f->refs != 1 || f->mapcount != 0 || f->lent != 0) {
-        return JOIST_E_STATE;
+    if (f->refs != 1 || f->mapcount != 0 || f->lent != 0 || f->extents != 0) {
+        return JOIST_E_STATE; /* (or a region's extent's window would move) */
     }
     joist_rights rights = joist__slot_c(k, cs, slot)->rights;
     uint64_t rest = f->npages - at;
@@ -325,7 +334,7 @@ joist_err joist_space_donate(struct joist_kernel *k, joist_cspace cs, joist_slot
         return e;
     }
     struct joist_object *f = &k->obj[fo];
-    if (f->mapcount != 0 || f->lent != 0 || f->dying) {
+    if (f->mapcount != 0 || f->lent != 0 || f->dying || f->extents != 0) {
         return JOIST_E_STATE; /* never a mapped frame: a task could write its tables */
     }
     if (k->hooks.page == NULL || f->base + f->npages > JOIST_PT_PFN_LIMIT ||
@@ -382,44 +391,58 @@ static joist_err map_run(struct joist_kernel *k, joist_cspace cs, joist_slot fra
     if (bad_run(va, npages) || off >= f->npages || npages > f->npages - off) {
         return JOIST_E_RANGE;
     }
-    if (f->lent != 0 || f->dying) {
-        return JOIST_E_STATE;
+    if (f->lent != 0 || f->dying || joist__region_meets(k, space, va, npages)) {
+        return JOIST_E_STATE; /* (inside a region only region calls map: 0030) */
+    }
+    if (!replace) {
+        return joist__map_pages(k, space, fo, off, npages, va, perms, ceil_w);
     }
     uint64_t *lf = leaf(k, space, va);
-    if (replace) {
-        if (lf == NULL || old_off > UINT64_MAX - npages) {
-            return JOIST_E_STATE;
+    if (lf == NULL || old_off > UINT64_MAX - npages) {
+        return JOIST_E_STATE;
+    }
+    for (uint64_t i = 0; i < npages; i++) {
+        JOIST_WORK(k);
+        uint64_t pe = lf[(va + i) % JOIST_PT_ENTRIES];
+        if (pe == 0 || JOIST_PTE_FRAME(pe) != oo || JOIST_PTE_OFF(pe) != old_off + i) {
+            return JOIST_E_STATE; /* not what the caller expected: nothing changes */
         }
-        for (uint64_t i = 0; i < npages; i++) {
-            JOIST_WORK(k);
-            uint64_t pe = lf[(va + i) % JOIST_PT_ENTRIES];
-            if (pe == 0 || JOIST_PTE_FRAME(pe) != oo || JOIST_PTE_OFF(pe) != old_off + i) {
-                return JOIST_E_STATE; /* not what the caller expected: nothing changes */
-            }
-        }
-    } else {
-        for (uint64_t i = 0; lf != NULL && i < npages; i++) {
-            JOIST_WORK(k);
-            if (lf[(va + i) % JOIST_PT_ENTRIES] != 0) {
-                return JOIST_E_OCCUPIED;
-            }
-        }
-        if (k->cs[space].pt_avail < pages_needed(k, space, va)) {
-            return JOIST_E_NOMEM; /* lend the space more first (0021) */
-        }
-        build(k, space, va);
-        lf = leaf(k, space, va);
     }
     for (uint64_t i = 0; i < npages; i++) {
         JOIST_WORK(k);
         lf[(va + i) % JOIST_PT_ENTRIES] = JOIST_PTE(fo, off + i, perms, ceil_w);
     }
-    if (replace) {
-        k->obj[oo].mapcount -= npages; /* oo has a capability: it can't be dying */
+    k->obj[oo].mapcount -= npages; /* oo has a capability: it can't be dying */
+    f->mapcount += npages;
+    if (k->hooks.map != NULL) {
+        k->hooks.map(k->hooks.ctx, space, va, f->base + off, npages, perms, 1);
+    }
+    return JOIST_OK;
+}
+
+joist_err joist__map_pages(struct joist_kernel *k, uint32_t space, uint32_t fo, uint64_t off,
+                           uint64_t npages, uint64_t va, unsigned perms, int ceil_w)
+{
+    struct joist_object *f = &k->obj[fo];
+    uint64_t *lf = leaf(k, space, va);
+    for (uint64_t i = 0; lf != NULL && i < npages; i++) {
+        JOIST_WORK(k);
+        if (lf[(va + i) % JOIST_PT_ENTRIES] != 0) {
+            return JOIST_E_OCCUPIED;
+        }
+    }
+    if (k->cs[space].pt_avail < pages_needed(k, space, va)) {
+        return JOIST_E_NOMEM; /* lend the space more first (0021) */
+    }
+    build(k, space, va);
+    lf = leaf(k, space, va);
+    for (uint64_t i = 0; i < npages; i++) {
+        JOIST_WORK(k);
+        lf[(va + i) % JOIST_PT_ENTRIES] = JOIST_PTE(fo, off + i, perms, ceil_w);
     }
     f->mapcount += npages;
     if (k->hooks.map != NULL) {
-        k->hooks.map(k->hooks.ctx, space, va, f->base + off, npages, perms, replace);
+        k->hooks.map(k->hooks.ctx, space, va, f->base + off, npages, perms, 0);
     }
     return JOIST_OK;
 }
@@ -479,12 +502,20 @@ joist_err joist_unmap_range(struct joist_kernel *k, joist_cspace cs, joist_slot 
     if (bad_run(va, npages)) {
         return JOIST_E_RANGE;
     }
+    if (joist__region_meets(k, space, va, npages)) {
+        return JOIST_E_STATE; /* inside a region only region calls unmap (0030) */
+    }
+    joist__unmap_pages(k, space, va, npages);
+    return JOIST_OK;
+}
+
+void joist__unmap_pages(struct joist_kernel *k, uint32_t space, uint64_t va, uint64_t npages)
+{
     uint64_t *lf = leaf(k, space, va);
     if (lf != NULL) {
         (void)clear_run(k, space, lf, va, npages, CLEAR_ALL, 1);
         prune(k, space, va);
     }
-    return JOIST_OK;
 }
 
 joist_err joist_protect(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot, uint64_t va,
@@ -501,6 +532,15 @@ joist_err joist_protect(struct joist_kernel *k, joist_cspace cs, joist_slot task
     if (bad_run(va, npages)) {
         return JOIST_E_RANGE;
     }
+    if (joist__region_meets(k, space, va, npages)) {
+        return JOIST_E_STATE; /* inside a region only region calls protect (0030) */
+    }
+    return joist__protect_pages(k, space, va, npages, perms);
+}
+
+joist_err joist__protect_pages(struct joist_kernel *k, uint32_t space, uint64_t va,
+                               uint64_t npages, unsigned perms)
+{
     uint64_t *lf = leaf(k, space, va);
     if (lf == NULL) {
         return JOIST_OK;
@@ -561,6 +601,27 @@ joist_err joist_map_query(struct joist_kernel *k, joist_cspace cs, joist_slot ta
     return JOIST_OK;
 }
 
+int joist__bad_perms(unsigned perms)
+{
+    return bad_perms(perms);
+}
+
+int joist__bad_run(uint64_t va, uint64_t npages)
+{
+    return bad_run(va, npages);
+}
+
+int joist__has_table(const struct joist_kernel *k, uint32_t space, uint64_t va)
+{
+    return leaf(k, space, va) != NULL;
+}
+
+uint64_t joist__pte(const struct joist_kernel *k, uint32_t space, uint64_t va)
+{
+    const uint64_t *lf = leaf(k, space, va);
+    return lf != NULL ? lf[va % JOIST_PT_ENTRIES] : 0;
+}
+
 /* ---- sweeps (the destruction work list, task.c) ---- */
 
 /* The next last-level table to look at from `t` (in tables of the space),
@@ -616,7 +677,7 @@ void joist__space_tables_gone(struct joist_kernel *k, uint32_t s)
             f->lent = 0;
             f->lent_next = 0;
             f->water = 0;
-            if (f->dying && f->mapcount == 0) {
+            if (f->dying && f->mapcount == 0 && f->extents == 0) {
                 frame_release(k, o); /* its capabilities went while it was lent */
             }
         }
@@ -755,7 +816,7 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
         if (a->dying != (a->refs == 0)) {
             VIOLATION("I12: frame %u dying %u with %u capabilities", i, a->dying, a->refs);
         }
-        if (a->dying && a->mapcount == 0 && a->lent == 0) {
+        if (a->dying && a->mapcount == 0 && a->lent == 0 && a->extents == 0) {
             VIOLATION("I12: frame %u dying, but nothing keeps it", i);
         }
         dying_mapped += (uint32_t)(condemned(a) && a->mapcount != 0);
@@ -846,6 +907,17 @@ unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msgl
                         continue;
                     }
                     const uint64_t *lf = node(k, JOIST_PT_SHADOW(e0));
+                    unsigned present = 0;
+                    for (unsigned i = 0; i < JOIST_PT_ENTRIES; i++) {
+                        present += lf[i] != 0;
+                    }
+                    /* An emptied table is freed (prune) but in a dying
+                     * space, whose sweep frees them all at its end: so a
+                     * range with no table has nothing mapped (0030 relies
+                     * on it). */
+                    if (present == 0 && !st->dying) {
+                        VIOLATION("I12: space %u has an empty last-level table", s);
+                    }
                     for (unsigned i = 0; i < JOIST_PT_ENTRIES; i++) {
                         uint64_t pe = lf[i];
                         if (pe == 0) {

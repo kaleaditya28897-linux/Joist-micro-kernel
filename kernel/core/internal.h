@@ -106,6 +106,34 @@ void joist__space_tables_gone(struct joist_kernel *k, uint32_t s);
 /* Unmap the dying frames everywhere, as joist__space_tables_sweep. */
 int joist__frames_sweep(struct joist_kernel *k, uint32_t *done);
 unsigned joist__check_map(const struct joist_kernel *k, char *msg, unsigned msglen, int msg_free);
+/* The page-table work of map, unmap_range and protect, once the caller has
+ * checked capabilities, rights and the run (map.c): shared with the region
+ * calls (0030). */
+joist_err joist__map_pages(struct joist_kernel *k, uint32_t space, uint32_t fo, uint64_t off,
+                           uint64_t npages, uint64_t va, unsigned perms, int ceil_w);
+void joist__unmap_pages(struct joist_kernel *k, uint32_t space, uint64_t va, uint64_t npages);
+joist_err joist__protect_pages(struct joist_kernel *k, uint32_t space, uint64_t va,
+                               uint64_t npages, unsigned perms);
+int joist__bad_perms(unsigned perms);
+int joist__bad_run(uint64_t va, uint64_t npages);
+/* Whether space has a last-level table covering va; its entry for va, or 0. */
+int joist__has_table(const struct joist_kernel *k, uint32_t space, uint64_t va);
+uint64_t joist__pte(const struct joist_kernel *k, uint32_t space, uint64_t va);
+/* A region's extent naming frame f is gone: f is freed if nothing else keeps
+ * it (map.c). */
+void joist__frame_extent_gone(struct joist_kernel *k, uint32_t f);
+/* Regions (region.c, 0030). Whether [va, va + npages) of space meets one of
+ * its regions; O(JOIST_REGIONS_PER_TASK). */
+int joist__region_meets(const struct joist_kernel *k, uint32_t space, uint64_t va, uint64_t npages);
+/* Region object obj was killed, or its last capability went: its range is
+ * unmapped on the work list. */
+void joist__region_ends(struct joist_kernel *k, uint32_t obj);
+/* The dying regions' ranges, a table per unit of *done, as
+ * joist__frames_sweep: 1 if preempted, 0 when done. */
+int joist__regions_sweep(struct joist_kernel *k, uint32_t *done);
+/* Space s is finishing: its regions lose their task (and their extents). */
+void joist__regions_space_gone(struct joist_kernel *k, uint32_t s);
+unsigned joist__check_region(const struct joist_kernel *k, char *msg, unsigned msglen, int msg_free);
 
 /* Free object obj, whose last capability is gone (cspace.c). */
 void joist__obj_free(struct joist_kernel *k, uint32_t obj);

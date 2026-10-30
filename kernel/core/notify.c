@@ -486,6 +486,15 @@ unsigned joist__check_notify(const struct joist_kernel *k, char *msg, unsigned m
                 ob->ns_notif != 0 || ob->rseq != 0 || ob->target != 0) {
                 VIOLATION("frame %u carries other objects' state", o);
             }
+        } else if (ob->type == JOIST_OBJ_REGION) {
+            /* (target: its record, dead: killed or its task gone; region.c
+             * checks the record, 0030.) */
+            if (ob->word != 0 || ob->recv_caps != 0 || ob->qkind != JOIST_Q_NONE || ob->ns_notif != 0 ||
+                ob->rseq != 0 || ob->prio != 0 || ob->budget != 0 || ob->period != 0 ||
+                ob->base != 0 || ob->npages != 0 || ob->mapcount != 0 || ob->lent != 0 ||
+                ob->dying || ob->extents != 0) {
+                VIOLATION("region %u carries other objects' state", o);
+            }
         } else if (ob->type == JOIST_OBJ_SCHED) {
             if (ob->word != 0 || ob->recv_caps != 0 || ob->dead || ob->qkind != JOIST_Q_NONE ||
                 ob->ns_notif != 0 || ob->rseq != 0) {
