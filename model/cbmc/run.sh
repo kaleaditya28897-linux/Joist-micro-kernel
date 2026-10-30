@@ -42,8 +42,12 @@ for arg in "$@"; do
     split=""
     name="op$op"
     # OP/s, OP/n: a receive with callers queued on its endpoint, or not.
+    # OP/t: any operation from states with page tables (as 11-16 always are):
+    # a kill or a delete reaching a mapped frame's sweep (Phase 4's exit).
+    withtables=""
     case $arg in */s) op=${op%/s}; split="-DJOIST_CBMC_SENDERS=1"; name="op$op-senders" ;;
-                 */n) op=${op%/n}; split="-DJOIST_CBMC_SENDERS=0"; name="op$op-nosenders" ;; esac
+                 */n) op=${op%/n}; split="-DJOIST_CBMC_SENDERS=0"; name="op$op-nosenders" ;;
+                 */t) op=${op%/t}; withtables=1; name="op$op-tables" ;; esac
     tables=""
     extra=""
     unwind=4
@@ -61,7 +65,7 @@ for arg in "$@"; do
         extra="-DJOIST_CBMC_NO_BUFFERS" ;;
     esac
     # The mapping calls (11-16) and the region calls (22-26, decision 0030).
-    case $op in 1[1-6]|2[2-6])
+    case "$op:$withtables" in 1[1-6]:*|2[2-6]:*|*:1)
         tables="-DJOIST_CBMC_TABLES -DJOIST_CBMC_SIM_PAGES=${sim_pages}u"
         sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/1/') ;;
     esac

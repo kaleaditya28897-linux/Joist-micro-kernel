@@ -433,6 +433,27 @@ JT_TEST(map_frame_dying_is_unmapped_everywhere)
     JT_CHECK(clean());
 }
 
+JT_TEST(map_sweeps_step_over_an_empty_top_level_entry_only)
+{
+    /* Phase 4's exit (map-sweep-skips-top): a sweep that meets an empty
+     * top-level entry goes to the next one, not further. F is mapped only
+     * under top-level entry 1, entry 0 empty: the killed frame's sweep, and
+     * a destroyed task's own sweep, must both find it there. */
+    setup();
+    uint64_t at = (uint64_t)1 << JOIST_PT_SHIFT(3);
+    JT_REQUIRE(k.cs[T].pt_top[0] == 0);
+    JT_REQUIRE(joist_map(&k, root, F, 0, 2, TK, at + 5u, 0) == JOIST_OK);
+    JT_REQUIRE(joist_obj_kill(&k, root, F) == JOIST_OK);
+    JT_CHECK(pte(T, at + 5u) == 0 && frame(F)->mapcount == 0 && k.frames_dying == 0);
+    JT_CHECK(clean());
+    /* The same place, swept by the task's destruction. */
+    JT_REQUIRE(joist_boot_frame(&k, root, F2, 0x200, 4) == JOIST_OK);
+    JT_REQUIRE(joist_map(&k, root, F2, 0, 2, TK, at + 5u, 0) == JOIST_OK);
+    JT_REQUIRE(joist_task_destroy(&k, root, TK) == JOIST_OK);
+    JT_CHECK(frame(F2)->mapcount == 0);
+    JT_CHECK(clean());
+}
+
 JT_TEST(map_task_destroy_returns_its_lent_pages)
 {
     setup();
