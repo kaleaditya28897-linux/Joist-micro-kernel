@@ -14,7 +14,7 @@ rows are filled in as each suite finishes.
 |---|---|---|
 | `cowstress` passes N rounds on 1, 2 and 4 CPUs, under KVM on the P53 and on the checking kernel, every read verified and every counter level after every round (N = 1000, and 250 on the checking kernel: the owner, 2026-10-29) | `user/cowstress` and `user/cowworker`: fork trees 4-6 deep through `mm`, two writer threads per task, every page tagged and checked after every step; kills mid-fault and mid-fork; after every round no task but `mm` left, `mm`'s records sound, every page back, the kernel's counters as after the first round | **Passed** (2026-10-30, `tools/exit-run.sh` at f8d55b5, `docs/phase4-data/step7-exit-run/`). 1, 2 and 4 CPUs: 1000 rounds each, 14 865-15 043 forks, about a million writes and 62 003 verifications each, 4 264-4 331 kills mid-fault and 1 833-1 862 mid-fork. The checking kernel (every invariant on every exit), 2 CPUs: 250 rounds. `mm` stranded 0, slow 0, fork short of quota 0, in every run |
 | The refinement property test passes with M seeds (M = 10 000; 1 000 under msan and tsan: the owner) | `model/test`: an abstract machine (each task an array of page values, `fork` a deep copy) against the concrete one (the kernel model, `mm`'s library and the fault calls), on random fork, read, write, unmap, protect, share, exit and kill | **Passed**, plain, asan and ubsan at 10 000 seeds, msan and tsan at 1 000: 453 690 reads checked, 168 495 COW copies, 137 301 clones at 10 000 |
-| Every listed mutation is caught | `model/test/mutations.txt`: the kernel's core and `mm`'s library | **284 of 284 caught.** One (`mm-unmap-kernel-skipped`) had stopped building after part E8 and was rewritten to the same bug (`step7-exit-run/README.md`). The kernel's own list (54): in *Verification* |
+| Every listed mutation is caught | `model/test/mutations.txt`: the kernel's core and `mm`'s library | **284 of 284 caught.** One (`mm-unmap-kernel-skipped`) had stopped building after part E8 and was rewritten to the same bug (`step7-exit-run/README.md`). The kernel's own list: 54 of 54 caught |
 | Phase 3's suites, unchanged, in every full run | `make -C kernel check`, `make -C model check` | 87 of 87 self-tests (71 `run` lines; Phase 3's 71 runs among them) and every host test (2026-10-30, at 5ae1bd6) |
 
 ## What was built
@@ -109,6 +109,10 @@ The plan (*Risks*) makes a review of `mm`'s authority part of the exit;
   `-ffile-prefix-map`.
 - **The guard pages under the IST stacks** were in the scope but not
   built (E10): found while drafting this record.
+- **The fuzzer's self-check had checked nothing since step 6**
+  (`fuzz-sanity`, found by the final run): it copied the model without
+  `servers/mm`, so none of its planted bugs built. It now copies it, as
+  `mutate.sh` does, and catches all 7.
 - **The x87/SSE2 mismatch** in the first DDC comparison (0026): the
   bootstrapped GCC's i686 default is x87; every stage now uses SSE2.
 
@@ -195,12 +199,12 @@ The final run of every suite on the tree of this record, on the build VM
 
 | Suite | Result |
 |---|---|
-| model check (plain, ASan, UBSan, MSan, TSan, small) | running on the build VM |
+| model check (plain, ASan, UBSan, MSan, TSan, small) | 6 × 247 tests, 0 failed |
 | model mutate | 284 of 284 caught (the workstation, *Exit criterion*) |
 | model cbmc | running on the build VM |
-| model tla, tla-mutate | running on the build VM |
-| model fuzz, fuzz-sanity | running on the build VM |
+| model tla, tla-mutate | safe and large configurations hold (large: 1 144 512 distinct states); the unsafe one leaks, as expected; every TLA+ mutation caught |
+| model fuzz, fuzz-sanity | passed: each of the 7 planted bugs caught; the fuzzer 60 s clean. The first run failed: `fuzz-sanity.sh` didn't copy `servers/mm`, which the model has needed since step 6, so no mutant built (fixed; *Found along the way*) |
 | kernel check | passed at 5ae1bd6: 87 of 87 self-tests, every host test in five builds, `tidy` and `scan` clean, BIOS and UEFI boots, `repro-check` 32 of 32 |
-| kernel mutate | running on the build VM |
-| kernel fuzz-abi, fuzz-elf, fuzz-syscall | running on the build VM |
+| kernel mutate | 54 of 54 caught |
+| kernel fuzz-abi, fuzz-elf, fuzz-syscall | passed, 60 s each |
 | The exit run | passed (*Exit criterion*) |

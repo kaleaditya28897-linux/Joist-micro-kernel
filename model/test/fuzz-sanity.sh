@@ -21,6 +21,8 @@ for want in "$@"; do
     rm -rf "$work/w"; mkdir -p "$work/w/model" "$work/w/kernel"; ln -sfn "$work/w/model" "$work/t"
     (cd "$here" && tar --exclude=./build -cf - .) | (cd "$work/w/model" && tar -xf -)
     cp -r "$here/../kernel/core" "$here/../kernel/include" "$work/w/kernel/"
+    mkdir -p "$work/w/servers"
+    cp -r "$here/../servers/mm" "$work/w/servers/" # mm's library (decision 0023), as mutate.sh
     python3 - "$work/t/$file" "$from" "$to" <<'PY' || { echo "STALE    $want"; fail=1; continue; }
 import sys
 p, a, b = sys.argv[1:]
