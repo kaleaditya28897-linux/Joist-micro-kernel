@@ -10,11 +10,14 @@
 # Phase 4's exit test; mmbench, mm's costs measured),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
+# LLVM_BIN: the verified LLVM's bin directory, or unset for clang and
+# ld.lld from PATH (decision 0026; ../kernel/Makefile).
+LLVM_BIN ?=
 ifeq ($(origin CC),default)
-CC := clang
+CC := $(if $(LLVM_BIN),$(LLVM_BIN)/clang,clang)
 endif
 ifeq ($(origin LD),default)
-LD := ld.lld
+LD := $(if $(LLVM_BIN),$(LLVM_BIN)/ld.lld,ld.lld)
 endif
 UFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding -nostdlib -fno-builtin \
           -fno-pic -fno-stack-protector -mgeneral-regs-only -O2 -g \

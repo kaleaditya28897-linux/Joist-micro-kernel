@@ -350,3 +350,104 @@ Already there and used:
    static i686 stages.
 3. **Every stage built with `-march=pentium4 -mfpmath=sse`**, the fix
    for the first mismatch.
+4. **The verified toolchain as Joist's default** (`LLVM_BIN` set by
+   default in both Makefiles, the toolchain kept where `check-toolchain.sh`
+   passes), and Limine from source as the ISO's default. Not done: the
+   owner's call.
+5. **Map Clang's resource directory** in the REPRO flags
+   (`-ffile-prefix-map=$(shell $(KCC) -print-resource-dir)=clang`), so
+   where the toolchain is installed never reaches Joist's bytes. Not done:
+   it changes every build's debug information.
+
+## Layer 3, afterwards: Joist built with the verified toolchain (2026-10-30)
+
+### The setting
+- **`LLVM_BIN`** names the verified toolchain's `bin` directory. The
+  kernel's Makefile uses it for everything that goes into the image
+  (`KCC`, `LD`); the user programs' Makefile for `CC` and `LD`.
+- **Unset, nothing changes:** `clang` and `ld.lld` from PATH.
+- **The host builds** (the tests, the sanitizers, the fuzzers, clang-tidy,
+  scan-build, the model) keep the host's Clang. They need the host's C
+  library and runtimes (compiler-rt), which the verified toolchain
+  doesn't have.
+- **Making the verified toolchain the default** is the owner's call
+  (proposed, below).
+- **`tools/ddc/check-toolchain.sh DIR`** checks every file of a toolchain
+  against `llvm-21.1.8-verified.SHA256SUMS`, and that it has no other
+  file. It passes on `~/ddc/toolchain/llvm-21.1.8-verified`, and fails on
+  a changed byte or an extra file (both tried).
+
+### Results (the build VM, from `~/ddc/joist`, the tree at 042d1f7 with the L3b changes)
+- **The kernel ELF against the Debian-Clang build: not byte-identical,
+  and explained.** Every loaded section is identical: `.text`, `.rodata`,
+  `.data` and `.bss` of the kernel, and of every user program. Only the
+  DWARF differs, for two reasons:
+  - **The producer string:** "Debian clang version 21.1.8
+    (++20251221033036+2078da43e25a-1~exp1~20251221153213.50)" against
+    "clang version 21.1.8".
+  - **The absolute path of Clang's own headers** (stdint.h and the like):
+    `/usr/lib/llvm-21/lib/clang/21/include` against
+    `/home/user/ddc/toolchain/llvm-21.1.8-verified/lib/clang/21/include`.
+
+  Seven user programs are identical outright. mm, mmclient and mmroot
+  differ in their DWARF only, for the same reasons.
+
+  | Build | sha256 of `joist.elf` |
+  |---|---|
+  | Debian's Clang | `90fa3cfe577c367c28a7dd45236e1ef67f456a7e93aecc7a18702fd46850b6ea` |
+  | the verified toolchain | `9f4e9f04519ed5bc88a2cdb876115cda7cf33d161ad076e35d6f9a78817b8f88` |
+- **The kernel selftests** (all of `kernel/test/selftest.sh`, run as
+  `~/vlog-ddc/ddcsel.sh` with `LLVM_BIN`): **81 runs ok** and the bench
+  gate's three medians ok, `exit 0`.
+- **`tools/repro-check.sh`** with `LLVM_BIN`: **all 32 artifacts
+  identical.** The same again with `LIMINE_DIR` set to the Limine below.
+- **`make -C model check`** (the VM idle, 2026-10-30 05:49-06:05 UTC):
+  237 tests, 0 failed, under plain, ASan, UBSan, MSan and TSan. The model
+  builds for the host, so it uses the host's Clang whatever `LLVM_BIN`
+  says. It checks the tree, not the toolchain.
+
+### Limine 12.9.2 from source
+`tools/ddc/build-limine.sh` (on the build VM, with the verified toolchain):
+- **nasm 2.16.03** first, from source, built by the verified Clang.
+  Limine's BIOS and UEFI x86-64 parts need it, and a binary nasm would be
+  one more compiler nobody verified.
+- **Then Limine:** `--enable-bios --enable-bios-cd --enable-uefi-x86-64
+  --enable-uefi-cd`, with the verified Clang, lld, `llvm-objcopy`,
+  `llvm-objdump` and `llvm-readelf`, and that nasm. The host programs
+  (nasm and the `limine` tool) link the build VM's glibc.
+- **mtools** (Debian's) packs the UEFI CD image's FAT file system.
+- **Reproducible:** two builds, from different source directories, with
+  different locales, time zones and umasks, are identical. It took two
+  fixes. Both ensure the build directory's name never reaches the output:
+  - `-ffile-prefix-map` for the C;
+  - a fixed build directory for nasm, which Limine always asks for DWARF
+    and which has no prefix map. That DWARF fed the BIOS stage's build ID.
+
+| File | sha256 |
+|---|---|
+| `limine-bios.sys` | `a2e34b480f86a76a1c9d58a686d7b91c70582e52b33fe3d663dc6d6f8d58d916` |
+| `limine-bios-cd.bin` | `e0f7a86e3519eab5df251c5dcfe056b11a5b2846cf04af8a9f854f1a956c79f6` |
+| `limine-uefi-cd.bin` | `f88e004258ee148f3960bbd8e7ff6ebc4f10fe88883b967b3b19119ea0b2bbc2` |
+| `BOOTX64.EFI` | `0a20986be932af86c93b6b8de74921e8de8ba2fc5c9ed69e9b10564ebf1def01` |
+| `limine` (the host tool) | `9d7d9752efccd1cf8058cede7e596ff976434f63692295e7c1afa2b507f0efb2` |
+| `nasm` | `f91002c77956a63b6985de0cfb4b106ca70c7c3877db8eee77cbe3e401dd39c9` |
+
+- **The ISO** uses them when `LIMINE_DIR` points at them, and the
+  `limine` tool there writes the BIOS stage. Built with `LLVM_BIN` and
+  that `LIMINE_DIR`, the `mmroot` ISO (sha256
+  `23bdc468744632bad2042a1364191b281ce2703aeb6ae47a62a7cb50dd818898`)
+  boots under BIOS and UEFI: `qemu-test`, the root task exited 0,
+  `mm: all ok`.
+- **Not the same bytes as the release binaries Joist uses today**
+  (docs/testbed.md). Those were built by Limine's maintainer with another
+  toolchain, so no match is expected.
+
+### Packages added for this
+| Package | Version | For |
+|---|---|---|
+| mtools | 4.0.48-1 | Limine's UEFI CD image |
+
+nasm's source: `nasm-2.16.03.tar.xz` from nasm.us, sha256
+`1412a1c760bbd05db026b6c0d1657affd6631cd0a63cddb6f73cc6d4aa616148`. nasm
+publishes no signature; the hash is Debian's `nasm_2.16.03.orig.tar.xz`
+(its `nasm_2.16.03-1.dsc`).

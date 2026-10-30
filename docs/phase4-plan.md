@@ -1211,3 +1211,46 @@ or refuse.
   UEFI.
 - **Layers 2 and 3** (the `live-bootstrap` GCC, then DDC of Clang and lld)
   are next. The VM now has the disk for them.
+
+### Decision 0026, layers 2 and 3: a bootstrapped GCC, and DDC of Clang and lld (2026-10-29/30)
+
+docs/toolchain/record.md holds every version, hash, command and duration.
+docs/toolchain/seed-review.md is a guide to reading the seed.
+
+- **Layer 2:**
+  - live-bootstrap (pinned by commit, b1ceced7; it has no tagged
+    release) ran in a QEMU guest on the build VM. It went from builder-hex0's
+    512-byte boot sector to **GCC 15.2.0** (i686 musl, C and C++17) in
+    7 h 20 min, from 314 sources checked against its own hashes
+    (`tools/ddc/bootstrap.sh`).
+  - **Not yet trusted:** the owner's reading of the seed is pending.
+- **Layer 3:**
+  - LLVM 21.1.8's signed release tarball, built four times: Clang and
+    lld, x86 only, fixed options (`tools/ddc/llvm.cmake`).
+  - Path T starts from the bootstrapped GCC, path D from Debian's Clang
+    21. Every stage but path D's first runs in the bootstrapped system
+    itself (`tools/ddc/ddc.sh`), so every stage is static i686.
+  - **Verified:** stage 2T and stage 2D are **identical, 270 of 270
+    files**, and each path is deterministic. The verified toolchain is
+    kept on the VM with its hashes.
+  - **The first comparison failed** on `clang` and `lld`, and was
+    explained. The bootstrapped GCC builds for x87, Debian's Clang for
+    SSE2, and LLVM's register allocator and cost models use floats. Every
+    stage now uses SSE2, the same on both paths.
+- **Joist with the verified toolchain** (`LLVM_BIN=DIR`; unset, the
+  toolchain is as before):
+  - **The kernel selftests** pass (81 runs). `make -C model check` passes
+    too (host builds, so not with the verified toolchain).
+  - **`repro-check`:** all 32 artifacts identical.
+  - **Against the Debian-Clang build:** the kernel and the user programs
+    have identical loaded sections; only the DWARF differs (the producer
+    string and the path of Clang's headers).
+  - **Limine 12.9.2** is built from signed source with the verified
+    toolchain and a nasm built from source; that build is reproducible.
+    The ISO made with it (`LIMINE_DIR=DIR`) boots under BIOS (`mmroot`)
+    and UEFI.
+- **Proposed, awaiting the owner:**
+  - an amendment to 0026 (the commit pin, layer 3 inside the bootstrapped
+    system, SSE2 for every stage, nasm and mtools for Limine);
+  - making the verified toolchain and Limine from source the defaults;
+  - mapping Clang's header directory out of Joist's debug information.

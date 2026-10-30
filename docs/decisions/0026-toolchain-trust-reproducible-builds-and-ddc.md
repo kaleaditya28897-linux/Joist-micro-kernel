@@ -177,3 +177,15 @@ taken. Nothing here is accepted until the owner says so.
    the bootstrapped GCC's i686 default is x87, Debian's Clang's is SSE2,
    and LLVM's heuristics use floats. The fix is the same on both paths and
    ignores no bytes; record.md has the investigation.
+4. **Limine's build brings two tools 0026 doesn't name.**
+   - **nasm** assembles Limine's BIOS and UEFI x86-64 parts, so it is a
+     code generator in the chain. It is built from source (2.16.03; no
+     upstream signature, its hash is Debian's) by the verified Clang,
+     rather than taken as Debian's binary
+     (`tools/ddc/build-limine.sh`). Its own source is trusted as LLVM's is.
+   - **mtools** only packs files into the UEFI CD image's FAT file system.
+     Like `xorriso`, it stays outside DDC; the ISO's bytes are covered by
+     `repro-check`.
+   - **The host programs** (nasm, and the `limine` tool, which carries the
+     BIOS stage's bytes and writes them into the ISO) link the build
+     VM's C library. That library already runs every build.
