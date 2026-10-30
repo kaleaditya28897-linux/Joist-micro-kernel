@@ -1,11 +1,12 @@
 # Phase 4 exit
 
-**Status: draft, awaiting the project owner.** Phase 4 (§11, *Memory
-management and `fork`*) is ready to close once the owner accepts this
-record and decides the points under *For the owner*. The work, step by
-step, is in `docs/phase4-plan.md`, *Progress*; data in `docs/phase4-data/`.
+**Status: accepted by the project owner, 2026-10-30.** Phase 4 (§11,
+*Memory management and `fork`*) is closed. The work, step by step, is in
+`docs/phase4-plan.md`, *Progress*; data in `docs/phase4-data/`.
 
-The final run of every suite is under *Verification*, at the end.
+The final run of every suite is under *Verification*, at the end. It was
+still running on the build VM when the owner accepted this record; its
+rows are filled in as each suite finishes.
 
 ## Exit criterion
 
@@ -13,7 +14,7 @@ The final run of every suite is under *Verification*, at the end.
 |---|---|---|
 | `cowstress` passes N rounds on 1, 2 and 4 CPUs, under KVM on the P53 and on the checking kernel, every read verified and every counter level after every round (N = 1000, and 250 on the checking kernel: the owner, 2026-10-29) | `user/cowstress` and `user/cowworker`: fork trees 4-6 deep through `mm`, two writer threads per task, every page tagged and checked after every step; kills mid-fault and mid-fork; after every round no task but `mm` left, `mm`'s records sound, every page back, the kernel's counters as after the first round | **Passed** (2026-10-30, `tools/exit-run.sh` at f8d55b5, `docs/phase4-data/step7-exit-run/`). 1, 2 and 4 CPUs: 1000 rounds each, 14 865-15 043 forks, about a million writes and 62 003 verifications each, 4 264-4 331 kills mid-fault and 1 833-1 862 mid-fork. The checking kernel (every invariant on every exit), 2 CPUs: 250 rounds. `mm` stranded 0, slow 0, fork short of quota 0, in every run |
 | The refinement property test passes with M seeds (M = 10 000; 1 000 under msan and tsan: the owner) | `model/test`: an abstract machine (each task an array of page values, `fork` a deep copy) against the concrete one (the kernel model, `mm`'s library and the fault calls), on random fork, read, write, unmap, protect, share, exit and kill | **Passed**, plain, asan and ubsan at 10 000 seeds, msan and tsan at 1 000: 453 690 reads checked, 168 495 COW copies, 137 301 clones at 10 000 |
-| Every listed mutation is caught | `model/test/mutations.txt`: the kernel's core and `mm`'s library | **284 of 284 caught.** One (`mm-unmap-kernel-skipped`) had stopped building after part E8 and was rewritten to the same bug (`step7-exit-run/README.md`). The kernel's own list: ___ of 54 (*Verification*) |
+| Every listed mutation is caught | `model/test/mutations.txt`: the kernel's core and `mm`'s library | **284 of 284 caught.** One (`mm-unmap-kernel-skipped`) had stopped building after part E8 and was rewritten to the same bug (`step7-exit-run/README.md`). The kernel's own list (54): in *Verification* |
 | Phase 3's suites, unchanged, in every full run | `make -C kernel check`, `make -C model check` | 87 of 87 self-tests (71 `run` lines; Phase 3's 71 runs among them) and every host test (2026-10-30, at 5ae1bd6) |
 
 ## What was built
@@ -27,7 +28,7 @@ The final run of every suite is under *Verification*, at the end.
 | The fault message completed; a fused reply, if measured worthwhile (0007) | message done (step 3: pc, access type, no thread capability on request). **No fused reply** (the owner, 2026-10-28 and 2026-10-29): a kernel entry is 3-9 % of a fault; `mm` maps runs instead (E6) |
 | `servers/mm`: anonymous memory, demand-zero, COW clone, shared mappings (0023) | done (step 6 and parts E1-E9): passive, its logic in `mmlib` tested on the host against the model; fork confirmed (orphans), SHARE by both sides' consent, run-mapping |
 | What a file-backed mapping does when its pager dies | decided (0024, accepted 2026-10-29); built in Phase 6 |
-| The escape hatch of 0008 (the region capability) | designed (choice 7); **not built**: after the exit test, by the plan (*For the owner*) |
+| The escape hatch of 0008 (the region capability) | designed (choice 7); **not built**: after the exit test, by the plan (*Carried forward*) |
 | `fork` of a test program by `mm`; `posix_spawn`'s kernel side (an empty task) | done: `MM_REQ_CLONE` on an empty task made in O(1) |
 | The `SELF` gap closed | done: mapping into one's own space needs a task capability to it with CONTROL (`docs/abi.md`) |
 | Capacities raised for fork trees, compile-time constants | done (step 2, part 4): 64 spaces, 128 threads, 2 048 objects; objects found in O(1) |
@@ -111,25 +112,23 @@ The plan (*Risks*) makes a review of `mm`'s authority part of the exit;
 - **The x87/SSE2 mismatch** in the first DDC comparison (0026): the
   bootstrapped GCC's i686 default is x87; every stage now uses SSE2.
 
-## For the owner
+## Decided at the exit (the owner, 2026-10-30)
 
-1. **Accept this record**, and so close Phase 4.
-2. **`mm`'s per-client limit** (the review, above). Options:
-   - **(a)** a per-task page limit in `mm`, inherited by a fork child from
-     its parent and charged to the tree's root, with a limit on tasks per
-     tree; built now, a small change to `mmlib` with property tests;
-   - **(b)** leave it to Phase 7's process server, which knows sessions
-     and users and can set `RLIMIT_AS` and `RLIMIT_NPROC`; record it as
-     open now;
-   - recommended: **(b)**, with the gap written into 0023. `mm` has no
-     notion of who a task belongs to; any limit it set now would be
-     replaced by the process server's policy.
-3. **The region capability** (choice 7, the plan's item 8): built after
-   the exit test, by the plan. Build it before Phase 5 (it is also Phase
-   5's receive window), or first in Phase 5?
-4. **The `smp4-smp` emulated flake** (step 3): four failures across runs,
-   never under KVM, the emulated test's timing. Widen the window under
-   emulation, or leave it?
+- **This record accepted,** and Phase 4 closed.
+- **`mm`'s per-client limit** (the review, above): left to Phase 7's
+  process server, which knows users and sessions and sets `RLIMIT_AS` and
+  `RLIMIT_NPROC`. `mm` has no notion of whom a task belongs to, so a limit
+  it set now would be replaced. The gap is written into 0023 (amendment of
+  2026-10-30). The other option was a per-task page limit in `mm`,
+  inherited by a fork child and charged to the tree's root.
+
+**Not decided at the exit** (carried forward, below):
+
+- **The region capability** (choice 7, the plan's item 8): built before
+  Phase 5 (it is also Phase 5's receive window), or first in Phase 5.
+- **The `smp4-smp` emulated flake** (step 3): four failures across runs,
+  never under KVM, the emulated test's timing. Widen its window under
+  emulation, or leave it.
 
 ## Carried forward / open
 
@@ -141,7 +140,12 @@ The plan (*Risks*) makes a review of `mm`'s authority part of the exit;
   test aimed at the top-level stride.
 - **`mm` restarted** (class C): Phase 9.
 - **A fork child's quota** (32) and `mm`'s per-client limit: policy for
-  the process server (Phase 7).
+  the process server (Phase 7; 0023's amendment of 2026-10-30). Until then
+  one client can exhaust `mm`'s pages and records.
+- **The region capability** (the plan's item 8): not built; when (before
+  Phase 5, or first in it) is still the owner's to decide.
+- **The `smp4-smp` emulated flake:** open; widen its window under
+  emulation, or leave it, is still the owner's to decide.
 - **File-backed memory** (0024's rule) and the paging protocol: Phase 6.
 - **0026, still proposed:** Limine's host programs and fixed build
   directory; the verified toolchain and Limine from source as Joist's
@@ -191,12 +195,12 @@ The final run of every suite on the tree of this record, on the build VM
 
 | Suite | Result |
 |---|---|
-| model check (plain, ASan, UBSan, MSan, TSan, small) | ___ |
+| model check (plain, ASan, UBSan, MSan, TSan, small) | running on the build VM |
 | model mutate | 284 of 284 caught (the workstation, *Exit criterion*) |
-| model cbmc | ___ |
-| model tla, tla-mutate | ___ |
-| model fuzz, fuzz-sanity | ___ |
+| model cbmc | running on the build VM |
+| model tla, tla-mutate | running on the build VM |
+| model fuzz, fuzz-sanity | running on the build VM |
 | kernel check | passed at 5ae1bd6: 87 of 87 self-tests, every host test in five builds, `tidy` and `scan` clean, BIOS and UEFI boots, `repro-check` 32 of 32 |
-| kernel mutate | ___ |
-| kernel fuzz-abi, fuzz-elf, fuzz-syscall | ___ |
+| kernel mutate | running on the build VM |
+| kernel fuzz-abi, fuzz-elf, fuzz-syscall | running on the build VM |
 | The exit run | passed (*Exit criterion*) |

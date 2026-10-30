@@ -294,6 +294,27 @@ tasks (unbounded badges).
 - **The clients:** `mmclient` and `cowworker` still go on past a stop at
   `MM_SLOT`. No path reaches it today; it is kept, since it is harmless.
 
+## Amendment (2026-10-30, accepted by the owner): no per-client limit in Phase 4
+
+Found by the review of `mm` at Phase 4's exit (`docs/phase4-exit.md`).
+
+- **The gap:** `mm` limits no client.
+  - A task may map up to `MM_TASK_PAGES` pages, as many as the whole pool.
+  - It may fork until `mm`'s records (`MM_MAX_TASKS`) are full.
+  - So one client, or one fork tree, can take every page and every record.
+    After that every other client's demand-zero or copy fault is refused,
+    and its thread ends.
+- **What it is:** denial of service by exhaustion. It is not a breach of
+  isolation: no client can read or write another's pages.
+- **Decided:** the limit is policy, and is left to the process server
+  (Phase 7). It knows users and sessions, and sets `RLIMIT_AS` and
+  `RLIMIT_NPROC`. `mm` has no notion of whom a task belongs to, so any
+  limit it set now would be replaced.
+- **Until then:** the gap is open. Phase 7's plan must give `mm` a limit
+  per task or per tree (pages and tasks), set by the process server.
+  A fork child's quota (`MM_CHILD_QUOTA`, 32) already bounds a task's
+  live children, not its descendants.
+
 ## Priority check
 
 - **Reliability first:** `mm`'s records are bounded at build time; a task's

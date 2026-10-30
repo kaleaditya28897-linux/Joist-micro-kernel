@@ -31,7 +31,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0020 | Page-sized mappings: part of a frame, the page tables as the record | accepted | Phase 4 |
 | 0021 | Page tables paid for by memory the memory manager donates | accepted | Phase 4 |
 | 0022 | Revoke by killing the object; the capability copy for `fork` in batches | accepted | Phase 4 |
-| 0023 | `mm`: how it runs (passive), how tasks reach it, what it does | accepted, amended 2026-10-28 (lazy no-senders) and 2026-10-29 (SHARE by both sides' consent; a fork confirmed, an orphan going with its parent); corrected 2026-10-29 (`MM_SLOT` is skipped by a clone's `cap_copy_batch`, not a stop) | Phase 4 |
+| 0023 | `mm`: how it runs (passive), how tasks reach it, what it does | accepted, amended 2026-10-28 (lazy no-senders) and 2026-10-29 (SHARE by both sides' consent; a fork confirmed, an orphan going with its parent); corrected 2026-10-29 (`MM_SLOT` is skipped by a clone's `cap_copy_batch`, not a stop); amended 2026-10-30 (no per-client limit until the process server, Phase 7) | Phase 4 |
 | 0024 | `mm`: guard pages (`MM_NONE`), and what a file-backed region changes | accepted 2026-10-29 (`MM_NONE` keeps a page's contents; a helper thread for file servers) | Phase 4 (guard pages), Phase 6 (files) |
 | 0025 | A fallback scheduling context for passive servers (`mm` stranded by a client killed mid-request) | accepted | Phase 4 |
 | 0026 | Toolchain trust: reproducible builds, a full-source bootstrap, and diverse double-compiling | accepted | all phases (toolchain) |

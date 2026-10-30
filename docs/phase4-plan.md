@@ -278,7 +278,7 @@ What earlier phases hand to this one:
 6. **`mm`:** the library and its refinement test on the host, then the
    server: anonymous memory, demand-zero, clone, shared mappings. The root
    task starts it and hands it memory.
-7. **Exit:** `cowstress`, the measurements, the fused fault reply if
+7. ~~**Exit:**~~ (done 2026-10-30; see *Progress* and `docs/phase4-exit.md`, accepted by the owner) `cowstress`, the measurements, the fused fault reply if
    measured worthwhile, the file-backed rule written down, the guard pages,
    the exit record.
 8. **After the exit test:** the region capability (choice 7), built and
