@@ -1,10 +1,8 @@
 # Phase 5 plan: the region capability, MIG retarget and libports
 
-**Status: draft, awaiting the project owner.** Nothing here is built until
-the owner accepts this plan and the decisions it proposes: 0030 (the region
-capability) and 0031 (glibc brought forward). The owner chose their
-direction on 2026-10-30: regions with several frames, and the reused Hurd
-code on glibc from this phase.
+**Status: accepted by the project owner, 2026-10-30**, with decisions 0030
+(the region capability, several frames a region) and 0031 (the reused Hurd
+code on glibc from this phase), and the numbers they propose.
 
 Phase 5 of §11: *MIG retarget and libports*, with two items the owner
 added: the region capability first (2026-10-30), and `mm`'s limits per
@@ -201,8 +199,8 @@ task tree (decision 0028).
 
 ## Order of work
 
-1. **This plan, and decisions 0030 (region capability) and 0031 (glibc
-   from this phase),** accepted by the owner.
+1. ~~**This plan, and decisions 0030 (region capability) and 0031 (glibc
+   from this phase),** accepted by the owner.~~ Done 2026-10-30.
 2. **The region capability in the model:** the object, its calls, I12
    extended, property tests, CBMC, mutations; the carried CBMC work.
 3. **The region capability in the kernel and `mm`;** measured.
@@ -243,12 +241,10 @@ task tree (decision 0028).
 - **Bare metal** is still not available; every real-CPU figure is under
   KVM on the P53.
 
-## For the owner
+## Accepted (2026-10-30)
 
-1. **Accept this plan** as the basis for Phase 5, or change it.
-2. **Accept decisions 0030 and 0031**, or change them. The numbers in
-   them are proposals: 8 extents a region, 8 regions a task, 32 tables a
-   region (64 MiB), and 0031's 6-week check.
+The plan, decisions 0030 and 0031, and their numbers: 8 extents a region,
+8 regions a task, 32 tables a region (64 MiB), and 0031's 6-week check.
 
 ## Progress
 

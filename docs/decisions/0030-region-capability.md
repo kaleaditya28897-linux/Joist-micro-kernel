@@ -1,8 +1,8 @@
 # 0030 — The region capability: a task maps its own pages inside a range `mm` gives it
 
 Date: 2026-10-30
-Status: proposed (the owner chose its shape, several frames a region, on
-2026-10-30; the rest awaits the owner with `docs/phase5-plan.md`)
+Status: **accepted** (the owner, 2026-10-30, with `docs/phase5-plan.md`;
+its shape, several frames a region, chosen by the owner the same day)
 Carries out: 0008's escape hatch ("a capability over a range"), designed
 as Phase 4's choice 7 (`docs/phase4-plan.md`); built first in Phase 5 (the
 owner, 2026-10-30).

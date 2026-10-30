@@ -1,9 +1,9 @@
 # 0031 — Reused Hurd code runs on glibc from Phase 5: the port starts early
 
 Date: 2026-10-30
-Status: proposed (the owner chose the direction, glibc brought forward
-rather than a runtime of Joist's own, on 2026-10-30; the scope below
-awaits the owner with `docs/phase5-plan.md`)
+Status: **accepted** (the owner, 2026-10-30, with `docs/phase5-plan.md`;
+the direction, glibc brought forward rather than a runtime of Joist's own,
+chosen by the owner the same day)
 Covers: §4 (glibc: replace `sysdeps/mach` with `sysdeps/joist`, keep the
 Hurd layer), §10 (POSIX through glibc), §11 Phases 5 and 7, 0002 (Clang
 for glibc), 0006 (OOL), 0008 and 0030 (`malloc` over a region), 0027
@@ -83,7 +83,7 @@ the reused servers and their test clients call.**
   new target, joins Joist's build and tests; 0002's condition 1 is met
   earlier, so a compiler surprise surfaces in Phase 5.
 - **The plan:** §11's Phase 5 gains the glibc start, and Phase 7 notes
-  what it inherits. Edited when this decision is accepted.
+  what it inherits (edited on acceptance, 2026-10-30).
 
 ## Priority check
 
