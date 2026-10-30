@@ -442,11 +442,12 @@ Each phase has an **exit criterion**. Do not start the next phase until the curr
 
 ### Phase 5 — MIG retarget and libports (2–3 months)
 
+- **First:** the region capability (decision 0008's escape hatch; Phase 4's choice 7, carried from its exit by the owner, 2026-10-30): a range of one task's addresses, a backing frame and a rights ceiling, inside which its holder maps, unmaps and protects pages itself; `mm` keeps the frame and can kill the region. It is also this phase's receive window for moves (0006). Model first, then the kernel; measured against plain RPCs to `mm`, as 0008 asks.
 - Add a new MIG backend emitting stubs for native IPC (keep the `.defs` input format unchanged).
 - Adapt libports to native capabilities and lifetime notifications.
 - Port a trivial translator (e.g. a `libtrivfs`-based "hello" translator) as the first reused Hurd server.
 - Give the memory manager its limits per task tree (decision 0028): a reservation and ceilings on pages and tasks, admission control on adoption, build-time defaults, and `MM_SET_LIMIT` for the root.
-- **Exit:** unmodified-logic Hurd server code runs on the new kernel via retargeted stubs; a fork bomb and a memory hog, each in its own tree, leave a third task able to fault new pages and fork.
+- **Exit:** unmodified-logic Hurd server code runs on the new kernel via retargeted stubs; the region capability built, its calls in the model with CBMC and mutations, and measured against plain RPCs to `mm`; a fork bomb and a memory hog, each in its own tree, leave a third task able to fault new pages and fork.
 
 ### Phase 6 — Paging protocol and libpager (2–3 months)
 

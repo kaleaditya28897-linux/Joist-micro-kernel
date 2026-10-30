@@ -17,11 +17,17 @@
  * 5. Tasks whose threads are running on other CPUs can be destroyed.
  *
  * Times are generous: an emulator gives each CPU a thread of its own, on a
- * host that may have fewer to spare. */
+ * host that may have fewer to spare. Under emulation (QEMU's TCG, by its
+ * CPUID signature) test 1's window is 4 times as long: an emulated CPU's
+ * host thread can lose its host CPU for much of 300 ms, and the test then
+ * fails with nothing wrong in the kernel (4 times across Phase 4's runs,
+ * never under KVM). The check itself is the same. On a real CPU, or under
+ * KVM, nothing changes. */
 #define TEST_NAME "smp"
 #include "../lib/testroot.h"
 
 #define SLEEP_NS (300 * J_MS)
+#define TCG_WINDOW 4u /* test 1's window under emulation, in SLEEP_NS */
 #define SHORT_NS (30 * J_MS)
 #define MAX_CPUS 8u
 
@@ -32,6 +38,23 @@ static void put(const char *what, uint64_t v)
 {
     j_puts(what);
     j_putu(v);
+}
+
+/* Are we on QEMU's emulator (TCG)? CPUID's hypervisor bit (leaf 1, ECX bit
+ * 31), then the hypervisor's signature at leaf 0x40000000: "TCGTCGTCGTCG".
+ * KVM says "KVMKVMKVM"; a real CPU has no hypervisor bit. */
+static int emulated(void)
+{
+    uint32_t a = 1, b, c = 0, d;
+    __asm__ volatile("cpuid" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
+    if ((c & (1u << 31)) == 0) {
+        return 0;
+    }
+    a = 0x40000000u;
+    c = 0;
+    __asm__ volatile("cpuid" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
+    /* "TCGT", "CGTC", "GTCG", each read as a little-endian word. */
+    return b == 0x54474354u && c == 0x43544743u && d == 0x47435447u;
 }
 
 /* Be busy here, without calling the kernel, for about `ns` (by the time
@@ -71,9 +94,12 @@ static void finish(struct worker *k)
 /* 1. */
 static void test_parallel(uint64_t ncpus)
 {
+    uint64_t window = emulated() ? TCG_WINDOW * SLEEP_NS : SLEEP_NS;
+    put("smp: parallel window ms: ", window / J_MS);
+    j_puts("\n");
     struct worker one = worker_new(WORK_SPIN, 0);
     worker_run(&one, 100, 10 * J_MS, 10 * J_MS);
-    sleep_ns(SLEEP_NS);
+    sleep_ns(window);
     worker_stop(&one);
     uint64_t alone = one.w->count;
     check(alone != 0, "a spinner didn't run");
@@ -85,7 +111,7 @@ static void test_parallel(uint64_t ncpus)
     for (uint64_t i = 0; i < ncpus; i++) {
         worker_run(&s[i], 100, 10 * J_MS, 10 * J_MS);
     }
-    sleep_ns(SLEEP_NS);
+    sleep_ns(window);
     uint64_t least = UINT64_MAX;
     uint64_t sum = 0;
     for (uint64_t i = 0; i < ncpus; i++) {

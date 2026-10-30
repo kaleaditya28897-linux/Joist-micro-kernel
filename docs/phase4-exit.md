@@ -23,6 +23,13 @@ accepted; where it differs, these hold:
   Decision 0029 corrects that note: some of `mm`'s records can't be got
   back from the kernel, so `mm` will keep them in state memory it shares
   with its restarter.
+- **The region capability** (*Not decided at the exit*): the owner chose
+  to build it first in Phase 5 (the plan, Phase 5).
+- **The `smp4-smp` emulated flake** (*Not decided at the exit*): the owner
+  chose to widen the window under emulation. `smproot`'s test 1 now
+  measures over 1 200 ms instead of 300 under QEMU's emulator (found by
+  its CPUID signature), with the same check; under KVM, and on a real
+  CPU, nothing changes.
 - **Page faults** will go to a pager first and other faults to an exception
   handler (decision 0027). `MM_SLOT` becomes the task's pager, and a fault
   `mm` refuses is passed on rather than ending the thread.
