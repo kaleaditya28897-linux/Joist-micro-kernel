@@ -1,5 +1,6 @@
 /* gdt.c - the GDT and TSS (Phase 2 step 2). Replaces Limine's GDT. */
 #include "cpu.h"
+#include "paging.h"
 
 #include <stddef.h>
 
@@ -22,7 +23,13 @@ extern uint8_t kernel_stack[16384];
 /* A TSS per CPU (each has its own stack for entries from user mode, and its
  * own for the exceptions that can't be masked), and so a TSS descriptor per
  * CPU in the one GDT they share. */
-static __attribute__((aligned(16))) uint8_t double_fault_stack[GDT_MAX_CPUS][8192];
+/* The IST stacks: for each CPU, one each for the double fault, NMI and
+ * machine check (IST_*), so that one arriving while another is reported
+ * doesn't overwrite it. Each is a guard page, unmapped by gdt_guard_ist,
+ * then the stack: an overflow faults rather than running into the next. */
+#define IST_GUARD 4096u
+#define IST_STACK 8192u
+static __attribute__((aligned(IST_GUARD))) uint8_t ist_stack[GDT_MAX_CPUS][IST_COUNT][IST_GUARD + IST_STACK];
 static struct tss tss[GDT_MAX_CPUS];
 
 /* Null, kernel code, kernel data, user data, user code, TSS (two slots).
@@ -43,6 +50,36 @@ void gdt_init(void)
     gdt_init_cpu(0, (uint64_t)(uintptr_t)(kernel_stack + sizeof kernel_stack));
 }
 
+const char *gdt_guard_ist(void)
+{
+    for (uint32_t cpu = 0; cpu < GDT_MAX_CPUS; cpu++) {
+        for (uint32_t k = 0; k < IST_COUNT; k++) {
+            if (paging_guard((uint64_t)(uintptr_t)&ist_stack[cpu][k][0]) != KERR_OK) {
+                return "could not unmap a guard page under an IST stack";
+            }
+        }
+    }
+    return NULL;
+}
+
+uint64_t gdt_ist_bottom(uint32_t cpu, uint32_t ist)
+{
+    return (uint64_t)(uintptr_t)&ist_stack[cpu][ist - 1u][IST_GUARD];
+}
+
+uint32_t gdt_ist_of(uint64_t addr)
+{
+    for (uint32_t cpu = 0; cpu < GDT_MAX_CPUS; cpu++) {
+        for (uint32_t k = 0; k < IST_COUNT; k++) {
+            if (addr >= gdt_ist_bottom(cpu, k + 1u) &&
+                addr < (uint64_t)(uintptr_t)(ist_stack[cpu][k] + sizeof ist_stack[cpu][k])) {
+                return k + 1u;
+            }
+        }
+    }
+    return 0;
+}
+
 void gdt_set_stack(uint32_t cpu, uint64_t stack_top)
 {
     tss[cpu].rsp[0] = stack_top;
@@ -52,8 +89,9 @@ void gdt_init_cpu(uint32_t cpu, uint64_t stack_top)
 {
     struct tss *t = &tss[cpu];
     t->rsp[0] = stack_top;
-    t->ist[IST_DOUBLE_FAULT - 1u] =
-        (uint64_t)(uintptr_t)(double_fault_stack[cpu] + sizeof double_fault_stack[cpu]);
+    for (uint32_t k = 0; k < IST_COUNT; k++) {
+        t->ist[k] = (uint64_t)(uintptr_t)(ist_stack[cpu][k] + sizeof ist_stack[cpu][k]);
+    }
     t->iomap_base = (uint16_t)sizeof *t;
 
     /* The TSS descriptor: type 0x9 (available 64-bit TSS), present. */

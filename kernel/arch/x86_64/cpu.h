@@ -16,8 +16,13 @@
 /* The vector syscall.S gives a system call's frame (past every real one). */
 #define SYSCALL_VECTOR 256u
 
-/* Interrupt stack table slots (1-based, as in the IDT gate). */
-#define IST_DOUBLE_FAULT 1u
+/* Interrupt stack table slots (1-based, as in the IDT gate): what can't be
+ * masked arrives on a stack of its own, one each, per CPU, each with a guard
+ * page under it (gdt.c). */
+#define IST_DOUBLE_FAULT  1u
+#define IST_NMI           2u
+#define IST_MACHINE_CHECK 3u
+#define IST_COUNT         3u
 
 /* What isr.S pushes, lowest address first, then what the CPU pushed. */
 struct trap_frame {
@@ -36,6 +41,14 @@ struct trap_frame {
 void gdt_init(void);
 void gdt_init_cpu(uint32_t cpu, uint64_t stack_top);
 void gdt_set_stack(uint32_t cpu, uint64_t stack_top);
+/* Unmap the guard page under every CPU's IST stacks (once the kernel's page
+ * tables are loaded): NULL, or what failed. */
+const char *gdt_guard_ist(void);
+/* The lowest usable address of a CPU's IST stack (ist 1..IST_COUNT): the
+ * guard page ends just under it. */
+uint64_t gdt_ist_bottom(uint32_t cpu, uint32_t ist);
+/* Which IST stack, of any CPU, holds addr: 1..IST_COUNT, or 0 for none. */
+uint32_t gdt_ist_of(uint64_t addr);
 
 /* End the run: report code through QEMU's isa-debug-exit device (0 = success)
  * and halt. boot.c. */

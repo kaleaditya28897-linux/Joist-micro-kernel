@@ -77,9 +77,15 @@ void idt_init(void)
                                     * its own, whatever RSP held: the double
                                     * fault, and NMI and machine check, which
                                     * could otherwise land in the instant the
-                                    * sysret exit runs on a user stack. All
-                                    * three end the run with a report. */
-                                   .ist = v == 8u || v == 2u || v == 18u ? (uint8_t)IST_DOUBLE_FAULT : 0u,
+                                    * sysret exit runs on a user stack. One
+                                    * stack each (Phase 4), so one arriving
+                                    * during another's report doesn't
+                                    * overwrite it. All three end the run
+                                    * with a report. */
+                                   .ist = v == 8u    ? (uint8_t)IST_DOUBLE_FAULT
+                                          : v == 2u  ? (uint8_t)IST_NMI
+                                          : v == 18u ? (uint8_t)IST_MACHINE_CHECK
+                                                     : 0u,
                                    .type = 0x8e, /* present, DPL 0, interrupt gate */
                                    .off1 = (uint16_t)(a >> 16),
                                    .off2 = (uint32_t)(a >> 32),
@@ -205,6 +211,12 @@ void isr_dispatch(struct trap_frame *tf)
         kputs(" (");
         kputs(names[v]);
         kputs(") in the kernel\n");
+        if (v == 8u || v == 2u || v == 18u) {
+            /* Which stack it arrived on: the self-tests check it's its own. */
+            kputs("  on IST stack ");
+            kputu(gdt_ist_of((uint64_t)(uintptr_t)tf));
+            kputs("\n");
+        }
         if (v == 14u) {
             reg("  cr2 ", read_cr2());
             kputs("\n");

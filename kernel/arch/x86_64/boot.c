@@ -254,6 +254,10 @@ __attribute__((no_stack_protector)) void kmain(void)
     if (perr != NULL) {
         panic(perr);
     }
+    perr = gdt_guard_ist();
+    if (perr != NULL) {
+        panic(perr);
+    }
     kputs("joist: page tables: the kernel's own, loaded (");
     kputu(frames.nfree);
     kputs(" frames free after)\n");
@@ -320,6 +324,26 @@ __attribute__((no_stack_protector)) void kmain(void)
 #elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 9
     kputs("joist: selftest: stack smash\n");
     smash(64);
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST >= 10 && JOIST_SELFTEST <= 12
+    /* A push just under an IST stack's bottom lands in its guard page: the
+     * page fault can't be delivered there either, so it becomes the double
+     * fault (which arrives at the top of its own stack). Without the guard
+     * the push would succeed and the run go on. 10: the double fault's
+     * stack, 11: NMI's, 12: machine check's (CPU 0's). */
+    kputs("joist: selftest: push into the guard under IST stack ");
+    kputu(JOIST_SELFTEST - 9);
+    kputs("\n");
+    __asm__ volatile("movq %0, %%rsp\n\tpushq %%rax"
+                     :
+                     : "r"(gdt_ist_bottom(0, JOIST_SELFTEST - 9))
+                     : "memory");
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 13
+    /* An NMI (int $2 goes through the same gate) arrives on its own stack. */
+    kputs("joist: selftest: nmi\n");
+    __asm__ volatile("int $2");
+#elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 14
+    kputs("joist: selftest: machine check\n");
+    __asm__ volatile("int $18");
 #elif defined(JOIST_SELFTEST) && JOIST_SELFTEST == 5
     kputs("joist: selftest: execute data\n");
     selftest_code[0] = 0xc3; /* ret */

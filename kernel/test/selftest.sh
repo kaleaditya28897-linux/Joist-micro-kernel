@@ -130,11 +130,20 @@ run sysfuzz 1 "sysfuzz: done" "registers preserved" "root task exited with code 
 # refused (status 7: code 3), not sysret to 0x800000000000.
 run sysrethole 7 "syscall returning to non-canonical 0x0000800000000000"
 # Step 8: the double fault arrives on its own stack (IST1).
-run 7 5 "EXCEPTION 8 (#DF double fault)"
+run 7 5 "EXCEPTION 8 (#DF double fault)" "on IST stack 1"
 # Phase 3's exit: a kernel stack that overflows hits its guard page (the
 # fault, with no stack to be taken on, becomes the double fault); and the
 # stack protector catches a write past a protected function's array.
-run 8 5 "selftest: kernel stack overflow" "EXCEPTION 8 (#DF double fault)"
+run 8 5 "selftest: kernel stack overflow" "EXCEPTION 8 (#DF double fault)" "on IST stack 1"
+# Phase 4: the double fault, NMI and machine check each have a stack of their
+# own (IST 1, 2, 3), each with a guard page under it: a push into the guard
+# faults (and becomes the double fault, on IST 1), and NMI and machine check
+# arrive on their own stacks.
+run 10 5 "push into the guard under IST stack 1" "EXCEPTION 8 (#DF double fault)" "on IST stack 1"
+run 11 5 "push into the guard under IST stack 2" "EXCEPTION 8 (#DF double fault)" "on IST stack 1"
+run 12 5 "push into the guard under IST stack 3" "EXCEPTION 8 (#DF double fault)" "on IST stack 1"
+run 13 5 "selftest: nmi" "EXCEPTION 2 (NMI)" "on IST stack 2"
+run 14 5 "selftest: machine check" "EXCEPTION 18 (#MC machine check)" "on IST stack 3"
 run 9 5 "selftest: stack smash" "STACK SMASHED"
 # Step 8: the kernel's UBSan build (trap mode): a deliberate signed overflow is
 # named, and the normal root task and the fuzzer run clean under it.

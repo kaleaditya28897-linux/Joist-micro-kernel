@@ -1440,6 +1440,40 @@ or refuse.
   that bounds a task's live children; POSIX bounds them with
   `RLIMIT_NPROC`.
 
+### Step 7, part E10: guard pages under the double-fault, NMI and machine-check stacks (2026-10-30)
+
+- **Why:** carried from Phase 3's exit, and in this plan's *Scope*. It was
+  found missing while drafting the exit record.
+  - **Before:** the double fault, NMI and machine check shared one 8 KiB
+    stack per CPU (IST 1), with no guard page under it.
+  - **The risk:** an overflow of that stack ran into whatever lay below.
+    An NMI or machine check arriving while a double fault was reported
+    began again at the top of the same stack, over the report in progress.
+- **The kernel** (`kernel/arch/x86_64/gdt.c`, `idt.c`, `cpu.h`, `boot.c`):
+  - **One stack each:** for every CPU, an 8 KiB stack for the double fault
+    (IST 1), one for NMI (IST 2) and one for machine check (IST 3).
+  - **A guard page under each:** `gdt_guard_ist` unmaps it (with
+    `paging_guard`, as Phase 3's kernel-stack guards), right after the
+    kernel's page tables are loaded.
+  - **The report** of any of the three says which IST stack it arrived on.
+  - **The cost:** 288 KiB of `.bss` (8 CPUs × 3 stacks × 12 KiB), against
+    64 KiB before.
+- **Self-tests** (`kernel/test/selftest.sh`):
+  - 10, 11, 12: a push just under each stack's bottom (CPU 0) faults, and
+    becomes the double fault, on IST 1;
+  - 13, 14: an NMI and a machine check (`int $2`, `int $18`, through the
+    same gates) arrive on IST 2 and IST 3;
+  - 7 and 8 now also check that the double fault arrives on IST 1.
+- **Hand mutants, each caught:**
+  - no guard pages: self-test 11 fails (the push succeeds, and the run
+    goes on);
+  - NMI routed to IST 1: self-test 13 fails.
+- **Verified:**
+  - self-tests 2, 7, 8 and 10-14 on the workstation;
+  - `make -C kernel check` on the build VM: passed (the host tests under
+    every sanitizer, clang-tidy and scan-build clean, 87 of 87 self-tests,
+    `repro-check` 32 of 32 identical).
+
 ### Decision 0026, layers 2 and 3: a bootstrapped GCC, and DDC of Clang and lld (2026-10-29/30)
 
 docs/toolchain/record.md holds every version, hash, command and duration.
