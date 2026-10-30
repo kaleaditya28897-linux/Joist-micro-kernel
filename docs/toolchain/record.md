@@ -4,7 +4,11 @@ What was built, from what, with what, and what it hashed to. Anyone with
 the same seed and sources can rerun `tools/ddc/bootstrap.sh` and the L3
 steps below and compare.
 
-**State (2026-10-29):** layer 2 done: the bootstrap ran to GCC 15.2.0.
+**State (2026-10-30):**
+- **Layer 2 done:** the bootstrap ran to GCC 15.2.0.
+- **Layer 3:** 2T and 2D are identical (270 of 270 files), after one
+  explained mismatch.
+
 The seed's reading is **pending**: until the owner has read it (docs/toolchain/seed-review.md),
 the bootstrapped GCC is **not trusted**, and neither is anything verified
 against it.
@@ -200,7 +204,118 @@ against it.
   testbed.md records for the binaries; it is the same on keys.openpgp.org
   and on https://github.com/mintsuki.gpg.
 
-(to fill in: the stages, the comparison)
+### Where the stages run (proposed, awaiting the owner)
+- **All in live-bootstrap's final system** (0026's option 1), except path
+  D's stage 1', which must be built by Debian's Clang under Debian. The
+  system is `lb-final.img`, booted by `tools/ddc/guest.sh` under QEMU/KVM:
+  - 6 vCPUs, 6 GiB, no network;
+  - a throwaway copy-on-write layer over the image, which is never written;
+  - its own kernel (`/boot/vmlinuz`, above);
+  - the inputs on a fresh ext3 disk, and a work disk kept from job to job.
+- **live-bootstrap is i686 only, so every stage is a static i686 program:**
+  - stage 1T and both stage 2s link the guest's musl and libstdc++;
+  - stage 1' links Debian's i686 glibc and libstdc++ (`-m32 -static`),
+    deliberately not the guest's: those were compiled by the bootstrapped
+    GCC, and path D would then not be independent of path T.
+- **cmake 3.31.6 and ninja 1.12.1 in the guest** are built there from the
+  sources above by the bootstrapped GCC (`tools/ddc/stage.sh tools`).
+  sha256 of the results: cmake
+  `842c00e6ec533c064139e0ed68f0318cc159ff19e6b491ffdde9db884984b7bc`, ninja
+  `77bcc88e35bca6ee54b5541069839a7423d133d9aa718b14f300f8fa6dc8ebc8`.
+- **The stage 2 builds** are identical but for the stage 1:
+  - the stage 1 is copied to `/work/stage1`; the build is in `/work/build`
+    and installs into `/work/stage2`;
+  - each uses its own stage 1's `lld` (`-fuse-ld=lld`);
+  - both get the same fixed flags that point Clang at the system's
+    libraries (`stage.sh`; live-bootstrap's layout is not one Clang finds
+    by itself);
+  - `SOURCE_DATE_EPOCH=1765883392` (the signature's time), `LC_ALL=C`,
+    `TZ=UTC`, umask 022.
+
+### The options
+`tools/ddc/llvm.cmake` (Release, no assertions, no PGO, no LTO; clang and
+lld; X86 only; static; no optional libraries; `LLVM_APPEND_VC_REV=OFF`;
+only the tools 0026 names, `llvm-readelf` and Clang's headers installed),
+plus, from `tools/ddc/build-llvm.sh`, for every stage:
+`-ffile-prefix-map=SRC=/llvm-src -ffile-prefix-map=BUILD=/llvm-build
+-march=pentium4 -mfpmath=sse`.
+
+**`-march=pentium4 -mfpmath=sse` was added after the first comparison
+failed** (below). Every stage now does its floating point in SSE2.
+
+### The first comparison: a mismatch, explained (2026-10-29/30)
+The first 2T and 2D (without `-mfpmath=sse`) matched in 268 of 270 files.
+**`clang-21` and `lld` differed.**
+- **Each path was deterministic:** 2D built twice was identical, and so
+  was 2T.
+- **9 of 2529 objects differed:**
+  - in LLVM: TailDuplicator, FunctionSpecialization, LoopDistribute,
+    DemoteRegToStack, LoopVectorize and SLPVectorizer;
+  - in clang: ASTContext, Targets/Hexagon and SemaOpenMP.
+- **Where it starts:** for `DemoteRegToStack.cpp`, both stage 1s gave the
+  same IR. The first difference was in the Greedy Register Allocator:
+  same input, more spill slots from stage 1'.
+- **The cause:** the stage 1s did floating point differently.
+  - The bootstrapped GCC's i686 default is `-march=pentiumpro
+    -mfpmath=387` (x87, 80-bit excess precision, `FLT_EVAL_METHOD` 2), so
+    stage 1T computed its floats that way.
+  - Debian's Clang (`-m32`) built stage 1' for `pentium4` with SSE2.
+  - The register allocator's spill weights and the optimizers' cost
+    models are floats, so the two compilers chose differently.
+- **The fix:** remove the difference the same way on both paths (SSE2 for
+  every stage). No byte is ignored.
+- `findings.md` (the hand-off) holds the investigation.
+
+### The stages (with the fix), 2026-10-30
+
+| Stage | Built by | Where | Time | sha256 of `bin/clang-21` | of `bin/lld` |
+|---|---|---|---|---|---|
+| 1' (D) | Debian's Clang 21.1.8 (apt.llvm.org) | Debian | 37 min | `1ae1e35184c818695e5e8f33594231c24e57621b6254a5fcfa4715bf1798c48f` | `c862274fc1aa9d79b0c51eb3a9882bcc14e6ad1b91e3425c27021b74acd834f7` |
+| 1T | the bootstrapped GCC 15.2.0, GNU ld | guest | 50 min | `6dc4cd132b5ccef6dae8157d8a132baa92e6507230c6226776a09d9404a04850` | `0e19337cdd717bf852a31bb196c3185eccf9b89d02e9f03c0f4de9a2dab3ce80` |
+| 2T | stage 1T, its lld | guest | 44 min | `cb2d968a…` | `c10f4e44…` |
+| 2D | stage 1', its lld | guest | 41 min | `cb2d968a…` | `c10f4e44…` |
+
+The commands (on the build VM, from `~/ddc`):
+- **Stage 1':** `EXTRA_FLAGS=-m32 LINKER=lld tools/ddc/build-llvm.sh
+  clang-21 clang++-21 llvm-src/llvm-project-21.1.8.src d/build1 d/stage1`
+- **Stage 1T:** `tools/ddc/ddc.sh stage1T`
+- **Stage 2T:** `tools/ddc/ddc.sh stage2 t`
+- **Stage 2D:** `tools/ddc/ddc.sh stage2 d`
+
+**Determinism, with the fix:** 2D built a second time (`ddc.sh stage2 d`,
+42 min) is identical to the first, 270 of 270 files. Without the fix,
+both 2D and 2T had each been built twice, each pair identical.
+
+### The result: 2T and 2D are identical
+`tools/ddc/compare.sh` (every file and symlink, byte for byte; nothing
+ignored): **270 of 270 files identical**, the same file list and the same
+symlinks. That is every installed binary (6 files, 9 symlinks), and Clang's 264
+headers.
+
+**This is the verified toolchain**, kept on the build VM as
+`~/ddc/toolchain/llvm-21.1.8-verified`. Every file's sha256 is in
+`docs/toolchain/llvm-21.1.8-verified.SHA256SUMS` (whose own sha256 is
+`6b2fa759ddcee2372c38dae2056261511389089c662ba3e945e8e31a4eed7ecf`). The
+binaries:
+
+| File | sha256 |
+|---|---|
+| `bin/clang-21` (and `clang`, `clang++`, `clang-cpp`, `clang-cl`) | `cb2d968a4e375611cb3e7dc83007cdcb80e54f68f4a271217eb514bfcf48a88e` |
+| `bin/lld` (and `ld.lld`, `ld64.lld`, `lld-link`, `wasm-ld`) | `c10f4e444f2d217891c5ff85854e5cd21b5f2bbd430a44f288abcd06cc13099b` |
+| `bin/llvm-ar` | `7dd1e183e32ff37763fdd87fbe4a815d3aa765fdbd56698929cdde88f02621e9` |
+| `bin/llvm-objcopy` | `d970ff1c798abfbc349f00f588c5bceaed7c382218bff43ce03a76dd733e2fe5` |
+| `bin/llvm-objdump` | `8e0e99b5d10d8a43768a9646ef2d95f75b9fc272d383454fd9c508ba92b63d06` |
+| `bin/llvm-readobj` (and `llvm-readelf`) | `d896303521599e442084bcc3e56341623c3c48e0f9d4b9a6751ea55b6c0bb827` |
+
+They are static i686 programs: `clang version 21.1.8`, default target
+`i686-unknown-linux-musl`. They run on the build VM's Debian x86_64 as
+they are.
+
+**It is verified only as far as the GCC is trusted**, so until the seed
+is read (above) it is not. 0026's "does not cover" applies as written.
+Also not covered: the musl, libstdc++ and libgcc code linked into the
+stage 2 binaries was compiled by the bootstrapped GCC, and DDC does not
+check it.
 
 ## Packages installed on the build VM
 `sudo apt-get install --no-install-recommends`, 2026-10-29 (Debian 13):
@@ -233,3 +348,5 @@ Already there and used:
 1. **live-bootstrap pinned by commit**, since it has no tagged release.
 2. **All stage 2 builds in the bootstrapped system** (option 1), with
    static i686 stages.
+3. **Every stage built with `-march=pentium4 -mfpmath=sse`**, the fix
+   for the first mismatch.

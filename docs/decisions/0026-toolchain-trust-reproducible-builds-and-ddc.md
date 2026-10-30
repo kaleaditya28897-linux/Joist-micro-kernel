@@ -141,3 +141,39 @@ from the seed itself, without a distribution's binaries in it.
 - **Reuse:** the Bootstrappable Builds project's seed and chain, Wheeler's
   method and the Reproducible Builds project's tools, rather than anything
   of our own.
+
+## Amendment 1: proposed, awaiting the owner (2026-10-30)
+
+From carrying out layers 2 and 3 (docs/toolchain/record.md). Where the
+decision was silent or reality differed, the option that trusts less was
+taken. Nothing here is accepted until the owner says so.
+
+1. **live-bootstrap is pinned by commit**, not to a release: it has no
+   tagged release. The commit is b1ceced7 (master, 2026-09-17). Its
+   stage0-posix is at its tag Release_1.9.1.
+2. **Layer 3 runs inside the bootstrapped system,** not on the build VM's
+   Debian. Every stage except path D's stage 1' is built in live-bootstrap's
+   final system, booted under QEMU/KVM on the build VM. Stage 1' is built
+   by Debian's Clang on Debian, as path D needs.
+   - This **shrinks "the machine the builds run on":** the stage 2 builds
+     no longer run on Debian's kernel, C library, make, CMake, Python or
+     shell. They run on the bootstrap's own Linux 4.14, musl, make and
+     Python, and on CMake and ninja built there from signed source by the
+     bootstrapped GCC. Still trusted for this: QEMU, KVM and the build VM's
+     kernel, which could change anything in the guest.
+   - **live-bootstrap supports only 32-bit x86**, so the trusted GCC
+     makes only i686 code. Every stage is therefore a static i686
+     program. The verified Clang and lld run on Debian x86_64 as they are,
+     and make x86_64 code for Joist like any Clang.
+   - **Stage 1' links Debian's i686 C library and libstdc++,** not the
+     guest's. Those were compiled by the bootstrapped GCC, and path D would
+     otherwise not be independent of path T.
+   - **Not covered,** a new item for "What this does not cover": the
+     musl, libstdc++ and libgcc code linked into the verified binaries
+     was compiled by the bootstrapped GCC, and DDC does not check it. It
+     traces to the seed through the bootstrap, not through DDC.
+3. **Every LLVM stage does its floating point in SSE2**
+   (`-march=pentium4 -mfpmath=sse`). The first comparison failed on this:
+   the bootstrapped GCC's i686 default is x87, Debian's Clang's is SSE2,
+   and LLVM's heuristics use floats. The fix is the same on both paths and
+   ignores no bytes; record.md has the investigation.
