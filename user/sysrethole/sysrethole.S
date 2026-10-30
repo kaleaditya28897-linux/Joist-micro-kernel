@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* sysrethole.S - Phase 2 self-test root task for the sysret hazard (step 7).
  *
  * Linked at the last page of the user half (sysrethole.ld): `syscall` sits in

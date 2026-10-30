@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_syscall.c - Phase 2's debug system calls (step 6): unit tests and a
  * property test over random arguments; fuzz/fuzz_syscall.c does the same
  * from libFuzzer. */

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Inventory of Mach traps (syscalls, invisible to rpctrace).
 
 usage: traps.py syscall_sw.h gnumach-src hurd-src glibc-src > traps.csv

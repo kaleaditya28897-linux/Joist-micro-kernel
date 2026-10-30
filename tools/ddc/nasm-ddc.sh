@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # nasm-ddc.sh - the diverse double-compiling of nasm (decision 0026, layer
 # 3, Amendment 1; docs/toolchain/record.md), from the build VM.
 #

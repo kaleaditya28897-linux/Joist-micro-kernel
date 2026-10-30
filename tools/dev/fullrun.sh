@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # fullrun.sh - the whole verification suite, run on the build VM at the end
 # of a step (docs/phase3-plan.md, *Progress*: the cadence agreed at step 3).
 #

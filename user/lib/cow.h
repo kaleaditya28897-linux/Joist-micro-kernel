@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* cow.h - what cowstress (the root) and cowworker (every task of its fork
  * trees) share (Phase 4's exit test, docs/phase4-plan.md *Testing*): the
  * layout of the tagged pages, and the commands the root posts in each

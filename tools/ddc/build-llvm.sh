@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # build-llvm.sh - build one stage of the DDC (decision 0026, layer 3):
 # Clang, lld and the binary tools from LLVM's source, with the fixed options
 # of tools/ddc/llvm.cmake, by the compiler given, installed into PREFIX.

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_map.c - unit tests for frames, page tables and mappings (Phase 3
  * step 3, Phase 4 step 2; 0013, 0020, 0021; invariant I12). The root boots
  * with a 16-page frame in slot F, a frame of simulated memory to lend for

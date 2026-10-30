@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # build-limine.sh - Limine from its pinned, signed source, built with the
 # verified LLVM (decision 0026, layer 3; docs/toolchain/record.md).
 #

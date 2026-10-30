@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* sched.c - scheduling contexts and their donation (Phase 3 step 3; plan
  * §5.3, §5.6; docs/phase3-plan.md, choice 9; invariant I11).
  *

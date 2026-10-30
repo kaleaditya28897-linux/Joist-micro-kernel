@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """migsizes.py - payload sizes of Hurd RPC messages (Phase 1 work item 6).
 
 For each .defs file given, runs MIG to generate the server stubs, extracts

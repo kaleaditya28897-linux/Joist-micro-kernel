@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # Makefile for the user programs: Phase 2's single-task tests
 # (docs/phase2-plan.md) and Phase 3's (the root task, ping, pong: step 4;
 # schedroot and worker, the scheduler test: step 5; faultroot and faulter,

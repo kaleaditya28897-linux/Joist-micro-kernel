@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* work.h - what the scheduler test's root task (schedroot) and its workers
  * share (Phase 3 step 5): one page each, mapped writable in both, through
  * which the root tells a worker what to be and reads how far it has got. */

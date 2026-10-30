@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* faulter.c - one program that misbehaves in the way its root asks (Phase 3
  * step 6; faultroot loads it as several tasks, lib/work.h says how): the
  * faults go to whoever its root named as handler. */

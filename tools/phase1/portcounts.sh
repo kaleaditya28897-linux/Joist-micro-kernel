@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # portcounts.sh - port names held by every process on the running Hurd
 # (Phase 1 work item 6; 0001 open item 4: how big a capability space gets).
 # Run on the testbed as root (portinfo needs access to every task).

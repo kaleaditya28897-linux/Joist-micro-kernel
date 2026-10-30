@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* frame.c - the boot-time physical frame allocator. See frame.h. */
 #include "frame.h"
 

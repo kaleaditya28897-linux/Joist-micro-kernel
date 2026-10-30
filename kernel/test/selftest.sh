@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # selftest.sh - boot test builds of the kernel that misbehave on purpose and
 # check it reports each case correctly (Phase 2 steps 2, 4, 6, 7 and 8). Each variant is
 # built with -DJOIST_SELFTEST=N in its own build directory and booted under

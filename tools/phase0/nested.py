@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Find GCC nested function definitions (unsupported by clang).
 
 usage: nested.py PATH...  (directories are walked, files scanned) -> TSV: file, line, function name

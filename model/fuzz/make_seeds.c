@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* make_seeds.c - write the fuzzer's seed corpus (Phase 1 work item 5).
  *
  * Runs the executor from the same seeded RNG as test_props_all.c and records

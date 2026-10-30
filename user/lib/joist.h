@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* joist.h - the Joist system calls from user mode (Phase 3 step 4;
  * docs/abi.md, *Encoding*; the kernel side is kernel/sys/abi.h, and
  * kernel/test/test_abi_user.c checks at compile time that the numbers here

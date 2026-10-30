@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* elf.h - validating the root task's ELF64 image (Phase 2, docs/phase2-plan.md
  * step 6).
  *

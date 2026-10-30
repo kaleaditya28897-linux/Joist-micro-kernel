@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # stage.sh - one step of the DDC inside live-bootstrap's final system
 # (decision 0026, layer 3). tools/ddc/ddc.sh runs it there through
 # guest.sh, with its inputs in /in and the work disk at /work.

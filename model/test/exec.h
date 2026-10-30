@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* exec.h - the operation-sequence executor shared by the whole-model property
  * test and the libFuzzer harness (Phase 1 work item 5).
  *

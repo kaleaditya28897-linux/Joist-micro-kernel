@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* run.c - the kernel at work (Phase 3 step 4; docs/phase3-plan.md).
  *
  * The core (kernel/core) decides; this file carries it out on x86_64:

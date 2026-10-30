@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* worker.c - one program, five parts in the scheduler test (Phase 3 step
  * 5; schedroot loads it as several tasks): what it does is the role its
  * root wrote in the page they share (lib/work.h). */

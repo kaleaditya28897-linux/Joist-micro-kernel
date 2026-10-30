@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* ipcbench.c - the two ends of the IPC benchmark (Phase 3 step 8;
  * benchroot starts them, in one task or in two). What a thread is comes in
  * its start registers: RDI the role (0 the server, 1 the client, 2 a thread

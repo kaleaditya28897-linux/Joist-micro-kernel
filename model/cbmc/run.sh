@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # CBMC preservation proofs, one per operation (cbmc/harness_cspace.c, mode
 # JOIST_CBMC_INDUCTIVE): from any state joist_check_invariants accepts, one
 # operation with arbitrary arguments keeps every invariant, at the table sizes

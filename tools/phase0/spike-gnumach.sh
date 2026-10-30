@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Phase 0 clang inventory: build GNU Mach with clang, keep going past errors,
 # keep the full log. GNU Mach builds out-of-tree (standard automake).
 # usage: spike-gnumach.sh CC [MAKE_ARGS...]   (e.g. clang-21, or gcc for the baseline)

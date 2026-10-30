@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """mutate_tla.py - prove IpcDelete's properties have teeth (Phase 1 item 8).
 
 Each mutation below breaks one rule of IpcDelete.tla. For each, a copy of

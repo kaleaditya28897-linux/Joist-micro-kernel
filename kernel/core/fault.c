@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fault.c - thread control and fault handling (Phase 3 step 3; decisions
  * 0009, 0010).
  *

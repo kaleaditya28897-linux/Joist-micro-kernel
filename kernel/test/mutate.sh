@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Mutation check: apply each mutation in test/mutations.txt in turn to a
 # scratch copy of the tree (kernel/, and user/lib, whose header a host test
 # checks against the kernel's ABI), build, run the whole test suite, and require a

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* testroot.h - what the test root tasks share (schedroot, faultroot; Phase 3
  * steps 5 and 6): workers loaded from module 0, each with a page shared with
  * the root (work.h), a way to sleep, and a check that ends the run.

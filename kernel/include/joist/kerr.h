@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* kerr.h - kernel-internal result codes (Phase 2). Not the system-call ABI's
  * codes (docs/abi.md), which Phase 3 brings in. */
 #ifndef JOIST_KERR_H

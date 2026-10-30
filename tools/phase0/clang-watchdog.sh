@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Stop any single clang compile that exceeds a CPU-time cap, and log it, so a
 # pathological compile cannot stall the glibc spike. Used for decision 0002 on
 # VM 111 (2026-09-30), where `wcstold_l.c` compiled with -fPIC ran 30 CPU-min.

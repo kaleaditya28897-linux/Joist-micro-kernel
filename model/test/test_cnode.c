@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_cnode.c - unit tests for the two-level capability table (Phase 3 step
  * 3; 0001 amendment, item 4): leaf 0 built into every space, further leaves
  * added and removed explicitly, charged to quota (I3), and absent leaves

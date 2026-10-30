@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_region.c - unit tests for regions (decision 0030; Phase 5 step 2):
  * a range of a task's addresses, whole last-level tables, inside which the
  * task maps pages of the region's extents itself. As test_map.c, the root

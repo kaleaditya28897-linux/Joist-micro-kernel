@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* vm.h - x86_64 four-level page tables (Phase 2 step 4, docs/phase2-plan.md).
  *
  * Builds and inspects page tables without touching the CPU: tables are

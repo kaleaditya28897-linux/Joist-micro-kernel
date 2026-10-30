@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # guest.sh - run a job in live-bootstrap's final system (decision 0026,
 # layer 3), under QEMU with KVM, and give its exit status.
 #

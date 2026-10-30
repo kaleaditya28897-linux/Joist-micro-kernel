@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_props_task.c - property test for tasks, threads and task destruction
  * (Phase 1 work item 4; invariants I1, I3; decisions 0004, 0010, 0013).
  *

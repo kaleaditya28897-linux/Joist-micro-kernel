@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_harness.c - the harness tests itself, so a scaffold with no model code
  * still has something real to run under every sanitizer. Replace and extend
  * with model tests as Phase 1 proceeds. */

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* frame.h - the boot-time physical frame allocator (Phase 2, docs/phase2-plan.md
  * step 3).
  *

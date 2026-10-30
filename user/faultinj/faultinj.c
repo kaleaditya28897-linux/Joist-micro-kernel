@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* faultinj.c - the fault-injection test (Phase 3's exit criterion;
  * docs/phase3-plan.md, *Testing*): clients and servers killed at points
  * chosen from a seed, and checks that every survivor sees exactly what

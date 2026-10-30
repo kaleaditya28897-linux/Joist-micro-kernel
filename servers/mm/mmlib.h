@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mmlib.h - the memory manager's logic (decision 0023; Phase 4 step 6).
  *
  * mm keeps, for every task it serves, the regions of its address space it

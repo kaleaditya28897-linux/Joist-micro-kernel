@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* harness.h - a minimal in-tree test harness for the host model (plan §8.1).
  *
  * A test is a function `static void name(void)` registered with JT_TEST(name).

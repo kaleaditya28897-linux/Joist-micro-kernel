@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* internal.h - hooks between the core's source files. Not part of the API. */
 #ifndef JOIST_CORE_INTERNAL_H
 #define JOIST_CORE_INTERNAL_H

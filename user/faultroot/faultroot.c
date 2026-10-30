@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* faultroot.c - a root task that tests fault IPC and thread control from
  * user mode (Phase 3 step 6; docs/abi.md, *Thread control and faults*).
  * Module 0 is faulter, loaded here as a task per test; the root is its

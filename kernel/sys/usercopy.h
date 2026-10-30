@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* usercopy.h - the only way the kernel reads or writes user memory (Phase 2 step 6;
  * §5.1: "user pointers are never dereferenced directly").
  *

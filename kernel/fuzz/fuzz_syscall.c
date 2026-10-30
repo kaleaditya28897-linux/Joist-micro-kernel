@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fuzz_syscall.c - libFuzzer on Phase 2's system-call dispatcher (step 6;
  * §8.1): any call number and arguments against a simulated task; the result
  * must match the world (test/sys_world.h), with no output on failure. */

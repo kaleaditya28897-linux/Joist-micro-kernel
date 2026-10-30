@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mmlib.c - the memory manager's logic (decision 0023). See mmlib.h.
  *
  * The pool of pages, the tasks mm serves, their regions of anonymous

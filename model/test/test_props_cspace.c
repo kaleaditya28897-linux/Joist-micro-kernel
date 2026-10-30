@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_props_cspace.c - property test for capability spaces (Phase 1 work
  * item 1; invariants I1, I3, I7, I8).
  *

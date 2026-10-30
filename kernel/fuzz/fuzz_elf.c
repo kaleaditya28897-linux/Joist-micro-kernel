@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fuzz_elf.c - libFuzzer on the root task's ELF validator (Phase 2 step 6;
  * §8.1). Any input: no out-of-bounds read (ASan), no undefined behaviour
  * (UBSan), and every accepted image keeps elf.h's promises. */

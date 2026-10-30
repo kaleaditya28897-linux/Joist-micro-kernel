@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Phase 0 clang inventory: does MIG's generated C compile with clang?
 # For every .defs under HURD_SRC/hurd, generate user and server stubs with mig,
 # then compile each stub with clang and with gcc (the control: an error both

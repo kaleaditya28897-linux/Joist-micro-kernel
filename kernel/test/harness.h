@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* harness.h - a minimal in-tree test harness for the kernel's host tests (plan §8.1;
  * a copy of model/test/harness.h).
  *

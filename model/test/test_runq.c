@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_runq.c - the run queues (Phase 3 step 10; choice 9): a thread is on
  * a queue exactly when it can run and is on no CPU (I14), the queues choose
  * what the scan would, and a choice costs the same however many threads

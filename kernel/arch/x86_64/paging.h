@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* paging.h - the kernel's own page tables (Phase 2 step 4). */
 #ifndef JOIST_ARCH_PAGING_H
 #define JOIST_ARCH_PAGING_H

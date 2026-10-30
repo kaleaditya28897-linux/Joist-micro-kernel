@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* abi.c - the system-call ABI: registers to core operations. See abi.h. */
 #include "abi.h"
 

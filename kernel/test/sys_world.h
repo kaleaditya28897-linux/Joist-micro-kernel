@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* sys_world.h - a simulated task for the system-call tests and fuzzer:
  * 8 user pages at 0x400000 (page 3 kernel-only, page 6 unmapped), each byte
  * (page * 7 + offset) & 0xff, over simulated physical memory. */

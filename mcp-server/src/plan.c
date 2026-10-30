@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* plan.c - loading and querying the Joist design plan. */
 #include "plan.h"
 

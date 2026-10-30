@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # check-toolchain.sh - is this the verified toolchain? (decision 0026,
 # layer 3; docs/toolchain/record.md)
 #

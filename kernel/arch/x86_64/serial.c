@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* serial.c - the 16550 UART on COM1 (0x3f8), polled, 115200 8N1. Polled so it
  * works before interrupts exist and can't lose output to a full buffer. */
 #include "serial.h"

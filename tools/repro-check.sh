@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # repro-check.sh - are Joist's builds reproducible? (decision 0026, layer 1)
 #
 # Copies the tree to two directories with different paths and builds the

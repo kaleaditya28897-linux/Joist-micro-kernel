@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* sysfuzz.c - the Phase 2 system-call fuzzer (exit criterion, part 2: "the
  * kernel survives fuzzing of its tiny syscall surface").
  *

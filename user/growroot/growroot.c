@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* growroot.c - the memory-growth test (Phase 3's exit: "no kernel memory
  * growth under adversarial tests"; docs/phase3-plan.md, *Testing*). Module
  * 0 is fuzzchild.

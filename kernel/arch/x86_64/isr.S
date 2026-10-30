@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* isr.S - interrupt and exception entry stubs (Phase 2 step 2).
  *
  * One stub per vector. Vectors where the CPU pushes an error code (8, 10-14,

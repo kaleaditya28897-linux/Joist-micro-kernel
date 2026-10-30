@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mm_proto.h - how tasks and the root talk to the memory manager
  * (decision 0023). Shared by the server (servers/mm/mm.c), the root task
  * that starts it, and its clients.

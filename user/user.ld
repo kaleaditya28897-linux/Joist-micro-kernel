@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* user.ld - static user programs for Phase 2 (docs/phase2-plan.md step 6).
  * Linked at 0x400000 in the user half, one segment per permission so the
  * kernel's ELF validator (W^X, page-disjoint segments) accepts them. */

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* region.c - regions: a range of one task's addresses that it maps itself
  * (decision 0030; 0008's escape hatch; Phase 5).
  *

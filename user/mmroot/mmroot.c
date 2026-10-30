@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mmroot - the memory manager's test on the real kernel (Phase 4 step 6,
  * part D; decision 0023). Module 0 is mm, module 1 mmclient.
  *

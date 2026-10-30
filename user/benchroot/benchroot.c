@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* benchroot.c - a root task that runs the IPC benchmark (Phase 3 step 8;
  * docs/phase3-plan.md, *Testing*: round-trip Call/ReplyRecv latency in TSC
  * cycles, in one address space and across two). Module 0 is ipcbench, which

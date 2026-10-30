@@ -1,3 +1,4 @@
+\* SPDX-License-Identifier: GPL-3.0-only
 ------------------------------ MODULE IpcDelete ------------------------------
 (***************************************************************************)
 (* Phase 1 work item 8 (optional in plan §11): IPC racing a preemptible    *)

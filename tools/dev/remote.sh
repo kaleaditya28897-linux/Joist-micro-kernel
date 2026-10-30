@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # remote.sh - run a command in this working tree on the build and test VM
 # (docs/testbed.md: joist-dev2, on the P53 since 2026-10-14; an alias in
 # ~/.ssh/config that jumps through the P53 to the VM's SSH port).

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* KNOWN LIMITATION: nested.py does not pass this test (see its docstring).
  GNU Mach 53c78xx.c shape: an #ifdef with no #else around deliberately
    unbalanced code that is never compiled. */

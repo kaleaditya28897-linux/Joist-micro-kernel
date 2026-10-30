@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Tally Mach kernel RPCs in rpctrace logs.
 
 usage: tally.py gnumach.msgids boot.txt shell.txt build.txt

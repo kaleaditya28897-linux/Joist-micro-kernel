@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fuzz_abi.c - libFuzzer over the system-call ABI (Phase 3 step 4; the
  * plan's "fuzz the full system-call surface"). Each input is a sequence of
  * system calls from a few threads, decoded from the input bytes: a real

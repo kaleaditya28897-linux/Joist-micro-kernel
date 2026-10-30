@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* paging.c - the kernel's own page tables (Phase 2 step 4).
  *
  * Built with mem/vm.c from boot frames, then loaded: the kernel image with

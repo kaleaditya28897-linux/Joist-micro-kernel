@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mmbench - the memory manager's costs, measured (Phase 4's exit;
  * docs/phase4-data/step7-exit). Module 0 is mm, module 1 mmclient, run as
  * MMC_BENCH: it times, with the TSC, demand-zero faults (a write, and a

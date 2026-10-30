@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* core.h - the kernel's object layer: public API.
  *
  * Capabilities, endpoints, IPC, notifications, lifetime events, tasks and

@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Prove each sanitizer is live: compile a known-bad program per sanitizer and
 # require the sanitizer to catch it. Also build each without the sanitizer as
 # a control, to show the detection is the sanitizer's, not a crash anyway.

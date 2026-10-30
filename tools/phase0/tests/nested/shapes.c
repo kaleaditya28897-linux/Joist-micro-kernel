@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* Known failure shapes for nested.py. Expected nested functions: see expected.tsv */
 #include <stdio.h>
 static int g (int x)

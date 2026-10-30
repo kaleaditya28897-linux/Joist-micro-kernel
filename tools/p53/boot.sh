@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # boot.sh - boot a Joist ISO on the P53's own CPU (docs/testbed.md), through
 # KVM, and give QEMU's exit status: (code << 1) | 1 for the kernel's finish
 # code (isa-debug-exit), 124 on timeout. What VM 112 on pvehome was until

@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # exit-run.sh - Phase 4's exit run (docs/phase4-plan.md, the Testing table's
 # exit row; the sizes the owner decided on 2026-10-29, part E3):
 #   - cowstress, N rounds on 1, 2 and 4 CPUs under KVM, and N_CHK rounds on

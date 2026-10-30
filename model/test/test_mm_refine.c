@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_mm_refine.c - mm, refined (decision 0023; the plan's Testing: "COW,
  * refined"; Phase 4 step 6, part C).
  *

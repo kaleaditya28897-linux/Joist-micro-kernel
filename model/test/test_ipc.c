@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_ipc.c - unit tests for threads, endpoints and synchronous IPC (Phase 1
  * work item 2; invariants I6, I7, I10). */
 #include "harness.h"

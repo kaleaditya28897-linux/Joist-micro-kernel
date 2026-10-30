@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # bootstrap.sh - build the trusted GCC from live-bootstrap's hex0 seed
 # (decision 0026, layer 2; docs/toolchain/record.md).
 #

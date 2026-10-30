@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* harness_cspace.c - CBMC harness for the capability space (plan §8.1;
  * Phase 1, follow-on to work item 8). Run by `make cbmc` (cbmc/run.sh).
  *

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fuzz_model.c - libFuzzer entry point (Phase 1 work item 5).
  *
  * The fuzz input is the stream of choices for the executor shared with the

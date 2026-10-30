@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_kill_copy.c - unit tests for revoke by kill and the batched
  * capability copy (decision 0022). The root boots with a 16-page frame in
  * slot F and makes a task (slot TK, space C) to copy into and map into,

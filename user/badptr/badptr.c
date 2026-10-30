@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* badptr.c - Phase 2 self-test root task: debug_write with a kernel-half
  * pointer must be refused (no output, no kernel fault), then exit 0. */
 #include "../sys.h"

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* sys.h - Phase 2's debug system calls, from user mode (kernel/sys/syscall.h
  * has the kernel side). Number in rax, arguments in rdi and rsi; the
  * `syscall` instruction clobbers rcx and r11. */

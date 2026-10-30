@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_sched.c - unit tests for scheduling contexts and their donation
  * (Phase 3 step 3; plan §5.3, §5.6; invariant I11). The root makes a task T
  * with three threads, a client c and passive servers s and s2, and two

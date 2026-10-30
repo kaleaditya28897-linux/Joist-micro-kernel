@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Classify clang errors from a glibc build log for decision 0002.
 
 usage: clang_errors.py glibc-make.log nested-functions.csv GLIBC_SRC > clang-glibc-errors.csv

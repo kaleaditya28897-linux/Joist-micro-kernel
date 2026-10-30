@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* io.h - x86 port I/O (Phase 2). Inline assembly is confined to arch/ (§5.1).
  * Preconditions: the caller is in ring 0 and the port belongs to a device the
  * kernel owns (COM1, the PIT, QEMU's debug-exit port). */

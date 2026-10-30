@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* hello.c - the Phase 2 root task: the first half of the exit criterion
  * ("a userspace hello task runs"). Runs in ring 3, says hello through
  * debug_write, and exits with 0. */

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_mm.c - unit tests for the memory manager's library (decision 0023;
  * Phase 4 step 6, part A) against the kernel model.
  *

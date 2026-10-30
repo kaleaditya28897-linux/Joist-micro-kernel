@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* syscall.S - the `syscall` entry (Phase 2 step 6; reworked in Phase 3 step
  * 4).
  *

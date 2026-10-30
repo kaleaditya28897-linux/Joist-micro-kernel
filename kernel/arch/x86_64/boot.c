@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* boot.c - the kernel's entry from Limine (Phase 2 step 1; decision 0015).
  *
  * Limine enters kmain in 64-bit long mode, higher half, interrupts off, with a

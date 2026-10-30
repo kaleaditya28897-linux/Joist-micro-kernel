@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # compare.sh - are two installed stages the same bytes? (decision 0026,
 # layer 3: stage 2T against stage 2D, or a stage against a rebuild of it)
 #

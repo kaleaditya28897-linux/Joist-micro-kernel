@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* plan.h - loading and querying the Joist design plan (joist-microkernel-plan.md). */
 #ifndef JOIST_MCP_PLAN_H
 #define JOIST_MCP_PLAN_H

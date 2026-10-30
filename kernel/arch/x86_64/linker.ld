@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* linker.ld - the kernel image (Phase 2 step 1). Linked at the top 2 GiB
  * (-mcmodel=kernel), with one segment per permission so W^X holds from the
  * first instruction: code R+X, read-only data R, data and BSS R+W. Limine

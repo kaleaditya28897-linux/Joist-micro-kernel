@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* syscall.c - Phase 2's debug system calls. See syscall.h. */
 #include "syscall.h"
 

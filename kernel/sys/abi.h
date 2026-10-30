@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* abi.h - the system-call ABI: registers to core operations (Phase 3 step
  * 4; docs/abi.md, *Encoding*; plan choice 8).
  *

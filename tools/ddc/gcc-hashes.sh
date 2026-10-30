@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # gcc-hashes.sh - the sha256 of the bootstrapped GCC and what it uses
 # (decision 0026, layer 2; docs/toolchain/record.md), read straight out of
 # live-bootstrap's final disk with debugfs, without booting it.

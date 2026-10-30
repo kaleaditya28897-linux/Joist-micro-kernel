@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # joist-dev2.sh - the build and test VM on the P53 (docs/testbed.md), run by
 # runit as the user aditya (tools/p53/sv/joist-dev2). Installed as
 # /srv/joist/vms/joist-dev2/run.sh.

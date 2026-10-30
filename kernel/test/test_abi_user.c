@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_abi_user.c - the user library's view of the ABI (user/lib/joist.h) is
  * the kernel's (sys/abi.h, joist/core.h): checked at compile time, so the
  * two can't drift apart. */

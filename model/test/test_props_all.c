@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_props_all.c - the whole-model property test (Phase 1 work item 5).
  *
  * Every operation of every area, interleaved, from a seeded RNG, through the

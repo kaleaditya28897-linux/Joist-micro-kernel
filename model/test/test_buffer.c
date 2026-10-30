@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_buffer.c - the IPC buffer (0001 amendment, item 1; Phase 3's exit):
  * a message carries up to JOIST_MSG_WORDS words from the sender's buffer to
  * the receiver's. The model doesn't hold user memory, so a hook stands for

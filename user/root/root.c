@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* root.c - the root task (decision 0013), as far as Phase 3 step 4 needs
  * it: it is handed all the memory and the boot modules as frame
  * capabilities, and its job is to partition and delegate. It loads each

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mmhost.h - what a root task that runs the memory manager needs (Phase 4
  * step 6; decision 0023): mm started passive, its records asked for, and
  * the root's side of how a client makes a child through mm (work.h,

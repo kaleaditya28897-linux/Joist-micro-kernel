@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* cowworker - every task of cowstress's fork trees (Phase 4's exit test;
  * user/cowstress). A task mm serves, with two threads: the main one does
  * what the root posts in the work page (cow.h: write, verify, fork, exit),

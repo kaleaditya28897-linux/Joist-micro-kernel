@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_props_notify.c - property test for notifications and lifetime events
  * (Phase 1 work item 3; invariants I2, I4, I5).
  *

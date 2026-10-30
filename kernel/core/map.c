@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* map.c - frames, page tables and mappings (Phase 3 step 3, Phase 4 step 2;
  * decisions 0013, 0020, 0021; invariant I12).
  *

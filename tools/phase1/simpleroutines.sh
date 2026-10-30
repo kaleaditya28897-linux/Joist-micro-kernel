@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # simpleroutines.sh - one-way Hurd RPCs (MIG simpleroutines) and whether the
 # Phase 0 traces saw them (Phase 1 work item 6; 0001 open item 5).
 # Run on the Hurd testbed. Output CSV: defs,simpleroutine

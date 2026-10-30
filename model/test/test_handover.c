@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_handover.c - the direct switch (Phase 3 step 8): a Call to a passive
  * server and the reply to it hand the caller's scheduling context over and
  * back, and with it the caller's turn; joist_sched_handed says when the

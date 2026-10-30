@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* cspace.c - capability spaces, objects and capability derivation (Phase 1
  * work item 1; invariants I1, I3, I7, I8).
  *

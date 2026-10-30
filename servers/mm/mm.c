@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mm.c - the memory manager (decision 0023; Phase 4 step 6, part D).
  *
  * A passive server: one thread with no scheduling context of its own,

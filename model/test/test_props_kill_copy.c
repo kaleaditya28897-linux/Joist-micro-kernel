@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_props_kill_copy.c - property test for revoke by kill and the batched
  * capability copy (decision 0022), with the operations around them: tasks
  * made by the root and destroyed (cascading), objects, derive, mint,

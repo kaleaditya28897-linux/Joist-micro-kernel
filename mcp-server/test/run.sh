@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Smoke test for joist-mcp: feed a scripted MCP session over stdio and check
 # that the handshake, tools/list, and each tool return sane results.
 set -eu

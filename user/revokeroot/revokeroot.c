@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* revokeroot.c - decision 0022 from user mode: the batched capability copy
  * (cap_copy_batch) and revoke by kill (obj_kill), through the system-call
  * ABI, as fork and the memory manager will use them. The model's tests

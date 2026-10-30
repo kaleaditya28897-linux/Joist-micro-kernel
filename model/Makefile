@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # Makefile for the Phase 1 host-side semantic model (plan §11 Phase 1, §8.1).
 # Plain Make, KISS (§13). The model's code is the kernel's object layer,
 # ../kernel/core (moved there in Phase 3, step 2); this directory holds its

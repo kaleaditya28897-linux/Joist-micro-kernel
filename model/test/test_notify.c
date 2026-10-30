@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_notify.c - unit tests for notifications, endpoint death, no-senders and
  * dead-name notifications (Phase 1 work item 3; invariants I2, I4, I5). */
 #include "harness.h"

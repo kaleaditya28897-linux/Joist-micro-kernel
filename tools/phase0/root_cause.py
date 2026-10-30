@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Attribute each glibc clang error to a root cause (decision 0002, 2026-09-30).
 
 usage: root_cause.py clang-glibc-errors-guard.csv > clang-glibc-root-causes.csv

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_vm.c - page tables (Phase 2 step 4) on a simulated physical memory:
  * unit tests, and a property test against a shadow map of every page. */
 #include "harness.h"

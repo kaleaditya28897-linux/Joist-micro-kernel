@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* usercopy.c - reading and writing user memory through the page tables. See
  * usercopy.h. */
 #include "usercopy.h"

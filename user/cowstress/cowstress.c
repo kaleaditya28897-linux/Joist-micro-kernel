@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* cowstress - Phase 4's exit test (docs/phase4-plan.md, *Testing*: "In
  * QEMU and on the P53"). Module 0 is mm, module 1 cowworker.
  *

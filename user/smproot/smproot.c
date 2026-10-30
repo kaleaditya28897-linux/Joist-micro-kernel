@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* smproot.c - a root task that tests the kernel on more than one CPU (Phase
  * 3 step 9; decision 0016). Module 0 is worker. The kernel tells the root
  * how many CPUs it uses; with one, this has nothing to test and says so.

@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # ddc.sh - run one step of the DDC of Clang and lld (decision 0026,
 # layer 3) in live-bootstrap's final system, from the build VM.
 #

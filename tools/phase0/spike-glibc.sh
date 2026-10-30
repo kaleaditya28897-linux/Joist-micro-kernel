@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Decision 0002: build glibc with clang, keep going past errors, and keep the
 # full log so every error can be classified. Out-of-tree is fine for glibc
 # (unlike the Hurd). No -j: GNU Mach is uniprocessor, nproc is 1.

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* apic.c - the Local APIC timer, calibrated against the PIT (Phase 2 step 5).
  *
  * Limine (base revision 5+) leaves the LAPIC enabled, with the spurious

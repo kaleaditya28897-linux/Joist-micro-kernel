@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* cpu.h - x86_64 CPU structures and the trap frame (Phase 2 step 2).
  * Selector layout is fixed for `syscall`/`sysret` (step 6): STAR's sysret
  * base is GDT_KDATA, so sysret loads SS = base + 8 (user data) and CS =

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* kprint.c - minimal kernel output to the serial console. See kprint.h. */
 #include "joist/kprint.h"
 

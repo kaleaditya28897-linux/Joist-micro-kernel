@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # joist-hurd-amd64.sh - the GNU/Hurd amd64 testbed on the P53 (docs/testbed.md,
 # VM 111 until 2026-10-14). Run by hand when it is needed:
 #   /srv/joist/vms/joist-hurd-amd64/run.sh &      (as aditya on the P53)

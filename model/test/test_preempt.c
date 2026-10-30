@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_preempt.c - unit tests for preemptible destruction (Phase 3 step 3;
  * decision 0016; TLA+'s rule, model/tla/IpcDelete.tla). The root makes a
  * task A (root slot RA) holding a few capabilities and the only capability

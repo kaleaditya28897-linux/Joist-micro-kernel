@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Classify clang errors from the per-directory Hurd build (spike-hurd-clang.sh).
 
 usage: hurd_clang_errors.py LOGDIR nested-functions.csv > hurd-clang-errors.csv

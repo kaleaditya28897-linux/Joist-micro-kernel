@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Classify GCC nested functions from -fdump-tree-nested dumps.
 
 usage: capture.py SRC_ROOT BUILD_ROOT > nested-capture.csv

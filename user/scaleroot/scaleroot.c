@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* scaleroot.c - a root task that measures how IPC throughput scales with
  * CPUs under the one kernel lock (decision 0016; the lock study of
  * 2026-10-15). Module 0 is ipcbench, which is both ends.

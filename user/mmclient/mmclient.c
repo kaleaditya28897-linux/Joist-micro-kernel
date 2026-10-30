@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* mmclient - a task the memory manager serves (Phase 4 step 6, part D;
  * decision 0023), run by mmroot. Its role is in its work page (work.h:
  * MMC_*); it reaches mm through its capability in MM_SLOT, and mm answers

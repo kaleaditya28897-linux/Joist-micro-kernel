@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* elf_promises.h - everything elf.h promises about an image elf_validate
  * accepted, checked independently of it. Shared by the property test and the
  * libFuzzer target. */

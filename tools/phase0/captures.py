@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Classify GCC nested functions by whether they capture enclosing locals.
 
 Input:  the same trees nested.py scans, plus nested-functions.csv rows.

@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Fuzzer sanity: inject bugs from test/mutations.txt into a scratch copy, build
 # the fuzzer, and require it to crash within a time limit, so a fuzzer that
 # reaches nothing can never look like a clean run. The working tree is never

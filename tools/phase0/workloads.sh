@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Phase 0 rpctrace workloads. Run from ~/trace on the testbed
 # (joist-hurd as demo on i386, 2026-09-23; joist-amd64 as aditya on x86_64, 2026-09-30).
 # RPCTRACE: the rpctrace command (default: system rpctrace). TRACEDIR: where

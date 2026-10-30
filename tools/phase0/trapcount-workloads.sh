@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Decision 0014: count the Mach yield traps (swtch, swtch_pri, thread_switch)
 # on the same three workloads as workloads.sh, untraced. Requires the libc0.3
 # built with tools/phase0/glibc-trapcount.patch to be installed. Each process

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fuzz_call.S - one system call with every general register chosen
  * (Phase 2 step 7). fuzz_call(in, out): load rax, rbx, rdx, rsi, rdi, rbp,
  * r8-r10, r12-r15 from *in, execute syscall, store the same registers to

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_elf.c - the root task's ELF validator (Phase 2 step 6): unit tests,
  * and a property test that corrupts valid images and checks every image the
  * validator accepts against its promises (elf.h). */

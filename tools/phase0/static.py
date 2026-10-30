@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Static side of the Mach inventory: for every kernel call in gnumach.msgids,
 find the Hurd/glibc components that call it (as `name (` or `__name (`).
 usage: static.py gnumach.msgids hurd-src glibc-src > static.tsv

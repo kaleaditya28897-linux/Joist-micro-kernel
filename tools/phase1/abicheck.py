@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """abicheck.py - is every result code docs/abi.md lists for an operation
 actually produced by the model under test? (Phase 1 work item 7.)
 

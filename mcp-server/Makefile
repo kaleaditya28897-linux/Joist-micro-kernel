@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # Makefile for joist-mcp. Plain Make, KISS (matches the plan's tooling policy).
 #
 # Build with either compiler:

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* idt.c - the IDT and the exception dispatcher (Phase 2 step 2).
  *
  * Every vector has a stub (isr.S). An exception in the kernel is a kernel

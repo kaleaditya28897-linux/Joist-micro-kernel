@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Phase 0 clang inventory for the Hurd: compile every library and program
 # directory with clang, independently, so a failing library (nested functions
 # in libshouldbeinlibc) cannot hide the rest of the tree's compile errors.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # llvm.cmake - the fixed CMake options for every LLVM build in the DDC
 # (decision 0026, layer 3): stage 1 and stage 2 on both paths.
 # usage: cmake -C tools/ddc/llvm.cmake ...   (tools/ddc/build-llvm.sh)

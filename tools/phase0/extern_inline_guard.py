@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Which clang "undeclared" errors come from declarations hidden behind
 `#if defined __USE_EXTERN_INLINES` (decision 0002, 2026-09-30).
 

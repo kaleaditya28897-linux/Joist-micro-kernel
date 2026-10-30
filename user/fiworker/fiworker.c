@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fiworker.c - the fault-injection test's peer (Phase 3's exit; faultinj
  * loads it as every client and server): each thread carries out the
  * commands its root posts in their shared page (lib/fi.h), one at a time,

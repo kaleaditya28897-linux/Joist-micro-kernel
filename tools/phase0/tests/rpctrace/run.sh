@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Regression test for tools/phase0/rpctrace-gsync.patch: four threads contend
 # for one lock, which forces gsync_wait/gsync_wake. The stock rpctrace
 # deadlocks (killed at the cap); the patched one must finish with

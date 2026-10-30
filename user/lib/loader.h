@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* loader.h - what a root task needs to start other tasks from boot modules
  * (Phase 3 steps 4 and 5): a page allocator over the memory pool the kernel
  * hands it, and a loader that turns a module into a task. Shared by the root

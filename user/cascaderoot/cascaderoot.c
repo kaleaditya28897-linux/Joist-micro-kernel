@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* cascaderoot.c - a root task that tests preemptible destruction from user
  * mode (Phase 3 step 7; decision 0016; docs/abi.md, *Task destruction*).
  *

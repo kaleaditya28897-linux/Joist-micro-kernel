@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Mutation check: apply each mutation in test/mutations.txt to its own scratch
 # copy of the tree (model/, the kernel's core and mm's library, which it tests), build, run
 # the whole test suite, and require a failure (property or unit test). The

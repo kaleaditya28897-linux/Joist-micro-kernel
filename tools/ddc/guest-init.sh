@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # guest-init.sh - init for a job in live-bootstrap's final system
 # (tools/ddc/guest.sh copies it to /in/init.sh). Mounts what a build
 # needs, runs /in/job.sh with the work disk at /work, records its output

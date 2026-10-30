@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* pong.c - the server half of Phase 3 step 4's ping-pong: receives on the
  * endpoint in slot 0 and answers every message with its first register plus
  * one, forever (the server loop: Recv once, then ReplyRecv), and the IPC

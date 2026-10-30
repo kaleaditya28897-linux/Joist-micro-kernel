@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """How often is a file used after it was unlinked? (client-recovery §8 Q2)
 
 usage: unlinked_open.py build.txt > unlinked-open.csv

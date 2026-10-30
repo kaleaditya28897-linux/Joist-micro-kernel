@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* exec.c - the operation-sequence executor (Phase 1 work item 5). See exec.h.
  *
  * Choices are biased towards operations that can succeed (live spaces,

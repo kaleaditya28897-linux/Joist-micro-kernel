@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /*
  * joist-mcp - a Model Context Protocol server for the Joist design plan.
  *

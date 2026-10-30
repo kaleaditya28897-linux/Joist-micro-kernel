@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Unit tests for tools/phase0/nested.py: each *.c must produce exactly
 # *.expected.tsv (line, function). Exit status 1 on any mismatch.
 cd "$(dirname "$0")" || exit 1

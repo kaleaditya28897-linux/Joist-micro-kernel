@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* schedroot.c - a root task that tests the scheduler from user mode (Phase
  * 3 step 5; docs/abi.md, *Scheduling*). Module 0 is worker, loaded here as
  * several tasks. Each shares a page with the root (lib/work.h): the root

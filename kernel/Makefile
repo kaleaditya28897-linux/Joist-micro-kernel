@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # Makefile for the Joist kernel (Phase 2, docs/phase2-plan.md). Plain Make (§13).
 #
 #   make            the host tests (kernel data structures built for the host, §8.1)

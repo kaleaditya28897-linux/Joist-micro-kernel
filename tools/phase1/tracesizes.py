@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """tracesizes.py - sizes of the variable parts of hot Hurd RPCs, from
 rpctrace logs (Phase 1 work item 6).
 

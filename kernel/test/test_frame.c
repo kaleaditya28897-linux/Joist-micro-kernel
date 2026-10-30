@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_frame.c - the boot-time frame allocator (Phase 2 step 3): unit tests
  * and a property test against a plain shadow, as in model/. */
 #include "frame.h"

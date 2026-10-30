@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Tally Hurd server RPCs (everything in /usr/share/msgids except gnumach.msgids)
 and the offset/whence arguments of io_read, io_write and io_seek.
 usage: hurdrpc.py boot.txt shell.txt build.txt

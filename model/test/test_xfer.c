@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_xfer.c - unit tests for capability transfer in messages (Phase 3
  * step 3; docs/abi.md, closing its open item 1). Two spaces: the server's,
  * holding the endpoint, and the client's, holding a send capability to it. */

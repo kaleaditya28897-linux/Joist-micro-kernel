@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* run.h - the kernel at work: the core's state, address spaces, threads and
  * the way into and out of user mode (Phase 3 step 4). Replaces Phase 2's
  * single root task (user.c). */

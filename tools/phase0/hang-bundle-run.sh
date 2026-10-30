@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Run the s_lround.c clang hang from a self-contained bundle (decision 0002).
 # The bundle holds every file the compile opens, at its absolute path under
 # ROOT. The VM's default include search list is pinned with -nostdinc so the

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_usercopy.c - copy_from_user (Phase 2 step 6) and copy_to_user (Phase
  * 3 step 6) over simulated physical memory: unit tests and a property test against a shadow of the mappings. */
 #include "harness.h"

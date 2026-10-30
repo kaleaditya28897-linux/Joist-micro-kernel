@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* GNU Mach pmap.c shape: #ifdef X then a later #ifndef X must be read as one
    configuration, or the brace stack drifts and g/h read as nested. */
 void f (void)

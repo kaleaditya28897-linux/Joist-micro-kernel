@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* harness.c - test runner for the host model. Runs every registered test and
  * exits non-zero if any check failed. An optional argument runs only the tests
  * whose name contains it. */

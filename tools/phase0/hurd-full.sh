@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Phase 0 baseline: a normal, top-level, in-tree build of the Hurd from a fresh
 # copy (not the per-directory trees, whose dependency files from failed
 # compiles reference a bare version.h and break the top-level build).

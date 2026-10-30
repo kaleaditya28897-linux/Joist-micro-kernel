@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* ping.c - the client half of Phase 3 step 4's ping-pong: PING_ROUNDS calls
  * on the endpoint in slot 0, each checked to come back plus one, then a
  * report to the root task on the endpoint in slot 1. With PING_WORDS, each

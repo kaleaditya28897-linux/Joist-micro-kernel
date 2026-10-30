@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* vm.c - x86_64 four-level page tables. See vm.h. */
 #include "vm.h"
 

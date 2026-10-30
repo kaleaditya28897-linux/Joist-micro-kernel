@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* elf.c - validating the root task's ELF64 image. See elf.h. */
 #include "elf.h"
 

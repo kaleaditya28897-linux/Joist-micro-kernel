@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_smp.c - scheduling on more than one CPU (Phase 3 step 9; decision
  * 0016): who is on which CPU (I13), joist_sched_pick_on, joist_sched_better
  * and the resched flag. Unit tests, and a simulation of 2 and 4 CPUs under

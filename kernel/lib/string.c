@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* string.c - the memory functions a freestanding Clang build may call even
  * with -fno-builtin (struct copies, large initialisers). Simple byte loops:
  * nothing in the kernel copies enough for speed to matter yet. */

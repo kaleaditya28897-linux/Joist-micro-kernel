@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Decision 0002 sizing spike: build the Hurd and glibc with clang, keep going
 # past errors (make -k), and record every error for classification.
 cd ~/spike

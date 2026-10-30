@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* syscall.h - Phase 2's debug system calls (docs/phase2-plan.md step 6).
  *
  * Two calls, numbered in rax with arguments in rdi, rsi (the 0001

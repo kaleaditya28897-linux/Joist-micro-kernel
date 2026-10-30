@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Decision 0002: is clang's getPresumedLoc hang specific to the Hurd?
 # Runs s_lround.c's exact glibc build command (docs/phase0-data/amd64/
 # clang-hang-s_lround.cmd) at -fsyntax-only -w, for each clang version and for

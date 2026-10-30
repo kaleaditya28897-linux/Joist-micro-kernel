@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fuzzchild.c - makes system calls at random, every call the ABI has and
  * numbers it hasn't, with random arguments (Phase 3's exit: "fuzzes the
  * full system-call surface"). growroot starts it in a task of its own, with

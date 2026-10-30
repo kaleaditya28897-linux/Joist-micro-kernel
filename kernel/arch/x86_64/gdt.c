@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* gdt.c - the GDT and TSS (Phase 2 step 2). Replaces Limine's GDT. */
 #include "cpu.h"
 #include "paging.h"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """regcover.py - how many message registers the hot Hurd RPCs need
 (Phase 1 work item 6; decision 0001 open item 1).
 

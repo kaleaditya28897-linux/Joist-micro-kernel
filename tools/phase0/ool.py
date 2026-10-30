@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """List every Hurd RPC parameter that MIG may transfer out-of-line (OOL).
 
 usage: ool.py HURD_SRC GNUMACH_SRC > ool-params.csv

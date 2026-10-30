@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* apic.h - the Local APIC timer (Phase 2 step 5). */
 #ifndef JOIST_ARCH_APIC_H
 #define JOIST_ARCH_APIC_H

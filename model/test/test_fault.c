@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_fault.c - unit tests for thread control and fault handling (Phase 3
  * step 3; decisions 0009, 0010). The root makes a task T with a worker w
  * and a handler thread h; T holds the fault endpoint FEP, and h receives on

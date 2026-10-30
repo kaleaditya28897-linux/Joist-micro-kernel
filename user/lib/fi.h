@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* fi.h - what the fault-injection test's root task (faultinj) and its peers
  * (fiworker) share (Phase 3's exit): one page per peer task, holding a
  * record per thread. The root writes a command in a thread's record and

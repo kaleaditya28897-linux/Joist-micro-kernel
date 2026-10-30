@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* spin.c - Phase 2 self-test root task: busy for about a second, so the
  * timer interrupts it in ring 3 many times (TSS stack switch, iretq back to
  * user mode), then exit 0. */

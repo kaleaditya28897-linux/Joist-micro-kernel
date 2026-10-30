@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_pick.c - the scheduler's rules (Phase 3 step 5; §5.6): who runs,
  * budgets and periods, and the next timer event. Unit tests, and a
  * simulation checked against an independent reading of the rules. */

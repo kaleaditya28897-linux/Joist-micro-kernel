@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* test_abi.c - the system-call ABI (Phase 3 step 4; sys/abi.h): threads
  * driven through their saved registers only, as the kernel drives them. */
 #include "abi.h"

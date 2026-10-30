@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # Build the Hurd with GCC at -O0 and dump GCC's nested-function lowering
 # (-fdump-tree-nested), so capture.py can classify every nested function by
 # whether it captures enclosing locals and whether its address is taken.
