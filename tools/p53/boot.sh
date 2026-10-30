@@ -9,10 +9,10 @@
 #   TIMEOUT   seconds before QEMU is stopped
 #   LOG       where to write the serial log
 # Environment: P53_HOST (default aditya@<tailnet-address>), P53_SMP (default 4),
-# P53_CPUS (default "2 3 4 5": the host CPUs the virtual ones are pinned to,
-# one each, in order: four cores whose other threads, 8 to 11, the build VM
-# is moved off for the boot, below), P53_FIXED_RAM (default 1; 0 for fresh
-# host pages).
+# P53_MEM (default 256: the guest's RAM in MiB), P53_CPUS (default
+# "2 3 4 5": the host CPUs the virtual ones are pinned to, one each, in
+# order: four cores whose other threads, 8 to 11, the build VM is moved off
+# for the boot, below), P53_FIXED_RAM (default 1; 0 for fresh host pages).
 #
 # The guest's RAM is a file in /dev/shm kept from boot to boot, zeroed in
 # place before each one: the same host pages every time, clean every time.
@@ -26,9 +26,10 @@ iso=$1 fw=$2 limit=$3 log=$4
 host=${P53_HOST:-aditya@<tailnet-address>}
 smp=${P53_SMP:-4}
 cpus=${P53_CPUS:-2 3 4 5}
+mem=${P53_MEM:-256}
 ram=""
 # (2 MiB hugepages were tried instead: no better, 2026-10-15.)
-[ "${P53_FIXED_RAM:-1}" = 1 ] && ram="-object memory-backend-file,id=ram0,mem-path=/dev/shm/joist-test-ram,size=256M,share=on,prealloc=on -machine memory-backend=ram0"
+[ "${P53_FIXED_RAM:-1}" = 1 ] && ram="-object memory-backend-file,id=ram0,mem-path=/dev/shm/joist-test-ram,size=${mem}M,share=on,prealloc=on -machine memory-backend=ram0"
 case $fw in
 bios) firmware="" ;;
 uefi) firmware="-drive if=pflash,format=raw,readonly=on,file=/usr/share/qemu/edk2-x86_64-code.fd -drive if=pflash,format=raw,file=vars.fd" ;;
@@ -47,7 +48,7 @@ cp /usr/share/qemu/edk2-i386-vars.fd vars.fd # (OVMF's variables: fresh for ever
 if [ "${P53_FIXED_RAM:-1}" = 1 ]; then
     # The same pages (written in place, never truncated), zeroed.
     [ -f /dev/shm/joist-test-ram ] || : > /dev/shm/joist-test-ram
-    dd if=/dev/zero of=/dev/shm/joist-test-ram bs=1M count=256 conv=notrunc status=none || exit 2
+    dd if=/dev/zero of=/dev/shm/joist-test-ram bs=1M count=$mem conv=notrunc status=none || exit 2
 fi
 # The build VM (tools/p53/joist-dev2.sh: on 0, 1, 6-11) off the benchmark
 # cores' second threads for the boot, and back after, whatever the boot's
@@ -63,7 +64,7 @@ trap 'vm_pin 0,1,6-11' EXIT
 # none of them ever preempts a virtual CPU; the virtual CPUs alone are then
 # moved to the benchmark CPUs, below.
 timeout $limit taskset -c 0,1,6,7 qemu-system-x86_64 -name joist-test,debug-threads=on -machine q35,accel=kvm \\
-    -cpu host -smp $smp -m 256M $ram $firmware -cdrom $name -display none -vga std -no-reboot \\
+    -cpu host -smp $smp -m ${mem}M $ram $firmware -cdrom $name -display none -vga std -no-reboot \\
     -serial file:serial.log -device isa-debug-exit,iobase=0xf4,iosize=0x04 &
 qpid=\$!
 # Each virtual CPU on a host CPU of its own, in order.
