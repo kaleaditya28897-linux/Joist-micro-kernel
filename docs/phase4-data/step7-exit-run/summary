@@ -1,0 +1,12 @@
+exit run: 2026-10-30 06:23:17 UTC, void, f8d55b5
+cowstress N = 1000 (checking kernel 250), refinement M = 10000 (msan, tsan 1000)
+kvm-smp1-cowstress: ok, 1000 rounds, seed 1, 26 s (verified 62003 times, forks 14973, deepest 6, mm stranded 0, slow 0 (at most ms 0))
+kvm-smp2-cowstress: ok, 1000 rounds, seed 2, 24 s (verified 62003 times, forks 14865, deepest 6, mm stranded 0, slow 0 (at most ms 0))
+kvm-smp4-cowstress: ok, 1000 rounds, seed 4, 28 s (verified 62003 times, forks 15043, deepest 6, mm stranded 0, slow 0 (at most ms 0))
+chk-kvm-smp2-cowstress: ok, 250 rounds, seed 2, 582 s (verified 15503 times, forks 3773, deepest 6, mm stranded 0, slow 0 (at most ms 0))
+refinement, plain: ok, 10000 seeds, 550 s
+refinement, asan: ok, 10000 seeds, 823 s
+refinement, ubsan: ok, 10000 seeds, 823 s
+refinement, msan: ok, 1000 seeds, 126 s
+refinement, tsan: ok, 1000 seeds, 219 s
+exit run: all passed

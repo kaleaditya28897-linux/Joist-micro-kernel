@@ -1,0 +1,2 @@
+  coverage mm: 45685 reads of written pages, 107788 writes, 16908 COW copies, 13739 clones, 10775 shares, 37499 unmaps, 2945 protects, 9392 exits, 42695 faults refused
+1 tests, 0 failed, 0 failed checks

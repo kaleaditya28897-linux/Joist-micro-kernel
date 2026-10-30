@@ -8,7 +8,8 @@
 #     M_SLOW under msan and tsan.
 # Each part writes its own log in LOGDIR, and a line to LOGDIR/summary.
 # It stops at nothing: every part runs, and the status says whether all
-# passed. Long: at N = 1000 hours on the P53.
+# passed. At N = 1000 it took about 55 minutes (2026-10-30): 11 for the
+# boots on the P53, the rest for the refinement test on an i7-8665U.
 # Give each boot a host CPU per virtual CPU: 4 virtual CPUs squeezed onto 2
 # host CPUs make mm miss the 300 ms it is given to answer after a kill.
 # cowstress now tells that apart: a slow mm (an answer within 10 s) is

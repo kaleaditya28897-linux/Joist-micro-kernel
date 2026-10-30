@@ -14,3 +14,10 @@ batched copy, who pays for page tables, 0008's escape hatch, grants and
 recommendation. What it says of Joist cites the tree and was checked. What
 it says of other systems is from memory, unchecked, and marked so where it
 is least sure.
+
+## The exit run (2026-10-30): `step7-exit-run/`
+
+`tools/exit-run.sh` at f8d55b5, at the sizes the owner decided: `cowstress`
+1000 rounds on 1, 2 and 4 CPUs and 250 on the checking kernel, booted on
+the P53; the refinement test with 10 000 seeds (1 000 under msan and tsan),
+on the workstation. All passed; its README has the figures.
