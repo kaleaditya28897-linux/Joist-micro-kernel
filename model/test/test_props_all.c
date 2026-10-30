@@ -117,6 +117,7 @@ JT_TEST(props_all_invariants_hold)
         JT_CHECK(st.result[JX_MAP][0] > 200 && st.result[JX_UNMAP][0] > 200 &&
                  st.result[JX_PROTECT][0] > 200 && st.result[JX_DONATE][0] > 50 &&
                  st.result[JX_MAP_QUERY][0] > 200);
+        JT_CHECK(st.result[JX_REGION][0] > 500); /* regions made and used (0030) */
         JT_CHECK(st.dying > 1000 && st.dying_deep > 10);
     }
 }

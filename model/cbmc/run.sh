@@ -12,6 +12,9 @@
 # They are found by their source text, since CBMC numbers loops by position.
 # An argument OP:TYPE splits operation OP by the type of the capability in
 # its target slot (cbmc/harness_cspace.c, JOIST_CBMC_SLOT_TYPE).
+# Regions (0030) are at their smallest: one record, one a task, two extents,
+# one table each (two pages at these sizes), so the checks' walks over a
+# region's range fit the default unwinding.
 # usage: cbmc/run.sh OUTDIR OP[:TYPE]...      (prints one line per run)
 # CBMC_EXTRA adds options (--verbosity 9, to see the formula's size).
 out=$1; shift
@@ -25,7 +28,8 @@ pt_bits=1
 # formulas are the largest (the map check walks the tables before and after).
 sim_pages=6
 SIZES="-DJOIST_MAX_OBJECTS=${objects}u -DJOIST_MAX_CSPACES=@SPACES@u -DJOIST_CNODE_ROOT=2u -DJOIST_CNODE_LEAF=1u -DJOIST_MAX_LEAVES=1u -DJOIST_PT_TOP=${pt_top}u -DJOIST_PT_BITS=${pt_bits}u -DJOIST_MAX_THREADS=1u -DJOIST_MAX_CPUS=1u \
--DJOIST_MAX_BADGE_ACCTS=1u -DJOIST_MAX_DEADNAMES=1u -DJOIST_PRIOS=2u"
+-DJOIST_MAX_BADGE_ACCTS=1u -DJOIST_MAX_DEADNAMES=1u -DJOIST_PRIOS=2u \
+-DJOIST_MAX_REGIONS=1u -DJOIST_REGIONS_PER_TASK=1u -DJOIST_REGION_EXTENTS=2u -DJOIST_REGION_TABLES=1u"
 # The CBMC loop id of the loop on the line of FILE holding TEXT (in $loops).
 loop_id() {
     line=$(grep -n -F "$2" "$1" | cut -d: -f1)
@@ -55,7 +59,8 @@ for arg in "$@"; do
         sizes="$sizes -DJOIST_MSG_CAPS=1u"
         extra="-DJOIST_CBMC_NO_BUFFERS" ;;
     esac
-    case $op in 1[1-6])
+    # The mapping calls (11-16) and the region calls (22-26, decision 0030).
+    case $op in 1[1-6]|2[2-6])
         tables="-DJOIST_CBMC_TABLES -DJOIST_CBMC_SIM_PAGES=${sim_pages}u"
         sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/1/') ;;
     esac

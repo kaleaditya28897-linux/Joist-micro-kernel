@@ -58,8 +58,8 @@ means finding every holder: what 0022 avoids by killing the object.
   O(8).
 - **The range.** Whole page tables: `lo` and `hi` on 2 MiB boundaries, at
   most `JOIST_REGION_TABLES` tables (32 proposed: 64 MiB). Regions of one
-  task don't overlap. Creating one checks that each of its tables is empty
-  (a count of present entries per table, kept in its shadow page: O(tables)).
+  task don't overlap. Creating one checks that none of its tables exists
+  (O(tables); see *Settled in the model step* below).
 - **Who does what.**
 
   | Call | Who | What |
@@ -104,9 +104,13 @@ means finding every holder: what 0022 avoids by killing the object.
   extension and the refinement test (a task's region pages are its own)
   keep the two apart. A new object type, five calls and a per-table count
   in the kernel: about 400-600 lines, to be counted.
-- **Open, settled in the model step:** whether the per-table count costs
-  too much on every map and unmap; if so, creation checks the range by a
-  preemptible sweep instead.
+- **Settled in the model step (2026-10-30):** no per-table count is needed,
+  and none would fit (a shadow page's 512 entries fill it). An emptied
+  last-level table is always freed (`prune`, on every path that clears an
+  entry; a failed `map` checks before it builds), so outside a dying space
+  a range with no table has nothing mapped. I12 now says so ("no empty
+  last-level table"), so the rule is checked, not assumed, and creation
+  checks only that the range's tables are absent.
 
 ## Priority check
 

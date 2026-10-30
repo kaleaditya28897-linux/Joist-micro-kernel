@@ -170,7 +170,9 @@ tla-mutate:
 # fallback context (sc_bind_fallback, sc_unbind, wait, tick), with two
 # threads; 19 (recv) exhausts 12 GB however it is split (cbmc/run.sh: 19/s,
 # 19/n), so it is left to the unit and property tests, as 3 and 6 are.
-CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21
+# Operations 22-26 are decision 0030's region calls (create, add, map, unmap,
+# protect), with the page tables; a region's kill is operation 9's.
+CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21 22 23 24 25 26
 CBMC_JOBS ?= 1
 cbmc:
 	@mkdir -p $(BUILD)/cbmc

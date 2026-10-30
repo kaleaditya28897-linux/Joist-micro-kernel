@@ -69,6 +69,7 @@ enum {
     JX_COPY_BATCH,  /* decision 0022 */
     JX_TICK,
     JX_SC_FALLBACK, /* decision 0025 */
+    JX_REGION,      /* decision 0030: create, add, map, unmap, protect */
     JX_OPS
 };
 

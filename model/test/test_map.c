@@ -276,6 +276,49 @@ JT_TEST(map_replace_only_what_is_expected)
     JT_CHECK(clean());
 }
 
+/* The kernel's side (the hooks) of a map and a replace: what it is told to
+ * put in the hardware's tables. */
+static struct {
+    unsigned calls;
+    uint32_t space;
+    uint64_t va, pa, npages;
+    unsigned perms;
+    int replace;
+} told;
+
+static void tell_map(void *ctx, uint32_t space, uint64_t va, uint64_t pa, uint64_t npages,
+                     unsigned perms, int replace)
+{
+    (void)ctx;
+    told.calls++;
+    told.space = space;
+    told.va = va;
+    told.pa = pa;
+    told.npages = npages;
+    told.perms = perms;
+    told.replace = replace;
+}
+
+JT_TEST(map_and_replace_tell_the_kernel)
+{
+    setup();
+    JT_REQUIRE(joist_boot_frame(&k, root, F2, 0x200, 4) == JOIST_OK);
+    k.hooks.map = tell_map;
+    memset(&told, 0, sizeof told);
+    JT_REQUIRE(joist_map(&k, root, F, 2, 3, TK, 0x400, 0) == JOIST_OK);
+    JT_CHECK(told.calls == 1 && told.space == T && told.va == 0x400 && told.pa == 0x102 &&
+             told.npages == 3 && told.perms == 0 && !told.replace);
+    /* A replace (copy on write's step): the new pages, said to replace. */
+    JT_REQUIRE(joist_map_replace(&k, root, F2, 1, 2, TK, 0x401, JOIST_MAP_W, F, 3) == JOIST_OK);
+    JT_CHECK(told.calls == 2 && told.va == 0x401 && told.pa == 0x201 && told.npages == 2 &&
+             told.perms == JOIST_MAP_W && told.replace);
+    /* A refused one tells nothing. */
+    JT_CHECK(joist_map_replace(&k, root, F2, 0, 1, TK, 0x400, 0, F, 1) == JOIST_E_STATE);
+    JT_CHECK(told.calls == 2);
+    k.hooks.map = NULL;
+    JT_CHECK(clean());
+}
+
 JT_TEST(map_unmap_range_with_holes_gives_tables_back)
 {
     setup();

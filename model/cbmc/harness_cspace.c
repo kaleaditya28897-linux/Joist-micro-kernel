@@ -326,6 +326,24 @@ int main(void)
             joist_tick(&k, nondet_u64());
             e = JOIST_OK;
             break;
+        /* Decision 0030, regions, with the page tables (JOIST_CBMC_TABLES):
+         * a is the region (for region_create, the task), b the frame (for
+         * region_create, the slot the region goes in). */
+        case 22:
+            e = joist_region_create(&k, cs, a, va, any(JOIST_REGION_TABLES + 1u), perms, b);
+            break;
+        case 23:
+            e = joist_region_add(&k, cs, a, b, off, n, &done);
+            break;
+        case 24:
+            e = joist_region_map(&k, cs, a, any(JOIST_REGION_EXTENTS), off, n, va, perms);
+            break;
+        case 25:
+            e = joist_region_unmap(&k, cs, a, va, n);
+            break;
+        case 26:
+            e = joist_region_protect(&k, cs, a, va, n, perms);
+            break;
         default:
             e = joist_task_destroy(&k, cs, a);
             break;
@@ -346,6 +364,12 @@ int main(void)
             __CPROVER_assert(s != NULL && d != NULL &&
                                  (d->rights & (joist_rights)~s->rights) == 0,
                              "I8: rights never grow");
+        }
+        if (e == JOIST_OK && (op == 24 || op == 25 || op == 26)) {
+            /* Only through a region capability with MAP (0030). */
+            const struct joist_cap *rc = joist__slot_c(&k, cs, a);
+            __CPROVER_assert(rc != NULL && rc->type == JOIST_OBJ_REGION && (rc->rights & JOIST_R_MAP) != 0,
+                             "0030: a region's pages change only through a capability with MAP");
         }
         if (e == JOIST_OK && (op == 11 || op == 12) && (perms & JOIST_MAP_W) != 0) {
             const struct joist_cap *fc = joist__slot_c(&k, cs, a);

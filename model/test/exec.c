@@ -64,7 +64,8 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_OBJ_KILL] = "obj_kill",
                                         [JX_COPY_BATCH] = "copy_batch",
                                         [JX_TICK] = "tick",
-                                        [JX_SC_FALLBACK] = "sc_bind_fallback"};
+                                        [JX_SC_FALLBACK] = "sc_bind_fallback",
+                                        [JX_REGION] = "region"};
 
 /* Relative frequency of each operation, out of their sum. */
 static const uint8_t weight[JX_OPS] = {
@@ -81,7 +82,8 @@ static const uint8_t weight[JX_OPS] = {
     [JX_MAP] = 5,          [JX_UNMAP] = 2,         [JX_PROTECT] = 2,     [JX_DONATE] = 2,
     [JX_MAP_QUERY] = 3,
     [JX_CONTINUE] = 4,     [JX_GIVE] = 4,
-    [JX_OBJ_KILL] = 2,     [JX_COPY_BATCH] = 4,    [JX_TICK] = 6,        [JX_SC_FALLBACK] = 3};
+    [JX_OBJ_KILL] = 2,     [JX_COPY_BATCH] = 4,    [JX_TICK] = 6,        [JX_SC_FALLBACK] = 3,
+    [JX_REGION] = 6};
 
 static uint64_t boot_budget;
 
@@ -911,12 +913,71 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
                     pe = e0 != 0 ? hk_page(NULL, JOIST_PT_SHADOW(e0)) : NULL;
                 }
                 if (pe != NULL && pe[va & (JOIST_PT_ENTRIES - 1u)] != 0) {
-                    ooff = JOIST_PTE_OFF(pe[va & (JOIST_PT_ENTRIES - 1u)]);
+                    uint64_t e0 = pe[va & (JOIST_PT_ENTRIES - 1u)];
+                    ooff = JOIST_PTE_OFF(e0);
+                    /* Usually name the frame that is mapped there, so that
+                     * replaces succeed (and the kernel's side of one is
+                     * checked: the hooks' shadow). */
+                    for (uint32_t sl = 0; ch(src, 4) != 0 && sl < JOIST_CSPACE_SLOTS; sl++) {
+                        const struct joist_cap *oc = joist__slot_c(k, ms, sl);
+                        if (oc != NULL && oc->type == JOIST_OBJ_FRAME && oc->obj == JOIST_PTE_FRAME(e0) + 1u &&
+                            (oc->rights & JOIST_R_CONTROL) != 0) {
+                            of = sl;
+                            break;
+                        }
+                    }
                 }
             }
             return joist_map_replace(k, ms, f, off, n, ts, va, perms, of, ooff);
         }
         return joist_map(k, ms, f, off, n, ts, va, perms);
+    }
+    case JX_REGION: {
+        /* From the root half the time, as the mapping calls. Usually in
+         * tables of their own (0x800, 0xa00), and one time in four in those
+         * JX_MAP uses (0x400, 0x600, and at the second top-level entry), so
+         * regions and plain mappings meet without crowding plain ones out;
+         * now and then a range off a table or past the user half. */
+        uint32_t ms = ch(src, 2) == 0 && k->root != 0 ? k->root - 1u : cs;
+        uint64_t base = ch(src, 4) != 0 ? 0x800u
+                        : ch(src, 4) == 0 ? (uint64_t)1 << JOIST_PT_SHIFT(3)
+                                          : 0x400u;
+        uint64_t va = base + (ch(src, 3) == 0 ? 512u : 0u) + ch(src, 24);
+        uint64_t n = ch(src, 8) == 0 ? ch(src, 600) : 1u + ch(src, 6);
+        unsigned perms = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 3);
+        uint32_t rs = pick_slot(k, src, ms, JOIST_OBJ_REGION);
+        const struct joist_cap *rc = ms < JOIST_MAX_CSPACES ? joist__slot_c(k, ms, rs) : NULL;
+        int have = rc != NULL && rc->obj != 0 && rc->type == JOIST_OBJ_REGION && !k->obj[rc->obj - 1u].dead;
+        /* No live region to use: usually make one; with one, its extents
+         * first, so that maps have pages to map. */
+        uint32_t sub = !have && ch(src, 4) != 0 ? 0u
+                       : have && k->reg[k->obj[rc->obj - 1u].target - 1u].next == 0 && ch(src, 2) == 0 ? 1u
+                                                                                                    : ch(src, 6);
+        switch (sub) {
+        case 0: {
+            uint64_t lo = ch(src, 16) == 0 ? JOIST_USER_PAGES - 512u * ch(src, 3) - ch(src, 2)
+                                           : base + (ch(src, 3) == 0 ? 512u : 0u) +
+                                                 (ch(src, 16) == 0 ? 1u : 0u);
+            uint32_t tables = ch(src, 16) == 0 ? ch(src, JOIST_REGION_TABLES + 2u) : 1u + ch(src, 2);
+            unsigned ceil = ch(src, 8) == 0 ? ch(src, 8) : ch(src, 4);
+            return joist_region_create(k, ms, pick_slot(k, src, ms, JOIST_OBJ_TASK), lo, tables, ceil,
+                                       pick_dst(k, src, ms));
+        }
+        case 1: {
+            uint32_t x;
+            uint64_t off = ch(src, 4) == 0 ? ch(src, 40) : ch(src, 4);
+            uint64_t np = ch(src, 8) == 0 ? ch(src, 40) : 1u + ch(src, 6);
+            return joist_region_add(k, ms, rs, pick_slot(k, src, ms, JOIST_OBJ_FRAME), off, np, &x);
+        }
+        case 2:
+        case 3:
+            return joist_region_map(k, ms, rs, ch(src, JOIST_REGION_EXTENTS + 1u), ch(src, 8), n, va,
+                                    perms);
+        case 4:
+            return joist_region_unmap(k, ms, rs, va, n);
+        default:
+            return joist_region_protect(k, ms, rs, va, n, perms);
+        }
     }
     case JX_GIVE: {
         /* Into a task this space holds, a free slot there 3 times in 4. */
@@ -935,8 +996,23 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
          * frames); afterwards it must be dead, and mapped nowhere once its
          * sweep is done: at once unless preempted (0020). */
         uint32_t ks = ch(src, 2) == 0 && k->root != 0 ? k->root - 1u : cs;
-        uint32_t s = pick_slot(k, src, ks, ch(src, 4) != 0 ? JOIST_OBJ_FRAME : JOIST_OBJ_NONE);
+        uint32_t kind = ch(src, 4);
+        uint32_t s = pick_slot(k, src, ks,
+                               kind >= 2u ? JOIST_OBJ_FRAME : kind == 1u ? JOIST_OBJ_REGION : JOIST_OBJ_NONE);
         joist_err e = joist_obj_kill(k, ks, s);
+        if (e == JOIST_OK && joist__slot_c(k, ks, s)->type == JOIST_OBJ_REGION) {
+            /* A killed region: dead, and swept at once unless preempted (0030). */
+            const struct joist_object *ro = &k->obj[joist__slot_c(k, ks, s)->obj - 1u];
+            const struct joist_region *rr = &k->reg[ro->target - 1u];
+            /* (A region of a task being destroyed waits for its task's own
+             * sweep: joist__regions_space_gone.) */
+            if (!ro->dead || (k->preempt == 0 && rr->dying && joist__usable(k, rr->space - 1u))) {
+                (void)snprintf(why, whylen, "0030: killed region %u not dead or not swept",
+                               joist__slot_c(k, ks, s)->obj - 1u);
+                *bad = 1;
+            }
+            return e;
+        }
         if (e == JOIST_OK) {
             uint32_t f = joist__slot_c(k, ks, s)->obj;
             if (k->preempt == 0 && k->obj[f - 1u].mapcount != 0) {
