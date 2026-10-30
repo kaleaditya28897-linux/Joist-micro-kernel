@@ -23,10 +23,22 @@
 #   make fuzz-abi   libFuzzer over the whole system-call ABI (Phase 3)
 #   make format     clang-format in place
 #   make clean
+#   LLVM_BIN=DIR make ...  the image and the user programs with the verified
+#                   LLVM in DIR (decision 0026, docs/toolchain/record.md)
 
 ifeq ($(origin CC),default)
 CC := clang
 endif
+# The toolchain (decision 0026): LLVM_BIN, if set, is the bin directory of
+# the verified LLVM (docs/toolchain/record.md; tools/ddc/check-toolchain.sh
+# checks one), and everything that goes into the image is compiled and
+# linked with it: KCC and LD. Unset, they are clang and ld.lld from PATH, as
+# before. The host builds (the tests, the sanitizers, the fuzzers,
+# clang-tidy, scan-build) need the host's C library and runtimes and use CC
+# either way. The user programs follow it too (../user/Makefile).
+LLVM_BIN ?=
+export LLVM_BIN
+KCC := $(if $(LLVM_BIN),$(LLVM_BIN)/clang,$(CC))
 
 WARN := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wstrict-prototypes \
         -Wmissing-prototypes -Wvla
@@ -91,7 +103,7 @@ $(SANITIZERS): %: $(BUILD)/%/run-tests
 freestanding:
 	@mkdir -p $(BUILD)/freestanding
 	@for f in $(KSRC) $(CORE_SRC); do \
-	    $(CC) $(KFLAGS) $(INC) -c $$f -o $(BUILD)/freestanding/$$(basename $$f .c).o || exit 1; \
+	    $(KCC) $(KFLAGS) $(INC) -c $$f -o $(BUILD)/freestanding/$$(basename $$f .c).o || exit 1; \
 	done
 	@echo "freestanding: $(words $(KSRC) $(CORE_SRC)) kernel source(s) compile for x86_64-unknown-none-elf"
 
@@ -102,27 +114,27 @@ IMG_SRC := arch/x86_64/boot.c arch/x86_64/serial.c arch/x86_64/gdt.c arch/x86_64
            lib/kprint.c lib/string.c $(KSRC) $(CORE_SRC)
 IMG_ASM := arch/x86_64/isr.S arch/x86_64/syscall.S
 IMG_INC := $(INC) -Iarch/x86_64
-LD ?= ld.lld
 ifeq ($(origin LD),default)
-LD := ld.lld
+LD := $(if $(LLVM_BIN),$(LLVM_BIN)/ld.lld,ld.lld)
 endif
 IMG_OBJ := $(patsubst %.c,$(BUILD)/kernel/%.o,$(IMG_SRC)) $(patsubst %.S,$(BUILD)/kernel/%.o,$(IMG_ASM))
 # Extra flags for a test build of the image (selftests), e.g. -DJOIST_SELFTEST=1.
 KEXTRA ?=
 
-# The image's compile flags, stamped like the sources: a change of KSIZES or
-# KEXTRA rebuilds every object, so no image mixes objects built for two
-# table sizes (2026-10-26: one did, and its self-tests tested the old size).
+# The image's compiler and compile flags, stamped like the sources: a change
+# of KSIZES, KEXTRA or LLVM_BIN rebuilds every object, so no image mixes
+# objects built for two table sizes (2026-10-26: one did, and its
+# self-tests tested the old size) or by two toolchains.
 FSTAMP := $(BUILD)/kflags.list
-$(shell mkdir -p $(BUILD); echo '$(KFLAGS) $(KEXTRA)' | cmp -s - $(FSTAMP) || echo '$(KFLAGS) $(KEXTRA)' > $(FSTAMP))
+$(shell mkdir -p $(BUILD); echo '$(KCC) $(KFLAGS) $(KEXTRA)' | cmp -s - $(FSTAMP) || echo '$(KCC) $(KFLAGS) $(KEXTRA)' > $(FSTAMP))
 
 $(BUILD)/kernel/%.o: %.c $(FSTAMP) $(wildcard include/joist/*.h include/limine/*.h arch/x86_64/*.h mem/*.h elf/*.h core/*.h)
 	@mkdir -p $(@D)
-	$(CC) $(KFLAGS) $(KEXTRA) $(IMG_INC) -c $< -o $@
+	$(KCC) $(KFLAGS) $(KEXTRA) $(IMG_INC) -c $< -o $@
 
 $(BUILD)/kernel/%.o: %.S
 	@mkdir -p $(@D)
-	$(CC) --target=x86_64-unknown-none-elf -c $< -o $@
+	$(KCC) --target=x86_64-unknown-none-elf -c $< -o $@
 
 $(BUILD)/joist.elf: $(IMG_OBJ) arch/x86_64/linker.ld
 	$(LD) -nostdlib -static -z max-page-size=0x1000 -z noexecstack -T arch/x86_64/linker.ld \
@@ -131,8 +143,12 @@ $(BUILD)/joist.elf: $(IMG_OBJ) arch/x86_64/linker.ld
 kernel: $(BUILD)/joist.elf
 
 # Limine's files: the distribution package's, or the release binaries installed
-# there (joist-dev, docs/testbed.md).
+# there (joist-dev, docs/testbed.md), or Limine built from source with the
+# verified LLVM (tools/ddc/build-limine.sh; decision 0026). The limine tool
+# that writes the BIOS stage into the ISO is the one in LIMINE_DIR if it has
+# one (its bytes are Limine's too), else the one in PATH.
 LIMINE_DIR ?= /usr/share/limine
+LIMINE ?= $(if $(wildcard $(LIMINE_DIR)/limine),$(LIMINE_DIR)/limine,limine)
 # The root task: Phase 2's user programs (../user). ROOT_TASK picks which.
 ROOT_TASK ?= hello
 # USER_BUILD and UEXTRA pass through to ../user (a seeded fuzzer build).
@@ -167,7 +183,7 @@ $(BUILD)/joist.iso: $(BUILD)/joist.elf ../boot/limine.conf $(ROOT_ELF) $(MODULE_
 	    -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 \
 	    --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image \
 	    --protective-msdos-label $(BUILD)/iso -o $@ 2>/dev/null
-	limine bios-install $@ 2>/dev/null
+	$(LIMINE) bios-install $@ 2>/dev/null
 
 iso: $(BUILD)/joist.iso
 
