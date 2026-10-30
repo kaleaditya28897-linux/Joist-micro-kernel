@@ -142,16 +142,19 @@ from the seed itself, without a distribution's binaries in it.
   method and the Reproducible Builds project's tools, rather than anything
   of our own.
 
-## Amendment 1: proposed, awaiting the owner (2026-10-30)
+## Amendment 1 (2026-10-30)
 
 From carrying out layers 2 and 3 (docs/toolchain/record.md). Where the
 decision was silent or reality differed, the option that trusts less was
-taken. Nothing here is accepted until the owner says so.
+taken. Each point says whether the owner has accepted it; a point that
+doesn't say so is proposed, awaiting the owner.
 
-1. **live-bootstrap is pinned by commit**, not to a release: it has no
+1. **Accepted by the owner (2026-10-29).**
+   **live-bootstrap is pinned by commit**, not to a release: it has no
    tagged release. The commit is b1ceced7 (master, 2026-09-17). Its
    stage0-posix is at its tag Release_1.9.1.
-2. **Layer 3 runs inside the bootstrapped system,** not on the build VM's
+2. **Accepted by the owner (2026-10-29).**
+   **Layer 3 runs inside the bootstrapped system,** not on the build VM's
    Debian. Every stage except path D's stage 1' is built in live-bootstrap's
    final system, booted under QEMU/KVM on the build VM. Stage 1' is built
    by Debian's Clang on Debian, as path D needs.
@@ -172,20 +175,41 @@ taken. Nothing here is accepted until the owner says so.
      musl, libstdc++ and libgcc code linked into the verified binaries
      was compiled by the bootstrapped GCC, and DDC does not check it. It
      traces to the seed through the bootstrap, not through DDC.
-3. **Every LLVM stage does its floating point in SSE2**
+3. **Accepted by the owner (2026-10-30).**
+   **Every LLVM stage does its floating point in SSE2**
    (`-march=pentium4 -mfpmath=sse`). The first comparison failed on this:
    the bootstrapped GCC's i686 default is x87, Debian's Clang's is SSE2,
    and LLVM's heuristics use floats. The fix is the same on both paths and
    ignores no bytes; record.md has the investigation.
 4. **Limine's build brings two tools 0026 doesn't name.**
-   - **nasm** assembles Limine's BIOS and UEFI x86-64 parts, so it is a
-     code generator in the chain. It is built from source (2.16.03; no
-     upstream signature, its hash is Debian's) by the verified Clang,
-     rather than taken as Debian's binary
-     (`tools/ddc/build-limine.sh`). Its own source is trusted as LLVM's is.
-   - **mtools** only packs files into the UEFI CD image's FAT file system.
-     Like `xorriso`, it stays outside DDC; the ISO's bytes are covered by
-     `repro-check`.
-   - **The host programs** (nasm, and the `limine` tool, which carries the
-     BIOS stage's bytes and writes them into the ISO) link the build
-     VM's C library. That library already runs every build.
+   - **Accepted by the owner (2026-10-30): nasm is diverse-double-compiled.**
+     nasm assembles Limine's BIOS and UEFI x86-64 parts, so it is a code
+     generator in the chain. It doesn't compile itself, so it is checked
+     through what it makes (`tools/ddc/nasm-ddc.sh`):
+     - one source, 2.16.03 (nasm signs nothing; the tarball is the one
+       Debian's signed archive lists);
+     - two nasms from it: nasm-V by the verified Clang, and nasm-T by the
+       bootstrapped GCC in the bootstrapped system;
+     - Limine built with each, the same way but for the nasm;
+     - every Limine file must be identical; Debian's nasm is compared as a
+       third witness;
+     - a difference is a finding, as for LLVM.
+   - **Accepted by the owner (2026-10-30): mtools** only packs files into
+     the UEFI CD image's FAT file system. Like `xorriso`, it stays outside
+     DDC; the ISO's bytes are covered by `repro-check`.
+   - **Proposed, awaiting the owner:** the host programs (nasm, and the
+     `limine` tool, which carries the BIOS stage's bytes and writes them
+     into the ISO) link the build VM's C library. That library already
+     runs every build. Limine's build directory is fixed, since nasm has
+     no prefix map.
+5. **Accepted by the owner (2026-10-29).** **The sources are fetched on
+   the host,** by live-bootstrap's own `mirror.sh`, and checked against
+   live-bootstrap's hashes there and again in the guest.
+6. **Accepted by the owner (2026-10-29).** **The L3 guests have no
+   network.**
+7. **Accepted by the owner (2026-10-30).** **Every stage 2 gets the same
+   fixed library-path flags** (`-stdlib++-isystem`, `-B`, `-L`): Clang
+   doesn't find live-bootstrap's libstdc++ and musl by itself. They are
+   the same for 2T and 2D.
+8. **Proposed, awaiting the owner:** the verified toolchain (`LLVM_BIN`)
+   and Limine from source (`LIMINE_DIR`) as Joist's defaults.

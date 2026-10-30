@@ -6,15 +6,18 @@
 # source tarballs against their recorded hashes. Builds nasm from source
 # with the verified Clang (Limine's BIOS and UEFI parts need an assembler,
 # and a binary nasm would be one more compiler nobody verified). Then
-# builds Limine's BIOS and UEFI x86-64 parts, its CD images and its host
-# tool (`limine bios-install`) with the verified Clang, lld and binary
-# tools, and that nasm. mtools (from the system) packs the UEFI CD image.
+# builds Limine's BIOS and UEFI x86-64 parts, its CD and PXE images and
+# its host tool (`limine bios-install`) with the verified Clang, lld and
+# binary tools, and that nasm. With NASM set, that nasm is used instead
+# and none is built: the DDC of nasm (tools/ddc/nasm-ddc.sh) builds Limine
+# with each of its nasms, and only the nasm differs. mtools (from the system) packs the UEFI CD image.
 # OUT then holds what the ISO needs, with a SHA256SUMS; the kernel's
 # Makefile takes it as LIMINE_DIR.
 #
 # usage: tools/ddc/build-limine.sh LLVM_BIN SRCDIR OUT
 #   LLVM_BIN  the verified LLVM's bin directory
 #   SRCDIR    holds limine-12.9.2.tar.xz and nasm-2.16.03.tar.xz
+# Environment: JOBS (default 6), NASM (a nasm to use, not built here).
 # Needs: make, mtools (mcopy, mformat), and the host's C library for the
 # host programs (nasm, limine).
 set -eu
@@ -50,17 +53,21 @@ hostcc="$llvm/clang --target=x86_64-linux-gnu"
 # its target flags from CFLAGS).
 cflags="-g -O2 -pipe -ffile-prefix-map=$work=/build"
 
-tar -C "$work" -xJf "$srcdir/nasm-2.16.03.tar.xz"
-(cd "$work/nasm-2.16.03" && ./configure CC="$hostcc" CFLAGS="$cflags" LDFLAGS=-fuse-ld=lld \
-    AR="$llvm/llvm-ar" RANLIB="$llvm/llvm-ar s" >/dev/null && make -j"$jobs" nasm >/dev/null)
 mkdir -p "$work/bin"
-cp "$work/nasm-2.16.03/nasm" "$work/bin/"
+if [ -n "${NASM:-}" ]; then
+    cp "$NASM" "$work/bin/nasm"
+else
+    tar -C "$work" -xJf "$srcdir/nasm-2.16.03.tar.xz"
+    (cd "$work/nasm-2.16.03" && ./configure CC="$hostcc" CFLAGS="$cflags" LDFLAGS=-fuse-ld=lld \
+        AR="$llvm/llvm-ar" RANLIB="$llvm/llvm-ar s" >/dev/null && make -j"$jobs" nasm >/dev/null)
+    cp "$work/nasm-2.16.03/nasm" "$work/bin/"
+fi
 PATH=$work/bin:$PATH
 "$work/bin/nasm" -v
 
 tar -C "$work" -xJf "$srcdir/limine-12.9.2.tar.xz"
 cd "$work/limine-12.9.2"
-./configure --enable-bios --enable-bios-cd --enable-uefi-x86-64 --enable-uefi-cd \
+./configure --enable-bios --enable-bios-cd --enable-bios-pxe --enable-uefi-x86-64 --enable-uefi-cd \
     CC="$hostcc" CFLAGS="$cflags" LDFLAGS=-fuse-ld=lld STRIP=true \
     CC_FOR_TARGET="$llvm/clang" LD_FOR_TARGET="$llvm/ld.lld" \
     OBJCOPY_FOR_TARGET="$llvm/llvm-objcopy" OBJDUMP_FOR_TARGET="$llvm/llvm-objdump" \
@@ -69,8 +76,8 @@ make -j"$jobs" >/dev/null
 
 rm -rf "$out"
 mkdir -p "$out"
-cp bin/limine-bios.sys bin/limine-bios-cd.bin bin/limine-uefi-cd.bin bin/BOOTX64.EFI \
-    bin/limine "$out/"
+cp bin/limine-bios.sys bin/limine-bios-cd.bin bin/limine-bios-pxe.bin bin/limine-uefi-cd.bin \
+    bin/BOOTX64.EFI bin/limine "$out/"
 cp "$work/bin/nasm" "$out/nasm"
-(cd "$out" && sha256sum limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin \
-    BOOTX64.EFI limine nasm > SHA256SUMS && cat SHA256SUMS)
+(cd "$out" && sha256sum limine-bios.sys limine-bios-cd.bin limine-bios-pxe.bin \
+    limine-uefi-cd.bin BOOTX64.EFI limine nasm > SHA256SUMS && cat SHA256SUMS)

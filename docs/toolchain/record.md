@@ -7,11 +7,12 @@ steps below and compare.
 **State (2026-10-30):**
 - **Layer 2 done:** the bootstrap ran to GCC 15.2.0.
 - **Layer 3:** 2T and 2D are identical (270 of 270 files), after one
-  explained mismatch.
+  explained mismatch. nasm, checked through Limine, is too (2026-10-30;
+  *The DDC of nasm*, below).
 
-The seed's reading is **pending**: until the owner has read it (docs/toolchain/seed-review.md),
-the bootstrapped GCC is **not trusted**, and neither is anything verified
-against it.
+The seed's reading is **done**: the owner read docs/toolchain/seed-review.md
+and accepted the seed (2026-10-30). The bootstrapped GCC is **trusted**, as
+0026 says, and so is what is verified against it.
 
 ## Layer 2: the trusted compiler
 
@@ -19,7 +20,8 @@ against it.
 - **Repository:** https://github.com/fosslinux/live-bootstrap
 - **Pinned:** commit `b1ceced7ea8a819a26f23796f6dd7ae8496a33a4` (master,
   2026-09-17, "Merge pull request #587"). It has **no tagged release**
-  (no tags, no GitHub releases, 2026-10-29). See *Proposed*, below.
+  (no tags, no GitHub releases, 2026-10-29). Pinning by commit is
+  accepted by the owner (2026-10-29).
 - **Submodules:**
 
 | Path | Commit | Tag |
@@ -58,7 +60,8 @@ exactly the committed bytes (checked 2026-10-29):
 | `hex0-seed` | `f74dcf9cef2aee9eb7723eca755849d474fccd89662947021d1aa08429d23c13` | 181 |
 | `kaem-optional-seed` | `545f89537f070d7e62b05243be34cbcfdb1e92dbf9d82e2cd15792d880436ac2` | 632 |
 
-**The owner's reading of the seed: pending.**
+**The owner's reading of the seed: done.** The owner read seed-review.md
+and accepted the seed (2026-10-30).
 
 ### The sources
 - **Fetched** with live-bootstrap's own `mirror.sh` into `~/ddc/distfiles`
@@ -149,9 +152,8 @@ exactly the committed bytes (checked 2026-10-29):
 | `.../crtn.o` | `6f16041ae59c0ac6fe0d60580e3e22cf1d8d21be4dc88609a0366eb10fae6edf` |
 | `/boot/vmlinuz` (the guest's Linux, used for layer 3) | `0716c71eb0641ca04f986327e4dc05b54a0f51d21c3bf3eb57ac2f2063cd61c1` |
 
-**Trusted: no, not yet.** This GCC is trusted only once the owner has
-read the seed (seed-review.md), and with it everything that is verified
-against it.
+**Trusted: yes,** since the owner read the seed and accepted it
+(2026-10-30). Everything verified against this GCC is trusted with it.
 
 ## Layer 3: DDC of Clang and lld
 
@@ -204,7 +206,7 @@ against it.
   testbed.md records for the binaries; it is the same on keys.openpgp.org
   and on https://github.com/mintsuki.gpg.
 
-### Where the stages run (proposed, awaiting the owner)
+### Where the stages run (accepted by the owner, 2026-10-29)
 - **All in live-bootstrap's final system** (0026's option 1), except path
   D's stage 1', which must be built by Debian's Clang under Debian. The
   system is `lb-final.img`, booted by `tools/ddc/guest.sh` under QEMU/KVM:
@@ -311,8 +313,9 @@ They are static i686 programs: `clang version 21.1.8`, default target
 `i686-unknown-linux-musl`. They run on the build VM's Debian x86_64 as
 they are.
 
-**It is verified only as far as the GCC is trusted**, so until the seed
-is read (above) it is not. 0026's "does not cover" applies as written.
+**It is verified as far as the GCC is trusted,** and the GCC is trusted
+since the owner accepted the seed (2026-10-30). 0026's "does not cover"
+applies as written.
 Also not covered: the musl, libstdc++ and libgcc code linked into the
 stage 2 binaries was compiled by the bootstrapped GCC, and DDC does not
 check it.
@@ -344,17 +347,31 @@ Already there and used:
 | curl | 8.14.1-2+deb13u7 |
 | xorriso | 1.5.6-1.2+b1 |
 
+## Accepted by the owner
+1. **live-bootstrap pinned by commit**, since it has no tagged release
+   (2026-10-29).
+2. **The sources fetched on the host,** checked there and again in the
+   guest (2026-10-29).
+3. **All stage 2 builds in the bootstrapped system** (option 1), with
+   static i686 stages (2026-10-29).
+4. **No network for the L3 guests** (2026-10-29).
+5. **Every stage built with `-march=pentium4 -mfpmath=sse`**, the fix
+   for the first mismatch (2026-10-30).
+6. **The fixed library-path flags** for every stage 2 (`-stdlib++-isystem`,
+   `-B`, `-L`), the same for 2T and 2D (2026-10-30).
+7. **nasm is diverse-double-compiled** through Limine (below), not only
+   built with the verified toolchain (2026-10-30).
+8. **mtools stays outside DDC,** like `xorriso`; the ISO's bytes are
+   covered by `repro-check` (2026-10-30).
+
 ## Proposed, awaiting the owner
-1. **live-bootstrap pinned by commit**, since it has no tagged release.
-2. **All stage 2 builds in the bootstrapped system** (option 1), with
-   static i686 stages.
-3. **Every stage built with `-march=pentium4 -mfpmath=sse`**, the fix
-   for the first mismatch.
-4. **The verified toolchain as Joist's default** (`LLVM_BIN` set by
+1. **Limine's other tools:** the host programs (nasm, the `limine` tool)
+   link the build VM's glibc, and Limine's build directory is fixed.
+2. **The verified toolchain as Joist's default** (`LLVM_BIN` set by
    default in both Makefiles, the toolchain kept where `check-toolchain.sh`
    passes), and Limine from source as the ISO's default. Not done: the
    owner's call.
-5. **Map Clang's resource directory** in the REPRO flags
+3. **Map Clang's resource directory** in the REPRO flags
    (`-ffile-prefix-map=$(shell $(KCC) -print-resource-dir)=clang`), so
    where the toolchain is installed never reaches Joist's bytes. Not done:
    it changes every build's debug information.
@@ -411,7 +428,7 @@ Already there and used:
 - **nasm 2.16.03** first, from source, built by the verified Clang.
   Limine's BIOS and UEFI x86-64 parts need it, and a binary nasm would be
   one more compiler nobody verified.
-- **Then Limine:** `--enable-bios --enable-bios-cd --enable-uefi-x86-64
+- **Then Limine:** `--enable-bios --enable-bios-cd --enable-bios-pxe --enable-uefi-x86-64
   --enable-uefi-cd`, with the verified Clang, lld, `llvm-objcopy`,
   `llvm-objdump` and `llvm-readelf`, and that nasm. The host programs
   (nasm and the `limine` tool) link the build VM's glibc.
@@ -427,6 +444,7 @@ Already there and used:
 |---|---|
 | `limine-bios.sys` | `a2e34b480f86a76a1c9d58a686d7b91c70582e52b33fe3d663dc6d6f8d58d916` |
 | `limine-bios-cd.bin` | `e0f7a86e3519eab5df251c5dcfe056b11a5b2846cf04af8a9f854f1a956c79f6` |
+| `limine-bios-pxe.bin` (built since 2026-10-30; not in the ISO) | `2d3bf404cc15163bd7f72e2e211ed88de25390b3f8ce75527c2fdd66798ef6bd` |
 | `limine-uefi-cd.bin` | `f88e004258ee148f3960bbd8e7ff6ebc4f10fe88883b967b3b19119ea0b2bbc2` |
 | `BOOTX64.EFI` | `0a20986be932af86c93b6b8de74921e8de8ba2fc5c9ed69e9b10564ebf1def01` |
 | `limine` (the host tool) | `9d7d9752efccd1cf8058cede7e596ff976434f63692295e7c1afa2b507f0efb2` |
@@ -446,8 +464,83 @@ Already there and used:
 | Package | Version | For |
 |---|---|---|
 | mtools | 4.0.48-1 | Limine's UEFI CD image |
+| nasm | 2.16.03-1 | the DDC of nasm: the third witness (2026-10-30) |
 
 nasm's source: `nasm-2.16.03.tar.xz` from nasm.us, sha256
 `1412a1c760bbd05db026b6c0d1657affd6631cd0a63cddb6f73cc6d4aa616148`. nasm
 publishes no signature; the hash is Debian's `nasm_2.16.03.orig.tar.xz`
-(its `nasm_2.16.03-1.dsc`).
+(its `nasm_2.16.03-1.dsc`), checked through Debian's signed archive
+below.
+
+## The DDC of nasm (2026-10-30)
+Accepted by the owner (2026-10-30; 0026, Amendment 1). nasm doesn't
+compile itself, so it is checked through what it makes:
+`tools/ddc/nasm-ddc.sh`, on the build VM.
+
+### The source
+`nasm-2.16.03.tar.xz`, the same bytes as above. **nasm signs nothing:**
+nasm.us has no signature or checksum file beside its tarballs
+(2026-10-30). The signed link is Debian's archive, checked on the build VM
+(`apt-get source --download-only nasm`, then by hand with `gpgv`):
+- trixie's `InRelease` (2026-09-12): good signatures from the Debian
+  archive keys (12/bookworm) `4CB5 0190 207B 4758 A3F7  3A79 6ED0 E7B8
+  2643 E131` and (13/trixie) `B8E5 F131 76D2 A7A7 5220  0280 78DB A3BC
+  47EF 2265`, and the stable release key (13/trixie) `4158 7F7D B8C7 74BC
+  CF13  1416 762F 67A0 B2C3 9DE4`, from `debian-archive-keyring` 2025.1;
+- it lists `main/source/Sources` with sha256 `ae99131b…b65606`;
+- that lists `nasm_2.16.03-1.dsc` (`8ba32e63…a1d7`) and
+  `nasm_2.16.03.orig.tar.xz` with sha256
+  `1412a1c760bbd05db026b6c0d1657affd6631cd0a63cddb6f73cc6d4aa616148`:
+  the tarball used.
+
+So the source is the one Debian ships, not one nasm's authors signed.
+
+### The method
+1. **nasm-V:** built by the verified Clang on the build VM, as
+   `build-limine.sh` builds it: `./configure CC="clang
+   --target=x86_64-linux-gnu" CFLAGS="-g -O2 -pipe
+   -ffile-prefix-map=/tmp/joist-build-limine=/build"
+   LDFLAGS=-fuse-ld=lld AR=llvm-ar RANLIB="llvm-ar s"`, `make nasm`. It
+   links the build VM's glibc.
+2. **nasm-T:** built by the bootstrapped GCC 15.2.0 **in live-bootstrap's
+   final system** (`guest.sh`: 4 vCPUs, 2 GiB, no network, a new work
+   disk), with that system's make, shell, binutils and musl. The same
+   configure line but for the compiler and its linker: `CC=gcc`, the
+   same `CFLAGS`, `LDFLAGS=-static` (the guest's musl isn't on the build
+   VM), and the guest's own `ar` and `ranlib`. A static i686 program,
+   which runs on the build VM as it is.
+3. **Three Limines:** `build-limine.sh` three times, with `NASM` set to
+   nasm-V, nasm-T and Debian's `/usr/bin/nasm`. Each copies its nasm to
+   the same place in the same fixed build directory; the C is the
+   verified Clang's, and everything else is the same.
+4. **Compare** every installed Limine file byte for byte (`compare.sh`;
+   nothing ignored): `limine-bios.sys`, `limine-bios-cd.bin`,
+   `limine-bios-pxe.bin`, `limine-uefi-cd.bin`, `BOOTX64.EFI` and the
+   `limine` tool.
+
+What it covers: up to 27 of Limine's nasm sources (the BIOS boot
+sectors and stage 2, the PXE and CD sectors, and the UEFI x86-64 parts).
+It shows the nasms agree on what Joist uses, not on every input.
+
+### The nasms
+| nasm | Built by | sha256 |
+|---|---|---|
+| nasm-V | the verified Clang (x86_64, glibc) | `f91002c77956a63b6985de0cfb4b106ca70c7c3877db8eee77cbe3e401dd39c9` |
+| nasm-T | the bootstrapped GCC, in the guest (static i686, musl) | `ccd8eba5da66a70fff60a69b4215077942a9afe6dcc7f28d354ba9deb6d426d9` |
+| Debian's | Debian (2.16.03-1, amd64) | `b0e9b463a6f800117de60c0a55507b7880dfa0d4dbf15f47e1350e23c54c0128` |
+
+nasm-V is the same bytes as the nasm of L3b (above), rebuilt.
+
+### The result: identical
+**Limine with nasm-V and with nasm-T: 6 of 6 files identical.** Limine
+with Debian's nasm: 6 of 6 identical as well. No difference to explain.
+The hashes are the table in *Limine 12.9.2 from source*, above.
+- The run: 2026-10-30, finished 06:17:52 UTC, about 1 min in all; the
+  guest booted at 06:17:06 and built nasm-T in 14 s. Log
+  `~/vlog-ddc/nasm-ddc.log`, guest console
+  `~/ddc/logs/nasm-t-20261030T061706.log`, outputs `~/ddc/nasm-ddc/out`.
+- **Run twice:** the second run (log `~/vlog-ddc/nasm-ddc-rerun.log`)
+  gave the same nasm-T, nasm-V and Limine bytes.
+- The command: `tools/ddc/nasm-ddc.sh
+  ~/ddc/toolchain/llvm-21.1.8-verified/bin ~/ddc/nasm-ddc/src
+  ~/ddc/nasm-ddc/out` (`JOBS=4`, `CORES=4` by default).

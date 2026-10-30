@@ -1223,7 +1223,8 @@ docs/toolchain/seed-review.md is a guide to reading the seed.
     512-byte boot sector to **GCC 15.2.0** (i686 musl, C and C++17) in
     7 h 20 min, from 314 sources checked against its own hashes
     (`tools/ddc/bootstrap.sh`).
-  - **Not yet trusted:** the owner's reading of the seed is pending.
+  - **Trusted:** the owner read the seed review and accepted the seed
+    (2026-10-30).
 - **Layer 3:**
   - LLVM 21.1.8's signed release tarball, built four times: Clang and
     lld, x86 only, fixed options (`tools/ddc/llvm.cmake`).
@@ -1249,8 +1250,17 @@ docs/toolchain/seed-review.md is a guide to reading the seed.
     toolchain and a nasm built from source; that build is reproducible.
     The ISO made with it (`LIMINE_DIR=DIR`) boots under BIOS (`mmroot`)
     and UEFI.
+  - **nasm, diverse-double-compiled** (2026-10-30,
+    `tools/ddc/nasm-ddc.sh`): nasm-V by the verified Clang, nasm-T by the
+    bootstrapped GCC in the bootstrapped system, from the same source.
+    Limine built with each is **identical, 6 of 6 files**, and so is
+    Limine built with Debian's nasm.
+- **Accepted by the owner** (2026-10-29/30), in 0026's Amendment 1: the
+  commit pin, the sources fetched on the host, layer 3 inside the
+  bootstrapped system, no network, the fixed library-path flags, SSE2 for
+  every stage, a DDC of nasm, and mtools outside DDC.
 - **Proposed, awaiting the owner:**
-  - an amendment to 0026 (the commit pin, layer 3 inside the bootstrapped
-    system, SSE2 for every stage, nasm and mtools for Limine);
+  - Limine's host programs linking the build VM's C library, and its
+    fixed build directory;
   - making the verified toolchain and Limine from source the defaults;
   - mapping Clang's header directory out of Joist's debug information.
