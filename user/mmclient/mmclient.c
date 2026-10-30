@@ -142,6 +142,42 @@ static uint64_t check(uint64_t first, uint64_t n, uint64_t tag)
     return bad;
 }
 
+static uint64_t clone_only(void);
+static struct kid_ref {
+    uint64_t task, id;
+} quota_kid;
+
+#define QUOTA_SLOT 64u /* endpoints made to spend the quota, from here to the leaf's end;
+                       * the slot before, for the thread the quota can't pay for */
+
+/* MMC_C_QUOTA, in a child mm made: endpoints made until its quota is spent
+ * (as many as MM_CHILD_QUOTA, nothing else being paid for); then a CLONE,
+ * whose child's thread the quota can't pay for, cancelled, and mm must
+ * have destroyed that child; then the endpoints deleted. */
+static uint64_t quota_spent(void)
+{
+    uint64_t n = 0;
+    while (QUOTA_SLOT + n < 128u && j_obj_create(J_ENDPOINT, QUOTA_SLOT + n) == J_OK) {
+        n++;
+    }
+    uint64_t res = n;
+    if (clone_only() != MM_OK) {
+        res = 1001;
+    } else if (j_thread_spawn(quota_kid.task, QUOTA_SLOT - 1u, (uint64_t)(uintptr_t)_start,
+                              MMC_STACK) != J_E_NOMEM) {
+        res = 1002; /* the quota paid for it after all */
+    } else if (req(MM_REQ_CLONE_DONE, quota_kid.id, MM_CLONE_CANCEL, 0) != MM_OK) {
+        res = 1003;
+    } else if (j_task_destroy(quota_kid.task) != J_E_GONE) {
+        res = 1004; /* mm didn't destroy it */
+    }
+    (void)j_cap_delete(quota_kid.task);
+    for (uint64_t i = 0; i < n; i++) {
+        (void)j_cap_delete(QUOTA_SLOT + i);
+    }
+    return res;
+}
+
 /* MMC_CHILD: do what the parent posts, until told to exit. */
 static void child(struct work *w)
 {
@@ -179,6 +215,9 @@ static void child(struct work *w)
             break;
         case MMC_C_DONE:
             res = req(MM_REQ_CLONE_DONE, a0, a1, 0);
+            break;
+        case MMC_C_QUOTA:
+            res = quota_spent();
             break;
         case MMC_C_ID:
             if (req2(MM_REQ_ID, 0, 0, 0, &res) != MM_OK) {
@@ -237,6 +276,8 @@ static uint64_t clone_only(void)
         return 0xfd; /* the child's capability didn't arrive */
     }
     k->id = m.r[1];
+    quota_kid.task = k->task;
+    quota_kid.id = k->id;
     nkids++;
     return MM_OK;
 }
@@ -461,6 +502,26 @@ static uint64_t guard(struct work *w)
     w->aux = 1;
     w->arg = page(0)[0]; /* the guard: mm ends the thread */
     return 7;
+}
+
+/* MMC_QUOTA: a running child spends its quota and then forks (MMC_C_QUOTA);
+ * mm must serve the two of them only. */
+static uint64_t quota_test(struct work *w)
+{
+    if (req(MM_REQ_MAP_ANON, MMC_VA / J_PAGE, 4, MM_W) != MM_OK) {
+        return 1;
+    }
+    fill(0, 4, 1);
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 2;
+    }
+    struct kid *k = &kids[nkids - 1u];
+    MMC_W(w, MMC_RES) = cmd(k, MMC_C_QUOTA, 0, 0, 0);
+    pause_for_root(w, 1); /* two tasks: the cancelled child is gone */
+    if (cmd(k, MMC_C_CHECK, 0, 4, 1) != 0) {
+        return 3; /* the child is still served */
+    }
+    return end_kid(k) == 0 ? 0 : 4;
 }
 
 #define ORPHAN_PAGES 8u
@@ -891,6 +952,9 @@ void _start(void)
     case MMC_GUARD:
         w->arg = 0;
         w->arg = guard(w);
+        break;
+    case MMC_QUOTA:
+        w->arg = quota_test(w);
         break;
     case MMC_CHILD:
         child(w);

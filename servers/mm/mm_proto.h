@@ -80,8 +80,13 @@ enum {
 #ifndef MM_TABLE_PAGES
 #define MM_TABLE_PAGES 16u        /* pages lent to each task for its page tables */
 #endif
-#define MM_CHILD_QUOTA 8u         /* quota a task mm makes starts with, from mm's own: mm
+#ifndef MM_CHILD_QUOTA
+#define MM_CHILD_QUOTA 32u        /* quota a task mm makes starts with, from mm's own: mm
                                    * pays it and the task object (task_create's donation
-                                   * plus one), and gets both back when the task goes */
+                                   * plus one), and gets both back when the task goes. A
+                                   * task pays one for each child's thread while that child
+                                   * lives, so this bounds its live children too (8 was hit
+                                   * by the exit run: 2026-10-30) */
+#endif
 
 #endif

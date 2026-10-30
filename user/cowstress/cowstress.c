@@ -77,7 +77,7 @@ static uint64_t rs;  /* the seeded choices */
 static uint64_t gen; /* the last generation handed out */
 static unsigned round_no, max_depth, made, kill_forks;
 static struct {
-    uint64_t writes, forks, refused, exits, kills_fault, kills_fork, stranded, slow, slow_ms, verifies;
+    uint64_t writes, forks, refused, exits, kills_fault, kills_fork, stranded, slow, slow_ms, quota, verifies;
     unsigned deepest;
 } st;
 static uint64_t rescue_sc;
@@ -326,6 +326,8 @@ static void op_fork(void)
     uint64_t r = MMC_W(recs[p].w, MMC_RES);
     if (r == COW_E_REFUSED) {
         st.refused++;
+    } else if (r == COW_E_QUOTA) {
+        st.quota++; /* its clone cancelled: the next check_mm sees mm forgot it */
     } else if (r != 0) {
         j_puts("cow: fork: ");
         j_putu(r);
@@ -616,6 +618,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
         put_stat(", slow ", st.slow);
         put_stat(" (at most ms ", st.slow_ms);
         put_stat("), refused ", st.refused);
+        put_stat(", for quota ", st.quota);
         j_puts("\n");
     }
     put_stat("cow: all ok: verified ", st.verifies);

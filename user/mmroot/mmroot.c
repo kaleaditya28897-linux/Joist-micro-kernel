@@ -316,6 +316,29 @@ static void test_orphan(void)
     j_puts("mm: orphans ok\n");
 }
 
+/* Quota: a child made by mm spends its quota (MM_CHILD_QUOTA) and then
+ * forks; the fork's thread is refused, the clone cancelled, and mm must
+ * have destroyed that child. */
+static void test_quota(void)
+{
+    struct worker k = client(MMC_QUOTA);
+    at_mark(&k, 1, "the quota client failed");
+    uint64_t n = MMC_W(k.w, MMC_RES);
+    if (n != MM_CHILD_QUOTA) {
+        j_puts("mm: the child's objects before its quota ran out ");
+        j_putu(n);
+        j_puts("\n");
+        check(0, "a child's quota isn't MM_CHILD_QUOTA, or its cancelled fork failed");
+    }
+    expect_mm(2, POOL_PAGES - 4u, "a fork cancelled for want of quota left a task");
+    expect_spaces(2, "a fork cancelled for want of quota left a space");
+    go_on(&k, 1);
+    serve(&k, 99);
+    check(k.w->count == 2 && k.w->arg == 0, "the quota client failed at the end");
+    finish(&k);
+    j_puts("mm: quota ok\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free)
 {
@@ -336,6 +359,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_share();
     test_clone_full();
     test_orphan();
+    test_quota();
     /* Again, so that badges and table runs are used a second time. */
     test_basic();
     j_puts("mm: all ok\n");

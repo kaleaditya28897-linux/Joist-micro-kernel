@@ -109,6 +109,18 @@ static uint64_t fork_kid(void)
         }
     }
     e = j_thread_spawn(task, thread, (uint64_t)(uintptr_t)_start, MMC_STACK);
+    if (e == J_E_NOMEM) {
+        /* This task's quota pays for its children's threads, one each while
+         * they live: it has run out. The fork is given up: mm destroys the
+         * child now, rather than with this task. */
+        m = (struct j_msg){.r = {MM_REQ_CLONE_DONE, id, MM_CLONE_CANCEL, 0}};
+        e = j_call(MM_SLOT, &m, J_FOREVER);
+        (void)j_cap_delete(task);
+        if (e != J_OK || m.r[0] != MM_OK) {
+            return COW_E_FAILED | 8u << 8 | m.r[0] << 16;
+        }
+        return COW_E_QUOTA;
+    }
     if (e != J_OK) {
         return COW_E_FAILED | 5u << 8 | e << 16;
     }

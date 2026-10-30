@@ -56,8 +56,10 @@ enum {
                      * up to arg pages; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
     MMC_ORPHAN,     /* a fork cancelled; then it exits with one child confirmed and one
                      * pending: mm destroys the pending one with it, serves the other */
-    MMC_GUARD       /* MM_NONE (0024): pages made of no access and back keep what they held;
+    MMC_GUARD,      /* MM_NONE (0024): pages made of no access and back keep what they held;
                      * a guard can't be mapped over, and a touch ends the thread */
+    MMC_QUOTA       /* a child spends its quota (MM_CHILD_QUOTA), then forks: its child's
+                     * thread refused, the clone cancelled, mm forgets the child */
 };
 #define MMC_B 100u
 enum {
@@ -101,7 +103,9 @@ enum {
     MMC_C_READ,     /* -> word a1 of page a0 of MMC_VA */
     MMC_C_POKE,     /* word a1 of page a0 of MMC_VA set to a2 */
     MMC_C_UNMAP,    /* -> MM_REQ_UNMAP's result: pages a0 (a va page) to a0 + a1 */
-    MMC_C_DONE      /* -> MM_REQ_CLONE_DONE's result: child id a0, how a1 */
+    MMC_C_DONE,     /* -> MM_REQ_CLONE_DONE's result: child id a0, how a1 */
+    MMC_C_QUOTA     /* -> objects its quota paid for before it ran out, after a fork
+                     * that then failed for want of quota was cancelled; or 1000 + a step */
 };
 
 struct work {

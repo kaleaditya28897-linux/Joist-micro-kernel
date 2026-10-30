@@ -1404,3 +1404,38 @@ or refuse.
   - `mmroot` (emulated, `kvm-smp2`, `chk-kvm-smp2`, with the guard page);
   - `cow3`, `kvm-smp2-cowstress` and `kvm-smp4-cowstress` (20 rounds,
     `mm` stranded 0), `chk-kvm-smp2-cow3`.
+
+### Step 7, part E9: a fork child's quota (2026-10-30)
+
+- **Found by the exit run** (E7), in its first minute: every `cowstress`
+  configuration stopped with "a fork failed".
+  - **Where:** round 30 on 1 CPU (seed 1), round 5 on 2 (seed 2), round 55
+    on 4 (seed 4). The selftests' 20 rounds never got there.
+  - **What failed:** the forking task's `thread_spawn` for its child,
+    `E_NOMEM`. The task had 8 live children, and a task mm makes has a
+    quota of `MM_CHILD_QUOTA`, 8. Each live child's thread is charged to
+    its parent (the spawner pays: Phase 1's rule). So the kernel was right;
+    the test expected a fork to be refused only when mm was full.
+- **The owner's choice: handle it, and raise the quota.**
+  - **`MM_CHILD_QUOTA` is 32** (`mm_proto.h`, overridable at build time).
+    mm's donation from the root grows with it (`HOST_MM_DONATION`: 592
+    units of the root's 4096).
+  - **A fork the quota can't pay for is given up:** `cowworker` cancels
+    its clone (`MM_REQ_CLONE_DONE`, cancel) and reports `COW_E_QUOTA`.
+    `cowstress` counts it ("for quota"), and its check after every step
+    (mm serves exactly the live tasks) confirms mm destroyed the child.
+  - **`mmroot`'s quota test** (`MMC_QUOTA`):
+    - a child mm made spends its quota on endpoints, exactly
+      `MM_CHILD_QUOTA` of them;
+    - it forks, and the fork's thread is refused;
+    - it cancels the clone, and mm must have destroyed the child.
+- **Verified** (the workstation):
+  - the two failing seeds now pass (1 CPU, 31 rounds; 2 CPUs, 6 rounds);
+  - the 1-CPU seed built with the old quota of 8 also passes, with 3 forks
+    refused for quota and cancelled;
+  - `mmroot` (emulated, `kvm-smp2`, `chk-kvm-smp2`, with "mm: quota ok"),
+    `cow3`, `kvm-smp1/2/4-cowstress`, `chk-kvm-smp2-cow3`.
+- **Open, for later phases:** what quota a forked process should get is a
+  policy question for the process server (Phase 7). 32 is a fixed number
+  that bounds a task's live children; POSIX bounds them with
+  `RLIMIT_NPROC`.

@@ -100,8 +100,11 @@ enum {
                       * (COW_E_*); INCLONE is set from just before the CLONE */
     COW_C_EXIT       /* the helper ended, then the task's thread */
 };
-enum { COW_E_REFUSED = 1, COW_E_FAILED }; /* COW_E_FAILED: the step in bits 8-15, the
-                                            * kernel's or mm's result above */
+enum { COW_E_REFUSED = 1, COW_E_FAILED, COW_E_QUOTA }; /* COW_E_FAILED: the step in bits
+                                                         * 8-15, the kernel's or mm's result
+                                                         * above. COW_E_QUOTA: the task's
+                                                         * quota couldn't pay for its child's
+                                                         * thread; the clone was cancelled */
 #define COW_SEED2(s) ((s) ^ 0x5bd1e9955bd1e995ull) /* the helper's seed */
 /* More words of the work page: the main thread's to the helper, and back. */
 enum { COW_PROG = 16, COW_INCLONE, COW_HSEQ, COW_HACK, COW_HN, COW_HSEED, COW_HGEN, COW_HEXIT };
