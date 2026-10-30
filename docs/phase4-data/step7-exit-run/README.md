@@ -52,3 +52,19 @@ seeds.
 
 The same seeds give the same operations under every build, so the counts
 match between builds with the same M.
+
+## Mutations
+
+`make -C model mutate` (the whole of `model/test/mutations.txt`, 284
+mutants: the kernel's core and `mm`'s library, each run against the
+model's tests), on the workstation, 4 jobs, 2 h 26 min. Log: `mutate.log`.
+
+- **283 caught** in the full run. Every file the mutants use (`model/`,
+  `kernel/core`, `kernel/include`, `servers/mm/mmlib.[ch]`) is the same
+  from b019356 to 5ae1bd6, so this is the exit run's tree.
+- **One stale:** `mm-unmap-kernel-skipped` no longer built. Since
+  `kernel_unmap` was split out of `unmap_pages` (part E8), replacing its
+  test with `if (0)` leaves `m` unused, an error. Rewritten to
+  `if (m->k.unmap == NULL)` (the same bug: the kernel's mappings are
+  never removed) and rerun alone: **caught** by `test_mm.c:265`.
+- **So all 284 are caught.**

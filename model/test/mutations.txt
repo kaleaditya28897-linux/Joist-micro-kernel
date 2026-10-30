@@ -265,7 +265,7 @@ batch-unknown-flags @@ ../kernel/core/task.c @@ (flags & ~(uint32_t)JOIST_COPY_R
 mm-page-not-zeroed @@ ../servers/mm/mmlib.c @@ memset(bytes(m, p), 0, PAGE_BYTES); @@ (void)bytes;
 mm-read-maps-one @@ ../servers/mm/mmlib.c @@ unsigned want = write ? 1u : MM_AROUND; @@ unsigned want = write ? 1u : 1u;
 mm-read-past-the-span @@ ../servers/mm/mmlib.c @@ end = end < span_end ? end : span_end; @@ (void)span_end;
-mm-unmap-kernel-skipped @@ ../servers/mm/mmlib.c @@ if (m->k.unmap(m->k.ctx, tk->slot, lo, hi - lo) != 0) { @@ if (0) {
+mm-unmap-kernel-skipped @@ ../servers/mm/mmlib.c @@ if (m->k.unmap(m->k.ctx, tk->slot, lo, hi - lo) != 0) { @@ if (m->k.unmap == NULL) {
 mm-unmap-keeps-pages @@ ../servers/mm/mmlib.c @@ page_unref(m, tk->map[i].page); /* unmapped above */ @@ (void)0;
 mm-regions-overlap @@ ../servers/mm/mmlib.c @@ return MM_E_STATE; /* overlaps a region */ @@ break;
 mm-split-without-room @@ ../servers/mm/mmlib.c @@ if (splits > free_n) { @@ if (splits > free_n && 0) {

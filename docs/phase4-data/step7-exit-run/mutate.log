@@ -1,0 +1,285 @@
+caught I8 rights grow: seed 1 step 0: I8: space 0 slot 3 has rights 0xf beyond the type's 0xb (after set_fault -> E_RANGE)
+caught I1 refcount: seed 1 step 0: I1: object 0 refs 1 but 2 capabilities name it (after set_fault -> E_RANGE)
+caught I3 refund: seed 1 step 33: I3: quota not conserved: live quota + charges = 12, budget 13 (after delete -> OK)
+caught I7 rebadge: seed 1 step 1117: mint returned OK, shadow predicted E_BADGE 
+caught I1 destroy leaks: seed 1 step 678: I1: dead space 1 still holds a capability in slot 13 (after fault -> E_PEER)
+caught I3 quota ignored: seed 1 step 82: I3: quota not conserved: live quota + charges = 4294967309, budget 13 (after grow -> OK)
+caught I6 reply reusable: seed 1 step 447: I6: reply by thread 4 kept its capability or missed caller 6
+caught I10 server death: seed 1 step 601: I6: caller 0 waits for a reply but 0 valid reply capabilities name it (after reply -> OK)
+caught I10 endpoint death: seed 4 step 28: I5: dead endpoint 0 still has a queue (after delete -> OK)
+caught I7 badge dropped: seed 1 step 164 after call: thread 0: cs 0/0 ep 0/0 result OK/OK reply 2.2/2.2 badge 0/1 msg 45473551566797419
+caught timeout late: seed 1 step 20: next event 32 at 32
+caught stale reply reuse: seed 6 step 802: I6: caller 1 waits for a reply but 2 valid reply capabilities name it (after recv -> OK)
+caught I10 recv w/ reply: seed 1 step 276: I6: caller 4 waits for a reply but 0 valid reply capabilities name it (after recv -> OK)
+caught I2 bits lost: seed 1 step 354: I2: signal of 0x40 to notification 1 was lost
+caught I2 delivered twice: seed 1 step 385 after wait: object 8: word 0x20/0x0 dead 0/0 bind 0/0
+caught I4 never fires: seed 1 step 377 after delete: object 8: word 0x0/0x20 dead 0/0 bind 0/0
+caught I4 fires early: seed 1 step 867: I4: space 0 slot 23: badged send capability has no account (after delete -> OK)
+caught I4 fires when dead: seed 1 step 249 after delete: thread 3: state 1/5
+caught I5 never dies: seed 1 step 546 after delete: I5: endpoint 12 dead=0 with 0 RECV capabilities
+caught I5 deadname repeats: seed 7 step 1151: I5: dead-name registration 0 names a dead or freed endpoint (after delete -> OK)
+caught dangling binding: seed 22 step 716: I4: object 13 no-senders binding 22 is not a live notification (after fault -> E_PEER)
+caught I5 dead still usable: seed 4 step 42: I5: dead endpoint 0 still has a queue (after call -> BLOCKED)
+caught task-no-reparent: seed 5 step 1745: I1: task 2 has no parent: no ancestor can reap it (after reap -> OK)
+caught task-quota-lost: seed 1 step 881: I3: quota not conserved: live quota + charges = 15, budget 17 (after fault -> E_PEER)
+caught task-charges-not-moved: seed 3 step 995: I3: space 0 charged 36 but pays for 34 live objects and leaves (after reap -> OK)
+caught task-not-marked-dead: seed 2 step 249: I1: live task object 12 doesn't name a live space naming it (after reap -> OK)
+caught task-no-cascade: seed 1 step 881: I1: space 3 task object 15 doesn't name it back (after fault -> E_PEER)
+caught task-thread-cap-no-kill: seed 1 step 20 after delete: thread 2: live 1/0 cs 4/0 obj 0/0
+caught task-donation-off-by-one: seed 1 step 68: I3: quota not conserved: live quota + charges = 4294967309, budget 13 (after task_create -> OK
+caught task-destroy-no-control: seed 1 step 621: copy_batch returned E_DEAD, shadow predicted E_RIGHTS 
+caught task-dead-not-gone: seed 3 step 733: I1: thread 11 is owned by dead space 4 (after spawn -> OK)
+caught task-no-drain: seed 1 step 560 after delete: objects_live 66, shadow 64
+caught task-root-destroyable: seed 1 step 90: 0013: the root space is dead or has a parent (after space_destroy -> OK)
+caught task-fixture-budget: seed 1 step 1359: I3: quota not conserved: live quota + charges = 15, budget 16 (after delete -> OK)
+caught task-thread-obj-not-dead: seed 1 step 42: I1: live thread object 5 doesn't name a live thread naming it (after kill -> OK)
+caught task-grant-no-rights: seed 1 step 38: grant returned OK, shadow predicted E_RIGHTS 
+caught ns-not-queued: seed 1 step 377 after delete: I4: endpoint 6 no-senders queue ends at 1, last 0
+caught ns-collect-repeats: seed 58 step 1148: I4: endpoint 0 no-senders queue is corrupt (after collect -> OK)
+caught ns-queue-kept-at-death: seed 2 step 730 after delete: endpoint 4: model no-senders queue longer
+caught ns-bind-no-bits: seed 3 step 46: I4: object 0 binding 2 with bits 0x0 (after bind -> OK)
+caught reply-saved-reusable: seed 1 step 496 after reply_saved: reply object 5: bound to 3.0, shadow 0.0
+caught reply-obj-freed-silent: seed 1 step 674 after cap_delete: thread 3: state 4/1 call_seq 5/5
+caught reply-save-overwrites: seed 1 step 262: I6: caller 1 waits for a reply but 0 valid reply capabilities name it (after reply_save -> OK
+caught reap-no-ancestry: seed 1 step 47: 0013: the root space is dead or has a parent (after continue -> OK)
+caught descendant-includes-self: seed 1 step 274: descendant returned E_STATE, shadow predicted OK descendant: 0, shadow 1
+caught task-orphan-on-fixture-death: seed 8 step 881: I1: task 5 has no parent: no ancestor can reap it (after fault -> E_PEER)
+caught leaf-grow-uncharged: seed 1 step 1638: I3: space 2 charged 0 but pays for 1 live objects and leaves (after grow -> OK)
+caught leaf-free-no-refund: seed 1 step 1856: I3: quota not conserved: live quota + charges = 15, budget 16 (after fault -> E_PEER)
+caught leaf-shrink-nonempty: seed 1 step 1806: I1: free leaf 0 holds a capability in slot 7 (after shrink -> OK)
+caught leaf-lookup-aliases-leaf0: test/test_cnode.c:55: CHECK failed: joist_cap_read(&k, root, 2u * L - 1u, &c) == JOIST_OK && c.rights == JOIST
+caught leaf-destroy-leaks-leaves: seed 1 step 1856: I3: dead space 2 still has leaf 0 (after fault -> E_PEER)
+caught leaf-destroy-only-leaf0: seed 1 step 1856: I3: dead space 2 still has leaf 0 (after fault -> E_PEER)
+caught budget-unbounded: test/test_cnode.c:174: CHECK failed: joist_cspace_create(&k, UINT32_MAX, &s) == JOIST_E_NOMEM
+caught objfree-not-pushed: seed 1 step 33: free objects: 0 listed of 1 free below the mark (after delete -> OK)
+caught objfree-not-popped: seed 1 step 34: free objects: the list names 5, in use, unused or twice (after spawn -> OK)
+caught objfree-mark-not-raised: test/test_buffer.c:69: CHECK failed: clean()
+caught objfree-link-kept: seed 1 step 1639: free objects: object 14 off the list has a link (after obj_create -> OK)
+caught xfer-no-grant-check: test/test_xfer.c:116: CHECK failed: joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_E_RIGHTS
+caught xfer-ncaps-unbounded: test/test_xfer.c:123: CHECK failed: joist_call(&k, cli, EP_SEND, &m, JOIST_FOREVER) == JOIST_E_RANGE
+caught xfer-mask-ignored: test/test_xfer.c:74: CHECK failed: c.type == JOIST_OBJ_NOTIFICATION && c.rights == (JOIST_R_SEND | JOIST_R_GRA
+caught xfer-position-collapse: test/test_xfer.c:154: CHECK failed: k.th[srv].msg.cap[1] == 12
+caught xfer-bad-reply-consumes: test/test_buffer.c:116: CHECK failed: joist_reply(&k, s, &back) == JOIST_E_RANGE && k.th[s].reply_to == c + 1u
+caught xfer-ignores-nrecv: test/test_xfer.c:280: CHECK failed: k.th[t2].msg.ncaps == 1 && k.th[t2].msg.cap[0] == JOIST_SLOT_NONE
+caught xfer-wrong-source-space: test/test_xfer.c:88: CHECK failed: k.th[srv].msg.ncaps == 1 && k.th[srv].msg.cap[0] == 11
+caught sc-no-reclaim-on-wake: seed 3 step 478: I11: lender 0 runs on 0 in state 1 (must be waiting for a reply) (after reply -> OK)
+caught sc-no-giveback-on-recv: seed 31 step 1612: I11: thread 1 runs on its fallback while receiving or waiting (after reply_recv -> BLOCKED)
+caught sc-donate-to-active: test/test_handover.c:115: CHECK failed: joist_sched_handed(&k, a, place, s) == JOIST_MAX_THREADS
+caught sc-mcp-ignored: test/test_sched.c:64: CHECK failed: joist_sc_create(&k, T, 5, 21, 1, 1) == JOIST_E_RIGHTS
+caught sc-thread-gone-skipped: test/test_props_all.c:75: CHECK failed: 0 && "property failed; replay with JOIST_PROP_SEED"
+caught sc-freed-skipped: seed 2 step 199: I11: thread 3 names 13, not a scheduling context (after delete -> OK)
+caught sc-reclaim-keeps-links: seed 3 step 478: I11: threads 0 and 5 both run on context 3 (after reply -> OK)
+caught sc-unbind-while-lent: seed 11 step 581: I11: thread 7 runs on context 7, which its loan's first lender (thread 3) doesn't own (after
+caught sc-mcp-raisable: test/test_sched.c:67: CHECK failed: joist_task_set_mcp(&k, T, 6, 21) == JOIST_E_RIGHTS
+caught sc-mcp-not-inherited: test/test_sched.c:69: CHECK failed: k.cs[g].mcp == 20
+caught fault-no-pc: test/test_fault.c:135: CHECK failed: m->r[1] == 0x5000 && m->r[2] == 7 && m->r[3] == 0x401234
+caught fault-no-access: test/test_fault.c:134: CHECK failed: JOIST_FAULT_KIND(m->r[0]) == JOIST_FAULT_PAGE && JOIST_FAULT_ACCESS(m->r[
+caught fault-nocap-ignored: test/test_fault.c:157: CHECK failed: k.th[h].msg.ncaps == 0 && k.cs[T].slot[HCAP].obj == 0 && k.th[w].faulting
+caught fault-nocap-every-kind: test/test_fault.c:163: CHECK failed: k.th[h].msg.ncaps == 1 && k.th[h].msg.cap[0] == HCAP && k.th[w].faulting 
+caught fault-flags-unchecked: seed 74 step 89: 0009: thread 3 fault state 0, flags 0x3 (after set_fault -> OK)
+caught fault-task-flags-ignored: test/test_fault.c:171: CHECK failed: k.th[h].msg.ncaps == 0 && k.cs[T].slot[HCAP].obj == 0
+caught fault-no-thread-cap: test/test_fault.c:109: CHECK failed: k.th[h].msg.ncaps == 1 && k.th[h].msg.cap[0] == HCAP
+caught fault-verdict-ignored: seed 1 step 601: 0009: a fault's caller 6 survived a terminate verdict
+caught fault-unresolved-runs: test/test_fault.c:222: CHECK failed: k.th[w].state == JOIST_T_SUSPENDED && !k.th[w].faulting && k.th[w].result
+caught fault-no-task-fallback: test/test_fault.c:170: REQUIRE failed: joist_fault(&k, w, JOIST_FAULT_PAGE, 0x6000, 4, JOIST_ACCESS_READ) == J
+caught fault-dead-handler-used: seed 15 step 1409: I5: dead endpoint 0 still has a queue (after fault -> BLOCKED)
+caught fault-root-destroyed: seed 4 step 123: 0013: the root space is dead or has a parent (after delete -> OK)
+caught abort-ignores-reply-wait: seed 24 step 451: I11: lender 9 runs on 0 in state 6 (must be waiting for a reply) (after suspend -> OK)
+caught suspend-leaves-queued: seed 16 step 1166: IPC: thread 5 in endpoint 11 queue has state 6, queue kind 3 (after suspend -> OK)
+caught resume-anything: seed 1 step 396: IPC: thread 6 in endpoint 0 queue has state 1, queue kind 1 (after resume -> OK)
+caught fault-flag-unset: test/test_fault.c:105: CHECK failed: k.th[w].faulting && k.th[w].state == JOIST_T_BLOCKED_REPLY
+caught map-boot-overlap: test/test_kill_copy.c:126: CHECK failed: joist_boot_frame(&k, root, 10, 0x100, 1) == JOIST_E_STATE
+caught pre-dying-usable: seed 1 step 1278: 0016: dying space 3 still owns thread 4 (after th_create -> OK)
+caught pre-begin-keeps-threads: seed 1 step 678: I1: thread 7 is owned by dead space 1 (after fault -> E_PEER)
+caught pre-unreachable-deferred: seed 1 step 881: I1: thread 9 is owned by dead space 3 (after fault -> E_PEER)
+caught pre-sweep-skips: seed 1 step 678: I1: dead space 1 still holds a capability in slot 13 (after fault -> E_PEER)
+caught pre-limit-ignored: test/test_preempt.c:95: CHECK failed: joist_task_descendant(&k, root, 0, &d) == JOIST_OK && d == B
+caught pre-finish-early: seed 1 step 1856: I1: free leaf 0 holds a capability in slot 9 (after fault -> E_PEER)
+caught pre-reap-dying: test/test_preempt.c:91: CHECK failed: joist_task_reap(&k, root, A) == JOIST_E_DEAD
+caught pre-descendant-dying: test/test_preempt.c:95: CHECK failed: joist_task_descendant(&k, root, 0, &d) == JOIST_OK && d == B
+caught give-mask-ignored: test/test_task.c:463: CHECK failed: c.type == JOIST_OBJ_ENDPOINT && c.rights == JOIST_R_SEND && c.badge == 9
+caught give-no-control: test/test_task.c:472: CHECK failed: joist_cap_give(&k, root, 4, 2, 6, JOIST_R_ALL) == JOIST_E_RIGHTS
+caught pick-ignores-budget: seed 1 step 2: picked 0, the rules say 2
+caught pick-lowest-priority: seed 2 step 1635: I14: for CPU 0 the queues choose 14, the scan 4 (after th_create -> OK)
+caught pick-no-turns: seed 61 step 1258: I14: for CPU 0 the queues choose 8, the scan 1 (after call -> BLOCKED)
+caught pick-no-refill: seed 1 step 4: picked 0, the rules say 4
+caught pick-charge-free: seed 1 step 5: thread 4 used 8 of a budget of 6 in one period
+caught pick-passive-runs: 
+caught pick-wake-keeps-place: test/test_pick.c:170: CHECK failed: picked() == b
+caught pick-event-ignores-deadline: test/test_pick.c:147: CHECK failed: joist_sched_next_event(&k, a) == 3
+caught handed-from-still-runs: seed 1 step 38: thread 3 replied; handed says 6, the scheduler 3; next event 272, was 272
+caught handed-call-loses-turn: test/test_handover.c:78: CHECK failed: joist_sched_handed(&k, a, place, s) == s
+caught handed-reply-loses-turn: test/test_handover.c:84: CHECK failed: joist_sched_handed(&k, s, place, a) == a
+caught handed-place-copied: seed 3 step 478: I14: running threads 0 and 5 share place 32 (after reply -> OK)
+caught handed-ignores-budget: test/test_handover.c:108: CHECK failed: joist_sched_handed(&k, a, place, s) == JOIST_MAX_THREADS
+caught handed-ignores-timeout: seed 1 step 12: thread 5 called; handed says 3, the scheduler 3; next event 100, was 138
+caught handed-ignores-place: seed 3 step 23: thread 3 replied; handed says 9, the scheduler 8; next event 59, was 59
+caught smp-pick-steals: seed 1 step 0: I14: for CPU 1 the queues choose 2, the scan 4
+caught smp-old-thread-stays-marked: seed 1 step 0: I13: thread 7 says CPU 1, which doesn't have it
+caught smp-bind-no-flag: seed 6 step 379: thread 2 stays, but next 1774 < armed 1786 or the scheduler would choose otherwise or change 
+caught smp-unbind-no-flag: seed 1 step 16: thread 2 stays on CPU 0, but CPU 1 would choose otherwise, unpoked
+caught smp-off-cpu-no-flag: seed 1 step 228 (2 CPUs): operation 0 by thread 3 on CPU 1 left the flag clear, but CPU 0 now deserves another
+caught smp-handed-anothers-thread: test/test_handover.c:82: CHECK failed: joist_sched_handed(&k, a, place, s) == JOIST_MAX_THREADS
+caught smp-better-never: test/test_runq.c:188: CHECK failed: joist_sched_better(&k, 1) == 1
+caught smp-no-hook: test/test_smp.c:241: CHECK failed: seen[0] == 1 && seen[1] == t && seen[2] == 3
+caught smp-wake-no-flag: seed 1 step 116: thread 6 stays on CPU 1, but CPU 0 would choose otherwise, unpoked
+caught smp-resume-no-flag: seed 1 step 146 (2 CPUs): operation 2 by thread 7 on CPU 1 left the flag clear, but CPU 0 now deserves another
+caught smp-off-cpu-keeps-mark: test/test_smp.c:107: CHECK failed: k.th[t].cpu == 0 && k.on_cpu[1] == 0 && k.resched == 1
+caught smp-suspend-stays-on-cpu: seed 1 step 69 (2 CPUs): operation 0 by thread 10 on CPU 1 left the flag clear, but CPU 0 now deserves another
+caught buf-no-length-check: test/test_buffer.c:109: CHECK failed: joist_call(&k, c, 0, &m, JOIST_FOREVER) == JOIST_E_RANGE
+caught buf-words-without-buffer: test/test_buffer.c:106: CHECK failed: joist_call(&k, c, 0, &m, JOIST_FOREVER) == JOIST_E_RANGE
+caught buf-receiver-unchecked: test/test_buffer.c:131: CHECK failed: k.th[s].msg.r[0] == 7 && k.th[s].msg.len == 0 && k.th[s].msg.lost == 1 &
+caught buf-unaligned-accepted: test/test_buffer.c:64: CHECK failed: joist_ipc_buffer(&k, c, 0x10008) == JOIST_E_RANGE
+caught buf-sender-now-not-then: test/test_buffer.c:154: CHECK failed: copy.calls == 1 && copy.from_va == 0x40000 && copy.words == 64 && k.th[s
+caught buf-copy-failure-ignored: test/test_buffer.c:131: CHECK failed: k.th[s].msg.r[0] == 7 && k.th[s].msg.len == 0 && k.th[s].msg.lost == 1 &
+caught yield-keeps-place: test/test_pick.c:295: CHECK failed: picked() == b
+caught yield-no-flag: test/test_pick.c:294: CHECK failed: joist_yield(&k, a) == JOIST_OK && k.resched == 1
+caught rq-insert-no-bit: seed 1 step 0: picked 999, the rules say 0
+caught rq-remove-keeps-bit: seed 1 step 16: I14: CPU 0 priority 10: bit, head and tail disagree (after call -> BLOCKED)
+caught rq-head-lowest: seed 1 step 0: thread 9 called; handed says 1, the scheduler 4; next event 16, was 16
+caught rq-own-thread-ignored: seed 1 step 0: thread 5 called; handed says 1, the scheduler 8; next event 54, was 54
+caught rq-other-queues-ignored: seed 1 step 0: I14: for CPU 1 the queues choose 32, the scan 0 (after set_fault -> E_RANGE)
+caught rq-no-walk: seed 162 step 213: thread 4 stays on CPU 0, but CPU 1 would choose otherwise, unpoked
+caught rq-head-always-tail: 
+caught rq-wake-not-queued: seed 1 step 52: I14: thread 0 isn't queued but can run on no CPU (after tick -> OK)
+caught rq-recv-stays-queued: seed 2 step 1823: I14: thread 14 is queued but can't run or is on a CPU (after recv -> BLOCKED)
+caught rq-suspend-stays-queued: seed 4 step 186: I14: thread 2 is queued but can't run or is on a CPU (after suspend -> OK)
+caught rq-resume-not-queued: seed 9 step 1244: I14: thread 0 isn't queued but can run on no CPU (after resume -> OK)
+caught rq-yield-not-refiled: test/test_runq.c:167: CHECK failed: k.rq[0].list[5].head == b + 1u && k.rq[0].list[5].tail == a + 1u && clean(
+caught rq-spent-not-refiled: test/test_runq.c:173: CHECK failed: k.th[b].rq_on == 0 && k.rq[0].list[5].head == c + 1u && clean()
+caught rq-off-cpu-not-queued: seed 1 step 45: I14: thread 0 isn't queued but can run on no CPU
+caught rq-chosen-stays-queued: seed 1 step 3: thread 6 stays on CPU 2, but CPU 0 would choose otherwise, unpoked
+caught rq-tick-no-refill: seed 2 step 498: I14: thread 2 isn't queued but can run on no CPU
+caught rq-send-stays-queued: seed 1 step 16: I14: thread 0 is queued but can't run or is on a CPU (after call -> BLOCKED)
+caught rq-caller-stays-queued: seed 4 step 71: I14: thread 0 is queued but can't run or is on a CPU (after call -> BLOCKED)
+caught rq-wait-stays-queued: seed 3 step 28: I14: thread 3 is queued but can't run or is on a CPU (after wait -> BLOCKED)
+caught rq-settle-forgets: seed 1 step 3: I14: between operations, a hold on the queues (0, 2 noted) (after tick -> OK)
+caught rq-hold-not-noted: test/test_buffer.c:94: CHECK failed: clean()
+caught rq-in-place-ignores-order: test/test_runq.c:214: CHECK failed: k.rq[0].list[5].head == c + 1u && clean()
+caught rq-in-place-ignores-cpu: test/test_runq.c:217: CHECK failed: k.th[b].rq_on == 2 && k.rq[1].list[5].head == b + 1u && clean()
+caught stays-ignores-resched: seed 6 step 379: thread 2 stays, but next 1774 < armed 1786 or the scheduler would choose otherwise or change 
+caught stays-ignores-better: seed 1 step 51: thread 0 stays, but next 185 < armed 185 or the scheduler would choose otherwise or change som
+caught stays-ignores-refill: seed 1 step 68: thread 4 stays, but next 246 < armed 246 or the scheduler would choose otherwise or change som
+caught pokes-herd: test/test_smp.c:142: CHECK failed: joist_sched_pokes(&k, 0, 0, 4) == 1u << 1
+caught pokes-unclaimed-ignored: test/test_smp.c:142: CHECK failed: joist_sched_pokes(&k, 0, 0, 4) == 1u << 1
+caught pokes-inflight-ignored: test/test_smp.c:147: CHECK failed: joist_sched_pokes(&k, 0, 1u << 1, 4) == 1u << 2
+caught pokes-inflight-unclaimed: test/test_smp.c:147: CHECK failed: joist_sched_pokes(&k, 0, 1u << 1, 4) == 1u << 2
+caught pokes-busy-in-cpu-order: test/test_smp.c:157: CHECK failed: joist_sched_pokes(&k, 0, 0, 4) == 1u << 3
+caught pokes-never-preempt: seed 1 step 31 (2 CPUs): every interrupt has arrived, but CPU 1 would choose otherwise
+caught pokes-idle-after-busy: test/test_smp.c:197: CHECK failed: joist_sched_pokes(&k, 0, 0, 4) == 1u << 3
+caught pokes-stopped-asked-last: test/test_smp.c:191: CHECK failed: joist_sched_pokes(&k, 0, 0, 4) == 1u << 1 && pick(1) == w
+caught pokes-scan-ignores-claims: test/test_smp.c:210: CHECK failed: joist_sched_pokes(&k, 0, 0, 4) == 1u << 1
+caught pokes-scan-dropped: test/test_smp.c:210: CHECK failed: joist_sched_pokes(&k, 0, 0, 4) == 1u << 1
+caught preempt-no-resched: test/test_smp.c:397: CHECK failed: 0
+caught map-wx-allowed: seed 12 step 1573: I12: space 0 has a page writable and executable (after map -> OK)
+caught map-write-right-ignored: seed 16 step 403: I12: space 0 has a page writable beyond its ceiling (after map -> OK)
+caught map-kernel-half: 
+caught map-span-ignored: seed 68 step 256: hooks: unmap of a page not mapped (space 0) (after unmap -> OK)
+caught map-past-frame: seed 8 step 1464: I12: space 0 page 1056 names no page of a mappable frame (after map -> OK)
+caught map-overlap-allowed: seed 2 step 223: I12: frame 8 is named by 2 entries but counts 6 (after map -> OK)
+caught map-nomem-ignored: 
+caught map-pages-needed-short: 
+caught map-lent-mappable: seed 3 step 353: I12: frame 8 lent and mapped, or past its pages (after map -> OK)
+caught map-split-shared: seed 1 step 64: split returned OK, shadow predicted E_STATE 
+caught map-split-mapped: seed 13 step 461: I12: space 0 page 1041 names no page of a mappable frame (after split -> OK)
+caught map-split-lent: test/test_map.c:147: CHECK failed: joist_frame_split(&k, root, MEM, 2, X) == JOIST_E_STATE
+caught map-replace-ignores-expected: test/test_map.c:263: CHECK failed: joist_map_replace(&k, root, F2, 0, 3, TK, 0x400, JOIST_MAP_W, F, 1) == JOIS
+caught map-replace-old-count: test/test_map.c:270: CHECK failed: frame(F)->mapcount == 1 && frame(F2)->mapcount == 2
+caught map-count-not-dropped: seed 1 step 56: I12: frame 10 is named by 0 entries but counts 3 (after delete -> OK)
+caught map-protect-past-ceiling: test/test_map.c:352: CHECK failed: joist_protect(&k, root, TK, 0x400, 4, JOIST_MAP_W) == JOIST_E_RIGHTS
+caught map-prune-nonempty: seed 81 step 508: I12: space 0 uses 8 table pages, but has 3 tables (after obj_kill -> OK)
+caught map-table-not-zeroed: test/test_kill_copy.c:170: CHECK failed: clean()
+caught map-frame-freed-keeps: seed 1 step 56: I12: space 0 page 1026 names no page of a mappable frame (after delete -> OK)
+caught map-check-frames-unsorted: seed 4 step 14: I12: frames 10 and 13 overlap (after split -> OK)
+caught query-shows-other-frames: seed 2 step 34: hooks: map_query: permissions, ceiling or frame unlike the hooks' record (space 0) (after map_
+caught query-no-offset: seed 50 step 1114: hooks: map_query: permissions, ceiling or frame unlike the hooks' record (space 0) (after m
+caught query-ceiling-lost: seed 12 step 446: hooks: map_query: permissions, ceiling or frame unlike the hooks' record (space 0) (after ma
+caught query-frame-unchecked: test/test_map.c:336: CHECK failed: joist_map_query(&k, root, TK, 0x400, 1, TK, q) == JOIST_E_TYPE
+caught query-no-page-limit: test/test_map.c:332: CHECK failed: joist_map_query(&k, root, TK, 0x400, JOIST_QUERY_MAX + 1u, F, q) == JOIST_E
+caught map-destroy-keeps: seed 43 step 546: I12: frame 5 is named by 0 entries but counts 1 (after task_destroy -> OK)
+caught map-sweep-skips-tables: test/test_map.c:398: CHECK failed: frame(F)->mapcount == 0 && frame(MEM)->lent == 0 && frame(MEM)->water == 0
+caught map-sweep-skips-top: test/test_props_all.c:75: CHECK failed: 0 && "property failed; replay with JOIST_PROP_SEED"
+caught map-frame-free-skipped: seed 1 step 56: I12: frame 10 dying, but nothing keeps it (after delete -> OK)
+caught lend-mapped-frame: seed 15 step 1036: I12: frame 9 lent and mapped, or past its pages (after donate -> OK)
+caught lend-unreachable: test/test_map.c:208: CHECK failed: joist_space_donate(&k, root, TK, MEM) == JOIST_E_STATE
+caught lend-not-returned: seed 7 step 300: I12: frame 9 lent to a dead or invalid space (after reap -> OK)
+caught lend-full-listed: seed 56 step 412: I12: space 0 lists a frame with no room as lent to it (after map -> OK)
+caught root-self-destroyable: seed 1 step 445: 0013: the root space is dead or has a parent (after delete -> OK)
+caught root-self-delete-destroys: test/test_map.c:128: CHECK failed: k.cs[root].live && !k.cs[root].dying && k.cs[root].task_obj == 0
+caught hook-map-missed: seed 1 step 35: hooks: space 0 page 0x402 not carried out as recorded (after map -> OK)
+caught hook-unmap-missed: seed 1 step 56: hooks: table_gone over a mapped page (space 0) (after delete -> OK)
+caught hook-protect-missed: seed 1 step 308: hooks: space 0 page 0x401 not carried out as recorded (after protect -> OK)
+caught hook-table-new-missed: seed 1 step 35: hooks: map without a table, or across tables (space 0) (after map -> OK)
+caught hook-table-gone-missed: seed 1 step 56: hooks: 3 tables and 0 pages carried out, 0 and 0 in the core (after delete -> OK)
+caught hook-space-gone-missed: seed 1 step 678: hooks: space 1 live 0, but tables 1 (after fault -> E_PEER)
+caught kill-without-kill-right: seed 1 step 1127: obj_kill returned OK, shadow predicted E_RIGHTS 
+caught kill-not-marked-dead: seed 1 step 86: 0022: killed frame 8 not dead
+caught kill-killed-frame-mappable: seed 1 step 470: 0022: frame 8 killed while lent (after donate -> OK)
+caught kill-keeps-mappings: seed 1 step 353: 0022: killed frame 4 still mapped
+caught kill-twice-succeeds: seed 1 step 521: obj_kill returned OK, shadow predicted E_GONE 
+caught kill-boot-frames-lack-right: seed 1 step 0 after derive: space 0 slot 10: obj 0/0 type 7/7 rights 0xb/0xf badge 0/0
+caught kill-not-swept: seed 1 step 353: 0022: killed frame 4 still mapped
+caught kill-lent-frame: seed 1 step 1780: 0022: frame 6 killed while lent (after obj_kill -> OK)
+caught kill-counted-twice: test/test_kill_copy.c:197: CHECK failed: k.frames_dying == 1 && k.obj[obj].mapcount != 0
+caught copy-widens-rights: seed 3 step 1917: 0022: slot 55 not copied as it should be
+caught copy-into-dying-child: seed 3 step 1963: 0022: a refused batch reports 1 done
+caught copy-past-occupied-slot: seed 1 step 216: 0022: slot 61 not copied as it should be
+caught copy-past-missing-leaf: seed 3 step 539: 0022: slot 84 not copied as it should be
+caught copy-without-control: seed 30 step 1705: 0022: a refused batch reports 7 done
+caught copy-without-grant: seed 4 step 112: 0022: a refused batch reports 14 done
+caught copy-receive-rights-unasked: seed 1 step 120: copy_batch returned BLOCKED, shadow predicted E_OCCUPIED done 26/27 skipped 0x0/0x4000100 (mo
+caught copy-skipped-not-reported: seed 4 step 112: 0022: slot 47 not copied as it should be
+caught copy-done-off-by-one: seed 1 step 216: 0022: slot 47 not copied as it should be
+caught batch-exceeds-32: seed 1 step 37: copy_batch returned OK, shadow predicted E_RANGE 
+caught batch-runs-off-the-table: seed 1 step 544: copy_batch returned BLOCKED, shadow predicted E_RANGE done 2/0 skipped 0x0/0x0 (model/shadow)
+caught batch-unknown-flags: seed 1 step 66: copy_batch returned BLOCKED, shadow predicted E_RANGE done 3/0 skipped 0x0/0x0 (model/shadow)
+caught mm-page-not-zeroed: test/test_mm.c:200: CHECK failed: b != NULL && b[0] == 0 && b[JOIST_PAGE_SIZE - 1u] == 0
+caught mm-read-maps-one: test/test_mm.c:200: CHECK failed: b != NULL && b[0] == 0 && b[JOIST_PAGE_SIZE - 1u] == 0
+caught mm-read-past-the-span: test/test_mm.c:274: CHECK failed: pte(MM_SPAN - 1u) != 0 && pte(MM_SPAN) == 0
+STALE  mm-unmap-kernel-skipped: mutant does not build   [the full run; rewritten and rerun below]
+caught mm-unmap-keeps-pages: test/test_mm.c:267: CHECK failed: m.nfree == POOL_PAGES - 12u
+caught mm-regions-overlap: test/test_mm.c:244: CHECK failed: mm_map_anon(&m, t, 0x407, 2, MM_W) == MM_E_STATE
+caught mm-split-without-room: test/test_mm.c:288: CHECK failed: mm_unmap(&m, t, 0x1002, 2) == MM_E_NOMEM
+caught mm-protect-uncovered: test/test_mm.c:307: CHECK failed: mm_protect(&m, t, 0x40c, 8, 0) == MM_E_STATE
+caught mm-protect-kernel-skipped: test/test_mm.c:301: CHECK failed: ((pte(va) & JOIST_PTE_W) != 0) == (va < 0x404 || va >= 0x408)
+caught mm-write-past-region: test/test_mm.c:231: CHECK failed: mm_fault(&m, t, 0x400, MM_ACCESS_WRITE) == 0
+caught mm-clone-no-downgrade: test/test_mm.c:368: CHECK failed: (pe & JOIST_PTE_W) == 0 && (ce & JOIST_PTE_W) == 0
+caught mm-clone-child-writable: test/test_mm.c:368: CHECK failed: (pe & JOIST_PTE_W) == 0 && (ce & JOIST_PTE_W) == 0
+caught mm-clone-no-reference: test/test_mm.c:373: CHECK failed: clean()
+caught mm-cow-not-copied: test/test_mm.c:384: CHECK failed: (pte_in(C, 0x401) & JOIST_PTE_W) != 0 && POOL_PAGES - m.nfree == used + 1u
+caught mm-cow-copy-empty: test/test_mm.c:385: CHECK failed: seen_in(C, 0x401)[0] == 0x12 && seen(0x401)[0] == 0x12
+caught mm-cow-old-kept: test/test_mm.c:390: CHECK failed: (pte(0x401) & JOIST_PTE_W) != 0 && POOL_PAGES - m.nfree == used + 1u
+caught mm-share-cow-kept: test/test_mm.c:443: CHECK failed: POOL_PAGES - m.nfree == used + 3u
+caught mm-share-region-private: test/test_mm.c:424: CHECK failed: (pte_in(C, 0x401) & JOIST_PTE_W) != 0 && seen_in(C, 0x401)[1] == 0x77
+caught mm-run-past-a-frame: test/test_mm.c:538: CHECK failed: mm_fault(&m, t, 0x400, MM_ACCESS_READ) == 1
+caught mm-run-across-perms: test/test_mm.c:424: CHECK failed: (pte_in(C, 0x401) & JOIST_PTE_W) != 0 && seen_in(C, 0x401)[1] == 0x77
+caught mm-run-across-a-span: test/test_mm.c:568: REQUIRE failed: mm_clone(&m, t, c) == MM_OK
+caught mm-run-across-a-gap: test/test_mm.c:569: CHECK failed: maps == 6
+caught mm-run-one-too-long: test/test_mm.c:203: CHECK failed: pte(0x401) == 0 && pte(0x402 + MM_AROUND) == 0
+caught mm-run-one-too-short: test/test_mm.c:200: CHECK failed: b != NULL && b[0] == 0 && b[JOIST_PAGE_SIZE - 1u] == 0
+caught mm-run-failed-kept: test/test_mm.c:594: CHECK failed: pte(0x402) != 0 && pte(0x403) == 0 && m.task[t].nmap == 3
+caught mm-run-fault-no-flush: test/test_mm.c:200: CHECK failed: b != NULL && b[0] == 0 && b[JOIST_PAGE_SIZE - 1u] == 0
+caught mm-run-clone-no-flush: test/test_mm.c:367: CHECK failed: pe != 0 && ce != 0 && JOIST_PTE_FRAME(pe) == JOIST_PTE_FRAME(ce) && JOIST_PT
+caught mm-run-share-no-flush: test/test_mm.c:417: CHECK failed: te != 0 && de != 0 && JOIST_PTE_FRAME(te) == JOIST_PTE_FRAME(de) && JOIST_PT
+caught mm-unmap-frees-in-order: test/test_mm.c:526: CHECK failed: mm_fault(&m, t, 0x400, MM_ACCESS_READ) == 1 && maps == 1
+caught mm-none-faults-served: test/test_mm.c:657: CHECK failed: m.nfree == POOL_PAGES && maps == 0
+caught mm-none-with-w: test/test_mm.c:661: CHECK failed: mm_map_anon(&m, t, 0x500, 1, MM_NONE | MM_W) == MM_E_RANGE
+caught mm-none-protect-frees: test/test_mm.c:675: CHECK failed: m.nfree == free_before && m.task[t].nmap == 4
+caught mm-none-protect-keeps-mapped: test/test_mm.c:673: REQUIRE failed: mm_protect(&m, t, 0x401, 2, MM_NONE) == MM_OK
+caught mm-none-refault-resumes: test/test_mm.c:687: CHECK failed: mm_fault(&m, t, 0x401, MM_ACCESS_READ) == 0
+caught mm-none-refault-cow-writable: test/test_mm.c:712: CHECK failed: seen_in(C, 0x401)[0] == 0x12u && (pte_in(C, 0x401) & JOIST_PTE_W) == 0
+caught mm-none-cow-no-fallback: test/test_mm.c:720: CHECK failed: mm_share(&m, t, 0x400, 2, d, 0x900) == MM_OK
+caught mm-none-clone-maps: test/test_mm.c:705: REQUIRE failed: mm_clone(&m, t, c) == MM_OK
+caught mm-none-shared: test/test_mm.c:664: CHECK failed: mm_share(&m, t, 0x400, 2, d, 0x900) == MM_E_STATE
+caught fb-taken-while-receiving: seed 31 step 1485: I11: thread 1 runs on its fallback while receiving or waiting (after sc_bind_fallback -> OK
+caught fb-kept-after-receive: seed 18 step 1635: I11: thread 3 runs on its fallback while receiving or waiting (after wait -> BLOCKED)
+caught fb-blocks-donation: test/test_sched.c:325: CHECK failed: k.th[s].run_sc == sc && k.th[s].sc_from == c + 1u && k.th[c].sc_to == s +
+caught fb-not-on-reclaim: test/test_sched.c:329: CHECK failed: k.th[c].run_sc == sc && k.th[s].run_sc == fb
+caught fb-not-on-wake: seed 18 step 1638: I11: thread 3 serves with no loan but not on its fallback (on 0) (after tick -> OK)
+caught fb-not-on-freed: test/test_sched.c:352: CHECK failed: k.th[s].state == JOIST_T_RUNNING && k.th[s].run_sc == fb && k.th[s].sc_fr
+caught fb-freed-stays-bound: seed 3 step 1931: I11: thread 8 names 42, not a scheduling context (after delete -> OK)
+caught fb-unbind-while-running: seed 12 step 597: I11: thread 2 runs on context 3, which its loan's first lender (thread 2) doesn't own (after
+caught fb-dropped-on-quick-wait: seed 3 step 1621: I11: thread 8 serves with no loan but not on its fallback (on 0) (after wait -> OK)
+caught fb-dropped-on-quick-recv: seed 18 step 1645: I11: thread 3 serves with no loan but not on its fallback (on 0) (after recv -> E_TIMEOUT)
+caught fb-bind-reorders: test/test_sched.c:540: CHECK failed: k.th[s].run_sc == sc_obj(R_SC) && k.th[s].ready_seq < k.th[s2].ready_seq
+caught mm-unmap-kernel-skipped: test/test_mm.c:265: CHECK failed: (pte(va) != 0) == (va < 0x404 || va >= 0x408)   [rerun alone, rewritten: see README]
