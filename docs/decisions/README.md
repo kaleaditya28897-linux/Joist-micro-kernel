@@ -35,7 +35,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0024 | `mm`: guard pages (`MM_NONE`), and what a file-backed region changes | accepted 2026-10-29 (`MM_NONE` keeps a page's contents; a helper thread for file servers) | Phase 4 (guard pages), Phase 6 (files) |
 | 0025 | A fallback scheduling context for passive servers (`mm` stranded by a client killed mid-request) | accepted | Phase 4 |
 | 0026 | Toolchain trust: reproducible builds, a full-source bootstrap, and diverse double-compiling | accepted | all phases (toolchain) |
-| 0027 | Fault routing: a pager for page faults, an exception handler for the rest | accepted 2026-10-30 | Phase 7 |
+| 0027 | Fault routing: a pager for page faults, an exception handler for the rest | accepted 2026-10-30 | Phases 6–7 (the routing, model first; then signals) |
 | 0028 | `mm`: a limit per task tree now, set by the process server later | accepted 2026-10-30 | Phase 5 (interim bound), Phase 8 (`proc` sets it) |
 | 0029 | `mm`'s restart: the records the kernel can't give back | accepted 2026-10-30 | Phase 11 (class C restart) |
 
