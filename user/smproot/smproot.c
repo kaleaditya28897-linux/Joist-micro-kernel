@@ -19,11 +19,11 @@
  *
  * Times are generous: an emulator gives each CPU a thread of its own, on a
  * host that may have fewer to spare. Under emulation (QEMU's TCG, by its
- * CPUID signature) test 1's window is 4 times as long: an emulated CPU's
- * host thread can lose its host CPU for much of 300 ms, and the test then
- * fails with nothing wrong in the kernel (4 times across Phase 4's runs,
- * never under KVM). The check itself is the same. On a real CPU, or under
- * KVM, nothing changes. */
+ * CPUID signature) test 1's window is 4 times as long, and its check is on
+ * the spinners' total rather than the slowest one (see test_parallel): an
+ * emulated CPU's host thread can lose its host CPU for much of a window,
+ * and the strict check then fails with nothing wrong in the kernel. On a
+ * real CPU, or under KVM, nothing changes. */
 #define TEST_NAME "smp"
 #include "../lib/testroot.h"
 
@@ -95,7 +95,8 @@ static void finish(struct worker *k)
 /* 1. */
 static void test_parallel(uint64_t ncpus)
 {
-    uint64_t window = emulated() ? TCG_WINDOW * SLEEP_NS : SLEEP_NS;
+    int emu = emulated();
+    uint64_t window = emu ? TCG_WINDOW * SLEEP_NS : SLEEP_NS;
     put("smp: parallel window ms: ", window / J_MS);
     j_puts("\n");
     struct worker one = worker_new(WORK_SPIN, 0);
@@ -122,9 +123,25 @@ static void test_parallel(uint64_t ncpus)
         least = s[i].w->count < least ? s[i].w->count : least;
         sum += s[i].w->count;
     }
-    /* On one CPU each would get alone / ncpus. Half of what one gets alone
-     * is out of reach without running at the same time, on 2 CPUs or 8. */
-    check(least * 2u >= alone, "spinners on separate CPUs didn't run at the same time");
+    put("smp: parallel counts: alone ", alone);
+    put(", least of them ", least);
+    put(", all of them ", sum);
+    j_puts("\n");
+    if (emu) {
+        /* Under emulation the host may take a CPU from one emulated CPU's
+         * thread for a while (seen on the build VM, nested: one spinner at
+         * 41 % of alone while the four together did 2.6 times it). So: all
+         * of them together at least 1.5 times what one does alone, which no
+         * single CPU can do; and none starved, each at least half its share
+         * of one CPU. */
+        check(sum * 2u >= alone * 3u, "spinners on separate CPUs didn't run at the same time");
+        check(least * ncpus * 2u >= alone, "a spinner was starved");
+    } else {
+        /* On one CPU each would get alone / ncpus. Half of what one gets
+         * alone is out of reach without running at the same time, on 2
+         * CPUs or 8. */
+        check(least * 2u >= alone, "spinners on separate CPUs didn't run at the same time");
+    }
     put("smp: parallel ok: ", ncpus);
     put(" spinners together did ", sum * 100u / alone);
     j_puts("% of what one does alone\n");

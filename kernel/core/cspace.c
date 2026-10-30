@@ -14,10 +14,9 @@ static joist_rights full_rights(joist_obj_type t)
     case JOIST_OBJ_ENDPOINT:
     case JOIST_OBJ_NOTIFICATION:
         return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_GRANT);
-    case JOIST_OBJ_FRAME: /* CONTROL, WRITE (the RECV bit), KILL (0022), GRANT */
-        return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_KILL | JOIST_R_GRANT);
+    case JOIST_OBJ_FRAME:  /* CONTROL, WRITE (the RECV bit), KILL (0022), GRANT */
     case JOIST_OBJ_REGION: /* CONTROL, MAP (the RECV bit), KILL, GRANT (0030) */
-        return (joist_rights)(JOIST_R_CONTROL | JOIST_R_MAP | JOIST_R_KILL | JOIST_R_GRANT);
+        return (joist_rights)(JOIST_R_SEND | JOIST_R_RECV | JOIST_R_KILL | JOIST_R_GRANT);
     case JOIST_OBJ_TASK:
     case JOIST_OBJ_THREAD:
     case JOIST_OBJ_REPLY:

@@ -28,8 +28,13 @@ accepted; where it differs, these hold:
 - **The `smp4-smp` emulated flake** (*Not decided at the exit*): the owner
   chose to widen the window under emulation. `smproot`'s test 1 now
   measures over 1 200 ms instead of 300 under QEMU's emulator (found by
-  its CPUID signature), with the same check; under KVM, and on a real
-  CPU, nothing changes.
+  its CPUID signature); under KVM, and on a real CPU, nothing changes.
+  The wider window was not enough on the build VM (nested): one spinner
+  got 41 % of a lone spinner's count while all four did 2.6 times it. So
+  under emulation the check is on the total (at least 1.5 times one
+  alone, which no single CPU can do) and that none is starved (half its
+  share of one CPU); 16 emulated boots on the build VM then passed
+  (2026-10-30).
 - **Page faults** will go to a pager first and other faults to an exception
   handler (decision 0027). `MM_SLOT` becomes the task's pager, and a fault
   `mm` refuses is passed on rather than ending the thread.
