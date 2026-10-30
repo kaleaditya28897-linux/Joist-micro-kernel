@@ -202,7 +202,7 @@ Boot via **Multiboot2** (GRUB) or **Limine**, loading the kernel plus bootstrap 
 | No-senders / dead-name notification | Native lifetime notifications (§5.4) | libports |
 | External memory objects (`memory_object_*`) | Page-fault IPC to userspace pager | Rewritten libpager + memory manager |
 | `vm_allocate`, `vm_map`, `vm_protect` | Memory manager RPCs | glibc sysdeps |
-| Exception ports | Fault IPC to registered handler | glibc signal thread |
+| Exception ports | Fault IPC: page faults to the task's pager, which may pass them on; every other fault to its exception handler (0009, 0027) | Memory manager (pager), glibc signal thread (exception handler) |
 | `thread_get_state` / `thread_set_state` / `thread_suspend` | Thread control capabilities | glibc (signal delivery), proc, debuggers |
 | `task_create` with VM inheritance (used by `fork`) | Task create + memory manager COW clone | glibc `fork`, memory manager |
 | Device interface (`device_open`, etc.) | IRQ/IO/MMIO/DMA capabilities given to userspace drivers | rumpdisk, netdde glue |
@@ -445,16 +445,18 @@ Each phase has an **exit criterion**. Do not start the next phase until the curr
 - Add a new MIG backend emitting stubs for native IPC (keep the `.defs` input format unchanged).
 - Adapt libports to native capabilities and lifetime notifications.
 - Port a trivial translator (e.g. a `libtrivfs`-based "hello" translator) as the first reused Hurd server.
-- **Exit:** unmodified-logic Hurd server code runs on the new kernel via retargeted stubs.
+- Give the memory manager its limits per task tree (decision 0028): a reservation and ceilings on pages and tasks, admission control on adoption, build-time defaults, and `MM_SET_LIMIT` for the root.
+- **Exit:** unmodified-logic Hurd server code runs on the new kernel via retargeted stubs; a fork bomb and a memory hog, each in its own tree, leave a third task able to fault new pages and fork.
 
 ### Phase 6 — Paging protocol and libpager (2–3 months)
 
 The old plan bundled this with glibc and the Hurd boot chain. It is separated because ext2fs cannot work at all until it lands, which makes it a dependency of everything in Phases 7–8 rather than a task alongside them.
 
 - Define the page-fault-to-server protocol that replaces Mach external memory objects (§5.5).
+- Split fault routing (decision 0027): a task's pager receives page faults only and may pass one on (`JOIST_FAULT_PASS`, with a POSIX code) to the task's exception handler, which receives every other fault. Model first; the memory manager moves to `task_set_pager`.
 - Rewrite libpager against it.
 - Exercise it with a synthetic pager and the memory manager from Phase 4 — no filesystem server required yet.
-- **Exit:** a synthetic userspace pager services faults correctly under stress, including concurrent faults, eviction, and pager death; libpager's test translator runs.
+- **Exit:** a synthetic userspace pager services faults correctly under stress, including concurrent faults, eviction, and pager death; libpager's test translator runs; a fault the pager passes on reaches the exception handler, and a hung exception handler doesn't stop the memory manager serving other tasks.
 
 ### Phase 7 — glibc port (3–5 months)
 
@@ -462,7 +464,7 @@ The riskiest phase in the plan, and the one most likely to overrun. It gets its 
 
 - Introduce `sysdeps/joist`; keep `sysdeps/mach/hurd` edits minimal.
 - Static linking first. Dynamic linking and the loader second, as a separately demonstrable step.
-- Implement `fork` (task create + memory manager COW clone + capability duplication), `posix_spawn`, signals over native fault IPC, and pthreads on native threads.
+- Implement `fork` (task create + memory manager COW clone + capability duplication), `posix_spawn`, signals over native fault IPC (the signal thread as the exception handler of decision 0027, so `SIGSEGV` and `SIGBUS` arrive with their codes), and pthreads on native threads.
 - Land the client-recovery module skeleton (§7.3) now, even though restarts do not exist until Phase 9 — retrofitting per-description recovery records into a finished glibc port is far more expensive than building them in.
 - **Exit:** a statically linked C program using files, `fork`, `exec`, signals, and threads runs correctly against a stub filesystem; then the same dynamically linked.
 
@@ -470,7 +472,8 @@ The riskiest phase in the plan, and the one most likely to overrun. It gets its 
 
 - Bring up the Hurd boot chain on the new kernel: root filesystem (tmpfs or ext2fs from a boot module), exec, startup, proc, auth.
 - Port ext2fs on the Phase 6 paging protocol.
-- **Exit:** boot to a `/bin/sh` prompt; run coreutils.
+- `proc` takes over setting the memory manager's limits (`MM_SET_LIMIT`, decision 0028), mapping `RLIMIT_AS`, `RLIMIT_NPROC` and its session policy onto task trees.
+- **Exit:** boot to a `/bin/sh` prompt; run coreutils; a fork bomb and a memory hog, each in its own session, leave every other session able to fault and fork.
 
 ### Phase 9 — Resilience (3–4 months)
 
@@ -489,7 +492,7 @@ The riskiest phase in the plan, and the one most likely to overrun. It gets its 
 
 ### Phase 11 — Core server hardening (ongoing, 6+ months)
 
-- Make proc, auth, exec, memory manager restartable (class C). Rewrite from scratch where the existing code resists.
+- Make proc, auth, exec, memory manager restartable (class C). Rewrite from scratch where the existing code resists. The memory manager restarts from state frames its restarter also holds, every record validated against the kernel (decision 0029).
 - SMP bring-up and stress testing.
 - Real-time latency measurements; scheduling contexts exposed to userspace policy.
 - **Exit:** every server has a tested restart path; SMP stable under 72-hour soak tests.

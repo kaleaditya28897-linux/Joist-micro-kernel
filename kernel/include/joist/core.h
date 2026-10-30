@@ -128,7 +128,13 @@ typedef enum {
 /* Priorities (§5.6): 0 lowest, JOIST_PRIO_MAX highest. */
 #define JOIST_PRIO_MAX 255u
 
-/* Rights bits (0001). */
+/* Rights bits (0001). A bit's meaning depends on the object's type
+ * (CONTROL, WRITE and KILL below share bits with SEND, RECV and SEND_ONCE).
+ * So every rights test must come after a type test on the same capability,
+ * in the same lookup, as joist__control_cap and the endpoint, notification
+ * and reply lookups do. A rights test with no type test before it is a
+ * review failure. Invariant I8 checks every capability against its type's
+ * full_rights (cspace.c). */
 typedef uint8_t joist_rights;
 #define JOIST_R_SEND      ((joist_rights)0x1u)
 #define JOIST_R_RECV      ((joist_rights)0x2u)

@@ -1,7 +1,10 @@
 # 0009 — Exception ports → fault IPC to a registered handler
 
 Date: 2026-09-23
-Status: accepted (2026-10-01)
+Status: accepted (2026-10-01); **revised** 2026-10-30 by 0027: page faults
+go to the task's pager (`mm`) first, and every other fault, plus any page
+fault the pager passes on, to the handler this entry describes (now called
+the exception handler).
 Covers: §6 row *Exception ports*.
 
 ## Context

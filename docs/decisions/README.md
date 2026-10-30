@@ -11,13 +11,13 @@ permanent; a superseded decision keeps its number and gains a
 | 0000 | Project name: Joist | accepted | — |
 | 0001 | Native IPC model | accepted; open items settled by the 2026-10-03 amendment | Phase 3 |
 | 0002 | Clang everywhere, pre-committed GCC fallback for glibc | accepted (Clang branch) | Phase 7 |
-| 0003 | SMP + no runtime allocation + bounded WCET | accepted | Phase 3 |
+| 0003 | SMP + no runtime allocation + bounded WCET | accepted; carried out by 0016 and 0022 | Phase 3 |
 | 0004 | Task and thread objects | accepted; amended 2026-10-05 (parent authority) | — |
 | 0005 | Port sets → badge demultiplexing | accepted | Phase 5 |
 | 0006 | Out-of-line memory → typed bulk transfer | accepted | Phase 5 |
 | 0007 | External memory objects → page-fault IPC | accepted | Phase 6 |
 | 0008 | `vm_*` → memory manager RPCs | accepted | Phase 4 |
-| 0009 | Exception ports → fault IPC | accepted | Phase 3 |
+| 0009 | Exception ports → fault IPC | accepted; revised 2026-10-30 by 0027 (the pager first, for page faults) | Phase 3 |
 | 0010 | Thread state and control capabilities | accepted | — |
 | 0011 | `fork` / VM inheritance → task create + COW clone | accepted | Phase 4 |
 | 0012 | Device interface → IRQ/IO/MMIO/DMA capabilities | accepted | Phase 10 |
@@ -31,10 +31,13 @@ permanent; a superseded decision keeps its number and gains a
 | 0020 | Page-sized mappings: part of a frame, the page tables as the record | accepted | Phase 4 |
 | 0021 | Page tables paid for by memory the memory manager donates | accepted | Phase 4 |
 | 0022 | Revoke by killing the object; the capability copy for `fork` in batches | accepted | Phase 4 |
-| 0023 | `mm`: how it runs (passive), how tasks reach it, what it does | accepted, amended 2026-10-28 (lazy no-senders) and 2026-10-29 (SHARE by both sides' consent; a fork confirmed, an orphan going with its parent); corrected 2026-10-29 (`MM_SLOT` is skipped by a clone's `cap_copy_batch`, not a stop); amended 2026-10-30 (no per-client limit until the process server, Phase 7) | Phase 4 |
+| 0023 | `mm`: how it runs (passive), how tasks reach it, what it does | accepted, amended 2026-10-28 (lazy no-senders) and 2026-10-29 (SHARE by both sides' consent; a fork confirmed, an orphan going with its parent); corrected 2026-10-29 (`MM_SLOT` is skipped by a clone's `cap_copy_batch`, not a stop); amended 2026-10-30 (no per-client limit until the process server, Phase 7); revised 2026-10-30 by 0027 (`MM_SLOT` is the pager), 0028 (limits per tree, replacing that amendment) and 0029 (restart from state frames) | Phase 4 |
 | 0024 | `mm`: guard pages (`MM_NONE`), and what a file-backed region changes | accepted 2026-10-29 (`MM_NONE` keeps a page's contents; a helper thread for file servers) | Phase 4 (guard pages), Phase 6 (files) |
 | 0025 | A fallback scheduling context for passive servers (`mm` stranded by a client killed mid-request) | accepted | Phase 4 |
 | 0026 | Toolchain trust: reproducible builds, a full-source bootstrap, and diverse double-compiling | accepted | all phases (toolchain) |
+| 0027 | Fault routing: a pager for page faults, an exception handler for the rest | accepted 2026-10-30 | Phase 7 |
+| 0028 | `mm`: a limit per task tree now, set by the process server later | accepted 2026-10-30 | Phase 5 (interim bound), Phase 8 (`proc` sets it) |
+| 0029 | `mm`'s restart: the records the kernel can't give back | accepted 2026-10-30 | Phase 11 (class C restart) |
 
 **All entries were accepted on 2026-10-01** by the project owner, at the close
 of Phase 0 (`docs/phase0-exit.md`). The recommendations taken were: 0002 on
@@ -48,6 +51,10 @@ Later entries and changes, each accepted by the project owner: the
 amendment to 0001 that settles its five parameters (2026-10-03, Phase 1
 work item 6), the amendment to 0004 on parent authority over descendants
 (2026-10-05), and **0015** (2026-10-05, at the start of Phase 2).
+**0027–0029** (2026-10-30, after Phase 4's exit) came from a review of the
+whole journal against §1.1: fault routing so `mm` never waits on a client,
+limits per task tree in `mm` from Phase 5, and `mm`'s restart from state
+frames it shares with its restarter.
 
 ## §6 coverage
 
@@ -67,7 +74,7 @@ Mach-to-Joist mapping table. All 16 rows:
 | No-senders / dead-name notification | 0001 |
 | External memory objects (`memory_object_*`) | 0007 |
 | `vm_allocate`, `vm_map`, `vm_protect` | 0008 |
-| Exception ports | 0009 |
+| Exception ports | 0009, 0027 |
 | `thread_get_state` / `set_state` / `suspend` | 0010 |
 | `task_create` with VM inheritance (`fork`) | 0011 |
 | Device interface (`device_open`, …) | 0012 |

@@ -2,6 +2,11 @@
 
 Date: 2026-09-23
 Status: accepted (2026-10-01)
+Carried out by: 0016 (one kernel lock: the lock order is one entry long,
+and no CPU holds a reference outside the lock, so no retire slots are
+built) and 0022 (revoke by killing the object, O(1), so revoke never
+waits). Not superseded: this entry's commitments stand, and those two say
+how they are met.
 Blocks: Phase 3. These three commitments constrain each other; settling them
 late means rediscovering the conflict mid-implementation.
 

@@ -4,7 +4,7 @@ Date: 2026-10-28
 Status: **accepted** (the owner, 2026-10-28); **amended** 2026-10-28 (how
 a passive `mm` collects no-senders, below; accepted by the owner) and
 2026-10-29 (`MM_SHARE` by both sides' consent, below; accepted by the
-owner).
+owner). **Revised** 2026-10-30 by 0027, 0028 and 0029 (below).
 Settles: `docs/phase4-plan.md`, choice 6 (`servers/mm`) and the order of
 work's item 6, as far as the interface and the structure go.
 Covers: §5.3 (time charged to whoever caused the work), §9.1 (`mm` in the
@@ -314,6 +314,30 @@ Found by the review of `mm` at Phase 4's exit (`docs/phase4-exit.md`).
   per task or per tree (pages and tasks), set by the process server.
   A fork child's quota (`MM_CHILD_QUOTA`, 32) already bounds a task's
   live children, not its descendants.
+
+## Revised by 0027, 0028 and 0029 (2026-10-30, accepted by the owner)
+
+The text above is kept as it was decided. Where it differs, these govern:
+
+- **`MM_SLOT` is the task's pager, not its fault handler (0027).** `mm`
+  installs it with `task_set_pager` (with `JOIST_FAULT_NO_THREAD_CAP`), not
+  `task_set_fault`. It receives page faults only. *Anything else* in the
+  fault rules above ("the thread is ended") becomes a `JOIST_FAULT_PASS`
+  reply with a POSIX code (`SEGV_MAPERR`, `SEGV_ACCERR`; `BUS_*` for 0024's
+  file regions). The kernel hands the fault to the task's exception
+  handler (glibc's signal thread), or ends the task if it has none.
+- **The 2026-10-30 amendment ("no per-client limit in Phase 4") is
+  replaced by 0028.** `mm` groups the tasks it serves into trees (one per
+  adopted task, with its confirmed and pending forks). Each tree gets a
+  reservation and ceilings on pages and tasks, with build-time defaults
+  from Phase 5, and `MM_SET_LIMIT` for the root, later `proc` (Phase 8,
+  not Phase 7 as that amendment said).
+- **The restart note under *Consequences* is corrected by 0029.** A
+  restarted `mm` can't rebuild everything from its capabilities and
+  `map_query`. Untouched regions, kept-unmapped (`MM_NONE`) pages and region
+  permissions are only in `mm`'s records. Those records live in state
+  frames the restarter also holds, and are validated against the kernel
+  on restart. Restarting `mm` is class C work, Phase 11 in §11.
 
 ## Priority check
 

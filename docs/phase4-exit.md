@@ -8,6 +8,25 @@ The final run of every suite is under *Verification*, at the end. It was
 still running on the build VM when the owner accepted this record; its
 rows are filled in as each suite finishes.
 
+**Corrections (2026-10-30, after acceptance).** The text below is kept as
+accepted; where it differs, these hold:
+
+- **The process server** arrives in Phase 8, not Phase 7 (the plan, Phase
+  8). Where this record says Phase 7 for `mm`'s per-client limit or a fork
+  child's quota, read Phase 8. Decision 0028 also closes the gap before
+  then: `mm` gets limits per task tree, with build-time defaults, in
+  Phase 5.
+- **`mm`'s class C restart** is Phase 11, not Phase 9 (the plan: Phase 9
+  is RS, DS and class A/B servers).
+- **"`mm` restartable by design"** (*What was built*) rests on 0023's note
+  that `mm` can rebuild its records from its capabilities and `map_query`.
+  Decision 0029 corrects that note: some of `mm`'s records can't be got
+  back from the kernel, so `mm` will keep them in state memory it shares
+  with its restarter.
+- **Page faults** will go to a pager first and other faults to an exception
+  handler (decision 0027). `MM_SLOT` becomes the task's pager, and a fault
+  `mm` refuses is passed on rather than ending the thread.
+
 ## Exit criterion
 
 | Criterion (`phase4-plan.md`, *Testing*) | Met by | Evidence |
