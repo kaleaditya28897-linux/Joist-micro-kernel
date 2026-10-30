@@ -38,6 +38,8 @@ permanent; a superseded decision keeps its number and gains a
 | 0027 | Fault routing: a pager for page faults, an exception handler for the rest | accepted 2026-10-30 | Phases 6–7 (the routing, model first; then signals) |
 | 0028 | `mm`: a limit per task tree now, set by the process server later | accepted 2026-10-30 | Phase 5 (interim bound), Phase 8 (`proc` sets it) |
 | 0029 | `mm`'s restart: the records the kernel can't give back | accepted 2026-10-30 | Phase 11 (class C restart) |
+| 0030 | The region capability: a task maps its own pages inside a range `mm` gives it | proposed (shape chosen by the owner 2026-10-30: several frames a region) | Phase 5 |
+| 0031 | Reused Hurd code runs on glibc from Phase 5: the port starts early | proposed (direction chosen by the owner 2026-10-30) | Phases 5 and 7 |
 
 **All entries were accepted on 2026-10-01** by the project owner, at the close
 of Phase 0 (`docs/phase0-exit.md`). The recommendations taken were: 0002 on
