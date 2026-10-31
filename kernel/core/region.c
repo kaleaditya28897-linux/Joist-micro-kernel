@@ -439,6 +439,9 @@ unsigned joist__check_region(const struct joist_kernel *k, char *msg, unsigned m
                 r->ext[x].npages == 0 || r->ext[x].off >= k->obj[f - 1u].npages ||
                 r->ext[x].npages > k->obj[f - 1u].npages - r->ext[x].off) {
                 VIOLATION("0030: region %u extent %u names no window of a frame", i, x);
+            } else if (k->obj[f - 1u].lent != 0) {
+                /* Its pages may be page tables (0021): never the task's to map. */
+                VIOLATION("0030: region %u extent %u names a lent frame", i, x);
             }
         }
         /* Every page mapped in the range is a page of one of its extents,

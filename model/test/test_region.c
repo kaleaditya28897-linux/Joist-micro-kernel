@@ -347,6 +347,11 @@ JT_TEST(region_invariants_catch_bad_state)
     k.obj[obj_of(F)].extents++;
     JT_CHECK(joist_check_invariants(&k, msg, sizeof msg) != 0 && strstr(msg, "extents") != NULL);
     k.obj[obj_of(F)].extents--;
+    /* A frame in an extent also lent for page tables (CBMC op 24 found the
+     * checker silent here: the task could map its own tables). */
+    k.obj[obj_of(F)].lent = T + 1u;
+    JT_CHECK(joist_check_invariants(&k, msg, sizeof msg) != 0 && strstr(msg, "lent") != NULL);
+    k.obj[obj_of(F)].lent = 0;
     /* An empty last-level table left behind. */
     lf[LO % JOIST_PT_ENTRIES] = 0;
     lf[(LO + 1u) % JOIST_PT_ENTRIES] = 0;
