@@ -183,7 +183,10 @@ cbmc:
 	@# Each operation by its own line: a run killed (out of memory: it says
 	@# nothing) is not verified, whatever else the file holds (2026-10-19, a
 	@# count of the file's lines passed one with op0 killed).
-	@n=0; for op in $(CBMC_OPS); do \
+	@# A split's line and log are named as cbmc/run.sh names them (9/t is
+	@# op9-tables); before 2026-11-02 a split could never count as verified.
+	@n=0; for arg in $(CBMC_OPS); do \
+	    op=$$(printf '%s' "$$arg" | sed 's#/s$$#-senders#; s#/n$$#-nosenders#; s#/t$$#-tables#; s#:\(.*\)$$#-type\1#'); \
 	    grep -q "^op$$op: .*VERIFICATION SUCCESSFUL" $(BUILD)/cbmc/summary.txt && n=$$((n + 1)) || \
 	        echo "cbmc: op$$op not verified ($(BUILD)/cbmc/op$$op.log)"; \
 	done; \
