@@ -204,7 +204,8 @@ task tree (decision 0028).
 2. ~~**The region capability in the model:** the object, its calls, I12
    extended, property tests, CBMC, mutations; the carried CBMC work.~~
    Done 2026-11-03 (*Progress*).
-3. **The region capability in the kernel and `mm`;** measured.
+3. ~~**The region capability in the kernel and `mm`;** measured.~~ Done
+   2026-11-03 (*Progress*).
 4. **`mm`'s per-tree limits (0028).**
 5. **The glibc inventory (0031's check):** what libports, libihash,
    libtrivfs, `trans/hello` and a test client reach in glibc without
@@ -335,3 +336,63 @@ Implementation choices inside 0030, so *(changeable)*.
 - **Measured** on the P53: a churn (map, touch, unmap; 1 to 64 pages) by
   region calls against `MM_REQ_MAP_ANON` and `MM_REQ_UNMAP`.
 
+### Step 3: the region capability in the kernel and `mm` (2026-11-03)
+
+- **Built** as *Step 3: the design* above says: system calls 80-84 with
+  the user library's wrappers (part 1, baea6ec); `mm`'s REGION_NEW, _GROW
+  and _FREE, a fork's copies at the same slots, a task's end taking its
+  regions' pages back, the kernel built with 128 regions (part 2,
+  157276b).
+- **Tests:** a host test that each call's arguments reach the kernel, 2
+  kernel mutations, and the ABI fuzzer listing every call (part 1); 9
+  `mmlib` unit tests on the kernel model, 14 mutations (`mm-kreg-*`,
+  `mm-anon-over-kreg`), regions in the refinement test's abstract machine,
+  `mmroot`'s region test (part 2). `cowstress` gains a region writer
+  (part 3, 25dc567): some tasks of the fork trees hold a region, grown
+  through `mm` and mapped by the task itself, written by both threads and
+  verified after every step with their other pages; a fork's child starts
+  with a copy of its own; after each step's operation a second seeded
+  stream grows a region (or unmaps a page and maps it back, which must keep
+  what it held), frees one, or kills a task while `mm` serves its grow or
+  free. Every existing check stays; a new floor needs some grow, some fork
+  of a region holder and some remap. In the 20-round runs: 177 grows, 73
+  remaps, 23 frees, 204 forks of a region holder, 16 kills mid-request.
+  `mm-kreg-clone-not-copied` and `mm-kreg-clone-maps-shared` each fail
+  `cow3`.
+- **Runs** (joist-dev2): at 157276b, `make -C model check` (270 tests in
+  each of the six builds), `make -C model mutate` (315 of 315 caught),
+  `make -C kernel check` (55 host tests under plain and four sanitizers,
+  87 of 87 self-tests, 32 artifacts reproducible) and `make -C kernel
+  mutate` (56 of 56) all pass. With part 3 and 4: `cow3`,
+  `kvm-smp1/2/4-cowstress`, `chk-kvm-smp2-cow3` and the three `mmroot`
+  runs pass.
+- **Measured** (part 4, 2de3585; `docs/phase5-data/step3-region-churn/`):
+  map *n* pages, write each, unmap, on the P53 (KVM, 1 CPU, median of 3
+  boots' medians), by the task's own region calls against `MM_REQ_MAP_ANON`,
+  a fault a page and `MM_REQ_UNMAP`:
+
+  | pages | region, table emptied | requests | region, table kept | requests |
+  |---:|---:|---:|---:|---:|
+  | 1  | 7 552  | 14 766  | 1 590  | 8 812   |
+  | 4  | 9 520  | 31 956  | 3 640  | 25 980  |
+  | 16 | 17 786 | 100 260 | 11 844 | 94 040  |
+  | 64 | 49 764 | 374 822 | 43 886 | 368 386 |
+
+  The region calls are 2 to 7.5 times cheaper with the table emptied, 5.5
+  to 8.4 times with it kept; 2 CPUs alike (up to 8.7).
+- **What surprised:** most of a small region churn is the page table, not
+  the calls. An unmap that empties the region's table frees it (step 2's
+  rule, "no empty last-level table"), and the next map builds and zeroes a
+  new one: about 5 950 cycles a cycle, the same on both paths. A 1-page
+  region churn is 7 552 cycles with it, 1 590 without (a page kept mapped
+  in the table). The first measurement, which only emptied the table, made
+  the region calls look only twice as cheap.
+- **Open, for the owner** (written up in the hand-off's findings, not
+  built): whether a region's tables should outlive their last page while
+  the region lives (that changes step 2's I12 rule); and that `mm` copies
+  a parent's region pages at a fork while the parent's other threads may
+  still write them (its anonymous pages are made read-only first; region
+  pages are not), so a child can get a page written half before and half
+  after. The child's copy is its own either way (no page is shared); only
+  the snapshot can be inconsistent. `cowstress` keeps a task's helper
+  thread idle while it forks, so it doesn't reach this.
