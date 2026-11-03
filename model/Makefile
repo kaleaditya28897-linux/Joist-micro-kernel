@@ -167,7 +167,8 @@ tla-mutate:
 # unmap_range, protect, space_donate, map_query; 0020, 0021), from states with page
 # tables in simulated memory; the others from states without (a condemned
 # frame's sweep, which kill and delete may start, is left to the property
-# tests and the mutations). Operations 17, 18, 20 and 21 are decision 0025's
+# tests and the mutations: 9/t and 3/t, even split by type, exceed 18 GB,
+# 2026-11-03). Operations 17, 18, 20 and 21 are decision 0025's
 # fallback context (sc_bind_fallback, sc_unbind, wait, tick), with two
 # threads; 19 (recv) exhausts 12 GB however it is split (cbmc/run.sh: 19/s,
 # 19/n), so it is left to the unit and property tests, as 3 and 6 are.

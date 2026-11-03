@@ -69,7 +69,10 @@ for arg in "$@"; do
         tables="-DJOIST_CBMC_TABLES -DJOIST_CBMC_SIM_PAGES=${sim_pages}u"
         sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/1/') ;;
     esac
-    case $arg in *:*) split="-DJOIST_CBMC_SLOT_TYPE=${arg#*:}"; name="op$op-type${arg#*:}" ;; esac
+    # OP:TYPE, OP:TYPE/t: slot a holds a capability of that type (9:7/t is a
+    # frame's kill with page tables; the Makefile's tally names it the same).
+    case $arg in *:*) ty=${arg#*:}; ty=${ty%/t}
+        split="-DJOIST_CBMC_SLOT_TYPE=$ty"; name="op$op-type$ty${withtables:+-tables}" ;; esac
     start=$(date +%s)
     if [ -n "$tables" ]; then
         loops=$(cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $sizes -DJOIST_CBMC -DJOIST_CBMC_INDUCTIVE \

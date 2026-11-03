@@ -201,8 +201,9 @@ task tree (decision 0028).
 
 1. ~~**This plan, and decisions 0030 (region capability) and 0031 (glibc
    from this phase),** accepted by the owner.~~ Done 2026-10-30.
-2. **The region capability in the model:** the object, its calls, I12
-   extended, property tests, CBMC, mutations; the carried CBMC work.
+2. ~~**The region capability in the model:** the object, its calls, I12
+   extended, property tests, CBMC, mutations; the carried CBMC work.~~
+   Done 2026-11-03 (*Progress*).
 3. **The region capability in the kernel and `mm`;** measured.
 4. **`mm`'s per-tree limits (0028).**
 5. **The glibc inventory (0031's check):** what libports, libihash,
@@ -248,4 +249,45 @@ The plan, decisions 0030 and 0031, and their numbers: 8 extents a region,
 
 ## Progress
 
-(Empty until the plan is accepted.)
+### Step 2: the region capability in the model (2026-10-30 to 2026-11-02)
+
+- **Built** as 0030 decided: `JOIST_OBJ_REGION`, its record (`struct
+  joist_region`, a range of whole last-level tables, up to 8 extents, a
+  W/X ceiling) and five calls (`kernel/core/region.c`). `map.c`'s
+  page-table work is shared by the plain and region calls. The plain
+  calls refuse a run that meets a region (`E_STATE`). A frame in an
+  extent is kept (its `extents` count), and can't be split, donated or
+  lent. A region's kill unmaps it on the destruction work list, a table a
+  step; its task's end releases it at once.
+- **0030's open point, settled:** no per-table count. I12 now says there
+  is no empty last-level table outside a dying space, so a range with no
+  tables has nothing mapped (recorded in 0030).
+- **I12 extended** (`joist__check_region`): records, lists, overlap,
+  extents counts, every page in a range is in an extent and within the
+  ceiling, swept tables empty, and (2026-10-31) no extent names a lent
+  frame.
+- **Tests:** 13 unit tests (`model/test/test_region.c`); regions in the
+  property executor (`JX_REGION`); 262 tests, all six builds of `make -C
+  model check` pass. 16 region mutations, and the older map mutations
+  rewritten for the shared code: the full run (2026-11-02, joist-dev2,
+  at 5b3430d) catches all 301.
+- **CBMC:** operations 22-26 (the region calls, with page tables) all
+  verify on joist-dev2. Op 24 (`region_map`) first failed: the checker
+  accepted a frame both lent for page tables and in an extent, from
+  which `region_map` hands a task its own tables. No call reaches it
+  (`region_add` refuses a lent frame; lending refuses one in an extent),
+  so the checker was weak, not the kernel; it now says so (1935f0f), and
+  op 24 verifies (6018 s).
+- **Phase 4's carried items:** a test aimed at the sweep's stride (the
+  `map-sweep-skips-top` mutant is caught by it directly). CBMC can now
+  run any operation with page tables (`OP/t`, or `OP:TYPE/t` for one type
+  of capability in the slot acted on). Kill (`9/t`) and delete (`3/t`)
+  with page tables don't fit: killed at 11.8 GB on joist-dev2 (12 GB),
+  then out of an 18 GB limit on the T490, whole, split by frame and region
+  (`9:7/t`, `9:8/t`, `3:7/t`, `3:8/t`), and with CaDiCaL for MiniSAT
+  (2026-11-03). **Closed as a known limit** (the owner, 2026-11-03): a
+  condemned frame's or region's sweep stays covered by the stride test,
+  the property tests and the mutations, as the Makefile already said.
+  Fixed on the way: the `cbmc` target's tally never counted a split
+  operation (`9/t`, `19/s`, `3:2`) as verified, since it looked for the
+  argument, not the name `run.sh` gives its line.
