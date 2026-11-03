@@ -16,7 +16,16 @@
  * page back, no task must be left that mm made and nobody started (a child
  * still pending when its parent was killed mid-fork goes with its parent:
  * 0023's amendment of 2026-10-29), and the kernel's counters must be what they were after
- * the first round. Before the rounds, one task forks until mm, its records
+ * the first round.
+ *
+ * Phase 5 step 3 (0030): after each step's operation, a second seeded
+ * stream (so the first's choices are as they were) may act on a task's
+ * region: make and grow it (mm), map the new pages (the task itself),
+ * unmap a page and map it back (it keeps what it held), free it, or kill
+ * the task while mm serves its region request. Region pages are written
+ * and verified as the others; a fork's child gets a copy of its own. A
+ * grow is asked only while mm has GROW_MARGIN pages free, for the copies
+ * on write. Before the rounds, one task forks until mm, its records
  * full, refuses (so that mm has a table run for every index, as the root's
  * pages are warmed).
  *
@@ -66,19 +75,26 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
 #define BOUND_POLLS  20000u              /* 20 s: past it, a task has hung */
 #define RESCUE_NS    (300u * J_MS)
 #define STUCK_NS     (10000u * J_MS) /* no answer for this long: mm is stuck, not slow */
+#define GROW_MARGIN  128u                /* mm's free pages a region grow leaves, at least */
 
 static struct model {
     int live;
     unsigned depth;
     uint64_t seq;
-    uint64_t slot[COW_PAGES][COW_SLOTS];
+    uint64_t slot[COW_PAGES + COW_RMAX][COW_SLOTS]; /* the region's pages after the others */
+    int has;         /* it holds a region */
+    unsigned rn;     /* its pages mapped, from its first */
+    unsigned next;   /* its extents */
+    unsigned ext_n[COW_REXTS];
 } md[NRECS];
 
 static uint64_t rs;  /* the seeded choices */
+static uint64_t rr;  /* the region step's */
 static uint64_t gen; /* the last generation handed out */
 static unsigned round_no, max_depth, made, kill_forks;
 static struct {
     uint64_t writes, forks, refused, exits, kills_fault, kills_fork, stranded, slow, slow_ms, quota, verifies;
+    uint64_t rgrows, rrefused, rremaps, rfrees, rforks, kills_region;
     unsigned deepest;
 } st;
 static uint64_t rescue_sc;
@@ -107,6 +123,7 @@ static void post(unsigned i, uint64_t c, uint64_t a0, uint64_t a1, uint64_t a2)
     MMC_W(w, MMC_A1) = a1;
     MMC_W(w, MMC_A2) = a2;
     MMC_W(w, MMC_CMD) = c;
+    MMC_W(w, COW_RN) = md[i].rn;
     MMC_W(w, MMC_SEQ) = ++md[i].seq;
 }
 
@@ -126,6 +143,7 @@ static void kid_started(unsigned k)
     md[k].depth = md[p].depth + 1u;
     st.deepest = md[k].depth > st.deepest ? md[k].depth : st.deepest;
     st.forks++;
+    st.rforks += md[p].has != 0;
     made++;
 }
 
@@ -195,7 +213,7 @@ static void verify_all(void)
         if (!md[i].live) {
             continue;
         }
-        for (unsigned p = 0; p < COW_PAGES; p++) {
+        for (unsigned p = 0; p < COW_PAGES + md[i].rn; p++) {
             for (unsigned s = 0; s < COW_SLOTS; s++) {
                 uint64_t got = COW_OBS(recs[i].w, p, s);
                 if (got != md[i].slot[p][s]) {
@@ -222,9 +240,10 @@ static void model_write(unsigned i, uint64_t n, uint64_t seed, uint64_t g)
 {
     uint64_t s0 = seed;
     uint64_t s1 = COW_SEED2(seed);
+    uint64_t np = COW_PAGES + md[i].rn;
     for (uint64_t k = 0; k < n; k++) {
-        md[i].slot[cow_next(&s0) % COW_PAGES][0] = cow_tag(i, g, 0);
-        md[i].slot[cow_next(&s1) % COW_PAGES][1] = cow_tag(i, g, 1);
+        md[i].slot[cow_next(&s0) % np][0] = cow_tag(i, g, 0);
+        md[i].slot[cow_next(&s1) % np][1] = cow_tag(i, g, 1);
     }
 }
 
@@ -405,6 +424,144 @@ static void op_kill_fork(void)
     st.kills_fork++;
 }
 
+/* ---- the region step (0030) ---- */
+
+static uint64_t rrnd(uint64_t n)
+{
+    return cow_next(&rr) % n;
+}
+
+/* A random live task, from the region step's stream; with `has`, one that
+ * holds a region. NRECS if none. */
+static unsigned pick_r(int has)
+{
+    unsigned c[NRECS];
+    unsigned n = 0;
+    for (unsigned i = 0; i < NRECS; i++) {
+        if (md[i].live && (!has || md[i].has)) {
+            c[n++] = i;
+        }
+    }
+    return n == 0 ? NRECS : c[rrnd(n)];
+}
+
+/* Whether task i's region may grow by n pages: room in it, and in mm. */
+static int may_grow(unsigned i, uint64_t n)
+{
+    if (md[i].next == COW_REXTS || md[i].rn + n > COW_RMAX) {
+        return 0;
+    }
+    return ask(MM_REQ_STATUS, 0).r[2] >= GROW_MARGIN + n;
+}
+
+/* Post a grow of task i's region by n pages (made first if it has none). */
+static void post_grow(unsigned i, uint64_t n)
+{
+    post(i, COW_C_RGROW, n, !md[i].has, md[i].next);
+}
+
+/* Its region made and grown, or not, as the task answered. */
+static void grown(unsigned i, uint64_t n)
+{
+    struct model *d = &md[i];
+    uint64_t r = MMC_W(recs[i].w, MMC_RES);
+    if (r == 0) {
+        for (unsigned k = 0; k < n; k++) {
+            for (unsigned s = 0; s < COW_SLOTS; s++) {
+                d->slot[COW_PAGES + d->rn + k][s] = 0; /* mm zeroes them */
+            }
+        }
+        d->has = 1;
+        d->ext_n[d->next++] = (unsigned)n;
+        d->rn += (unsigned)n;
+        st.rgrows++;
+    } else if (r == COW_E_MADE || r == COW_E_REFUSED) {
+        d->has |= r == COW_E_MADE;
+        st.rrefused++;
+    } else {
+        j_puts("cow: region grow: ");
+        j_putu(r);
+        j_puts("\n");
+        fail_at(i, "a region grow failed");
+    }
+}
+
+/* A region page unmapped and mapped again by the task: what it held stays. */
+static void op_remap(unsigned i)
+{
+    uint64_t page = rrnd(md[i].rn);
+    unsigned x = 0;
+    uint64_t off = page;
+    while (off >= md[i].ext_n[x]) {
+        off -= md[i].ext_n[x++];
+    }
+    post(i, COW_C_RREMAP, page, x, off);
+    wait_all();
+    if (MMC_W(recs[i].w, MMC_RES) != 0) {
+        fail_at(i, "a region page's unmap and map again failed");
+    }
+    st.rremaps++;
+}
+
+static void op_region(void)
+{
+    unsigned i = pick_r(0);
+    if (i == NRECS) {
+        return;
+    }
+    uint64_t n = 1u + rrnd(3);
+    if (md[i].rn != 0 && (rrnd(3) == 0 || md[i].next == COW_REXTS || md[i].rn + n > COW_RMAX)) {
+        op_remap(i);
+        return;
+    }
+    if (!may_grow(i, n)) {
+        return;
+    }
+    post_grow(i, n);
+    wait_all();
+    grown(i, n);
+}
+
+static void op_rfree(void)
+{
+    unsigned i = pick_r(1);
+    if (i == NRECS) {
+        return;
+    }
+    post(i, COW_C_RFREE, 0, 0, 0);
+    wait_all();
+    if (MMC_W(recs[i].w, MMC_RES) != 0) {
+        fail_at(i, "a region free failed");
+    }
+    md[i].has = 0;
+    md[i].rn = 0;
+    md[i].next = 0;
+    st.rfrees++;
+}
+
+/* Killed while mm serves its region request (a grow, or a free if it can't
+ * grow), as the seed's delay falls: before, during or after it. */
+static void op_kill_region(void)
+{
+    unsigned v = pick_r(0);
+    if (v == NRECS || live_count() < 2u) {
+        return;
+    }
+    if (may_grow(v, 1)) {
+        post_grow(v, 1);
+    } else if (md[v].has) {
+        post(v, COW_C_RFREE, 0, 0, 0);
+    } else {
+        return;
+    }
+    uint64_t until = work_tsc() + rrnd(200000);
+    while (work_tsc() < until && !acked(v)) {
+        (void)j_yield();
+    }
+    kill_task(v);
+    st.kills_region++;
+}
+
 /* The round's first task: loaded here, handed to mm, both threads run. */
 static void first_task(void)
 {
@@ -427,11 +584,14 @@ static void first_task(void)
     must(j_sc_bind(r->sc, r->thread), "sc_bind");
     must(j_sc_create(r->sc2, HOST_PRIO, 10 * J_MS, 10 * J_MS), "sc_create (helper)");
     must(j_sc_bind(r->sc2, r->thread2), "sc_bind (helper)");
-    for (unsigned p = 0; p < COW_PAGES; p++) {
+    for (unsigned p = 0; p < COW_PAGES + COW_RMAX; p++) {
         for (unsigned s = 0; s < COW_SLOTS; s++) {
             md[i].slot[p][s] = 0;
         }
     }
+    md[i].has = 0;
+    md[i].rn = 0;
+    md[i].next = 0;
     md[i].live = 1;
     md[i].seq = 0;
     md[i].depth = 0;
@@ -572,6 +732,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     struct j_counters base;
     for (round_no = 0; round_no < COW_ROUNDS; round_no++) {
         rs = cow_mix((uint64_t)COW_SEED << 32 | round_no);
+        rr = cow_mix(rs ^ 0x7265676e00000000ull);
         max_depth = 4u + round_no % 3u;
         kill_forks = 0;
         made = 0;
@@ -590,6 +751,14 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
                 op_kill_fault();
             } else {
                 op_kill_fork();
+            }
+            uint64_t rop = rrnd(100);
+            if (rop < 20) {
+                op_region();
+            } else if (rop < 23) {
+                op_rfree();
+            } else if (rop < 26) {
+                op_kill_region();
             }
             if (live_count() == 0) {
                 if (ld_runs_since(mark) == WARM_RUNS) {
@@ -620,8 +789,16 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
         put_stat(" (at most ms ", st.slow_ms);
         put_stat("), refused ", st.refused);
         put_stat(", for quota ", st.quota);
+        put_stat("; regions: grows ", st.rgrows);
+        put_stat(" (refused ", st.rrefused);
+        put_stat("), remaps ", st.rremaps);
+        put_stat(", frees ", st.rfrees);
+        put_stat(", forked ", st.rforks);
+        put_stat(", kills mid-request ", st.kills_region);
         j_puts("\n");
     }
+    check(st.rgrows != 0 && st.rforks != 0 && st.rremaps != 0,
+          "the region writer never grew, forked or remapped a region");
     put_stat("cow: all ok: verified ", st.verifies);
     put_stat(" times, forks ", st.forks);
     put_stat(", deepest ", st.deepest);

@@ -4,7 +4,9 @@
  * what the root posts in the work page (cow.h: write, verify, fork, exit),
  * and has the helper write alongside it, the same pages, its own slots, so
  * that two threads of one task take copy-on-write faults on the same pages
- * at once. Both start here; the helper's stack is the lower one. */
+ * at once. Both start here; the helper's stack is the lower one. Some
+ * also hold a region (0030), which this task grows through mm and maps
+ * itself; the writes and reads cover its pages as the others. */
 #include "../lib/joist.h"
 #include "mm_proto.h"
 #include "mmlib.h"
@@ -20,12 +22,13 @@ static uint64_t req(uint64_t r0, uint64_t a, uint64_t b, uint64_t c)
     return j_call(MM_SLOT, &m, J_FOREVER) != J_OK ? 0xffu : m.r[0];
 }
 
-/* n writes to slot `slot` of pages chosen from seed, with one tag; the
- * main thread counts them in PROG. */
+/* n writes to slot `slot` of pages chosen from seed (the anonymous ones
+ * and the region's), with one tag; the main thread counts them in PROG. */
 static void writes(uint64_t n, uint64_t seed, uint64_t tag, uint64_t slot)
 {
+    uint64_t np = COW_PAGES + MMC_W(w, COW_RN);
     for (uint64_t k = 0; k < n; k++) {
-        cow_write(cow_next(&seed) % COW_PAGES, slot, tag);
+        cow_write(cow_next(&seed) % np, slot, tag);
         if (slot == 0) {
             MMC_W(w, COW_PROG) = k + 1u;
         }
@@ -142,6 +145,33 @@ static uint64_t fork_kid(void)
     return 0;
 }
 
+/* COW_C_RGROW: n pages, as extent x, mapped at region page rn. */
+static uint64_t region_grow(uint64_t n, uint64_t make, uint64_t x, uint64_t rn)
+{
+    if (make) {
+        uint64_t r = req(MM_REQ_REGION_NEW, COW_RVA / J_PAGE, 1u | (uint64_t)MM_W << 8, COW_RSLOT);
+        if (r == MM_E_NOMEM) {
+            return COW_E_REFUSED;
+        }
+        if (r != MM_OK) {
+            return COW_E_FAILED | 9u << 8 | r << 16;
+        }
+    }
+    struct j_msg m = {.r = {MM_REQ_REGION_GROW, COW_RSLOT, n, 0}};
+    uint64_t e = j_call(MM_SLOT, &m, J_FOREVER);
+    if (e != J_OK) {
+        return COW_E_FAILED | 10u << 8 | e << 16;
+    }
+    if (m.r[0] == MM_E_NOMEM) {
+        return make ? COW_E_MADE : COW_E_REFUSED;
+    }
+    if (m.r[0] != MM_OK || m.r[1] != x) {
+        return COW_E_FAILED | 11u << 8 | m.r[0] << 16;
+    }
+    e = j_region_map(COW_RSLOT, x, 0, n, COW_RVA / J_PAGE + rn, J_MAP_W);
+    return e == J_OK ? 0 : COW_E_FAILED | 12u << 8 | e << 16;
+}
+
 static void serve(void)
 {
     /* Its pages (a child has its parent's region already, and is refused). */
@@ -167,7 +197,7 @@ static void serve(void)
             helper_wait();
             break;
         case COW_C_VERIFY:
-            for (uint64_t p = 0; p < COW_PAGES; p++) {
+            for (uint64_t p = 0; p < COW_PAGES + MMC_W(w, COW_RN); p++) {
                 for (uint64_t s = 0; s < COW_SLOTS; s++) {
                     uint64_t t = cow_read(p, s);
                     COW_OBS(w, p, s) = t;
@@ -177,6 +207,21 @@ static void serve(void)
             break;
         case COW_C_FORK:
             res = fork_kid();
+            break;
+        case COW_C_RGROW:
+            res = region_grow(a0, a1, a2, MMC_W(w, COW_RN));
+            break;
+        case COW_C_RREMAP:
+            res = j_region_unmap(COW_RSLOT, COW_RVA / J_PAGE + a0, 1);
+            if (res == J_OK) {
+                res = j_region_map(COW_RSLOT, a1, a2, 1, COW_RVA / J_PAGE + a0, J_MAP_W);
+            }
+            break;
+        case COW_C_RFREE:
+            res = req(MM_REQ_REGION_FREE, COW_RSLOT, 0, 0);
+            if (res == MM_OK) {
+                res = j_cap_delete(COW_RSLOT);
+            }
             break;
         case COW_C_EXIT:
             MMC_W(w, COW_HEXIT) = 1;

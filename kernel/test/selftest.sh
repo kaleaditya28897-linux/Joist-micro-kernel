@@ -295,7 +295,9 @@ run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 # 4-6 deep through mm, two writers a task on the same pages, tasks killed
 # mid-fault and mid-fork, every page verified after every step, the
 # kernel's counters level after every round. One CPU emulated, 2 and 4 on
-# the real CPU, and the checking kernel.
+# the real CPU, and the checking kernel. Phase 5 step 3 (0030): some tasks
+# hold a region, grown through mm and mapped by the task, written and
+# verified with the rest, copied by a fork; tasks killed mid-request.
 run cow3 1 "cow: mm full, refused ok" "cow: round 2 ok" "cow: all ok" "root task exited with code 0"
 run kvm-smp1-cowstress 1 "cow: cpus 1" "cow: all ok" "root task exited with code 0"
 run kvm-smp2-cowstress 1 "cow: cpus 2" "cow: all ok" "root task exited with code 0"
