@@ -6,7 +6,10 @@
  * shares (COW), one that only makes the last reference writable, a request
  * (MM_REQ_ID), protect over a table's span, SHARE of 64 pages into a child
  * (which this root starts, as mmroot does), and clones of 1, 16 and 256 MiB
- * as far as MMB_CLONE_PAGES allows. Here: nosenders_next finding nothing,
+ * as far as MMB_CLONE_PAGES allows, and a churn (map, write every page,
+ * unmap; 1, 4, 16 and 64 pages) by the client's own region calls against
+ * the same by requests and faults, each with its page table emptied by
+ * every unmap and with a page kept in it (Phase 5 step 3). Here: nosenders_next finding nothing,
  * which mm calls at the start of every message (0023's amendment). Each is
  * printed as a median and the fastest, in cycles.
  *
@@ -143,6 +146,28 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
                                              "CLONE of 256 MiB, every page mapped"};
         put(clones[i], MMC_W(k.w, MMC_B + 2u * (MMC_B_CLONE + i)),
             MMC_W(k.w, MMC_B + 2u * (MMC_B_CLONE + i) + 1u));
+    }
+    static const char *const churn[] = {
+        "churn of 1 page, region_map, write, region_unmap",
+        "churn of 4 pages, region_map, writes, region_unmap",
+        "churn of 16 pages, region_map, writes, region_unmap",
+        "churn of 64 pages, region_map, writes, region_unmap",
+        "churn of 1 page, MAP_ANON, write fault, UNMAP",
+        "churn of 4 pages, MAP_ANON, write faults, UNMAP",
+        "churn of 16 pages, MAP_ANON, write faults, UNMAP",
+        "churn of 64 pages, MAP_ANON, write faults, UNMAP",
+        "churn of 1 page, table kept, region_map, write, region_unmap",
+        "churn of 4 pages, table kept, region_map, writes, region_unmap",
+        "churn of 16 pages, table kept, region_map, writes, region_unmap",
+        "churn of 64 pages, table kept, region_map, writes, region_unmap",
+        "churn of 1 page, table kept, MAP_ANON, write fault, UNMAP",
+        "churn of 4 pages, table kept, MAP_ANON, write faults, UNMAP",
+        "churn of 16 pages, table kept, MAP_ANON, write faults, UNMAP",
+        "churn of 64 pages, table kept, MAP_ANON, write faults, UNMAP",
+    };
+    for (unsigned i = 0; i < sizeof churn / sizeof churn[0]; i++) {
+        put(churn[i], MMC_W(k.w, MMC_B + 2u * (MMC_B_CHURN + i)),
+            MMC_W(k.w, MMC_B + 2u * (MMC_B_CHURN + i) + 1u));
     }
     j_puts("mmbench: done\n");
     j_exit(0);

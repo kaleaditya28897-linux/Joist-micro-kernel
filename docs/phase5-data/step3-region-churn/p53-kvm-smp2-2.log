@@ -1,0 +1,48 @@
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/mm.elf`...
+limine: Loading module `boot():/boot/mmclient.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 251 MiB usable in 6 ranges, 26 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fd04000), direct map at 0xffff800000000000
+joist: frames: 64474 free of 65246 covered (251 MiB)
+joist: page tables: the kernel's own, loaded (64211 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625011 LAPIC counts per tick
+joist: modules: 3
+joist: cpus: 2 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 2 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 2 module(s); entering it at 0x0000000000400000
+mmbench: started, passive ok
+mmbench: cpus 2, pool 512 pages, clones up to 256 pages
+mmbench: nosenders_next, nothing queued: median 268, fastest 262 cycles
+mmbench: a demand-zero write fault (one page): median 9136, fastest 8606 cycles
+mmbench: a demand-zero read fault (16 pages): median 47216, fastest 46908 cycles
+mmbench: a write fault that copies (COW, another reference): median 11844, fastest 11286 cycles
+mmbench: a write fault that upgrades (COW, the last reference): median 3088, fastest 3058 cycles
+mmbench: a request (MM_REQ_ID), round trip: median 1268, fastest 1260 cycles
+mmbench: protect, 512 pages, to read-only: median 22282, fastest 22158 cycles
+mmbench: protect, 512 pages, to writable: median 23802, fastest 23674 cycles
+mmbench: SHARE, 64 pages none there yet, round trip: median 200558, fastest 199618 cycles
+mmbench: CLONE of 1 MiB, every page mapped: median 59644, fastest 59460 cycles
+mmbench: churn of 1 page, region_map, write, region_unmap: median 7552, fastest 7516 cycles
+mmbench: churn of 4 pages, region_map, writes, region_unmap: median 9556, fastest 9474 cycles
+mmbench: churn of 16 pages, region_map, writes, region_unmap: median 17714, fastest 17614 cycles
+mmbench: churn of 64 pages, region_map, writes, region_unmap: median 49640, fastest 49528 cycles
+mmbench: churn of 1 page, MAP_ANON, write fault, UNMAP: median 15184, fastest 15118 cycles
+mmbench: churn of 4 pages, MAP_ANON, write faults, UNMAP: median 32844, fastest 32758 cycles
+mmbench: churn of 16 pages, MAP_ANON, write faults, UNMAP: median 103298, fastest 103062 cycles
+mmbench: churn of 64 pages, MAP_ANON, write faults, UNMAP: median 386232, fastest 385180 cycles
+mmbench: churn of 1 page, table kept, region_map, write, region_unmap: median 1644, fastest 1626 cycles
+mmbench: churn of 4 pages, table kept, region_map, writes, region_unmap: median 3684, fastest 3666 cycles
+mmbench: churn of 16 pages, table kept, region_map, writes, region_unmap: median 11864, fastest 11810 cycles
+mmbench: churn of 64 pages, table kept, region_map, writes, region_unmap: median 43864, fastest 43732 cycles
+mmbench: churn of 1 page, table kept, MAP_ANON, write fault, UNMAP: median 9206, fastest 9150 cycles
+mmbench: churn of 4 pages, table kept, MAP_ANON, write faults, UNMAP: median 26858, fastest 26784 cycles
+mmbench: churn of 16 pages, table kept, MAP_ANON, write faults, UNMAP: median 97060, fastest 96902 cycles
+mmbench: churn of 64 pages, table kept, MAP_ANON, write faults, UNMAP: median 379840, fastest 377858 cycles
+mmbench: done
+joist: root task exited with code 0 (timer ticks so far: 101)
+joist: finish code 0

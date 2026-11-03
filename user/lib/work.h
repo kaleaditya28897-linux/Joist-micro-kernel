@@ -54,7 +54,8 @@ enum {
     MMC_SHARE,      /* SHARE refused without consent, then shared, and kept across a clone */
     MMC_CHILD,      /* a child: does what its parent posts in its work page (MMC_C_*) */
     MMC_BENCH,      /* mm's costs, timed (TSC): faults, a request, protect, SHARE, clones of
-                     * up to arg pages; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
+                     * up to arg pages, and a churn (map, touch, unmap) by region calls and
+                     * by requests; the medians and fastest in MMC_W from MMC_B (MMC_B_*) */
     MMC_ORPHAN,     /* a fork cancelled; then it exits with one child confirmed and one
                      * pending: mm destroys the pending one with it, serves the other */
     MMC_GUARD,      /* MM_NONE (0024): pages made of no access and back keep what they held;
@@ -71,6 +72,11 @@ enum {
     MMC_B_CLONE /* then one for each size in MMC_BENCH_SIZES */
 };
 #define MMC_BENCH_SIZES 256u, 4096u, 65536u /* 1, 16 and 256 MiB */
+/* The churn (Phase 5 step 3; 0008, 0030): after the clones' results, one
+ * for each size here by region calls, then one for each by requests; then
+ * both again with a page kept mapped in the table. */
+#define MMC_B_CHURN (MMC_B_CLONE + 3u)
+#define MMC_CHURN_SIZES 1u, 4u, 16u, 64u
 #define MMC_BENCH_VA 0x40000000ull          /* where the clones' pages are (the second GiB) */
 #define MMC_VA 0x08000000ull /* where it asks for memory: a last-level table's 512 pages */
 #define MMC_REGION_VA 0x20000000ull /* MMC_REGION's region: two tables from here */

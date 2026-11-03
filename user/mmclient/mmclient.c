@@ -764,6 +764,79 @@ static uint64_t touch_w(uint64_t i)
     return work_tsc() - t0;
 }
 
+static volatile uint64_t *rpage(uint64_t i);
+
+/* A malloc-like churn (0008, 0030): map n pages, write each, unmap them,
+ * timed as one, for each size; by this task's own region calls on pages
+ * of an extent it already has, and by MM_REQ_MAP_ANON, a fault a page, and
+ * MM_REQ_UNMAP. First with nothing else in the page table, so that each
+ * unmap frees the emptied table (the kernel's prune) and each map builds
+ * it again; then with a page kept mapped at the table's first entry (as an
+ * arena's header would be) and the churn above it. */
+static uint64_t churn(struct work *w)
+{
+    static const uint64_t sizes[] = {MMC_CHURN_SIZES};
+    const unsigned nsizes = sizeof sizes / sizeof sizes[0];
+    const uint64_t big = sizes[nsizes - 1u];
+    const uint64_t s = MMC_REGION_SLOT;
+    const uint64_t lo = MMC_REGION_VA / J_PAGE;
+    const uint64_t va = MMC_VA / J_PAGE;
+    uint64_t x;
+    if (req(MM_REQ_REGION_NEW, lo, 1u | (uint64_t)MM_W << 8, s) != MM_OK ||
+        req2(MM_REQ_REGION_GROW, s, big + 1u, 0, &x) != MM_OK) {
+        return 21;
+    }
+    for (uint64_t kept = 0; kept < 2u; kept++) {
+        /* The kept page: the extent's last, and an anonymous one, touched. */
+        if (kept && (j_region_map(s, x, big, 1, lo, J_MAP_W) != J_OK ||
+                     req(MM_REQ_MAP_ANON, va, 1, MM_W) != MM_OK)) {
+            return 22;
+        }
+        if (kept) {
+            rpage(0)[0] = 1;
+            page(0)[0] = 1;
+        }
+        unsigned res = MMC_B_CHURN + (unsigned)kept * 2u * nsizes;
+        for (unsigned k = 0; k < nsizes; k++) {
+            uint64_t n = sizes[k];
+            for (unsigned i = 0; i < BENCH_N / 4u; i++) {
+                uint64_t t0 = work_tsc();
+                uint64_t e = j_region_map(s, x, 0, n, lo + kept, J_MAP_W);
+                for (uint64_t p = kept; p < n + kept; p++) {
+                    rpage(p)[0] = p + i;
+                }
+                e |= j_region_unmap(s, lo + kept, n);
+                smp[i] = work_tsc() - t0;
+                if (e != J_OK) {
+                    return 23;
+                }
+            }
+            bench_put(w, res + k, BENCH_N / 4u);
+        }
+        for (unsigned k = 0; k < nsizes; k++) {
+            uint64_t n = sizes[k];
+            for (unsigned i = 0; i < BENCH_N / 4u; i++) {
+                uint64_t t0 = work_tsc();
+                uint64_t e = req(MM_REQ_MAP_ANON, va + kept, n, MM_W);
+                for (uint64_t p = kept; p < n + kept; p++) {
+                    page(p)[0] = p + i;
+                }
+                e |= req(MM_REQ_UNMAP, va + kept, n, 0);
+                smp[i] = work_tsc() - t0;
+                if (e != MM_OK) {
+                    return 24;
+                }
+            }
+            bench_put(w, res + nsizes + k, BENCH_N / 4u);
+        }
+    }
+    if (req(MM_REQ_UNMAP, va, 1, 0) != MM_OK || req(MM_REQ_REGION_FREE, s, 0, 0) != MM_OK ||
+        j_cap_delete(s) != J_OK) {
+        return 25;
+    }
+    return 0;
+}
+
 static uint64_t bench(struct work *w)
 {
     uint64_t va = MMC_VA / J_PAGE;
@@ -914,7 +987,7 @@ static uint64_t bench(struct work *w)
         return 20;
     }
     nkids--;
-    return 0;
+    return churn(w);
 }
 
 /* ---- MMC_REGION (0030) ---- */
