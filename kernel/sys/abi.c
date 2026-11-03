@@ -247,6 +247,28 @@ int abi_syscall(struct abi_env *env, uint32_t t)
         }
         break;
     }
+    case ABI_REGION_CREATE:
+        e = joist_region_create(k, cs, slot_arg(a0), a1, u32_arg(a2), u32_arg(a3),
+                                slot_arg(R->r[ABI_R8]));
+        break;
+    case ABI_REGION_ADD: {
+        uint32_t x = 0;
+        e = joist_region_add(k, cs, slot_arg(a0), slot_arg(a1), a2, a3, &x);
+        if (e == JOIST_OK) {
+            out = x;
+        }
+        break;
+    }
+    case ABI_REGION_MAP:
+        e = joist_region_map(k, cs, slot_arg(a0), u32_arg(a1), a2, a3, R->r[ABI_R8],
+                             u32_arg(R->r[ABI_R9]));
+        break;
+    case ABI_REGION_UNMAP:
+        e = joist_region_unmap(k, cs, slot_arg(a0), a1, a2);
+        break;
+    case ABI_REGION_PROTECT:
+        e = joist_region_protect(k, cs, slot_arg(a0), a1, a2, u32_arg(a3));
+        break;
     case ABI_SC_CREATE:
         e = a1 > JOIST_PRIO_MAX ? JOIST_E_RIGHTS
                                 : joist_sc_create(k, cs, slot_arg(a0), (uint8_t)a1, a2, a3);

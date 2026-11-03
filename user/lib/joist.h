@@ -20,7 +20,7 @@ enum {
 };
 
 /* Object types, rights, mapping permissions. */
-enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRAME };
+enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRAME, J_REGION };
 #define J_R_SEND    0x1u
 #define J_R_RECV    0x2u
 #define J_R_KILL    0x4u /* on frames: obj_kill (0022) */
@@ -28,6 +28,7 @@ enum { J_ENDPOINT = 1, J_NOTIFICATION, J_TASK, J_THREAD, J_REPLY, J_SCHED, J_FRA
 #define J_R_ALL     0xfu
 #define J_R_CONTROL J_R_SEND
 #define J_R_WRITE   J_R_RECV
+#define J_R_MAP     J_R_RECV /* on regions: map in it (0030) */
 #define J_MAP_W     1u
 #define J_MAP_X     2u
 
@@ -66,7 +67,9 @@ enum {
     J_SYS_SC_BIND_FALLBACK,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
-    J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER
+    J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER,
+    J_SYS_REGION_CREATE = 80, J_SYS_REGION_ADD, J_SYS_REGION_MAP, J_SYS_REGION_UNMAP,
+    J_SYS_REGION_PROTECT
 };
 
 /* Every register a call takes or returns. */
@@ -321,6 +324,45 @@ static inline uint64_t j_unmap(uint64_t task, uint64_t va_page)
 static inline uint64_t j_protect(uint64_t task, uint64_t va_page, uint64_t n, uint64_t perms)
 {
     return j_sys4(J_SYS_PROTECT, task, va_page, n, perms);
+}
+/* Regions (0030). An empty region of `tables` page tables from lo_page of a
+ * task (CONTROL), allowing ceil (J_MAP_W, J_MAP_X), into slot dst. */
+static inline uint64_t j_region_create(uint64_t task, uint64_t lo_page, uint64_t tables,
+                                       uint64_t ceil, uint64_t dst)
+{
+    struct j_regs r = {.rax = J_SYS_REGION_CREATE, .rdi = task, .rsi = lo_page, .rdx = tables,
+                       .r10 = ceil, .r8 = dst};
+    j_syscall(&r);
+    return r.rax;
+}
+/* Pages [off, off + n) of a frame as the region's next extent, its index in *ext. */
+static inline uint64_t j_region_add(uint64_t region, uint64_t frame, uint64_t off, uint64_t n,
+                                    uint64_t *ext)
+{
+    struct j_regs r = {.rax = J_SYS_REGION_ADD, .rdi = region, .rsi = frame, .rdx = off, .r10 = n};
+    j_syscall(&r);
+    if (r.rax == 0 && ext != 0) {
+        *ext = r.rdx;
+    }
+    return r.rax;
+}
+/* Pages [page, page + n) of extent ext at va_page, inside the region. */
+static inline uint64_t j_region_map(uint64_t region, uint64_t ext, uint64_t page, uint64_t n,
+                                    uint64_t va_page, uint64_t perms)
+{
+    struct j_regs r = {.rax = J_SYS_REGION_MAP, .rdi = region, .rsi = ext, .rdx = page, .r10 = n,
+                       .r8 = va_page, .r9 = perms};
+    j_syscall(&r);
+    return r.rax;
+}
+static inline uint64_t j_region_unmap(uint64_t region, uint64_t va_page, uint64_t n)
+{
+    return j_sys4(J_SYS_REGION_UNMAP, region, va_page, n, 0);
+}
+static inline uint64_t j_region_protect(uint64_t region, uint64_t va_page, uint64_t n,
+                                        uint64_t perms)
+{
+    return j_sys4(J_SYS_REGION_PROTECT, region, va_page, n, perms);
 }
 /* What is mapped at n (at most J_QUERY_MAX) pages from va_page of a task,
  * into buf; frame is the frame to report (J_SLOT_NONE: none). */

@@ -17,7 +17,17 @@
 
 static struct joist_kernel k;
 static struct abi_env env;
-static struct vm_space nowhere;
+/* Every caller's space: one empty top-level table, so a call that reads or
+ * writes the caller's memory fails as the kernel's would, nothing mapped
+ * (an all-zero vm_space has no table to walk). */
+static uint64_t empty_top[512] __attribute__((aligned(4096)));
+static void *top_ptr(void *ctx, uint64_t phys)
+{
+    (void)ctx;
+    (void)phys;
+    return empty_top;
+}
+static struct vm_space nowhere = {.root = 0x1000, .phys_to_ptr = top_ptr};
 
 static const struct vm_space *space_of(void *ctx, uint32_t s)
 {
@@ -54,9 +64,12 @@ static const uint64_t calls[] = {
     ABI_CAP_COPY_BATCH, ABI_OBJ_KILL,
     ABI_TASK_CREATE, ABI_TASK_DESTROY, ABI_THREAD_SPAWN, ABI_THREAD_KILL, ABI_THREAD_SUSPEND,
     ABI_THREAD_RESUME, ABI_THREAD_ABORT, ABI_THREAD_SET_FAULT, ABI_TASK_SET_FAULT,
-    ABI_FRAME_SPLIT, ABI_MAP, ABI_UNMAP, ABI_SC_CREATE, ABI_SC_BIND, ABI_SC_UNBIND,
+    ABI_FRAME_SPLIT, ABI_MAP, ABI_UNMAP, ABI_MAP_REPLACE, ABI_PROTECT, ABI_SPACE_DONATE,
+    ABI_MAP_QUERY, ABI_SC_BIND_FALLBACK, ABI_YIELD, ABI_DEBUG_COUNTERS, ABI_THREAD_READ_REGS,
+    ABI_THREAD_WRITE_REGS, ABI_IPC_BUFFER, ABI_SC_CREATE, ABI_SC_BIND, ABI_SC_UNBIND,
     ABI_TASK_SET_MCP, ABI_CONTINUE, ABI_TASK_REAP, ABI_TASK_DESCENDANT, ABI_NOSENDERS_NEXT,
-    ABI_BIND_NOSENDERS, ABI_REQUEST_DEADNAME};
+    ABI_BIND_NOSENDERS, ABI_REQUEST_DEADNAME, ABI_REGION_CREATE, ABI_REGION_ADD, ABI_REGION_MAP,
+    ABI_REGION_UNMAP, ABI_REGION_PROTECT};
 
 /* An argument: small 7 times in 8, else anything. */
 static uint64_t arg(struct src *s)

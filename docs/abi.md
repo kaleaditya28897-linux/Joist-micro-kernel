@@ -57,6 +57,7 @@ are given as `joist_*` so every statement can be checked against the code.
 | Thread | `thread_spawn` | CONTROL, GRANT | a thread of a task; its capability is 0010's thread control capability |
 | Scheduling context | `sc_create` | CONTROL, GRANT | a priority, a budget and a period: the time a thread runs on (§5.6) |
 | Frame | boot (`boot_frame`), `frame_split` | CONTROL, WRITE, KILL, GRANT | a range of physical pages (0013: memory is handed out as capabilities) |
+| Region | `region_create` | CONTROL, MAP, KILL, GRANT | a range of one task's addresses in which the task maps windows of frames itself (0030) |
 
 **Memory (0003, 0004, I3).** Every object is paid for from a task's quota,
 one unit per object; a failed allocation returns `E_NOMEM` and never blocks.
@@ -76,8 +77,8 @@ fails with `E_GONE`:
   gone; I5);
 - a **task** or **thread** dies when it is destroyed or killed, or when its
   last capability is deleted (a task nobody can name is destroyed, I1);
-- a **frame** dies when a holder of its kill right kills it (`obj_kill`,
-  0022: revoke by kill).
+- a **frame** or a **region** dies when a holder of its kill right kills
+  it (`obj_kill`, 0022: revoke by kill); a region also dies with its task.
 
 A dead object's slots stay occupied until their holders delete them, and its
 quota unit returns to its payer with its last capability.
@@ -89,7 +90,8 @@ quota unit returns to its payer with its last capability.
 | SEND | 1 | `Call` on an endpoint; `Signal` a notification; reply through a reply object |
 | RECV | 2 | `Recv` on an endpoint, `Wait` on a notification; owning an endpoint (binding no-senders, collecting badges) |
 | SEND_ONCE | 4 | on endpoints, reserved (0001's reply capability is per thread or in a reply object, not a slot) |
-| KILL | = SEND_ONCE | on a frame capability (and a region's, when regions exist): `obj_kill` (0022). Boot frames have it; masked away like any right, it makes copies that can't revoke |
+| KILL | = SEND_ONCE | on a frame or region capability: `obj_kill` (0022). Boot frames have it; masked away like any right, it makes copies that can't revoke |
+| MAP | = RECV | on a region capability: `region_map`, `region_unmap`, `region_protect` (0030). The task a region serves holds it alone |
 | GRANT | 8 | mint a badge; pass the capability to another task |
 | CONTROL | = SEND | on a task or thread capability: destroy, kill, spawn into |
 
@@ -317,7 +319,7 @@ its space a frame for its tables before loading it (`kernel/arch/x86_64/run.h`).
 | `map` | frame slot, page offset, pages, task slot, first virtual page, permissions | for the frame, then the task (each with CONTROL): `E_RANGE`/`E_DEAD`, `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS`, `E_GONE`; then `E_RIGHTS` (writable and executable, an unknown permission, or writable without WRITE), `E_RANGE` (no pages, past the frame, outside the user half, or across a last-level table), `E_STATE` (the frame is lent), `E_OCCUPIED` (a page already mapped), `E_NOMEM` (too few lent pages for the tables it needs) | those pages of the frame appear at those pages of the task, readable, and writable **or** executable (W^X) | the run's pages, and at most three new tables |
 | `map_replace` | as `map`, then the old frame's slot and its page offset | as `map`, with the old frame's capability checked third; then `E_STATE` if any page of the run doesn't hold exactly the old frame's pages from that offset, and nothing changes | the run's pages now show the new frame's, with these permissions; the TLBs are flushed | the run's pages |
 | `unmap_range` | task slot, first virtual page, pages | as for a task capability with CONTROL, then `E_RANGE` (no pages, outside the user half or across a last-level table) | whatever is mapped there goes; holes are fine; tables left empty go back to the space's lent pages | the run's pages, and the three tables above |
-| `obj_kill` | slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE` (not a frame), `E_RIGHTS` (KILL), `E_GONE` (killed already), `E_STATE` (a frame lent to a space) | revoke by kill (0022): the frame dies, so every capability to it, in any space, fails `E_GONE` (`map`, `frame_split`, `space_donate`, `obj_kill`), and it can't be mapped again; the destruction work list unmaps it everywhere, a last-level table per step (`continue`). Its slots stay until their holders delete them; its pages and its quota unit come back with its last capability. All or nothing per frame: to revoke only what was handed out, hand out a frame of its own | O(1); the unmapping is the sweep's |
+| `obj_kill` | slot | `E_RANGE`/`E_DEAD` (space), `E_RANGE`, `E_EMPTY`, `E_TYPE` (not a frame or a region), `E_RIGHTS` (KILL), `E_GONE` (killed already), `E_STATE` (a frame lent to a space) | revoke by kill (0022): the frame dies, so every capability to it, in any space, fails `E_GONE` (`map`, `frame_split`, `space_donate`, `obj_kill`), and it can't be mapped again; the destruction work list unmaps it everywhere, a last-level table per step (`continue`). Its slots stay until their holders delete them; its pages and its quota unit come back with its last capability. All or nothing per frame: to revoke only what was handed out, hand out a frame of its own | O(1); the unmapping is the sweep's |
 | `protect` | task slot, first virtual page, pages, permissions | as `unmap_range`, with `E_RIGHTS` (writable and executable, an unknown permission) before `E_RANGE`; then `E_RIGHTS` if a page is to be writable but was mapped through a capability without WRITE, and nothing changes | the pages mapped there take those permissions; holes are fine | the run's pages |
 | `map_query` | task slot, first virtual page, pages (at most 64), frame slot or `J_SLOT_NONE`, the caller's buffer | for the task, then the frame named (each with CONTROL); `E_RANGE` (no pages, more than 64, outside the user half or one `JOIST_MAP_SPAN`, or a buffer that can't take the answer whole); nothing is written on an error | per page, one word: 0 if absent, else present, its permissions, whether its rights ceiling allows writing, and, only for the frame named, that it is that frame and the page offset (0020, amended 2026-10-27). Never another frame, nor a physical address | the run's pages |
 
@@ -337,6 +339,33 @@ it, and the pages it may still take are counted right; a dying frame has no
 capability and is still mapped or lent; a killed frame is not lent. No fault is resolved by the kernel:
 a page fault is fault IPC (below), and Phase 4's memory manager maps in
 reply.
+
+### Regions (0030; Phase 5 step 3)
+
+A **region** is a range of one task's addresses, whole last-level tables
+(at most `JOIST_REGION_TABLES`, 32: 64 MiB), with up to
+`JOIST_REGION_EXTENTS` (8) **extents**, each a window of one frame, and a
+ceiling (W, X). The memory manager makes it and adds extents; the task,
+given a capability with MAP alone, maps any page of any extent anywhere in
+the range itself, without a request. Inside a region only these calls act:
+`map`, `map_replace`, `unmap_range` and `protect` refuse a run that meets
+one (`E_STATE`). A frame in an extent is kept while the region lives, and
+can't be split, lent or donated; a lent frame can't be added. Killing a
+region (`obj_kill`, KILL) or deleting its last capability unmaps its range
+on the destruction work list, a table a step; its task's end ends it too.
+A task has at most `JOIST_REGIONS_PER_TASK` (8). **I12** adds: every page
+mapped in a region's range is a page of one of its extents, within the
+ceiling (and writable only if the extent's frame capability had WRITE); no
+extent names a lent frame; outside a dying space no last-level table is
+empty.
+
+| Operation | Arguments | Results, in check order | Effect | Bound |
+|---|---|---|---|---|
+| `region_create` | task slot, first page, tables, ceiling, dst | as for a task capability with CONTROL; `E_RANGE` (dst, an unknown ceiling bit, the first page not on a table, no tables or too many, past the user half), `E_OCCUPIED` (dst), `E_STATE` (a page table or a region already in the range), `E_NOMEM` (quota, objects, records, or the task's 8 regions) | an empty region in dst with every right, paid by the caller | O(tables) |
+| `region_add` | region slot, frame slot, page offset, pages | for the region, then the frame (each with CONTROL; `E_GONE` if dead or its task is gone); `E_RANGE` (no pages, past the frame), `E_STATE` (the frame is lent, or the region dying), `E_NOMEM` (8 extents) | the window is the next extent; its index in `RDX` | O(1) |
+| `region_map` | region slot, extent, page in it, pages, first virtual page, permissions | for the region (MAP; `E_GONE` also if the extent's frame was killed); `E_RIGHTS` (unknown, W and X, beyond the ceiling, writable beyond the extent), `E_RANGE` (no such extent, past it, outside the region or a last-level table), `E_OCCUPIED`, `E_NOMEM` (no page for a table) | the pages are mapped | the run's pages |
+| `region_unmap` | region slot, first virtual page, pages | for the region (MAP); `E_RANGE` (outside it or a table) | whatever is mapped there is unmapped | the run's pages |
+| `region_protect` | region slot, first virtual page, pages, permissions | as `region_unmap`, with `E_RIGHTS` (as `region_map`) before `E_RANGE` | the pages mapped there take those permissions | the run's pages |
 
 ## Thread control and faults (0009, 0010; Phase 3 step 3)
 
@@ -517,7 +546,7 @@ the dispatcher works on that record alone.
 | | Registers |
 |---|---|
 | In | `RAX` the call number; `RDI`, `RSI`, `RDX`, `R10`, `R8` the arguments, in the order the tables above list them; `R12`-`R15` the four message registers; `R9` the capabilities a message carries |
-| Out | `RAX` the result code (0 is `OK`); `RDX` a badge or returned value (the badge of a received message, `Wait`'s bits, `cap_read`'s type and rights, `task_descendant`'s id, `nosenders_next`'s badge); `R12`-`R15` a received message; `R9` where received capabilities landed; every other register is the caller's (the `syscall` instruction itself clobbers `RCX` and `R11`) |
+| Out | `RAX` the result code (0 is `OK`); `RDX` a badge or returned value (the badge of a received message, `Wait`'s bits, `cap_read`'s type and rights, `task_descendant`'s id, `nosenders_next`'s badge, `region_add`'s extent); `R12`-`R15` a received message; `R9` where received capabilities landed; every other register is the caller's (the `syscall` instruction itself clobbers `RCX` and `R11`) |
 | `R9` | bits 0-1 the count; per position *i* (0, 1) a 16-bit slot at bit 2 + 20*i* and a 4-bit rights mask at bit 18 + 20*i*; slot `0xffff` is "none" (`JOIST_SLOT_NONE` on receipt; out of range if sent). Bits 48-57 the IPC buffer's word count, sending and received; on receipt bit 63 the *lost* mark |
 
 Calls 10-18 are IPC (`Call`, `Recv`, `Reply`, `ReplyRecv`, `Signal`,
@@ -531,7 +560,11 @@ offset in `R12` and `R13`, and `map_query` its buffer in `R8`), 50-53
 scheduling contexts, 54 `yield` (decision 0014: the calling thread gives up
 the rest of its turn and goes behind its equals; its budget is untouched), 60-65 destruction, ancestry and lifetime
 notifications, 70-71 a thread's registers (`thread_read_regs`,
-`thread_write_regs`), 72 `ipc_buffer`. `thread_spawn` takes the new thread's pc and sp, so it
+`thread_write_regs`), 72 `ipc_buffer`, 80-84 regions (`region_create`,
+`region_add`, `region_map`, `region_unmap`, `region_protect`;
+`region_create` takes dst in `R8`, `region_add` returns the extent in
+`RDX`, `region_map` takes the virtual page in `R8` and the permissions in
+`R9`). `thread_spawn` takes the new thread's pc and sp, so it
 starts where its creator says; `cap_read` also returns a frame's size in
 pages in `R10`; `cap_copy_batch` takes its flags in `R8` and returns `done`
 in `RDX` and `skipped` in `R8`. A slot argument wider than 32 bits is out of range, never

@@ -432,6 +432,78 @@ JT_TEST(abi_map_query_into_the_callers_memory)
 
 /* ---- Phase 3 step 7: continue never sweeps more than the kernel's limit ---- */
 
+/* ---- Phase 5 step 3: the region calls (0030) ---- */
+
+/* Each argument reaches its parameter: the model's tests cover what the
+ * calls do; these, that a register mix-up would show. */
+JT_TEST(abi_region_calls_take_their_registers)
+{
+    setup();
+    joist_thread a;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(joist_boot_frame(&k, root, 4, 0x100, 8) == JOIST_OK);
+    const uint64_t lo = 2u * JOIST_PT_ENTRIES;
+    /* create: the task, lo, tables, the ceiling; the slot in R8. */
+    k.th[a].regs.r[ABI_R8] = 5;
+    JT_CHECK(sys(a, ABI_REGION_CREATE, 2, lo + 1u, 1, JOIST_MAP_W) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* lo not on a table */
+    JT_CHECK(sys(a, ABI_REGION_CREATE, 2, lo, 0, JOIST_MAP_W) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* no tables */
+    JT_CHECK(sys(a, ABI_REGION_CREATE, 2, lo, 1, 0x80) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* an unknown ceiling bit */
+    k.th[a].regs.r[ABI_R8] = 1ull << 40;
+    JT_CHECK(sys(a, ABI_REGION_CREATE, 2, lo, 1, JOIST_MAP_W) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* a wide slot */
+    k.th[a].regs.r[ABI_R8] = 5;
+    JT_CHECK(sys(a, ABI_REGION_CREATE, 2, lo, 1, JOIST_MAP_W) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK && k.cs[root].slot[5].type == JOIST_OBJ_REGION);
+    /* add: the region, the frame, an offset, pages; the extent in RDX. */
+    JT_CHECK(sys(a, ABI_REGION_ADD, 5, 4, 6, 3) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* past the frame */
+    JT_CHECK(sys(a, ABI_REGION_ADD, 5, 4, 2, 3) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK && k.th[a].regs.r[ABI_RDX] == 0);
+    JT_CHECK(sys(a, ABI_REGION_ADD, 5, 4, 0, 1) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK && k.th[a].regs.r[ABI_RDX] == 1);
+    /* map: the region, the extent, a page in it, pages; va in R8, perms in
+     * R9. No table pages are lent to the task, so a call that passes every
+     * check is E_NOMEM. */
+    k.th[a].regs.r[ABI_R8] = lo;
+    k.th[a].regs.r[ABI_R9] = JOIST_MAP_X;
+    JT_CHECK(sys(a, ABI_REGION_MAP, 5, 0, 0, 1) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RIGHTS); /* X beyond the ceiling */
+    k.th[a].regs.r[ABI_R9] = JOIST_MAP_W;
+    JT_CHECK(sys(a, ABI_REGION_MAP, 5, 2, 0, 1) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* no extent 2 */
+    JT_CHECK(sys(a, ABI_REGION_MAP, 5, 0, 1, 3) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* past the extent */
+    k.th[a].regs.r[ABI_R8] = lo + JOIST_PT_ENTRIES;
+    JT_CHECK(sys(a, ABI_REGION_MAP, 5, 0, 0, 1) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* outside the region */
+    k.th[a].regs.r[ABI_R8] = lo + 7u;
+    JT_CHECK(sys(a, ABI_REGION_MAP, 5, 0, 0, 3) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_NOMEM);
+    /* unmap and protect: the region, va, pages (and perms). */
+    JT_CHECK(sys(a, ABI_REGION_UNMAP, 5, lo - 1u, 2, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE);
+    JT_CHECK(sys(a, ABI_REGION_UNMAP, 5, lo, 2, 0) == ABI_DONE && k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(sys(a, ABI_REGION_PROTECT, 5, lo, 2, JOIST_MAP_X) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RIGHTS);
+    JT_CHECK(sys(a, ABI_REGION_PROTECT, 5, lo, 2, JOIST_MAP_W) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    /* Through a capability with MAP alone, as a task holds one. */
+    JT_REQUIRE(joist_cap_derive(&k, root, 5, 6, JOIST_R_MAP) == JOIST_OK);
+    JT_CHECK(sys(a, ABI_REGION_ADD, 6, 4, 0, 1) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RIGHTS);
+    JT_CHECK(sys(a, ABI_REGION_UNMAP, 6, lo, 1, 0) == ABI_DONE && k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    /* Killed: every capability to it is dead. */
+    JT_CHECK(sys(a, ABI_OBJ_KILL, 5, 0, 0, 0) == ABI_DONE && k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(sys(a, ABI_REGION_UNMAP, 6, lo, 1, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_GONE);
+    JT_CHECK(clean());
+}
+
 JT_TEST(abi_continue_is_bounded_by_the_preemption_limit)
 {
     setup();

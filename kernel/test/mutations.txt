@@ -63,3 +63,5 @@ abi-counters-threads-wrong @@ sys/abi.c @@             c.threads += k->th[i].sta
 abi-len-dropped @@ sys/abi.c @@     m->len = (uint32_t)((r->r[ABI_R9] >> ABI_LEN_SHIFT) & ABI_LEN_MASK); @@     m->len = 0;
 abi-lost-unreported @@ sys/abi.c @@                          (th->msg.lost ? ABI_LOST_BIT : 0); @@                          0;
 
+abi-region-ext-not-returned @@ sys/abi.c @@ out = x; @@ (void)x;
+abi-region-map-perms-from-r8 @@ sys/abi.c @@ e = joist_region_map(k, cs, slot_arg(a0), u32_arg(a1), a2, a3, R->r[ABI_R8], @@ e = joist_region_map(k, cs, slot_arg(a0), u32_arg(a1), a2, a3, R->r[ABI_R8], u32_arg(R->r[ABI_R8]) | 0u *

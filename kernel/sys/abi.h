@@ -91,6 +91,13 @@ enum {
 #define ABI_BIND_NOSENDERS   64u /* endpoint, notification */
 #define ABI_REQUEST_DEADNAME 65u /* endpoint, notification */
 
+/* Regions (decision 0030). */
+#define ABI_REGION_CREATE   80u /* task, lo page, tables, ceiling, r8 dst */
+#define ABI_REGION_ADD      81u /* region, frame, page offset, pages -> RDX the extent */
+#define ABI_REGION_MAP      82u /* region, extent, page in it, pages; r8 va page, r9 perms */
+#define ABI_REGION_UNMAP    83u /* region, va page, pages */
+#define ABI_REGION_PROTECT  84u /* region, va page, pages, perms */
+
 #define ABI_THREAD_READ_REGS  70u /* thread, address of a struct joist_regs to fill */
 #define ABI_THREAD_WRITE_REGS 71u /* thread, address of a struct joist_regs to load */
 #define ABI_IPC_BUFFER        72u /* page-aligned address of the calling thread's IPC buffer, or 0 */
