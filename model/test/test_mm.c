@@ -94,9 +94,77 @@ static uint8_t *k_page(void *ctx, uint32_t fs, uint64_t off)
     return off < POOL_PAGES ? pool[off] : NULL;
 }
 
+/* Regions (0030): mm's are in root's slots from KREG. */
+_Static_assert(MM_KE_NOMEM == JOIST_E_NOMEM && MM_KE_RANGE == JOIST_E_RANGE && MM_R_MAP == JOIST_R_MAP &&
+                   MM_QUERY_MAX == JOIST_QUERY_MAX && MM_QUERY_PRESENT == JOIST_QUERY_PRESENT &&
+                   MM_QUERY_FRAME == JOIST_QUERY_FRAME && MM_REGION_EXTENTS == JOIST_REGION_EXTENTS &&
+                   MM_REGION_TABLES == JOIST_REGION_TABLES,
+               "mmlib's copies of the kernel's region constants");
+#define KREG 40u
+
+static int k_region_create(void *ctx, uint32_t ts, uint64_t lo, uint32_t tables, unsigned ceil,
+                           uint32_t dst)
+{
+    (void)ctx;
+    return (int)joist_region_create(&k, root, ts, lo, tables, ceil, dst);
+}
+
+static int k_region_add(void *ctx, uint32_t rs, uint32_t fs, uint64_t off, uint64_t n, uint32_t *ext)
+{
+    (void)ctx;
+    return (int)joist_region_add(&k, root, rs, fs, off, n, ext);
+}
+
+static int k_region_map(void *ctx, uint32_t rs, uint32_t ext, uint64_t pg, uint64_t n, uint64_t va,
+                        unsigned perms)
+{
+    (void)ctx;
+    return (int)joist_region_map(&k, root, rs, ext, pg, n, va, perms);
+}
+
+static int k_query(void *ctx, uint32_t ts, uint64_t va, uint64_t n, uint32_t fs, uint64_t *out)
+{
+    (void)ctx;
+    return (int)joist_map_query(&k, root, ts, va, n, fs, out);
+}
+
+static int k_give(void *ctx, uint32_t ts, uint32_t src, uint32_t dst, unsigned mask)
+{
+    (void)ctx;
+    return (int)joist_cap_give(&k, root, ts, src, dst, (joist_rights)mask);
+}
+
+static int k_kill(void *ctx, uint32_t slot)
+{
+    (void)ctx;
+    return (int)joist_obj_kill(&k, root, slot);
+}
+
+static int k_del(void *ctx, uint32_t slot)
+{
+    (void)ctx;
+    return (int)joist_cap_delete(&k, root, slot);
+}
+
+/* The kernel's pending work run, at most finish_steps steps of one unit. */
+static unsigned finish_steps = 1000u;
+
+static int k_finish(void *ctx)
+{
+    (void)ctx;
+    for (unsigned i = 0; i < finish_steps; i++) {
+        if (joist_continue(&k, 1) != JOIST_BLOCKED) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static const struct mm_kops kops = {
     .ctx = NULL, .map = k_map, .map_replace = k_map_replace, .unmap = k_unmap,
-    .protect = k_protect, .page = k_page};
+    .protect = k_protect, .page = k_page, .region_create = k_region_create,
+    .region_add = k_region_add, .region_map = k_region_map, .query = k_query, .give = k_give,
+    .kill = k_kill, .del = k_del, .finish = k_finish};
 
 /* ---- the world ---- */
 
@@ -120,6 +188,7 @@ static void setup(void)
     maps = 0;
     map_fail = 0;
     pool_split = POOL_PAGES;
+    finish_steps = 1000u;
     memset(mem, 0, sizeof mem);
     memset(pool, 0xa5, sizeof pool); /* a page mm hands out must be zeroed */
     k.hooks.page = page;
@@ -135,6 +204,7 @@ static void setup(void)
     }
     T = k.obj[k.cs[root].slot[TK].obj - 1u].target - 1u;
     mm_init(&m, &kops);
+    m.kreg_slot = KREG;
     if (mm_add_frame(&m, POOL, POOL_PAGES) != MM_OK || mm_task_add(&m, TK, &t) != MM_OK) {
         jt_fail(__FILE__, __LINE__, "mm could not be set up as written", 0);
     }
@@ -726,3 +796,206 @@ JT_TEST(mm_none_pages_kept_across_a_clone_then_copied_on_write)
     JT_CHECK(mm_fault(&m, t, 0x401, MM_ACCESS_READ) == 1 && seen(0x401)[0] == 0x12u);
     JT_CHECK(clean());
 }
+
+/* ---- Phase 5 step 3: region capabilities (0030) ---- */
+
+/* A region of one table at LO in T, its capability in T's slot RS. */
+#define LO (4u * JOIST_PT_ENTRIES)
+#define RS 9u
+
+JT_TEST(mm_region_new_gives_the_task_map_alone)
+{
+    setup();
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 8, MM_W) == MM_OK);
+    /* Refusals: a range off a table, no tables or too many, an unknown
+     * permission, over anonymous memory; nothing made. */
+    JT_CHECK(mm_region_new(&m, t, LO + 1u, 1, MM_W, RS) == MM_E_RANGE);
+    JT_CHECK(mm_region_new(&m, t, LO, 0, MM_W, RS) == MM_E_RANGE);
+    JT_CHECK(mm_region_new(&m, t, LO, MM_REGION_TABLES + 1u, MM_W, RS) == MM_E_RANGE);
+    JT_CHECK(mm_region_new(&m, t, LO, 1, MM_NONE, RS) == MM_E_RANGE);
+    JT_CHECK(mm_region_new(&m, t, 0, 4, MM_W, RS) == MM_E_STATE); /* meets 0x400 */
+    JT_CHECK(mm_region_new(&m, 7, LO, 1, MM_W, RS) == MM_E_STATE); /* no such task */
+    JT_CHECK(k.cs[T].slot[RS].obj == 0 && k.cs[root].slot[KREG].obj == 0);
+    JT_REQUIRE(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    const struct joist_cap *rc = joist__slot_c(&k, T, RS);
+    JT_CHECK(rc != NULL && rc->type == JOIST_OBJ_REGION && rc->rights == JOIST_R_MAP);
+    /* The same slot again, a range meeting it, the slot taken in T. */
+    JT_CHECK(mm_region_new(&m, t, LO + JOIST_PT_ENTRIES, 1, MM_W, RS) == MM_E_STATE);
+    JT_CHECK(mm_region_new(&m, t, LO, 1, MM_W, RS + 1u) == MM_E_STATE);
+    JT_REQUIRE(joist_obj_create(&k, T, JOIST_OBJ_ENDPOINT, RS + 2u) == JOIST_OK);
+    JT_CHECK(mm_region_new(&m, t, LO + JOIST_PT_ENTRIES, 1, MM_W, RS + 2u) == MM_E_STATE);
+    JT_CHECK(k.cs[root].slot[KREG + 1u].obj == 0); /* the region it made, gone */
+    /* Anonymous memory can't be asked for in it. */
+    JT_CHECK(mm_map_anon(&m, t, LO + 4u, 2, MM_W) == MM_E_STATE);
+    /* T emptied the slot itself: mm still has the region by that slot. */
+    JT_REQUIRE(joist_cap_delete(&k, T, RS) == JOIST_OK);
+    JT_CHECK(mm_region_new(&m, t, LO + 2u * JOIST_PT_ENTRIES, 1, MM_W, RS) == MM_E_STATE);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_region_grow_gives_zeroed_runs_the_task_maps_itself)
+{
+    setup();
+    JT_REQUIRE(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    uint32_t x0 = 9;
+    uint32_t x1 = 9;
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 4, &x0) == MM_OK && x0 == 0);
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 3, &x1) == MM_OK && x1 == 1);
+    JT_CHECK(m.nfree == POOL_PAGES - 7u && m.task[t].rpages == 7u);
+    /* T maps them, by its own capability, without asking mm. */
+    JT_CHECK(joist_region_map(&k, T, RS, 0, 0, 4, LO, JOIST_MAP_W) == JOIST_OK);
+    JT_CHECK(joist_region_map(&k, T, RS, 1, 1, 2, LO + 100u, 0) == JOIST_OK);
+    for (unsigned i = 0; i < 4; i++) {
+        uint8_t *b = seen(LO + i);
+        JT_CHECK(b != NULL && b[0] == 0 && b[JOIST_PAGE_SIZE - 1u] == 0); /* zeroed, not 0xa5 */
+    }
+    JT_CHECK(seen(LO + 100u) != NULL && seen(LO + 100u)[7] == 0);
+    /* MAP alone: T can't grow it itself, nor map outside it. */
+    JT_CHECK(joist_region_add(&k, T, RS, RS, 0, 1, &x1) != JOIST_OK);
+    JT_CHECK(joist_region_map(&k, T, RS, 0, 0, 1, LO + JOIST_PT_ENTRIES, 0) == JOIST_E_RANGE);
+    /* Refusals: no pages, more than the pool has, past 8 extents, an
+     * unknown slot. */
+    JT_CHECK(mm_region_grow(&m, t, RS, 0, &x1) == MM_E_RANGE);
+    JT_CHECK(mm_region_grow(&m, t, RS, POOL_PAGES, &x1) == MM_E_NOMEM);
+    JT_CHECK(mm_region_grow(&m, t, RS + 1u, 1, &x1) == MM_E_STATE);
+    for (unsigned i = 2; i < MM_REGION_EXTENTS; i++) {
+        JT_REQUIRE(mm_region_grow(&m, t, RS, 1, &x1) == MM_OK && x1 == i);
+    }
+    JT_CHECK(mm_region_grow(&m, t, RS, 1, &x1) == MM_E_NOMEM);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_region_grow_needs_a_run_in_one_frame)
+{
+    setup();
+    /* The pool in pieces: all of it taken by anonymous memory, then two
+     * pages apart given back. */
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, POOL_PAGES, MM_W) == MM_OK);
+    for (uint64_t i = 0; i < POOL_PAGES; i++) {
+        JT_REQUIRE(mm_fault(&m, t, 0x400 + i, MM_ACCESS_WRITE) == 1);
+    }
+    JT_REQUIRE(mm_unmap(&m, t, 0x400 + 3u, 1) == MM_OK);
+    JT_REQUIRE(mm_unmap(&m, t, 0x400 + 7u, 1) == MM_OK);
+    JT_REQUIRE(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    uint32_t x;
+    JT_CHECK(m.nfree == 2u && mm_region_grow(&m, t, RS, 2, &x) == MM_E_NOMEM);
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 1, &x) == MM_OK);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_region_grow_runs_stay_in_one_frame)
+{
+    /* The pool as two frames of 24 pages: no run of 30 in either. */
+    setup();
+    two_frames(24u);
+    m.kreg_slot = KREG;
+    JT_REQUIRE(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    uint32_t x;
+    JT_CHECK(mm_region_grow(&m, t, RS, 30, &x) == MM_E_NOMEM && m.nfree == POOL_PAGES);
+    JT_CHECK(mm_region_grow(&m, t, RS, 24, &x) == MM_OK && mm_region_grow(&m, t, RS, 24, &x) == MM_OK);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_region_free_unmaps_then_gives_the_pages_back)
+{
+    setup();
+    JT_REQUIRE(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    uint32_t x;
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 4, &x) == MM_OK);
+    JT_REQUIRE(joist_region_map(&k, T, RS, 0, 0, 4, LO, JOIST_MAP_W) == JOIST_OK);
+    k.preempt = 1; /* the unmapping on the work list, a step at a time */
+    JT_CHECK(mm_region_free(&m, t, RS) == MM_OK);
+    JT_CHECK(pte(LO) == 0 && m.nfree == POOL_PAGES && m.task[t].rpages == 0);
+    JT_CHECK(joist_region_map(&k, T, RS, 0, 0, 1, LO, 0) == JOIST_E_GONE);
+    JT_CHECK(mm_region_free(&m, t, RS) == MM_E_STATE);
+    /* T deletes its dead capability; the slot takes a new region. */
+    JT_REQUIRE(joist_cap_delete(&k, T, RS) == JOIST_OK);
+    JT_CHECK(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_region_free_keeps_pages_whose_unmapping_did_not_finish)
+{
+    setup();
+    JT_REQUIRE(mm_region_new(&m, t, LO, 2, MM_W, RS) == MM_OK);
+    uint32_t x;
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 4, &x) == MM_OK);
+    JT_REQUIRE(joist_region_map(&k, T, RS, 0, 0, 2, LO, JOIST_MAP_W) == JOIST_OK);
+    JT_REQUIRE(joist_region_map(&k, T, RS, 0, 2, 2, LO + JOIST_PT_ENTRIES, JOIST_MAP_W) == JOIST_OK);
+    k.preempt = 1;
+    finish_steps = 0; /* mm gives up at once */
+    JT_CHECK(mm_region_free(&m, t, RS) == MM_OK);
+    /* Its pages stay out of the pool, though the record is no longer T's. */
+    JT_CHECK(m.nfree == POOL_PAGES - 4u && m.task[t].rpages == 0 && mm_region_free(&m, t, RS) == MM_E_STATE);
+    JT_CHECK(clean());
+    finish_steps = 1000u;
+    JT_CHECK(k_finish(NULL) == 1 && pte(LO) == 0 && pte(LO + JOIST_PT_ENTRIES) == 0);
+    JT_CHECK(m.nfree == POOL_PAGES - 4u); /* lost: never handed out again */
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_region_pages_come_back_with_the_task)
+{
+    setup();
+    JT_REQUIRE(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    uint32_t x;
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 5, &x) == MM_OK);
+    JT_REQUIRE(joist_region_map(&k, T, RS, 0, 0, 5, LO, JOIST_MAP_W) == JOIST_OK);
+    JT_REQUIRE(joist_task_destroy(&k, root, TK) == JOIST_OK);
+    JT_REQUIRE(k_finish(NULL) == 1);
+    mm_task_gone(&m, t);
+    JT_CHECK(m.nfree == POOL_PAGES && !m.kreg[0].live && k.cs[root].slot[KREG].obj == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_clone_copies_region_pages_and_maps_them_alike)
+{
+    setup();
+    more_tasks();
+    JT_REQUIRE(mm_region_new(&m, t, LO, 2, MM_W | MM_X, RS) == MM_OK);
+    uint32_t x;
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 3, &x) == MM_OK);
+    JT_REQUIRE(mm_region_grow(&m, t, RS, 2, &x) == MM_OK);
+    /* Extent 0's pages 0-2 at LO (writable), extent 1's page 1 at LO + 9
+     * (executable) and its page 0 in the second table (read-only). */
+    JT_REQUIRE(joist_region_map(&k, T, RS, 0, 0, 3, LO, JOIST_MAP_W) == JOIST_OK);
+    JT_REQUIRE(joist_region_map(&k, T, RS, 1, 1, 1, LO + 9u, JOIST_MAP_X) == JOIST_OK);
+    JT_REQUIRE(joist_region_map(&k, T, RS, 1, 0, 1, LO + JOIST_PT_ENTRIES + 3u, 0) == JOIST_OK);
+    /* Extent 0's page 0 and then extent 1's page 1, side by side: not one
+     * run, though the pages' numbers follow on. */
+    JT_REQUIRE(joist_region_map(&k, T, RS, 0, 0, 1, LO + 20u, 0) == JOIST_OK);
+    JT_REQUIRE(joist_region_map(&k, T, RS, 1, 1, 1, LO + 21u, 0) == JOIST_OK);
+    seen(LO)[0] = 0x41;
+    seen(LO + 2u)[5] = 0x42;
+    seen(LO + 9u)[0] = 0x43;
+    seen(LO + JOIST_PT_ENTRIES + 3u)[1] = 0x44;
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    /* C holds its own region at the same slot, MAP alone. */
+    const struct joist_cap *cc = joist__slot_c(&k, C, RS);
+    JT_CHECK(cc != NULL && cc->type == JOIST_OBJ_REGION && cc->rights == JOIST_R_MAP &&
+             cc->obj != joist__slot_c(&k, T, RS)->obj);
+    JT_CHECK(m.task[c].rpages == 5u && m.nfree == POOL_PAGES - 10u);
+    /* The same pages mapped, with the same permissions, holding copies on
+     * pages of their own (never shared: 0030). */
+    uint64_t at[] = {LO, LO + 1u, LO + 2u, LO + 9u, LO + 20u, LO + 21u, LO + JOIST_PT_ENTRIES + 3u};
+    for (unsigned i = 0; i < sizeof at / sizeof at[0]; i++) {
+        uint64_t pt = pte_in(T, at[i]);
+        uint64_t pc = pte_in(C, at[i]);
+        JT_CHECK(pc != 0 && seen_in(C, at[i]) != seen(at[i]));
+        JT_CHECK(JOIST_PTE_PERMS(pt) == JOIST_PTE_PERMS(pc));
+        JT_CHECK(memcmp(seen_in(C, at[i]), seen(at[i]), JOIST_PAGE_SIZE) == 0);
+    }
+    JT_CHECK(pte_in(C, LO + 3u) == 0 && pte_in(C, LO + 8u) == 0);
+    JT_CHECK(seen_in(C, LO)[0] == 0x41 && seen_in(C, LO + JOIST_PT_ENTRIES + 3u)[1] == 0x44);
+    seen_in(C, LO)[0] = 0x51;
+    JT_CHECK(seen(LO)[0] == 0x41);
+    /* C maps its own copy by its own capability. */
+    JT_CHECK(joist_region_map(&k, C, RS, 0, 1, 1, LO + 30u, 0) == JOIST_OK);
+    JT_CHECK(joist_region_map(&k, C, RS, 0, 0, 1, LO, 0) == JOIST_E_OCCUPIED);
+    /* No anonymous memory or share lands in either's region. */
+    JT_CHECK(mm_map_anon(&m, c, LO, 1, MM_W) == MM_E_STATE);
+    JT_REQUIRE(mm_map_anon(&m, d, 0x400, 4, MM_W) == MM_OK);
+    JT_CHECK(mm_share(&m, d, 0x400, 2, t, LO + 40u) == MM_E_STATE);
+    JT_CHECK(clean());
+}
+

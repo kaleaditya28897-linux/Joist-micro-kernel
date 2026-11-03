@@ -332,3 +332,18 @@ region-extent-not-given-back @@ ../kernel/core/region.c @@         joist__frame_
 region-frame-freed-under-an-extent @@ ../kernel/core/map.c @@ if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0 && o->extents == 0)) { @@ if (o->type != JOIST_OBJ_FRAME || (o->mapcount == 0 && o->lent == 0)) {
 region-frame-split-in-an-extent @@ ../kernel/core/map.c @@ if (f->refs != 1 || f->mapcount != 0 || f->lent != 0 || f->extents != 0) { @@ if (f->refs != 1 || f->mapcount != 0 || f->lent != 0) {
 region-map-right-ignored @@ ../kernel/core/region.c @@     if ((c->rights & need) != need) { @@     if (need == 0xffu) {
+# Phase 5 step 3: mm's region capabilities (0030).
+mm-kreg-gives-every-right @@ ../servers/mm/mmlib.c @@ e = m->k.give(m->k.ctx, tk->slot, slot, tslot, MM_R_MAP); @@ e = m->k.give(m->k.ctx, tk->slot, slot, tslot, 0xfu);
+mm-kreg-over-anon @@ ../servers/mm/mmlib.c @@             return MM_E_STATE; /* mm's own records: anonymous memory there */ @@             (void)0;
+mm-kreg-slot-twice @@ ../servers/mm/mmlib.c @@     if (kreg_of(m, t, tslot) >= 0 || meets_kreg(m, t, lo, n)) { @@     if (meets_kreg(m, t, lo, n)) {
+mm-anon-over-kreg @@ ../servers/mm/mmlib.c @@         return MM_E_STATE; /* a region capability's: the task maps there itself */ @@         (void)0;
+mm-kreg-not-zeroed @@ ../servers/mm/mmlib.c @@         memset(bytes(m, (uint32_t)p + k), 0, PAGE_BYTES); @@         (void)bytes;
+mm-kreg-run-crosses-frames @@ ../servers/mm/mmlib.c @@         len = len != 0 && m->pg[p].frame == m->pg[p - 1u].frame ? len + 1u : 1u; @@         len = len + 1u;
+mm-kreg-run-not-unlinked @@ ../servers/mm/mmlib.c @@                 *at = g->next; @@                 at = &g->next;
+mm-kreg-freed-before-unmapped @@ ../servers/mm/mmlib.c @@     int done = m->k.finish(m->k.ctx); @@     int done = (m->k.finish(m->k.ctx), 1);
+mm-kreg-gone-keeps-pages @@ ../servers/mm/mmlib.c @@             kreg_release(m, i); @@             (void)i;
+mm-kreg-rpages-uncounted @@ ../servers/mm/mmlib.c @@     tk->rpages += (uint32_t)n; @@     (void)tk;
+mm-kreg-clone-skipped @@ ../servers/mm/mmlib.c @@     return kreg_clone(m, parent, child); @@     (void)kreg_clone; return MM_OK;
+mm-kreg-clone-not-copied @@ ../servers/mm/mmlib.c @@                 memcpy(bytes(m, m->kreg[j].ext[x].page + k), bytes(m, pr->ext[x].page + k), PAGE_BYTES); @@                 (void)k;
+mm-kreg-clone-maps-shared @@ ../servers/mm/mmlib.c @@     int e = m->k.region_map(m->k.ctx, m->kreg_slot + j, r->ext, r->page, r->n, r->va, r->perms); @@     int e = m->k.region_map(m->k.ctx, m->kreg_slot + j, r->ext, r->page, r->n, r->va, 0);
+mm-kreg-clone-run-ignores-extent @@ ../servers/mm/mmlib.c @@                 if (run.n != 0 && run.ext == y && run.page + run.n == page && @@                 if (run.n != 0 && run.page + run.n == page &&

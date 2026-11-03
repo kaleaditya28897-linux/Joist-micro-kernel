@@ -58,9 +58,10 @@ BUILD := build
 # own): Phase 4's capacities, for fork trees (docs/phase4-plan.md, choice
 # 10): 64 address spaces, 128 threads, 2 048 objects, and capability leaves
 # to match (4 a space, as the model's defaults have). Compile-time
-# constants, not sized from boot memory.
+# constants, not sized from boot memory. Regions (0030; Phase 5 step 3):
+# 128, two a space on average (mm's MM_KREGIONS).
 KSIZES := -DJOIST_MAX_OBJECTS=2048u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=128u \
-          -DJOIST_MAX_LEAVES=256u
+          -DJOIST_MAX_LEAVES=256u -DJOIST_MAX_REGIONS=128u
 
 # Reproducible builds (decision 0026): the tree's absolute path never goes
 # into an object (its debug information names the tree as "joist"), and

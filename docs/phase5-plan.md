@@ -291,3 +291,47 @@ The plan, decisions 0030 and 0031, and their numbers: 8 extents a region,
   Fixed on the way: the `cbmc` target's tally never counted a split
   operation (`9/t`, `19/s`, `3:2`) as verified, since it looked for the
   argument, not the name `run.sh` gives its line.
+
+### Step 3: the design of regions in the kernel and `mm` (2026-11-03)
+
+Implementation choices inside 0030, so *(changeable)*.
+
+- **The calls (done, part 1):** system calls 80-84, `region_create`,
+  `region_add`, `region_map`, `region_unmap`, `region_protect`, as
+  `docs/abi.md` lists them.
+- **The kernel's capacity:** `JOIST_MAX_REGIONS` 128 in the kernel build
+  (64 spaces, so 2 a task on average; at most 8 for any one).
+- **`mm`'s requests**, three, each naming the region by the slot of the
+  caller's space that holds it:
+  - `MM_REQ_REGION_NEW` (first page on a 512-page boundary, tables and
+    permissions, the slot): `mm` makes the region from its own quota and
+    gives the caller a capability with MAP alone, in that slot.
+  - `MM_REQ_REGION_GROW` (the slot, pages): `mm` takes a run of pages of
+    one of its frames, zeroed, as the next extent; the reply gives its
+    index. The pages count against the task (`MM_TASK_PAGES`; 0028's
+    trees in step 4).
+  - `MM_REQ_REGION_FREE` (the slot): `mm` kills the region, runs the
+    kernel's pending work until the range is unmapped, then takes its
+    pages back. If that work doesn't finish, the pages stay out of the
+    pool: lost, never handed out while still mapped. The dead capability
+    stays in the task's slot for it to delete.
+- **Pages for extents:** an extent is a run of pages of one frame, so `mm`
+  looks for a free run in its pages (O(`MM_PAGES`)) and rebuilds its free
+  list. Its records mark each region page as its region's, and
+  `mm_check` checks that no page is both a region's and free or mapped by
+  `mm`.
+- **Fork:** the child gets regions of the same shape at the same slots,
+  with new extents of the same sizes, the pages copied, and the same
+  entries: read from the parent with `map_query`, made with
+  `region_map`. Region pages are never COW-shared (0030). The parent's
+  copy of its capabilities already steps over a slot the child holds
+  (as it does `MM_SLOT`), so it steps over these too.
+- **A task gone:** the kernel releases its regions' extents with its
+  space, so `mm` takes their pages back with the task's.
+- **Tests:** `model/test/test_mm.c` (`mmlib` against the kernel model)
+  for the three requests, fork and a task gone; the refinement test's
+  abstract machine gains regions (a task's region pages are its own; fork
+  copies them); `cowstress` gains a region writer.
+- **Measured** on the P53: a churn (map, touch, unmap; 1 to 64 pages) by
+  region calls against `MM_REQ_MAP_ANON` and `MM_REQ_UNMAP`.
+

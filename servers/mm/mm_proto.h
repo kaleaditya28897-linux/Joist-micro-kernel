@@ -39,9 +39,19 @@ enum {
     MM_REQ_SHARE_ACCEPT,                /* the sharer's id, va page, pages: where this
                                          * task takes its pages (one pending per task, a
                                          * new one replacing it; 0 pages withdraws it) */
-    MM_REQ_CLONE_DONE                   /* the child's id, MM_CLONE_KEEP or _CANCEL: the
+    MM_REQ_CLONE_DONE,                  /* the child's id, MM_CLONE_KEEP or _CANCEL: the
                                          * parent's fork finished (its child's thread runs)
                                          * or given up (mm destroys the child) */
+    /* Regions (0030), each named by the slot of the caller's space that
+     * holds it. A fork's child has its parent's, copied, at the same slots. */
+    MM_REQ_REGION_NEW,                  /* first page (on a 512-page table), tables |
+                                         * permissions << 8, the slot: an empty region,
+                                         * its capability (MAP alone) put in that slot */
+    MM_REQ_REGION_GROW,                 /* the slot, pages -> r[1] the new extent's index:
+                                         * zeroed pages, mapped by the task itself */
+    MM_REQ_REGION_FREE                  /* the slot: the region killed, its pages back once
+                                         * unmapped; the dead capability stays for the
+                                         * task to delete */
 };
 /* A child still pending when its parent goes is destroyed with it: a fork
  * not confirmed never happened (0023's amendment of 2026-10-29, "orphans"). */
@@ -62,8 +72,8 @@ enum {
 
 /* The slots of mm's own space. The root fills the first four before
  * starting it, and slots from MM_S_ROOT to MM_S_CHILD as it hands mm
- * tasks; the rest are mm's. mm adds the second leaf (MM_S_CHILD on) at
- * MM_REQ_INIT: a task it makes itself (MM_REQ_CLONE) is in MM_S_CHILD plus
+ * tasks; the rest are mm's. mm adds the second leaf (MM_S_CHILD on) and the
+ * third (MM_S_REGION on) at MM_REQ_INIT: a task it makes itself (MM_REQ_CLONE) is in MM_S_CHILD plus
  * its index. Collection deletes a task's slot, whichever range it is in. */
 enum {
     MM_S_EP = 0,      /* its endpoint: RECV, SEND, GRANT */
@@ -73,7 +83,9 @@ enum {
     MM_S_TMP = 4,     /* mm's own: a badged capability on its way to a task */
     MM_S_FREE = 16,   /* mm's own from here (the table runs it lends) ... */
     MM_S_ROOT = 64,   /* ... to here; from here, the root's (task capabilities) ... */
-    MM_S_CHILD = 128  /* ... to here; from here, the tasks mm made (MM_MAX_TASKS) */
+    MM_S_CHILD = 128, /* ... to here; from here, the tasks mm made (MM_MAX_TASKS) */
+    MM_S_REGION = 256 /* the third leaf: mm's region capabilities (MM_KREGIONS), each with
+                       * every right */
 };
 
 #define MM_POOL_VA 0x10000000ull  /* where mm maps its pool in its own space (its first

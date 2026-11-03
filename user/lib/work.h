@@ -59,8 +59,10 @@ enum {
                      * pending: mm destroys the pending one with it, serves the other */
     MMC_GUARD,      /* MM_NONE (0024): pages made of no access and back keep what they held;
                      * a guard can't be mapped over, and a touch ends the thread */
-    MMC_QUOTA       /* a child spends its quota (MM_CHILD_QUOTA), then forks: its child's
+    MMC_QUOTA,      /* a child spends its quota (MM_CHILD_QUOTA), then forks: its child's
                      * thread refused, the clone cancelled, mm forgets the child */
+    MMC_REGION      /* a region capability (0030): asked for, grown, mapped by the task
+                     * itself; a fork's child holds a copy of its own; freed, and again */
 };
 #define MMC_B 100u
 enum {
@@ -71,6 +73,8 @@ enum {
 #define MMC_BENCH_SIZES 256u, 4096u, 65536u /* 1, 16 and 256 MiB */
 #define MMC_BENCH_VA 0x40000000ull          /* where the clones' pages are (the second GiB) */
 #define MMC_VA 0x08000000ull /* where it asks for memory: a last-level table's 512 pages */
+#define MMC_REGION_VA 0x20000000ull /* MMC_REGION's region: two tables from here */
+#define MMC_REGION_SLOT 10u         /* ... and its capability (below MMC_COPY_END) */
 
 /* How mmclient makes a child (MMC_FORK, MMC_SHARE): CLONE, its capabilities
  * copied, its thread spawned, then a call to the root (in MMC_ROOT_SLOT)
@@ -105,8 +109,11 @@ enum {
     MMC_C_POKE,     /* word a1 of page a0 of MMC_VA set to a2 */
     MMC_C_UNMAP,    /* -> MM_REQ_UNMAP's result: pages a0 (a va page) to a0 + a1 */
     MMC_C_DONE,     /* -> MM_REQ_CLONE_DONE's result: child id a0, how a1 */
-    MMC_C_QUOTA     /* -> objects its quota paid for before it ran out, after a fork
+    MMC_C_QUOTA,    /* -> objects its quota paid for before it ran out, after a fork
                      * that then failed for want of quota was cancelled; or 1000 + a step */
+    MMC_C_PEEK,     /* -> the word at address a0 */
+    MMC_C_RMAP      /* -> region_map's result: page a1 of extent a0 of its region (in
+                     * MMC_REGION_SLOT) at va page a2, read-only */
 };
 
 struct work {

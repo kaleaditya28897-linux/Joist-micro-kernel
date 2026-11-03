@@ -340,6 +340,27 @@ static void test_quota(void)
     j_puts("mm: quota ok\n");
 }
 
+/* Phase 5 step 3: a region capability (0030) asked for, grown and mapped
+ * by the client itself; copied by a fork; freed. mm counts its pages. */
+static void test_region(void)
+{
+    struct worker k = client(MMC_REGION);
+    at_mark(&k, 1, "the region client failed");
+    expect_mm(1, POOL_PAGES - 8u, "mm's records after REGION_GROW are wrong");
+    go_on(&k, 1);
+    at_mark(&k, 3, "the region client failed after its fork");
+    expect_mm(2, POOL_PAGES - 16u, "a fork's child doesn't have its own region pages");
+    expect_spaces(2, "a clone's space isn't there");
+    go_on(&k, 3);
+    at_mark(&k, 5, "the region client failed after REGION_FREE");
+    expect_mm(1, POOL_PAGES, "a freed region's pages, or its child's, didn't come back");
+    go_on(&k, 5);
+    serve(&k, 99);
+    check(k.w->count == 2 && k.w->arg == 0, "the region client failed at the end");
+    finish(&k); /* its last region's page comes back with it */
+    j_puts("mm: region ok\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free)
 {
@@ -361,6 +382,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_clone_full();
     test_orphan();
     test_quota();
+    test_region();
     /* Again, so that badges and table runs are used a second time. */
     test_basic();
     j_puts("mm: all ok\n");

@@ -36,7 +36,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     case $full in chk-*) b=build/selftest-chk-$n ;; *) b=build/selftest-$n ;; esac
     log=$b/serial.log
     [ "$full" = "$n" ] || log=$b/serial-$full.log
-    big="-DJOIST_MAX_OBJECTS=8192u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=128u -DJOIST_MAX_LEAVES=256u -DROOT_BUDGET=16384u"
+    big="-DJOIST_MAX_OBJECTS=8192u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=128u -DJOIST_MAX_LEAVES=256u -DJOIST_MAX_REGIONS=128u -DROOT_BUDGET=16384u"
     case $n in
     # Phase 3 step 4: the root task loads pong and ping from boot modules.
     pingpong) kextra=""; root=root; mods="pong ping" ;;
@@ -283,9 +283,12 @@ run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 # part D2: a fork through mm's CLONE (each side sees only its own writes,
 # the child destroyed and forgotten), SHARE only with the target's consent
 # and kept across a clone, refused clones undone, a child still pending
-# when its parent goes destroyed with it.
+# when its parent goes destroyed with it. Phase 5 step 3 (0030): a region
+# capability asked of mm, grown, mapped by the client itself, copied by a
+# fork, freed, its pages counted by mm throughout.
 run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" "mm: guard page ok" \
-    "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: orphans ok" "mm: quota ok" "mm: all ok" "root task exited with code 0"
+    "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: orphans ok" "mm: quota ok" "mm: region ok" \
+    "mm: all ok" "root task exited with code 0"
 run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 # Phase 4's exit (docs/phase4-plan.md, *Testing*): cowstress, fork trees

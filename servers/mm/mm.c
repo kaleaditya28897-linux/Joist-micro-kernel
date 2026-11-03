@@ -88,6 +88,75 @@ static uint8_t *k_page(void *ctx, uint32_t frame, uint64_t off)
     return (uint8_t *)(uintptr_t)(MM_POOL_VA + off * J_PAGE);
 }
 
+/* Regions (0030): mm's capabilities in MM_S_REGION on. */
+_Static_assert(MM_KE_NOMEM == J_E_NOMEM && MM_KE_RANGE == J_E_RANGE && MM_R_MAP == J_R_MAP &&
+                   MM_QUERY_MAX == J_QUERY_MAX && MM_QUERY_PRESENT == J_QUERY_PRESENT &&
+                   MM_QUERY_FRAME == J_QUERY_FRAME,
+               "mmlib's copies of the kernel's region constants");
+_Static_assert(MM_S_REGION % 128u == 0 && MM_KREGIONS <= 128u, "mm's region capabilities: one leaf");
+
+static int k_region_create(void *ctx, uint32_t task, uint64_t lo, uint32_t tables, unsigned ceil,
+                           uint32_t dst)
+{
+    (void)ctx;
+    return (int)j_region_create(task, lo, tables, ceil, dst);
+}
+
+static int k_region_add(void *ctx, uint32_t region, uint32_t frame, uint64_t off, uint64_t n,
+                        uint32_t *ext)
+{
+    (void)ctx;
+    uint64_t x = 0;
+    uint64_t e = j_region_add(region, frame, off, n, &x);
+    *ext = (uint32_t)x;
+    return (int)e;
+}
+
+static int k_region_map(void *ctx, uint32_t region, uint32_t ext, uint64_t page, uint64_t n,
+                        uint64_t va, unsigned perms)
+{
+    (void)ctx;
+    return (int)j_region_map(region, ext, page, n, va, perms);
+}
+
+static int k_query(void *ctx, uint32_t task, uint64_t va, uint64_t n, uint32_t frame, uint64_t *out)
+{
+    (void)ctx;
+    return (int)j_map_query(task, va, n, frame, out);
+}
+
+static int k_give(void *ctx, uint32_t task, uint32_t src, uint32_t dst, unsigned mask)
+{
+    (void)ctx;
+    return (int)j_cap_give(task, src, dst, mask);
+}
+
+static int k_kill(void *ctx, uint32_t slot)
+{
+    (void)ctx;
+    return (int)j_obj_kill(slot);
+}
+
+static int k_del(void *ctx, uint32_t slot)
+{
+    (void)ctx;
+    return (int)j_cap_delete(slot);
+}
+
+/* The kernel's pending destruction, run on mm's caller's time, as destroy()
+ * does: 1 if it all finished. */
+static int k_finish(void *ctx)
+{
+    (void)ctx;
+    int more = 1;
+    for (unsigned i = 0; more && i < 1000u; i++) {
+        if (j_continue(0, &more) != J_OK) {
+            return 0;
+        }
+    }
+    return !more;
+}
+
 static const struct mm_kops kops = {
     .ctx = 0,
     .map = k_map,
@@ -95,6 +164,14 @@ static const struct mm_kops kops = {
     .unmap = k_unmap,
     .protect = k_protect,
     .page = k_page,
+    .region_create = k_region_create,
+    .region_add = k_region_add,
+    .region_map = k_region_map,
+    .query = k_query,
+    .give = k_give,
+    .kill = k_kill,
+    .del = k_del,
+    .finish = k_finish,
 };
 
 /* ---- the root's requests ---- */
@@ -120,10 +197,12 @@ static uint64_t init(void)
         return MM_E_NOMEM;
     }
     tables_left = j_frame_pages(MM_S_TABLES);
-    /* The second leaf, for the tasks mm makes (MM_S_CHILD on). */
-    if (j_cspace_grow(MM_S_CHILD / 128u) != J_OK) {
+    /* The second leaf, for the tasks mm makes (MM_S_CHILD on), and the
+     * third, for its region capabilities (MM_S_REGION on). */
+    if (j_cspace_grow(MM_S_CHILD / 128u) != J_OK || j_cspace_grow(MM_S_REGION / 128u) != J_OK) {
         return MM_E_NOMEM;
     }
+    M.kreg_slot = MM_S_REGION;
     ready = 1;
     return MM_OK;
 }
@@ -449,6 +528,24 @@ static void handle(const struct j_msg *in, struct j_msg *out)
         return;
     case MM_REQ_CLONE_DONE:
         out->r[0] = clone_done(t, in->r[1], in->r[2]);
+        return;
+    case MM_REQ_REGION_NEW:
+        out->r[0] = in->r[2] >> 8 > (MM_W | MM_X) || in->r[3] > UINT32_MAX
+                        ? MM_E_RANGE
+                        : (uint64_t)mm_region_new(&M, t, in->r[1], (uint32_t)(in->r[2] & 0xffu),
+                                                  (unsigned)(in->r[2] >> 8), (uint32_t)in->r[3]);
+        return;
+    case MM_REQ_REGION_GROW: {
+        uint32_t x = 0;
+        out->r[0] = in->r[1] > UINT32_MAX
+                        ? MM_E_RANGE
+                        : (uint64_t)mm_region_grow(&M, t, (uint32_t)in->r[1], in->r[2], &x);
+        out->r[1] = x;
+        return;
+    }
+    case MM_REQ_REGION_FREE:
+        out->r[0] = in->r[1] > UINT32_MAX ? MM_E_RANGE
+                                          : (uint64_t)mm_region_free(&M, t, (uint32_t)in->r[1]);
         return;
     default: /* INIT, ADOPT and STATUS are the root's */
         out->r[0] = MM_E_STATE;

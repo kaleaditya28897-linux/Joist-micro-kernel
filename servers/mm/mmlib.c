@@ -98,7 +98,7 @@ static int64_t map_at(const struct mm_task *tk, uint64_t va)
 /* Record that task tk maps page p at va (not already mapped there). */
 static int map_add(struct mm_task *tk, uint64_t va, uint32_t p)
 {
-    if (tk->nmap == MM_TASK_PAGES) {
+    if (tk->nmap + tk->rpages >= MM_TASK_PAGES) {
         return MM_E_NOMEM;
     }
     uint32_t i = map_from(tk, va);
@@ -117,6 +117,103 @@ static int bad_perms(unsigned perms)
 {
     return (perms & ~(MM_W | MM_X | MM_NONE)) != 0 || perms == (MM_W | MM_X) ||
            ((perms & MM_NONE) != 0 && perms != MM_NONE);
+}
+
+/* ---- region capabilities' records (0030) ---- */
+
+/* The region capability task t names by tslot, or -1. */
+static int kreg_of(const struct mm *m, uint32_t t, uint32_t tslot)
+{
+    for (uint32_t i = 0; i < MM_KREGIONS; i++) {
+        const struct mm_kregion *r = &m->kreg[i];
+        if (r->live && !r->lost && r->task == t && r->tslot == tslot) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static uint64_t kreg_end(const struct mm_kregion *r)
+{
+    return r->lo + (uint64_t)r->tables * MM_SPAN;
+}
+
+/* Whether [va, va + n) meets one of task t's region capabilities. */
+static int meets_kreg(const struct mm *m, uint32_t t, uint64_t va, uint64_t n)
+{
+    for (uint32_t i = 0; i < MM_KREGIONS; i++) {
+        const struct mm_kregion *r = &m->kreg[i];
+        if (r->live && !r->lost && r->task == t && va < kreg_end(r) && r->lo < va + n) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static uint64_t kreg_pages(const struct mm_kregion *r)
+{
+    uint64_t n = 0;
+    for (uint32_t x = 0; x < r->next; x++) {
+        n += r->ext[x].n;
+    }
+    return n;
+}
+
+/* n free pages in a row of one frame, taken for region capability i (off
+ * the free list, which keeps its order): the first's index, or -1. */
+static int64_t run_take(struct mm *m, uint32_t n, uint32_t i)
+{
+    uint32_t len = 0;
+    for (uint32_t p = 0; p < m->npages; p++) {
+        if (m->pg[p].refs != 0 || m->pg[p].kreg != 0) {
+            len = 0;
+            continue;
+        }
+        len = len != 0 && m->pg[p].frame == m->pg[p - 1u].frame ? len + 1u : 1u;
+        if (len < n) {
+            continue;
+        }
+        uint32_t first = p + 1u - n;
+        for (uint32_t q = first; q <= p; q++) {
+            m->pg[q].kreg = i + 1u;
+        }
+        for (uint32_t *at = &m->free; *at != 0;) {
+            struct mm_page *g = &m->pg[*at - 1u];
+            if (g->kreg != 0) {
+                *at = g->next;
+                g->next = 0;
+            } else {
+                at = &g->next;
+            }
+        }
+        m->nfree -= n;
+        return first;
+    }
+    return -1;
+}
+
+/* Pages [first, first + n) back in the pool, the last first (so they come
+ * back out in order: see mm_unmap). */
+static void run_give(struct mm *m, uint32_t first, uint32_t n)
+{
+    for (uint32_t k = n; k-- > 0;) {
+        struct mm_page *g = &m->pg[first + k];
+        g->kreg = 0;
+        g->next = m->free;
+        m->free = first + k + 1u;
+        m->nfree++;
+    }
+}
+
+/* Region capability i's record gone, its pages back in the pool: the kernel
+ * maps none of them now (its range unmapped, or its task gone). */
+static void kreg_release(struct mm *m, uint32_t i)
+{
+    struct mm_kregion *r = &m->kreg[i];
+    for (uint32_t x = 0; x < r->next; x++) {
+        run_give(m, r->ext[x].page, r->ext[x].n);
+    }
+    memset(r, 0, sizeof *r);
 }
 
 /* Pages being mapped into task t with one kernel call: consecutive pages
@@ -229,6 +326,15 @@ void mm_task_gone(struct mm *m, uint32_t t)
     for (uint32_t i = tk->nmap; i-- > 0;) {
         page_unref(m, tk->map[i].page); /* the last first: see mm_unmap */
     }
+    /* Its regions' extents went with its space (the kernel releases them):
+     * mm's capabilities, dead, go, and the pages come back. */
+    for (uint32_t i = 0; i < MM_KREGIONS; i++) {
+        const struct mm_kregion *r = &m->kreg[i];
+        if (r->live && !r->lost && r->task == t) {
+            (void)m->k.del(m->k.ctx, m->kreg_slot + i);
+            kreg_release(m, i);
+        }
+    }
     memset(tk, 0, sizeof *tk);
 }
 
@@ -251,6 +357,9 @@ int mm_map_anon(struct mm *m, uint32_t t, uint64_t va, uint64_t n, unsigned perm
         } else if (va < r->va + r->n && r->va < va + n) {
             return MM_E_STATE; /* overlaps a region */
         }
+    }
+    if (meets_kreg(m, t, va, n)) {
+        return MM_E_STATE; /* a region capability's: the task maps there itself */
     }
     if (free_at < 0) {
         return MM_E_NOMEM;
@@ -552,6 +661,243 @@ int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
     return m->k.protect(m->k.ctx, tk->slot, va, 1, r->perms) == 0;
 }
 
+/* ---- region capabilities (0030) ---- */
+
+/* The kernel's refusal as mm's. */
+static int kerr(int e)
+{
+    if (e == MM_KE_NOMEM) {
+        return MM_E_NOMEM;
+    }
+    if (e == MM_KE_STATE || e == MM_KE_OCCUPIED) {
+        return MM_E_STATE; /* a table or region there; the task's slot taken */
+    }
+    return e == MM_KE_RANGE ? MM_E_RANGE : MM_E_KERNEL;
+}
+
+int mm_region_new(struct mm *m, uint32_t t, uint64_t lo, uint32_t tables, unsigned perms,
+                  uint32_t tslot)
+{
+    if (!task_ok(m, t)) {
+        return MM_E_STATE;
+    }
+    if (tables == 0 || tables > MM_REGION_TABLES || lo % MM_SPAN != 0 ||
+        lo > UINT64_MAX - (uint64_t)tables * MM_SPAN || (perms & ~(MM_W | MM_X)) != 0) {
+        return MM_E_RANGE;
+    }
+    const struct mm_task *tk = &m->task[t];
+    uint64_t n = (uint64_t)tables * MM_SPAN;
+    if (kreg_of(m, t, tslot) >= 0 || meets_kreg(m, t, lo, n)) {
+        return MM_E_STATE; /* the slot names one already, or the range meets one */
+    }
+    for (unsigned i = 0; i < MM_REGIONS; i++) {
+        const struct mm_region *r = &tk->reg[i];
+        if (r->n != 0 && lo < r->va + r->n && r->va < lo + n) {
+            return MM_E_STATE; /* mm's own records: anonymous memory there */
+        }
+    }
+    uint32_t i = 0;
+    while (i < MM_KREGIONS && m->kreg[i].live) {
+        i++;
+    }
+    if (i == MM_KREGIONS) {
+        return MM_E_NOMEM;
+    }
+    uint32_t slot = m->kreg_slot + i;
+    int e = m->k.region_create(m->k.ctx, tk->slot, lo, tables, perms, slot);
+    if (e != 0) {
+        return kerr(e);
+    }
+    e = m->k.give(m->k.ctx, tk->slot, slot, tslot, MM_R_MAP);
+    if (e != 0) {
+        /* Its only capability: deleting it ends it (nothing to unmap). */
+        (void)m->k.del(m->k.ctx, slot);
+        (void)m->k.finish(m->k.ctx);
+        return kerr(e);
+    }
+    m->kreg[i] = (struct mm_kregion){
+        .live = 1, .task = t, .tslot = tslot, .lo = lo, .tables = tables, .perms = perms};
+    return MM_OK;
+}
+
+int mm_region_grow(struct mm *m, uint32_t t, uint32_t tslot, uint64_t n, uint32_t *ext)
+{
+    if (!task_ok(m, t)) {
+        return MM_E_STATE;
+    }
+    int i = kreg_of(m, t, tslot);
+    if (i < 0) {
+        return MM_E_STATE;
+    }
+    if (n == 0 || n > MM_PAGES) {
+        return MM_E_RANGE;
+    }
+    struct mm_kregion *r = &m->kreg[i];
+    struct mm_task *tk = &m->task[t];
+    if (r->next == MM_REGION_EXTENTS || n > MM_TASK_PAGES - tk->nmap - tk->rpages || n > m->nfree) {
+        return MM_E_NOMEM;
+    }
+    int64_t p = run_take(m, (uint32_t)n, (uint32_t)i);
+    if (p < 0) {
+        return MM_E_NOMEM; /* no run that long in one frame */
+    }
+    for (uint32_t k = 0; k < n; k++) {
+        memset(bytes(m, (uint32_t)p + k), 0, PAGE_BYTES);
+    }
+    const struct mm_page *g = &m->pg[p];
+    uint32_t x = 0;
+    int e = m->k.region_add(m->k.ctx, m->kreg_slot + (uint32_t)i, m->frame[g->frame].slot, g->off, n,
+                            &x);
+    if (e != 0) {
+        run_give(m, (uint32_t)p, (uint32_t)n);
+        return kerr(e);
+    }
+    r->ext[r->next++] = (struct mm_kextent){.page = (uint32_t)p, .n = (uint32_t)n};
+    tk->rpages += (uint32_t)n;
+    *ext = x;
+    return MM_OK;
+}
+
+int mm_region_free(struct mm *m, uint32_t t, uint32_t tslot)
+{
+    if (!task_ok(m, t)) {
+        return MM_E_STATE;
+    }
+    int i = kreg_of(m, t, tslot);
+    if (i < 0) {
+        return MM_E_STATE;
+    }
+    uint32_t slot = m->kreg_slot + (uint32_t)i;
+    if (m->k.kill(m->k.ctx, slot) != 0) {
+        return MM_E_KERNEL;
+    }
+    /* Its pages may be handed out again only once the kernel has unmapped
+     * them: its range's sweep is on the destruction work list. */
+    int done = m->k.finish(m->k.ctx);
+    (void)m->k.del(m->k.ctx, slot);
+    struct mm_kregion *r = &m->kreg[i];
+    m->task[t].rpages -= (uint32_t)kreg_pages(r);
+    if (!done) {
+        r->lost = 1;
+        r->task = MM_MAX_TASKS;
+        return MM_OK;
+    }
+    kreg_release(m, (uint32_t)i);
+    return MM_OK;
+}
+
+/* Child region capability j's pages mapped as parent's i maps its own:
+ * read back with map_query, a frame of i's extents at a time, and mapped in
+ * runs (consecutive pages of one extent, the same permissions). */
+struct krun {
+    uint32_t ext;
+    uint64_t page, va, n;
+    unsigned perms;
+};
+
+static int krun_flush(struct mm *m, uint32_t j, struct krun *r)
+{
+    if (r->n == 0) {
+        return MM_OK;
+    }
+    int e = m->k.region_map(m->k.ctx, m->kreg_slot + j, r->ext, r->page, r->n, r->va, r->perms);
+    r->n = 0;
+    return e == 0 ? MM_OK : MM_E_KERNEL;
+}
+
+static int kreg_copy_maps(struct mm *m, uint32_t i, uint32_t j)
+{
+    const struct mm_kregion *pr = &m->kreg[i];
+    uint32_t pslot = m->task[pr->task].slot;
+    uint64_t q[MM_QUERY_MAX];
+    for (uint32_t x = 0; x < pr->next; x++) {
+        uint32_t f = m->pg[pr->ext[x].page].frame;
+        int seen = 0;
+        for (uint32_t y = 0; y < x; y++) {
+            seen |= m->pg[pr->ext[y].page].frame == f;
+        }
+        if (seen) {
+            continue; /* that frame's pages are done */
+        }
+        for (uint64_t va = pr->lo; va < kreg_end(pr); va += MM_QUERY_MAX) {
+            if (m->k.query(m->k.ctx, pslot, va, MM_QUERY_MAX, m->frame[f].slot, q) != 0) {
+                return MM_E_KERNEL;
+            }
+            struct krun run = {0};
+            for (uint32_t k = 0; k < MM_QUERY_MAX; k++) {
+                uint64_t w = q[k];
+                if ((w & MM_QUERY_PRESENT) == 0 || (w & MM_QUERY_FRAME) == 0) {
+                    if (krun_flush(m, j, &run) != MM_OK) {
+                        return MM_E_KERNEL;
+                    }
+                    continue;
+                }
+                uint32_t off = (uint32_t)(w >> 32);
+                unsigned perms = (unsigned)(w & (MM_W | MM_X));
+                uint32_t y = 0;
+                uint64_t page = 0;
+                for (; y < pr->next; y++) {
+                    const struct mm_page *g = &m->pg[pr->ext[y].page];
+                    if (g->frame == f && off >= g->off && off - g->off < pr->ext[y].n) {
+                        page = off - g->off;
+                        break;
+                    }
+                }
+                if (y == pr->next) {
+                    return MM_E_KERNEL; /* not its extents' (the kernel's I12 says never) */
+                }
+                if (run.n != 0 && run.ext == y && run.page + run.n == page &&
+                    run.va + run.n == va + k && run.perms == perms) {
+                    run.n++;
+                    continue;
+                }
+                if (krun_flush(m, j, &run) != MM_OK) {
+                    return MM_E_KERNEL;
+                }
+                run = (struct krun){.ext = y, .page = page, .va = va + k, .n = 1, .perms = perms};
+            }
+            if (krun_flush(m, j, &run) != MM_OK) {
+                return MM_E_KERNEL;
+            }
+        }
+    }
+    return MM_OK;
+}
+
+/* The parent's region capabilities made again for the child (mm_clone):
+ * the same shape and slot, extents of the same sizes holding copies, the
+ * same pages mapped. A failure leaves what was made recorded as the
+ * child's, for mm_task_gone. */
+static int kreg_clone(struct mm *m, uint32_t parent, uint32_t child)
+{
+    for (uint32_t i = 0; i < MM_KREGIONS; i++) {
+        const struct mm_kregion *pr = &m->kreg[i];
+        if (!pr->live || pr->lost || pr->task != parent) {
+            continue;
+        }
+        int e = mm_region_new(m, child, pr->lo, pr->tables, pr->perms, pr->tslot);
+        if (e != MM_OK) {
+            return e;
+        }
+        uint32_t j = (uint32_t)kreg_of(m, child, pr->tslot);
+        for (uint32_t x = 0; x < pr->next; x++) {
+            uint32_t got;
+            e = mm_region_grow(m, child, pr->tslot, pr->ext[x].n, &got);
+            if (e != MM_OK) {
+                return e;
+            }
+            for (uint32_t k = 0; k < pr->ext[x].n; k++) {
+                memcpy(bytes(m, m->kreg[j].ext[x].page + k), bytes(m, pr->ext[x].page + k), PAGE_BYTES);
+            }
+        }
+        e = kreg_copy_maps(m, i, j);
+        if (e != MM_OK) {
+            return e;
+        }
+    }
+    return MM_OK;
+}
+
 /* ---- clone and share (part B) ---- */
 
 int mm_clone(struct mm *m, uint32_t parent, uint32_t child)
@@ -607,7 +953,10 @@ int mm_clone(struct mm *m, uint32_t parent, uint32_t child)
             return MM_E_KERNEL;
         }
     }
-    return run_flush(m, &run);
+    if (run_flush(m, &run) != MM_OK) {
+        return MM_E_KERNEL;
+    }
+    return kreg_clone(m, parent, child);
 }
 
 int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint64_t ova)
@@ -636,10 +985,13 @@ int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint
             return MM_E_STATE; /* o has a region there */
         }
     }
+    if (meets_kreg(m, o, ova, n)) {
+        return MM_E_STATE; /* or a region capability */
+    }
     /* Room, all of it checked before anything changes: o's table takes n
      * pages, t's the pages not there yet; the pool, those and the COW
      * pages to copy; t's regions, the cut and the new one; o's, one. */
-    if (ofree == 0 || n > MM_TASK_PAGES - ok->nmap) {
+    if (ofree == 0 || n > MM_TASK_PAGES - ok->nmap - ok->rpages) {
         return MM_E_NOMEM;
     }
     uint64_t mapped = 0;
@@ -648,7 +1000,7 @@ int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint
         mapped++;
         cow += !r.shared && m->pg[tk->map[i].page].refs > 1u;
     }
-    if (n - mapped > MM_TASK_PAGES - tk->nmap || n - mapped + cow > m->nfree) {
+    if (n - mapped > MM_TASK_PAGES - tk->nmap - tk->rpages || n - mapped + cow > m->nfree) {
         return MM_E_NOMEM;
     }
     unsigned need = 1;
@@ -788,8 +1140,78 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
             shared_refs[e->page] += ri >= 0 && tk->reg[ri].shared;
         }
     }
+    /* Region capabilities (0030): each page of an extent is that region's
+     * alone, in one frame's run; a task's count is its regions' pages. */
+    static uint32_t kpages[MM_PAGES];
+    static uint32_t rpages[MM_MAX_TASKS];
+    for (uint32_t p = 0; p < MM_PAGES; p++) {
+        kpages[p] = 0;
+    }
+    for (uint32_t t = 0; t < MM_MAX_TASKS; t++) {
+        rpages[t] = 0;
+    }
+    for (uint32_t i = 0; i < MM_KREGIONS; i++) {
+        const struct mm_kregion *r = &m->kreg[i];
+        if (!r->live) {
+            if (r->lost || r->next != 0 || r->tables != 0) {
+                FAULT("mm: free region record %u carries state", i);
+            }
+            continue;
+        }
+        if (r->lost ? r->task != MM_MAX_TASKS : !task_ok(m, r->task)) {
+            FAULT("mm: region %u names no task it may", i);
+            continue;
+        }
+        if (r->tables == 0 || r->tables > MM_REGION_TABLES || r->lo % MM_SPAN != 0 ||
+            (r->perms & ~(MM_W | MM_X)) != 0 || r->next > MM_REGION_EXTENTS) {
+            FAULT("mm: region %u has a bad shape", i);
+            continue;
+        }
+        for (uint32_t x = 0; x < r->next; x++) {
+            const struct mm_kextent *e = &r->ext[x];
+            if (e->n == 0 || e->page >= m->npages || e->n > m->npages - e->page) {
+                FAULT("mm: region %u extent %u is past the pool", i, x);
+                continue;
+            }
+            for (uint32_t k = 0; k < e->n; k++) {
+                const struct mm_page *g = &m->pg[e->page + k];
+                kpages[e->page + k]++;
+                if (g->kreg != i + 1u || g->frame != m->pg[e->page].frame) {
+                    FAULT("mm: region %u extent %u's page %u isn't its, in one frame", i, x, k);
+                }
+            }
+        }
+        if (r->lost) {
+            continue;
+        }
+        rpages[r->task] += (uint32_t)kreg_pages(r);
+        const struct mm_task *tk = &m->task[r->task];
+        for (unsigned a = 0; a < MM_REGIONS; a++) {
+            if (tk->reg[a].n != 0 && r->lo < tk->reg[a].va + tk->reg[a].n && tk->reg[a].va < kreg_end(r)) {
+                FAULT("mm: region %u meets task %u's anonymous region %u", i, r->task, a);
+            }
+        }
+        for (uint32_t j = i + 1u; j < MM_KREGIONS; j++) {
+            const struct mm_kregion *o = &m->kreg[j];
+            if (o->live && !o->lost && o->task == r->task &&
+                (o->tslot == r->tslot || (r->lo < kreg_end(o) && o->lo < kreg_end(r)))) {
+                FAULT("mm: regions %u and %u of task %u share a slot or pages", i, j, r->task);
+            }
+        }
+    }
+    for (uint32_t t = 0; t < MM_MAX_TASKS; t++) {
+        const struct mm_task *tk = &m->task[t];
+        if (tk->rpages != rpages[t] || (tk->live && tk->nmap + tk->rpages > MM_TASK_PAGES)) {
+            FAULT("mm: task %u counts %u region pages, has %u", t, tk->rpages, rpages[t]);
+        }
+    }
     uint32_t nfree = 0;
     for (uint32_t p = 0; p < m->npages; p++) {
+        if ((m->pg[p].kreg != 0) != (kpages[p] != 0) || kpages[p] > 1u ||
+            (m->pg[p].kreg != 0 && m->pg[p].refs != 0)) {
+            FAULT("mm: page %u is in %u extents, marked %u, with %u mappings", p, kpages[p],
+                  m->pg[p].kreg, m->pg[p].refs);
+        }
         if (m->pg[p].refs != refs[p]) {
             FAULT("mm: page %u counts %u references, %u mappings name it", p, m->pg[p].refs, refs[p]);
         }
@@ -799,14 +1221,14 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
             FAULT("mm: page %u is mapped in %u shared and %u private regions", p, shared_refs[p],
                   refs[p] - shared_refs[p]);
         }
-        nfree += m->pg[p].refs == 0;
+        nfree += m->pg[p].refs == 0 && m->pg[p].kreg == 0;
     }
     if (nfree != m->nfree) {
         FAULT("mm: %u pages free, nfree says %u", nfree, m->nfree);
     }
     uint32_t listed = 0;
     for (uint32_t p = m->free; p != 0 && listed <= m->npages; p = m->pg[p - 1u].next) {
-        if (p > m->npages || m->pg[p - 1u].refs != 0) {
+        if (p > m->npages || m->pg[p - 1u].refs != 0 || m->pg[p - 1u].kreg != 0) {
             FAULT("mm: the free list names page %u, in use or past the pool", p - 1u);
             break;
         }

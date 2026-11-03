@@ -225,6 +225,12 @@ static void child(struct work *w)
                 res = 0;
             }
             break;
+        case MMC_C_PEEK:
+            res = *(volatile uint64_t *)(uintptr_t)a0;
+            break;
+        case MMC_C_RMAP:
+            res = j_region_map(MMC_REGION_SLOT, a0, a1, 1, a2, 0);
+            break;
         default:
             res = 0xbad;
             break;
@@ -911,6 +917,95 @@ static uint64_t bench(struct work *w)
     return 0;
 }
 
+/* ---- MMC_REGION (0030) ---- */
+
+static volatile uint64_t *rpage(uint64_t i)
+{
+    return (volatile uint64_t *)(uintptr_t)(MMC_REGION_VA + i * J_PAGE);
+}
+
+/* A region asked of mm, grown and mapped here by its capability alone;
+ * a fork's child has its own copy at the same slot; freed, and the slot
+ * takes another. The root looks at mm's records at each pause. */
+static uint64_t region_test(struct work *w)
+{
+    const uint64_t s = MMC_REGION_SLOT;
+    const uint64_t lo = MMC_REGION_VA / J_PAGE;
+    const uint64_t two_w = 2u | (uint64_t)MM_W << 8; /* two tables, writable */
+    if (req(MM_REQ_REGION_NEW, lo + 1u, two_w, s) != MM_E_RANGE ||
+        req(MM_REQ_REGION_NEW, lo, two_w, MM_SLOT) != MM_E_STATE) {
+        return 1; /* off a table; a slot that's taken */
+    }
+    if (req(MM_REQ_REGION_NEW, lo, two_w, s) != MM_OK) {
+        return 2;
+    }
+    if (req(MM_REQ_REGION_NEW, lo + 2u * MM_SPAN, two_w, s) != MM_E_STATE ||
+        req(MM_REQ_MAP_ANON, lo + 4u, 2, MM_W) != MM_E_STATE) {
+        return 3; /* the slot names one; anonymous memory inside it */
+    }
+    uint64_t x0 = 9;
+    uint64_t x1 = 9;
+    if (req2(MM_REQ_REGION_GROW, s, 6, 0, &x0) != MM_OK || x0 != 0 ||
+        req2(MM_REQ_REGION_GROW, s, 2, 0, &x1) != MM_OK || x1 != 1) {
+        return 4;
+    }
+    /* Mapped here, by no request: zeroed pages, then written. */
+    if (j_region_map(s, 0, 0, 6, lo, J_MAP_W) != J_OK || j_region_map(s, 1, 0, 2, lo + MM_SPAN, 0) != J_OK) {
+        return 5;
+    }
+    for (uint64_t i = 0; i < 6; i++) {
+        if (rpage(i)[0] != 0 || rpage(i)[WORDS - 1u] != 0) {
+            return 6;
+        }
+        rpage(i)[3] = val(i, 3);
+    }
+    if (rpage(MM_SPAN)[0] != 0 || rpage(MM_SPAN + 1u)[WORDS - 1u] != 0) {
+        return 7;
+    }
+    /* MAP alone: no extent added, no kill, no write beyond the ceiling. */
+    uint64_t x;
+    if (j_region_add(s, MM_SLOT, 0, 1, &x) == J_OK || j_obj_kill(s) == J_OK ||
+        j_region_map(s, 0, 0, 1, lo + 20u, J_MAP_X) == J_OK) {
+        return 8;
+    }
+    pause_for_root(w, 1); /* one task, 8 region pages */
+    if (fork_kid(MMC_CHILD) != 0) {
+        return 9;
+    }
+    struct kid *k = &kids[nkids - 1u];
+    for (uint64_t i = 0; i < 6; i++) {
+        if (cmd(k, MMC_C_PEEK, MMC_REGION_VA + i * J_PAGE + 3u * 8u, 0, 0) != val(i, 3)) {
+            return 10; /* the child's copy */
+        }
+    }
+    rpage(0)[3] = 7;
+    if (cmd(k, MMC_C_PEEK, MMC_REGION_VA + 3u * 8u, 0, 0) != val(0, 3)) {
+        return 11; /* never shared (0030) */
+    }
+    if (cmd(k, MMC_C_RMAP, 1, 1, lo + 7u) != J_OK ||
+        cmd(k, MMC_C_PEEK, MMC_REGION_VA + 7u * J_PAGE, 0, 0) != 0) {
+        return 12; /* by its own capability */
+    }
+    pause_for_root(w, 3); /* two tasks, 8 region pages each */
+    if (end_kid(k) != 0) {
+        return 13;
+    }
+    nkids--;
+    if (req(MM_REQ_REGION_FREE, s, 0, 0) != MM_OK || j_region_map(s, 0, 0, 1, lo + 100u, 0) != J_E_GONE ||
+        req(MM_REQ_REGION_FREE, s, 0, 0) != MM_E_STATE) {
+        return 14;
+    }
+    if (j_cap_delete(s) != J_OK) {
+        return 15;
+    }
+    pause_for_root(w, 5); /* one task, no region pages */
+    if (req(MM_REQ_REGION_NEW, lo, two_w, s) != MM_OK || req2(MM_REQ_REGION_GROW, s, 1, 0, &x) != MM_OK ||
+        j_region_map(s, 0, 0, 1, lo, J_MAP_W) != J_OK || rpage(0)[3] != 0) {
+        return 16; /* the slot again, zeroed pages: kept at the exit, for mm to take back */
+    }
+    return 0;
+}
+
 void _start(void)
 {
     struct work *w = (struct work *)(uintptr_t)WORK_VA;
@@ -956,6 +1051,9 @@ void _start(void)
         break;
     case MMC_QUOTA:
         w->arg = quota_test(w);
+        break;
+    case MMC_REGION:
+        w->arg = region_test(w);
         break;
     case MMC_CHILD:
         child(w);

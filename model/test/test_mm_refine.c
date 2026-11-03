@@ -8,7 +8,9 @@
  * mm's library, and the fault path (a read or write goes through the
  * kernel's page tables, and faults into mm when the page is not there or
  * not writable). Random sequences of map, read, write, unmap, protect,
- * share, clone and exit, seeded and replayable. After every step: every
+ * share, clone and exit, seeded and replayable. Phase 5 step 3 adds a region
+ * capability (0030) a task asks mm for and maps in itself: its extents' pages
+ * hold values; a clone copies them, never shares them. After every step: every
  * value read must be the abstract one, mm's records and the kernel's
  * invariants must hold, and mm's records must cover the kernel's mappings
  * exactly (no page mapped that mm doesn't know of, none it knows of
@@ -79,9 +81,66 @@ static uint8_t *k_page(void *ctx, uint32_t fs, uint64_t off)
     return fs == POOL && off < POOL_PAGES ? pool[off] : NULL;
 }
 
+static int k_region_create(void *ctx, uint32_t ts, uint64_t lo, uint32_t tables, unsigned ceil,
+                           uint32_t dst)
+{
+    (void)ctx;
+    return (int)joist_region_create(&k, root, ts, lo, tables, ceil, dst);
+}
+
+static int k_region_add(void *ctx, uint32_t rs, uint32_t fs, uint64_t off, uint64_t n, uint32_t *ext)
+{
+    (void)ctx;
+    return (int)joist_region_add(&k, root, rs, fs, off, n, ext);
+}
+
+static int k_region_map(void *ctx, uint32_t rs, uint32_t ext, uint64_t pg, uint64_t n, uint64_t va,
+                        unsigned perms)
+{
+    (void)ctx;
+    return (int)joist_region_map(&k, root, rs, ext, pg, n, va, perms);
+}
+
+static int k_query(void *ctx, uint32_t ts, uint64_t va, uint64_t n, uint32_t fs, uint64_t *out)
+{
+    (void)ctx;
+    return (int)joist_map_query(&k, root, ts, va, n, fs, out);
+}
+
+static int k_give(void *ctx, uint32_t ts, uint32_t src, uint32_t dst, unsigned mask)
+{
+    (void)ctx;
+    return (int)joist_cap_give(&k, root, ts, src, dst, (joist_rights)mask);
+}
+
+static int k_kill(void *ctx, uint32_t slot)
+{
+    (void)ctx;
+    return (int)joist_obj_kill(&k, root, slot);
+}
+
+static int k_del(void *ctx, uint32_t slot)
+{
+    (void)ctx;
+    return (int)joist_cap_delete(&k, root, slot);
+}
+
+static int k_finish(void *ctx)
+{
+    (void)ctx;
+    for (unsigned i = 0; i < 1000u; i++) {
+        if (joist_continue(&k, 1) != JOIST_BLOCKED) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static const struct mm_kops kops = {
     .ctx = NULL, .map = k_map, .map_replace = k_map_replace, .unmap = k_unmap,
-    .protect = k_protect, .page = k_page};
+    .protect = k_protect, .page = k_page, .region_create = k_region_create,
+    .region_add = k_region_add, .region_map = k_region_map, .query = k_query, .give = k_give,
+    .kill = k_kill, .del = k_del, .finish = k_finish};
 
 /* ---- the abstract machine ---- */
 
@@ -98,6 +157,27 @@ static struct {
     joist_cspace s;  /* the kernel's space */
     struct apage pg[WN];
 } at[NT];
+
+/* Each task's region capability (0030): one table at RLO, its capability
+ * in the task's slot RS. Its extents' pages hold values (cells); each page
+ * of the range maps one of them, or nothing. */
+#define RLO (4u * JOIST_PT_ENTRIES)
+#define RN JOIST_PT_ENTRIES
+#define RS 9u
+#define RX_PAGES 8u /* an extent's pages, at most */
+#define KREG 50u    /* mm's region capabilities, in root's slots from here */
+struct rmapped {
+    uint8_t present, perms, ext;
+    uint32_t page;
+};
+static struct {
+    int has;
+    unsigned ceil;
+    uint32_t next;
+    uint32_t n[MM_REGION_EXTENTS];
+    uint32_t cell[MM_REGION_EXTENTS][RX_PAGES]; /* 0: zero */
+    struct rmapped map[RN];
+} ar[NT];
 
 #define NCELLS 200000u
 static uint64_t cell[NCELLS];
@@ -143,6 +223,7 @@ static int setup(void)
     memset(mem, 0, sizeof mem);
     memset(pool, 0xa5, sizeof pool);
     memset(at, 0, sizeof at);
+    memset(ar, 0, sizeof ar);
     ncells = 0;
     next_region = 0;
     k.hooks.page = page;
@@ -156,6 +237,7 @@ static int setup(void)
         }
     }
     mm_init(&m, &kops);
+    m.kreg_slot = KREG;
     return mm_add_frame(&m, POOL, POOL_PAGES) == MM_OK && start_task(0);
 }
 
@@ -187,6 +269,7 @@ static struct {
     unsigned long writes;
     unsigned long cow_copies;    /* write faults on a present page that took a new page */
     unsigned long clones, shares, unmaps, protects, exits, refused;
+    unsigned long rnew, rgrow, rmaps, rrefused, runmaps, rprotects, rreads, rwrites, rfrees, rclones;
 } cov;
 #define WRONG(...)                                                                                 \
     do {                                                                                           \
@@ -320,6 +403,225 @@ static void renumber_after(unsigned i, uint64_t a, uint32_t id)
     }
 }
 
+/* ---- region capabilities (0030) ---- */
+
+static const struct mm_kregion *kreg_of_task(unsigned i)
+{
+    for (uint32_t r = 0; r < MM_KREGIONS; r++) {
+        const struct mm_kregion *g = &m.kreg[r];
+        if (g->live && !g->lost && g->task == at[i].mt && g->tslot == RS) {
+            return g;
+        }
+    }
+    return NULL;
+}
+
+/* The region's page va (an offset in it), as the task reads or writes it. */
+static int region_access(unsigned i, uint64_t a, int write, uint64_t v)
+{
+    const struct rmapped *r = &ar[i].map[a];
+    uint64_t e = pte(at[i].s, RLO + a);
+    if ((e != 0) != (r->present != 0)) {
+        WRONG("task %u region page %llu: the kernel %s it", i, (unsigned long long)a, e != 0 ? "maps" : "doesn't map");
+    }
+    if (e == 0 || (write && (r->perms & MM_W) == 0)) {
+        /* Nothing there, or not writable: a fault mm must refuse (the
+         * region is the task's to map, not mm's). */
+        unsigned access = (write ? MM_ACCESS_WRITE : MM_ACCESS_READ) | (e != 0 ? MM_ACCESS_PRESENT : 0u);
+        if (mm_fault(&m, at[i].mt, RLO + a, access) != 0) {
+            WRONG("task %u region page %llu: mm resumed a fault there", i, (unsigned long long)a);
+        }
+        if (e != 0 && (e & JOIST_PTE_W) != 0) {
+            WRONG("task %u region page %llu: writable beyond its permissions", i, (unsigned long long)a);
+        }
+        cov.rrefused++;
+        return 1;
+    }
+    uint64_t *w = word(e);
+    uint32_t *c = &ar[i].cell[r->ext][r->page];
+    if (w == NULL) {
+        WRONG("task %u region page %llu maps no pool page", i, (unsigned long long)a);
+    }
+    if (!write) {
+        uint64_t want = *c != 0 ? cell[*c] : 0;
+        if (*w != want) {
+            WRONG("read of task %u region page %llu: 0x%llx, the abstract value 0x%llx", i,
+                  (unsigned long long)a, (unsigned long long)*w, (unsigned long long)want);
+        }
+        cov.rreads += want != 0;
+        return 1;
+    }
+    *w = v;
+    if (*c == 0) {
+        *c = cell_new(v);
+    } else {
+        cell[*c] = v;
+    }
+    cov.rwrites++;
+    return 1;
+}
+
+static int region_step(unsigned i)
+{
+    uint32_t t = at[i].mt;
+    joist_cspace ts = at[i].s;
+    /* Mostly writable (and a ceiling allowing it), so maps and writes do
+     * more than be refused; now and then anything. */
+    static const unsigned some[4] = {0, MM_W, MM_X, MM_W | MM_X};
+    unsigned perms = pick(4) != 0 ? MM_W : some[pick(4)];
+    switch (pick(12)) {
+    case 0: { /* ask mm for one; or for anonymous memory inside it */
+        if (ar[i].has && pick(2) == 0) {
+            if (mm_map_anon(&m, t, RLO + pick(RN), 1, MM_W) != MM_E_STATE) {
+                WRONG("map_anon inside task %u's region wasn't refused", i);
+            }
+            return 1;
+        }
+        unsigned ceil = pick(4) != 0 ? MM_W | (pick(2) != 0 ? MM_X : 0u) : perms;
+        int e = mm_region_new(&m, t, RLO, 1, ceil, RS);
+        int want = ar[i].has ? MM_E_STATE : MM_OK;
+        if (e != want && !(want == MM_OK && e == MM_E_NOMEM)) {
+            WRONG("region_new(task %u): %d, expected %d", i, e, want);
+        }
+        if (e == MM_OK) {
+            memset(&ar[i], 0, sizeof ar[i]);
+            ar[i].has = 1;
+            ar[i].ceil = ceil;
+            cov.rnew++;
+        }
+        return 1;
+    }
+    case 1: { /* grow it */
+        uint32_t n = 1u + pick(RX_PAGES);
+        uint32_t x = 99;
+        int e = mm_region_grow(&m, t, RS, n, &x);
+        int want = !ar[i].has ? MM_E_STATE : ar[i].next == MM_REGION_EXTENTS ? MM_E_NOMEM : MM_OK;
+        if (e != want && !(want == MM_OK && e == MM_E_NOMEM)) {
+            WRONG("region_grow(task %u, %u): %d, expected %d", i, n, e, want);
+        }
+        if (e == MM_OK) {
+            if (x != ar[i].next) {
+                WRONG("region_grow(task %u): extent %u, expected %u", i, x, ar[i].next);
+            }
+            ar[i].n[ar[i].next++] = n;
+            cov.rgrow++;
+        }
+        return 1;
+    }
+    case 2:
+    case 3:
+    case 4: { /* the task maps pages of an extent itself */
+        if (!ar[i].has) {
+            return 1;
+        }
+        /* Mostly an extent there, and a run inside it. */
+        int fit = ar[i].next != 0 && pick(4) != 0;
+        uint32_t x = fit ? pick(ar[i].next) : pick(ar[i].next + 1u);
+        uint64_t pg = fit ? pick(ar[i].n[x]) : pick(RX_PAGES + 1u);
+        uint64_t n = fit ? 1u + pick((uint32_t)(ar[i].n[x] - pg)) : 1u + pick(4);
+        uint64_t a = pick(8) == 0 ? RN - pick(4) : pick(RN);
+        joist_err e = joist_region_map(&k, ts, RS, x, pg, n, RLO + a, perms);
+        joist_err want = JOIST_OK;
+        if (x >= ar[i].next) {
+            want = JOIST_E_RANGE;
+        } else if (perms == (MM_W | MM_X) || (perms & ~ar[i].ceil) != 0) {
+            want = JOIST_E_RIGHTS;
+        } else if (pg >= ar[i].n[x] || n > ar[i].n[x] - pg || a + n > RN) {
+            want = JOIST_E_RANGE;
+        } else {
+            for (uint64_t b = 0; b < n; b++) {
+                want = ar[i].map[a + b].present ? JOIST_E_OCCUPIED : want;
+            }
+        }
+        if (e != want && !(want == JOIST_OK && e == JOIST_E_NOMEM)) {
+            WRONG("region_map(task %u, ext %u, page %llu, %llu at %llu, %u): %d, expected %d", i, x,
+                  (unsigned long long)pg, (unsigned long long)n, (unsigned long long)a, perms, e, want);
+        }
+        if (e == JOIST_OK) {
+            for (uint64_t b = 0; b < n; b++) {
+                ar[i].map[a + b] = (struct rmapped){
+                    .present = 1, .perms = (uint8_t)perms, .ext = (uint8_t)x, .page = (uint32_t)(pg + b)};
+            }
+            cov.rmaps++;
+        }
+        return 1;
+    }
+    case 5: { /* the task unmaps or protects a run */
+        if (!ar[i].has) {
+            return 1;
+        }
+        uint64_t a = pick(RN);
+        uint64_t n = 1u + pick(16);
+        int prot = pick(2) != 0;
+        joist_err e = prot ? joist_region_protect(&k, ts, RS, RLO + a, n, perms)
+                           : joist_region_unmap(&k, ts, RS, RLO + a, n);
+        joist_err want = prot && (perms == (MM_W | MM_X) || (perms & ~ar[i].ceil) != 0) ? JOIST_E_RIGHTS
+                         : a + n > RN                                                  ? JOIST_E_RANGE
+                                                                                        : JOIST_OK;
+        if (e != want) {
+            WRONG("region_%s(task %u, %llu, %llu): %d, expected %d", prot ? "protect" : "unmap", i,
+                  (unsigned long long)a, (unsigned long long)n, e, want);
+        }
+        if (e == JOIST_OK) {
+            for (uint64_t b = a; b < a + n; b++) {
+                if (prot) {
+                    ar[i].map[b].perms = (uint8_t)perms;
+                } else {
+                    ar[i].map[b] = (struct rmapped){0};
+                }
+            }
+            cov.rprotects += prot != 0;
+            cov.runmaps += !prot;
+        }
+        return 1;
+    }
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10: { /* read or write, mostly a page mapped */
+        if (!ar[i].has) {
+            return 1;
+        }
+        /* Mostly a page mapped; a read, mostly one that was written. */
+        int write = pick(3) == 0;
+        uint64_t a = pick(RN);
+        if (pick(4) != 0) {
+            for (uint64_t k2 = 0; k2 < RN; k2++) {
+                const struct rmapped *r = &ar[i].map[a];
+                if (r->present && (write || ar[i].cell[r->ext][r->page] != 0 || k2 > RN / 2u)) {
+                    break;
+                }
+                a = (a + 1u) % RN;
+            }
+        }
+        return region_access(i, a, write, rng | 1u);
+    }
+    default: { /* free it, now and then; the task deletes its dead capability */
+        if (pick(8) != 0) {
+            return 1;
+        }
+        int e = mm_region_free(&m, t, RS);
+        if (e != (ar[i].has ? MM_OK : MM_E_STATE)) {
+            WRONG("region_free(task %u): %d", i, e);
+        }
+        if (e == MM_OK) {
+            for (uint64_t a = 0; a < RN; a++) {
+                if (pte(ts, RLO + a) != 0) {
+                    WRONG("task %u region page %llu still mapped after REGION_FREE", i, (unsigned long long)a);
+                }
+            }
+            if (joist_cap_delete(&k, ts, RS) != JOIST_OK) {
+                WRONG("task %u couldn't delete its dead region capability", i);
+            }
+            memset(&ar[i], 0, sizeof ar[i]);
+            cov.rfrees++;
+        }
+        return 1;
+    }
+    }
+}
+
 static int step(void)
 {
     unsigned i = live_task();
@@ -338,7 +640,7 @@ static int step(void)
     /* Half writable, else read-only or executable; now and then W|X. */
     static const unsigned some[4] = {0, MM_W, MM_W, MM_X};
     unsigned perms = pick(16) == 0 ? (MM_W | MM_X) : some[pick(4)];
-    switch (pick(16)) {
+    switch (pick(20)) {
     case 0:
     case 1: { /* map anonymous memory */
         int clash = 0;
@@ -436,6 +738,15 @@ static int step(void)
             }
             at[c].pg[b] = p;
         }
+        /* Its region: the same shape and mappings, its own copies (0030). */
+        ar[c] = ar[i];
+        for (uint32_t x = 0; x < ar[c].next; x++) {
+            for (uint32_t q = 0; q < ar[c].n[x]; q++) {
+                uint32_t *cl = &ar[c].cell[x][q];
+                *cl = *cl != 0 ? cell_new(cell[*cl]) : 0;
+            }
+        }
+        cov.rclones += ar[i].has != 0;
         return 1;
     }
     case 13: { /* share with another live task: from a page in a region, a short run */
@@ -493,12 +804,18 @@ static int step(void)
             joist_cap_delete(&k, root, TSLOT(i)) != JOIST_OK) {
             WRONG("task %u could not be destroyed", i);
         }
+        if (k_finish(NULL) != 1) {
+            WRONG("task %u's destruction didn't finish", i);
+        }
         mm_task_gone(&m, t);
         at[i].live = 0;
+        memset(&ar[i], 0, sizeof ar[i]);
         cov.exits++;
         return 1;
-    default: /* read back a page */
+    case 15: /* read back a page */
         return do_read(i, pick_used(i, 0));
+    default: /* region capabilities (0030) */
+        return region_step(i);
     }
 }
 
@@ -528,6 +845,36 @@ static int covered(void)
         }
         if (j != tk->nmap) {
             WRONG("task %u: mm records pages outside the window", i);
+        }
+        /* The region's range: what the task mapped, each the page of mm's
+         * record of that extent. */
+        const struct mm_kregion *g = kreg_of_task(i);
+        if ((g != NULL) != (ar[i].has != 0)) {
+            WRONG("task %u: mm %s a region capability for it", i, g != NULL ? "has" : "hasn't");
+        }
+        uint32_t rp = 0;
+        for (uint32_t x = 0; x < ar[i].next; x++) {
+            rp += ar[i].n[x];
+        }
+        if ((g != NULL && g->next != ar[i].next) || tk->rpages != rp) {
+            WRONG("task %u: mm's region has %u extents, %u pages; expected %u, %u", i,
+                  g != NULL ? g->next : 0u, tk->rpages, ar[i].next, rp);
+        }
+        for (uint64_t a = 0; a < RN; a++) {
+            uint64_t e = pte(at[i].s, RLO + a);
+            const struct rmapped *r = &ar[i].map[a];
+            if ((e != 0) != (r->present != 0)) {
+                WRONG("task %u region page %llu: the kernel %s it", i, (unsigned long long)a,
+                      e != 0 ? "maps" : "doesn't map");
+            }
+            if (e != 0 && g != NULL) {
+                const struct mm_page *pg = &m.pg[g->ext[r->ext].page + r->page];
+                unsigned perms = ((e & JOIST_PTE_W) != 0 ? MM_W : 0u) | ((e & JOIST_PTE_X) != 0 ? MM_X : 0u);
+                if (JOIST_PTE_OFF(e) != pg->off || k.cs[root].slot[POOL].obj != JOIST_PTE_FRAME(e) + 1u ||
+                    perms != r->perms) {
+                    WRONG("task %u region page %llu: the kernel's page isn't its extent's", i, (unsigned long long)a);
+                }
+            }
         }
     }
     return 1;
@@ -568,7 +915,7 @@ JT_TEST(mm_refines_the_abstract_machine)
                     : v != NULL && *v != '\0'   ? strtoull(v, NULL, 0)
                                                  : 48;
     for (uint64_t seed = first; seed <= last; seed++) {
-        if (!run(seed, 600)) {
+        if (!run(seed, 750)) { /* 600 before regions took a fifth of the steps */
             fprintf(stderr, "  mm refinement: seed %llu: %s\n", (unsigned long long)seed, why);
             JT_CHECK(0);
             return;
@@ -582,8 +929,15 @@ JT_TEST(mm_refines_the_abstract_machine)
             "%lu shares, %lu unmaps, %lu protects, %lu exits, %lu faults refused\n",
             cov.reads_written, cov.writes, cov.cow_copies, cov.clones, cov.shares, cov.unmaps,
             cov.protects, cov.exits, cov.refused);
+    fprintf(stderr,
+            "  coverage mm regions: %lu made, %lu grown, %lu maps, %lu unmaps, %lu protects, %lu reads "
+            "of written pages, %lu writes, %lu faults refused, %lu frees, %lu cloned\n",
+            cov.rnew, cov.rgrow, cov.rmaps, cov.runmaps, cov.rprotects, cov.rreads, cov.rwrites,
+            cov.rrefused, cov.rfrees, cov.rclones);
     /* Floors: each path is taken often enough to mean something. */
     JT_CHECK(cov.reads_written > 2000 && cov.writes > 2000 && cov.cow_copies > 200);
     JT_CHECK(cov.clones > 100 && cov.shares > 100 && cov.unmaps > 200 && cov.protects > 100);
     JT_CHECK(cov.exits > 50 && cov.refused > 100);
+    JT_CHECK(cov.rnew > 100 && cov.rgrow > 200 && cov.rmaps > 200 && cov.runmaps > 50 && cov.rprotects > 50);
+    JT_CHECK(cov.rreads > 150 && cov.rwrites > 150 && cov.rrefused > 100 && cov.rfrees > 30 && cov.rclones > 30);
 }
