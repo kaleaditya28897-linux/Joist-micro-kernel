@@ -521,3 +521,56 @@ from Debian's hurd-amd64 packages and sources, checked by SHA-256.
 - **Estimate:** 13.5 weeks (likely 10 to 17) for the glibc part, past
   0031's 6 weeks. **The owner decided to go on with glibc** (0031's B,
   2026-11-04), recorded in 0031: Phase 5 grows by the estimate.
+
+### Step 6: the design of the MIG backend (2026-11-04)
+
+Implementation choices inside choice 3, 0001, 0005 and 0006, so
+*(changeable)*.
+
+- **The data the plan asked for first** (`docs/phase5-data/step6-mig/`,
+  `tools/phase5/defs-rights.py` over the Hurd's 45 `.defs`): of 462
+  routines, 437 pass at most 2 rights each way (279 none, 141 one, 17 two);
+  6 pass 3 or 4 (`fsys_getpriv`, `startup_procinit`, `crash_dump_task`
+  ...); 19 pass arrays of rights (`file_exec`, `msg_set_dtable`,
+  `socket_send` ...). In `io`, `fs` and `fsys` (Phase 5's), 5 of 79 are
+  over, and neither `hello` nor its client calls them.
+- **MIG kept, in the tree:** GNU MIG 1.8+git20231217 as Debian ships it
+  (its SHA-256 recorded; its generated parser included, so it builds with
+  clang alone) in `third_party/mig/`, unchanged, plus a Joist output mode
+  in new files (`-joist`), from the same parser. Built for the host with
+  the rest of the tools; it reads `.defs` exactly as today.
+- **A message** (0001: 4 registers, a 4 KiB IPC buffer, 2 capabilities):
+  `r[0]` the routine's id (`msgh_id`), `r[1..3]` the body's first 3 words,
+  the rest in the IPC buffer. The body is the in-line arguments in
+  declaration order, each 8-byte aligned; a variable array is its count,
+  then its elements; strings likewise. No Mach type descriptors: the
+  interface fixes the types. A reply's `r[0]` is the return code.
+- **Rights:** in declaration order, as the message's 2 capabilities, each
+  with a mask from its MIG disposition (copy or make a send right: SEND and
+  GRANT; a send-once right: SEND alone; a move: passed, then the sender's
+  slot deleted). They arrive in the receiver's receive slots, which are its
+  port names (glibc's business). The request port is the endpoint called;
+  the reply port is the call's reply capability.
+- **Over the limit** (more than 2 rights, or an array of them): not
+  generated in Phase 5; both stubs return `MIG_BAD_ARGUMENTS`, and the 25
+  routines are listed. They get a split or a reply-object exchange when a
+  user needs them (`exec` and `proc`, Phases 7 and 8).
+- **One-way routines** (0001's amendment): a `Call` the server answers at
+  once with an empty reply. **Deferred replies** (`MIG_NO_REPLY`): the
+  server keeps the reply capability in a reply object (`reply_save`) and
+  answers later.
+- **Out of line** (0006): in line while it fits the buffer; `dealloc` ones
+  by move-grant (step 9); anything larger refused until step 9 measures it.
+- **No system call in generated code:** user stubs call
+  `__joist_mig_call(port, &msg)`, which the runtime gives (`user/lib`, then
+  glibc's `sysdeps/joist`); servers are `<prefix>_server(in, out)` on a
+  Joist message, which libports' `ReplyRecv` loop (choice 6) calls. So the
+  generated code runs on the host as it is.
+- **Tests:** on the host, every routine of `io`, `fs` and `fsys` round
+  trips through a fake transport: the backend also emits, behind a flag, a
+  test server whose routines hash their inputs and fill their outputs from
+  a seeded stream, and a client that calls every stub with seeded inputs
+  and checks both sides. A libFuzzer target feeds the generated demuxer
+  arbitrary messages (ids, lengths, counts, unterminated strings, missing
+  capabilities): refused with `MIG_BAD_ARGUMENTS`, never a read past the
+  message, under ASan and UBSan. Mutations in the backend's marshalling.
