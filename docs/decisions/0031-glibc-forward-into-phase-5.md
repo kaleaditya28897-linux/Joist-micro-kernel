@@ -72,6 +72,17 @@ the reused servers and their test clients call.**
   narrow the scope (for example libports and a raw MIG server first,
   libtrivfs later), or to fall back to A.
 
+## The check, made (2026-11-04)
+
+The inventory (Phase 5 step 5, `docs/phase5-data/step5-glibc-inventory/`):
+883 members of glibc and the Hurd's libraries reached; 84 are glibc's Mach
+layer, whose 82 symbols the rest uses directly; 11 hold GCC nested
+functions. Estimate for `sysdeps/joist` in Phase 5: 13.5 weeks (likely 10
+to 17), past the 6 weeks. A narrower scope barely narrows it (a raw
+libports server needs 77 of the 82 symbols); a runtime of Joist's own needs
+91 functions, about 6 to 8 weeks, all replaced in Phase 7. **The owner
+decided to go on with B** (2026-11-04): Phase 5 grows by the estimate.
+
 ## Consequences
 
 - **Easier:** reused Hurd code runs on the libc it was written for, so

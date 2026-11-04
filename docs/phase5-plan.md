@@ -207,10 +207,11 @@ task tree (decision 0028).
 3. ~~**The region capability in the kernel and `mm`;** measured.~~ Done
    2026-11-03 (*Progress*).
 4. ~~**`mm`'s per-tree limits (0028).**~~ Done 2026-11-04 (*Progress*).
-5. **The glibc inventory (0031's check):** what libports, libihash,
+5. ~~**The glibc inventory (0031's check):** what libports, libihash,
    libtrivfs, `trans/hello` and a test client reach in glibc without
    `sysdeps/mach`; the estimate; the owner's decision if it passes 6
-   weeks. Recorded in `docs/phase5-data/`.
+   weeks. Recorded in `docs/phase5-data/`.~~ Done 2026-11-04: go on with
+   glibc (*Progress*).
 6. **The MIG backend,** with its host tests (glibc's own Hurd stubs need
    it).
 7. **glibc's `sysdeps/joist`, `htl` and `malloc` over a region;** the
@@ -518,4 +519,5 @@ from Debian's hurd-amd64 packages and sources, checked by SHA-256.
 - **A narrower scope barely narrows glibc:** the libports server alone
   needs 77 of the 82 symbols (a static glibc's start-up brings the rest).
 - **Estimate:** 13.5 weeks (likely 10 to 17) for the glibc part, past
-  0031's 6 weeks: the owner's decision.
+  0031's 6 weeks. **The owner decided to go on with glibc** (0031's B,
+  2026-11-04), recorded in 0031: Phase 5 grows by the estimate.
