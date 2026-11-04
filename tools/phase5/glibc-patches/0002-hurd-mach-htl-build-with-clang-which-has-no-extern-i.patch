@@ -1,7 +1,7 @@
 From 2adca74129c5fec2cc0efd63596d6bb1eeb28251 Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 18:30:35 +0530
-Subject: [PATCH 2/6] hurd, mach, htl: build with clang, which has no extern
+Subject: [PATCH 2/7] hurd, mach, htl: build with clang, which has no extern
  inlines in libc
 
 features.h gives clang's builds of libc no __USE_EXTERN_INLINES (public

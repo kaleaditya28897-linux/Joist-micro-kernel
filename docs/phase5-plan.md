@@ -627,4 +627,10 @@ Implementation choices inside choice 3, 0001, 0005 and 0006, so
   variable-sized arrays in structs, an FPU save area as an asm operand,
   and one nested function. Nothing changes for GCC.
 - **Left:** 70 GCC nested functions in 31 files of the Hurd layer (and
-  their knock-ons); upstream glibc still has them all.
+  their knock-ons); upstream glibc still has them all. The owner chose
+  context parameters (2026-11-04): each becomes an ordinary function taking
+  what it used (or, for a cleanup using many locals, a local macro), and
+  callbacks passed to fixed-signature helpers (`_hurd_ctty_input`,
+  `use_init_port`, `_hurd_priority_which_map`, `_hurd_startup`, signal
+  preemptors) get context-taking variants of those helpers. Done (patch
+  0007): 7 functions in 6 files. Not yet rebuilt with 0007.

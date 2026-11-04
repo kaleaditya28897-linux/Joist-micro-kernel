@@ -1,7 +1,7 @@
 From 01217f3b28ff7309af0ae85d8bc90dc7a256d559 Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 18:44:31 +0530
-Subject: [PATCH 6/6] htl: include the spin functions' declarations for all of
+Subject: [PATCH 6/7] htl: include the spin functions' declarations for all of
  libc
 
 <pthread.h> (glibc's own) included bits/spin-lock-inline.h only with

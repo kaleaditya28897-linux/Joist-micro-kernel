@@ -1,7 +1,7 @@
 From 8cafaa35e9e58efab732c0b5afc8dfc9d910cf2d Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 18:30:35 +0530
-Subject: [PATCH 3/6] hurd: no variable-sized arrays in structs (clang has
+Subject: [PATCH 3/7] hurd: no variable-sized arrays in structs (clang has
  none)
 
 ioctl.c's message buffer takes the largest size any request needs (counts

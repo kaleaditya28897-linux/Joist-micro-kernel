@@ -1,7 +1,7 @@
 From 8ff03fb7cab186863d82321c4ca37cbb284b20b0 Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 18:37:25 +0530
-Subject: [PATCH 5/6] hurd: x86_64 sigreturn: pass the FPU save area by address
+Subject: [PATCH 5/7] hurd: x86_64 sigreturn: pass the FPU save area by address
 
 Its hw_state is a flexible array, which clang won't take as an "m" asm
 operand. The address in a register and a memory clobber say the same.
