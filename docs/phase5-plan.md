@@ -206,7 +206,7 @@ task tree (decision 0028).
    Done 2026-11-03 (*Progress*).
 3. ~~**The region capability in the kernel and `mm`;** measured.~~ Done
    2026-11-03 (*Progress*).
-4. **`mm`'s per-tree limits (0028).**
+4. ~~**`mm`'s per-tree limits (0028).**~~ Done 2026-11-04 (*Progress*).
 5. **The glibc inventory (0031's check):** what libports, libihash,
    libtrivfs, `trans/hello` and a test client reach in glibc without
    `sysdeps/mach`; the estimate; the owner's decision if it passes 6
@@ -444,3 +444,57 @@ Implementation choices inside 0028, so *(changeable)*.
   refinement test; on the kernel, a fork bomb and a memory hog, each its
   own tree, beside a third tree that keeps faulting and forking and is
   never refused (Phase 5's exit line).
+
+### Step 4: `mm`'s per-tree limits (2026-11-04)
+
+- **Built** as *Step 4: the design* above says (b05da91): `mm`'s table of
+  trees in `servers/mm/mmlib.c` (each page charged to its maker's tree,
+  the room rule for a new page, admission at `MM_REQ_ADOPT`,
+  `mm_task_add_child` joining a child to its parent's tree at
+  `MM_REQ_CLONE`, `mm_set_limit`, and `mm_check` checking that the trees'
+  claims never pass the pool), and `MM_REQ_SET_LIMIT` in `mm.c` and
+  `mm_proto.h`. Defaults: 32 pages reserved (`MM_TREE_RESERVE`), half the
+  pool and half the task records. `cowstress`, `mmbench` and `mmroot`'s
+  clone-full test set their tree unlimited (`tree_unlimited`, `mmhost.h`):
+  what they test is `mm` full, not a tree's limits.
+- **Tests:** 5 `mmlib` unit tests (`mm_tree_*`: a tree's ceiling on every
+  path that makes a page; its reservation kept for it; admission and
+  `SET_LIMIT` refused when the reservations don't fit; children counted
+  from `CLONE`, kept after their parent dies, given back with the last
+  task; a tree keeping the pages it shared after its tasks go); 11
+  mutations (`mm-tree-*`: the four 0028 names (`-ceiling-ignored`,
+  `-child-own-tree`, `-tasks-uncounted`, `-admission-unchecked`) and
+  `-reserve-ignored`, `-child-ceiling-ignored`, `-page-not-uncharged`,
+  `-lost-still-charged`, `-reserve-kept-without-tasks`,
+  `-share-room-unchecked`, `-set-limit-unchecked`); trees in the
+  refinement test's abstract machine (membership checked every step, a
+  refusal only where a tree has no room); `mmroot`'s trees test, Phase 5's exit line against
+  the build-time defaults (`MM_MAX_TASKS` 16, a 256-page pool): a fork
+  bomb stopped at 7 children (its task ceiling, its children pending), a
+  hog at 128 pages (its ceiling, half the pool), a second at 64 (the pool
+  less the other trees' reservations), a fifth tree refused at `ADOPT`, a
+  reservation raised past what is free refused, and a fourth tree that
+  faults and forks beside them never refused ("mm: trees ok").
+- **Runs** (joist-dev2, at b05da91): `make -C model check` (275 tests in
+  each of the six builds), `make -C model mutate` (326 of 326 caught),
+  `make -C kernel check` (55 host tests under plain and four sanitizers;
+  tidy and scan-build clean; 87 of 87 self-tests, among them the three
+  `mmroot` runs with "mm: trees ok", `cow3`, `kvm-smp1/2/4-cowstress` and
+  `chk-kvm-smp2-cow3`; 32 artifacts reproducible) and `make -C kernel
+  mutate` (56 of 56) all pass.
+- **What surprised:**
+  - *`SHARE` changed things before it knew the tree had room.* Writing
+    the unit tests found that `mm_share` could refuse for want of room
+    after it had already begun to change the sharer's records. It now
+    checks the tree's room for every page it will make first, and
+    `mm-tree-share-room-unchecked` holds it there (fixed in b05da91).
+  - *`mm`'s table runs are a shared resource 0028 didn't name.* `mm`
+    lends each task record a run of `MM_TABLE_PAGES` table pages from the
+    pages its starter gave it (`mm.c`'s `lend_tables`). With fewer runs
+    than task records (`mmhost.h`'s default is 8), a fork bomb spends
+    every run while still below its tree's task ceiling, and a new task in
+    any other tree is refused, which is the exhaustion 0028 exists to
+    prevent. `mmroot` lends `mm` one run per task record
+    (`HOST_TABLE_RUNS` = `MM_MAX_TASKS`), so the task ceiling bounds the
+    runs too. Whoever starts `mm` (the root, later RS) must do the same,
+    or `mm` must count runs per tree.
