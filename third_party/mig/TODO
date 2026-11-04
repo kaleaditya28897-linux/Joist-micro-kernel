@@ -1,0 +1,2 @@
+Make it emit declaration for the server routine, see gdb's gnu-nat-mig.h and
+other external declarations in the gnumach/hurd code

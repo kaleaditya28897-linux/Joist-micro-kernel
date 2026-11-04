@@ -1,0 +1,18 @@
+# Injected bugs in MIG's Joist mode (third_party/mig/joistmig.c) and its
+# runtime header (user/lib/joist_mig.h) that tools/mig-test/run.sh's round
+# trip or fuzzer must catch: name @@ file @@ find @@ replace (one line, found
+# exactly once; joist_mig.h names the header, any other file is in
+# third_party/mig).
+jm-send-no-length @@ joist_mig.h @@     m->r[0] = (uint32_t)m->r[0] | (uint64_t)b->end << 32; @@     m->r[0] = (uint32_t)m->r[0];
+jm-recv-length-unchecked @@ joist_mig.h @@         m->len != (words > 3u ? words - 3u : 0)) { @@         0) {
+jm-put-overflows @@ joist_mig.h @@     if (n > sizeof b->w || a > sizeof b->w - n) { @@     if (n > sizeof b->w) {
+user-error-ignored @@ joistmig.c @@     fprintf(f, "\tif ((kern_return_t)joist_mig_code(&jm_m) != KERN_SUCCESS)\n\t\treturn (kern_return_t)joist_mig_code(&jm_m);\n"); @@     fprintf(f, "\t(void)0;\n");
+user-reply-cap-unchecked @@ joistmig.c @@         fprintf(f, "\tif (jm_m.ncaps <= %d)\n\t\treturn JOIST_MIG_TYPE_ERROR;\n", *k); @@         fprintf(f, "\t(void)%d;\n", *k);
+user-cap-index-stuck @@ joistmig.c @@         (*k)++; @@         (void)k;
+user-small-buffer-overrun @@ joistmig.c @@         fprintf(f, "\t\tif (jm_n > *%s) {\n", c->argVarName); @@         fprintf(f, "\t\tif (0 && jm_n > *%s) {\n", c->argVarName);
+server-cap-index-stuck @@ joistmig.c @@             *k += 1; @@             (void)k;
+server-cap-unchecked @@ joistmig.c @@             fprintf(f, "\tif (in->ncaps <= %d)\n\t\tgoto bad;\n\tjm_%s = in->cap[%d];\n", *k, svname(a), *k); @@             fprintf(f, "\tjm_%s = in->cap[%d];\n", svname(a), *k);
+server-takes-extra @@ joistmig.c @@     fprintf(f, "\tif (jm_b.at != jm_b.end)\n\t\tgoto bad; /* more than it takes */\n"); @@     fprintf(f, "\tif (0)\n\t\tgoto bad; /* more than it takes */\n");
+server-moved-memory-kept @@ joistmig.c @@             fprintf(f, "\t\t\tjoist_mig_deallocate(jm_%s, jm_n * sizeof jm_%s[0]);\n", svname(a), svname(a)); @@             fprintf(f, "\t\t\t(void)jm_%s;\n", svname(a));
+server-string-unterminated @@ joistmig.c @@             fprintf(f, "\t\t    (jm_%s = joist_mig_ref(&jm_b, jm_n)) == NULL || jm_%s[jm_n - 1] != 0)\n", svname(a), @@             fprintf(f, "\t\t    (jm_%s = joist_mig_ref(&jm_b, jm_n)) == NULL || 0 * jm_%s[0])\n", svname(a),
+demux-unknown-served @@ joistmig.c @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = (uint32_t)JOIST_MIG_BAD_ID;\n"); @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = 0;\n");

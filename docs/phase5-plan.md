@@ -540,11 +540,13 @@ Implementation choices inside choice 3, 0001, 0005 and 0006, so
   in new files (`-joist`), from the same parser. Built for the host with
   the rest of the tools; it reads `.defs` exactly as today.
 - **A message** (0001: 4 registers, a 4 KiB IPC buffer, 2 capabilities):
-  `r[0]` the routine's id (`msgh_id`), `r[1..3]` the body's first 3 words,
-  the rest in the IPC buffer. The body is the in-line arguments in
+  `r[0]` the routine's id (`msgh_id`) in its low 32 bits and the body's
+  length in bytes in its high 32 (so both sides check lengths exactly),
+  `r[1..3]` the body's first 3 words, the rest in the IPC buffer. The body is the in-line arguments in
   declaration order, each 8-byte aligned; a variable array is its count,
   then its elements; strings likewise. No Mach type descriptors: the
-  interface fixes the types. A reply's `r[0]` is the return code.
+  interface fixes the types. A reply's `r[0]` is the return code (and the
+  length).
 - **Rights:** in declaration order, as the message's 2 capabilities, each
   with a mask from its MIG disposition (copy or make a send right: SEND and
   GRANT; a send-once right: SEND alone; a move: passed, then the sender's
@@ -562,7 +564,7 @@ Implementation choices inside choice 3, 0001, 0005 and 0006, so
 - **Out of line** (0006): in line while it fits the buffer; `dealloc` ones
   by move-grant (step 9); anything larger refused until step 9 measures it.
 - **No system call in generated code:** user stubs call
-  `__joist_mig_call(port, &msg)`, which the runtime gives (`user/lib`, then
+  `joist_mig_call(port, &msg)`, which the runtime gives (`user/lib`, then
   glibc's `sysdeps/joist`); servers are `<prefix>_server(in, out)` on a
   Joist message, which libports' `ReplyRecv` loop (choice 6) calls. So the
   generated code runs on the host as it is.
@@ -574,3 +576,33 @@ Implementation choices inside choice 3, 0001, 0005 and 0006, so
   arbitrary messages (ids, lengths, counts, unterminated strings, missing
   capabilities): refused with `MIG_BAD_ARGUMENTS`, never a read past the
   message, under ASan and UBSan. Mutations in the backend's marshalling.
+
+### Step 6: the MIG backend (2026-11-04)
+
+- **Built** as *Step 6: the design* says: GNU MIG in `third_party/mig/`
+  (Debian's source, unchanged, its SHA-256 in `JOIST.md`), plus `cpu.h`
+  (generated once from Mach's headers) and `joistmig.c`, the Joist mode, a
+  program of its own built from MIG's parser and types. Generated code
+  speaks Joist's IPC through `user/lib/joist_mig.h` and makes no system
+  call. One change to the design while building: `r[0]` also carries the
+  body's length in bytes (its high 32 bits), since three register words
+  can't tell a short body from one with trailing zeros; both sides now
+  check lengths exactly.
+- **`io`, `fs` and `fsys` generate and compile** with `-Werror`. 74 of
+  their 79 routines are carried; the 5 the rights count found (`file_exec`,
+  `file_exec_paths`, `file_get_storage_info`, `fsys_getpriv`,
+  `fsys_get_children`) answer `MIG_BAD_ARGUMENTS` on both sides.
+- **Tests** (`tools/mig-test/run.sh`; the Hurd's headers fetched and
+  checked by SHA-256; nothing downloaded is run):
+  - the round trip: every carried routine through a fake transport that
+    copies as the kernel's `Call` does and moves capabilities to other
+    slots; the test server hashes what it got and fills its outputs from a
+    seeded stream, the client checks both, and 1 call in 13 is answered
+    with an error. 74 000 calls over 1 000 seeds pass at `-O0`, `-O1` and
+    `-O2`, under ASan and UBSan. Spoilt messages are refused: a word too
+    many, a wrong length, an unknown id, a request or reply without its
+    right, an unterminated string, an array no message can hold. Three
+    by-value struct arguments (`time_value_t`, `timespec_t`) are carried
+    but not hashed: after a call their padding is unspecified in C.
+  - libFuzzer on the three demuxers: no crash in 6.9 million inputs.
+  - 13 mutations of the generator and the runtime header, all caught.
