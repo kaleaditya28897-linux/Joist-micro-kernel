@@ -1,0 +1,63 @@
+From 9693df07dbc6884b7d01bca2fe3a0f0a870cfee9 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 18:30:35 +0530
+Subject: [PATCH 1/6] htl: pt-key.h: no nested function (clang has none)
+
+__pthread_key_lock_ready's do_init captured nothing: an ordinary static
+function now. Joist, Phase 5 step 7.
+---
+ sysdeps/htl/pt-key.h | 34 ++++++++++++++++++----------------
+ 1 file changed, 18 insertions(+), 16 deletions(-)
+
+diff --git a/sysdeps/htl/pt-key.h b/sysdeps/htl/pt-key.h
+index b0ef31c1..f5c2d097 100644
+--- a/sysdeps/htl/pt-key.h
++++ b/sysdeps/htl/pt-key.h
+@@ -58,26 +58,28 @@ extern pthread_once_t __pthread_key_once;
+ 
+ #include <assert.h>
+ 
+-static inline void
+-__pthread_key_lock_ready (void)
++/* Not a nested function: clang has none, and it captured nothing.  */
++static void
++__pthread_key_lock_init (void)
+ {
+-  void do_init (void)
+-  {
+-    int err;
+-    pthread_mutexattr_t attr;
++  int err;
++  pthread_mutexattr_t attr;
+ 
+-    err = __pthread_mutexattr_init (&attr);
+-    assert_perror (err);
++  err = __pthread_mutexattr_init (&attr);
++  assert_perror (err);
+ 
+-    err = __pthread_mutexattr_settype (&attr, PTHREAD_MUTEX_RECURSIVE);
+-    assert_perror (err);
++  err = __pthread_mutexattr_settype (&attr, PTHREAD_MUTEX_RECURSIVE);
++  assert_perror (err);
+ 
+-    err = __pthread_mutex_init (&__pthread_key_lock, &attr);
+-    assert_perror (err);
++  err = __pthread_mutex_init (&__pthread_key_lock, &attr);
++  assert_perror (err);
+ 
+-    err = __pthread_mutexattr_destroy (&attr);
+-    assert_perror (err);
+-  }
++  err = __pthread_mutexattr_destroy (&attr);
++  assert_perror (err);
++}
+ 
+-  __pthread_once (&__pthread_key_once, do_init);
++static inline void
++__pthread_key_lock_ready (void)
++{
++  __pthread_once (&__pthread_key_once, __pthread_key_lock_init);
+ }
+-- 
+2.55.0
+

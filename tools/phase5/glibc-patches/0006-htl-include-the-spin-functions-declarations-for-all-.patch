@@ -1,0 +1,37 @@
+From 01217f3b28ff7309af0ae85d8bc90dc7a256d559 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 18:44:31 +0530
+Subject: [PATCH 6/6] htl: include the spin functions' declarations for all of
+ libc
+
+<pthread.h> (glibc's own) included bits/spin-lock-inline.h only with
+extern inlines, which clang's build of libc has none of (features.h); the
+threads' sources call __pthread_spin_wait and the rest. Joist, Phase 5
+step 7.
+---
+ sysdeps/htl/include/pthread.h | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/sysdeps/htl/include/pthread.h b/sysdeps/htl/include/pthread.h
+index 699fabfb..fdce1d65 100644
+--- a/sysdeps/htl/include/pthread.h
++++ b/sysdeps/htl/include/pthread.h
+@@ -4,9 +4,14 @@
+ 
+ # define ARCH_MIN_GUARD_SIZE 0
+ 
++/* The spin functions' declarations for all of libc, as GCC's build has
++   them: clang's has no extern inlines in libc (features.h).  */
++# if defined _LIBC && !IS_IN (libsupport)
++#  include <bits/spin-lock-inline.h>
++# endif
++
+ # if defined __USE_EXTERN_INLINES && defined _LIBC
+ #  if !IS_IN (libsupport)
+-#   include <bits/spin-lock-inline.h>
+ 
+ __extern_inline int
+ pthread_spin_destroy (pthread_spinlock_t *__lock)
+-- 
+2.55.0
+

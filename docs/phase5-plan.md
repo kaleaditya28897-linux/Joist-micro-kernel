@@ -606,3 +606,25 @@ Implementation choices inside choice 3, 0001, 0005 and 0006, so
     but not hashed: after a call their padding is unspecified in C.
   - libFuzzer on the three demuxers: no crash in 6.9 million inputs.
   - 13 mutations of the generator and the runtime header, all caught.
+
+### Step 7, part 1: glibc cross-built with clang (2026-11-04, in progress)
+
+- **The build** (`tools/phase5/glibc-cross.sh`, on the P53: its clang 21,
+  lld and bison): glibc 2.43 for `x86_64-gnu` from Linux, its Mach layer
+  as it is, the Hurd's and Mach's headers from Debian (checked by SHA-256),
+  MIG from `third_party/mig`. Upstream clang lacks `__float128` for the
+  Hurd target, so the compiler is clang's Linux x86-64 target with the
+  Hurd's predefined macros (the objects are the same), recorded for 0002.
+  A build takes about 5 minutes with 2 jobs.
+- **First result:** `configure` passes; `libm` builds whole (Phase 0's hang
+  was on the Hurd, not in a cross-build); libc doesn't: 264 error sites, the
+  root causes Phase 0 found.
+- **Fixed** by six patches in `tools/phase5/glibc-patches/` (each a
+  reviewable change to the Hurd layer Joist keeps, written to go upstream):
+  the extern-inline guard (clang's libc has no extern inlines; the Hurd's
+  and Mach's headers hid declarations behind them and made their
+  out-of-line copies by turning them on: now `_LIBC` and `_FORCE_INLINES`),
+  variable-sized arrays in structs, an FPU save area as an asm operand,
+  and one nested function. Nothing changes for GCC.
+- **Left:** 70 GCC nested functions in 31 files of the Hurd layer (and
+  their knock-ons); upstream glibc still has them all.

@@ -1,0 +1,43 @@
+From 8ff03fb7cab186863d82321c4ca37cbb284b20b0 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 18:37:25 +0530
+Subject: [PATCH 5/6] hurd: x86_64 sigreturn: pass the FPU save area by address
+
+Its hw_state is a flexible array, which clang won't take as an "m" asm
+operand. The address in a register and a memory clobber say the same.
+Joist, Phase 5 step 7.
+---
+ sysdeps/mach/hurd/x86_64/sigreturn.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/sysdeps/mach/hurd/x86_64/sigreturn.c b/sysdeps/mach/hurd/x86_64/sigreturn.c
+index 5e9f67ca..b0c6d098 100644
+--- a/sysdeps/mach/hurd/x86_64/sigreturn.c
++++ b/sysdeps/mach/hurd/x86_64/sigreturn.c
+@@ -139,15 +139,18 @@ __sigreturn (struct sigcontext *scp)
+ 	  switch (scp->xstate->fp_save_kind)
+ 	    {
+ 	    case 0: // FNSAVE
+-	      asm volatile("frstor %0" : : "m" (scp->xstate->hw_state));
++	      /* The save area by its address: a flexible array can't be an
++		 "m" operand for clang.  */
++	      asm volatile("frstor (%0)" : : "r" (scp->xstate->hw_state)
++			   : "memory");
+ 	      break;
+ 	    case 1: // FXSAVE
+-	      asm volatile("fxrstor %0" : : "m" (scp->xstate->hw_state),    \
+-			   "a" (eax), "d" (edx));
++	      asm volatile("fxrstor (%0)" : : "r" (scp->xstate->hw_state),  \
++			   "a" (eax), "d" (edx) : "memory");
+ 	      break;
+ 	    default: // XSAVE, XSAVEOPT, XSAVEC, XSAVES
+-	      asm volatile("xrstor %0" : : "m" (scp->xstate->hw_state),     \
+-			   "a" (eax), "d" (edx));
++	      asm volatile("xrstor (%0)" : : "r" (scp->xstate->hw_state),   \
++			   "a" (eax), "d" (edx) : "memory");
+ 	      break;
+ 	    }
+ 	}
+-- 
+2.55.0
+

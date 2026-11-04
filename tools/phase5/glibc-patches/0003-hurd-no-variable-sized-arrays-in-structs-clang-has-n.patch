@@ -1,0 +1,82 @@
+From 8cafaa35e9e58efab732c0b5afc8dfc9d910cf2d Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 18:30:35 +0530
+Subject: [PATCH 3/6] hurd: no variable-sized arrays in structs (clang has
+ none)
+
+ioctl.c's message buffer takes the largest size any request needs (counts
+of 31, 31 and 7 data of at most 8 bytes; msgh_size is computed as before,
+only the receive buffer is larger). hurdstartup.c lays out the arguments
+it moves by hand, as the struct did. Joist, Phase 5 step 7.
+---
+ hurd/hurdstartup.c        | 25 +++++++++++++------------
+ sysdeps/mach/hurd/ioctl.c | 13 +++++++------
+ 2 files changed, 20 insertions(+), 18 deletions(-)
+
+diff --git a/hurd/hurdstartup.c b/hurd/hurdstartup.c
+index ab838cbe..ae52331f 100644
+--- a/hurd/hurdstartup.c
++++ b/hurd/hurdstartup.c
+@@ -156,19 +156,20 @@ _hurd_startup (void **argptr, void (*main) (intptr_t *data))
+       /* The arguments arrived on the stack from the kernel, but our
+ 	 protocol requires some space after them for a `struct
+ 	 hurd_startup_data'.  Move them.  */
+-      struct
+-	{
+-	  intptr_t count;
+-	  char *argv[argc + 1];
+-	  char *envp[envc + 1];
+-	  struct hurd_startup_data data;
+-	} *args = alloca (sizeof *args);
+-      if ((void *) &args[1] == (void *) argcptr)
+-	args = alloca (-((char *) &args->data - (char *) args));
+-      memmove (args, argcptr, (char *) &args->data - (char *) args);
++      /* Laid out by hand, as the struct { intptr_t count; char *argv[argc
++	 + 1]; char *envp[envc + 1]; struct hurd_startup_data data; } it
++	 was (all of it 8-byte aligned, so without padding): a
++	 variable-sized array in a struct is a GCC extension clang lacks.  */
++      const ptrdiff_t head = sizeof (intptr_t)
++			     + (argc + 1 + envc + 1) * sizeof (char *);
++      char *args = alloca (head + sizeof (struct hurd_startup_data));
++      if ((void *) (args + head + sizeof (struct hurd_startup_data))
++	  == (void *) argcptr)
++	args = alloca (-head);
++      memmove (args, argcptr, head);
+       argcptr = (void *) args;
+-      argv = args->argv;
+-      envp = args->envp;
++      argv = (char **) (args + sizeof (intptr_t));
++      envp = argv + argc + 1;
+     }
+ 
+   {
+diff --git a/sysdeps/mach/hurd/ioctl.c b/sysdeps/mach/hurd/ioctl.c
+index 40104b19..a58fff2f 100644
+--- a/sysdeps/mach/hurd/ioctl.c
++++ b/sysdeps/mach/hurd/ioctl.c
+@@ -75,15 +75,16 @@ __ioctl (int fd, unsigned long int request, ...)
+ 	kern_return_t		RetCode;
+       } header_typecheck;
+     };
++    /* The largest any request needs (counts of at most 31, 31 and 7 data
++       of at most 8 bytes: <bits/ioctls.h>), not this request's: a
++       variable-sized array in a struct is a GCC extension clang lacks.
++       Only the receive buffer is larger; msgh_size is computed below.  */
+     char data[3 * sizeof (mach_msg_type_t)
+-	      + msg_align (_IOT_COUNT0 (type) * typesize (_IOT_TYPE0 (type)))
+-	      + msg_align (_IOT_COUNT1 (type) * typesize (_IOT_TYPE1 (type)))
+-	      + msg_align (_IOT_COUNT2 (type) * typesize (_IOT_TYPE2 (type)))];
++	      + msg_align (31 * 8) + msg_align (31 * 8) + msg_align (7 * 8)];
+ #else  /* Untyped Mach IPC format.  */
+     mig_reply_error_t header;
+-    char data[_IOT_COUNT0 (type) * typesize (_IOT_TYPE0 (type))
+-	      + _IOT_COUNT1 (type) * typesize (_IOT_TYPE1 (type))
+-	      + _IOT_COUNT2 (type) * typesize (_IOT_TYPE2 (type))];
++    /* The largest any request needs: see above.  */
++    char data[31 * 8 + 31 * 8 + 7 * 8];
+     mach_msg_trailer_t trailer;
+ #endif
+   } msg;
+-- 
+2.55.0
+
