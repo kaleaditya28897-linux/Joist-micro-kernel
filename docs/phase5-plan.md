@@ -387,12 +387,17 @@ Implementation choices inside 0030, so *(changeable)*.
   region churn is 7 552 cycles with it, 1 590 without (a page kept mapped
   in the table). The first measurement, which only emptied the table, made
   the region calls look only twice as cheap.
-- **Open, for the owner** (written up in the hand-off's findings, not
-  built): whether a region's tables should outlive their last page while
-  the region lives (that changes step 2's I12 rule); and that `mm` copies
-  a parent's region pages at a fork while the parent's other threads may
-  still write them (its anonymous pages are made read-only first; region
-  pages are not), so a child can get a page written half before and half
-  after. The child's copy is its own either way (no page is shared); only
-  the snapshot can be inconsistent. `cowstress` keeps a task's helper
-  thread idle while it forks, so it doesn't reach this.
+- **Decided** (the owner, 2026-11-04, from the hand-off's findings):
+  - *A region's tables stay as they are:* an emptied one is freed (I12
+    unchanged). An allocator that churns in a table keeps a page mapped in
+    it (glibc's `malloc`, step 7), which gives the "table kept" column
+    above with no kernel change.
+  - *A fork's copy of region pages is documented, not made atomic:* `mm`
+    copies a parent's region pages while the parent's other threads may
+    still write them (its anonymous pages are made read-only first; region
+    pages are not), so a page written during the fork is copied in an
+    unspecified state, as POSIX leaves it. The child's copy is its own
+    either way. glibc's `fork` takes `malloc`'s locks first, which covers
+    its arenas. Recorded in 0030. (`cowstress` keeps a task's helper
+    thread idle while it forks, so it doesn't reach this.)
+  - Part 2's commit message says 15 new `mm` mutations; there are 14.

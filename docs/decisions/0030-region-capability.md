@@ -112,6 +112,18 @@ means finding every holder: what 0022 avoids by killing the object.
   last-level table"), so the rule is checked, not assumed, and creation
   checks only that the range's tables are absent.
 
+- **Fork's copy (the owner, 2026-11-04, Phase 5 step 3):** `mm` copies a
+  parent's region pages while its other threads may still write them, so
+  a page written during the fork is copied in an unspecified state (as
+  POSIX leaves a multithreaded `fork`). The child's copy is its own; no
+  page is ever shared. Not made atomic: that would need `mm` to serve
+  write faults in regions. glibc's `fork` takes `malloc`'s locks first.
+- **Tables (the owner, 2026-11-04):** an emptied table in a region is
+  freed as anywhere (I12 unchanged); an allocator churning in a table
+  keeps a page mapped in it. Measured on the P53: a 1-page churn is 1 590
+  cycles with the table kept, 7 552 without, 8 812 by requests to `mm`
+  (`docs/phase5-data/step3-region-churn/`).
+
 ## Priority check
 
 - **Reliability:** every call bounded by one page table, or by
