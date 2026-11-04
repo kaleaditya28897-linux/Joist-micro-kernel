@@ -61,7 +61,10 @@ enum { MM_CLONE_KEEP = 0, MM_CLONE_CANCEL = 1 };
 #define MM_ID_GEN(id)  ((id) >> 16)
 /* The root's (MM_ROOT_BADGE only). */
 enum {
-    MM_REQ_INIT = MM_REQ_BASE + 0x100u, /* pool pages, table pages: what it was given */
+    MM_REQ_INIT = MM_REQ_BASE + 0x100u, /* pool pages, table pages: what it was given.
+                                         * MM_E_NOMEM unless MM_S_TABLES holds a run of
+                                         * MM_TABLE_PAGES for every task record, plus one
+                                         * page (0028) */
     MM_REQ_ADOPT,                       /* the slot of mm's space the root put a task
                                          * capability (CONTROL) in -> r[1] its badge. It
                                          * starts a tree (0028); MM_E_NOMEM if the tree's

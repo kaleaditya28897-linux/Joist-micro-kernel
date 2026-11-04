@@ -22,7 +22,7 @@
 #define HOST_POOL_PAGES 256u
 #endif
 #ifndef HOST_TABLE_RUNS
-#define HOST_TABLE_RUNS 8u
+#define HOST_TABLE_RUNS MM_MAX_TASKS /* one per task record: mm refuses fewer (0028) */
 #endif
 #ifndef HOST_PRIO
 #define HOST_PRIO 100u /* the children's threads' */

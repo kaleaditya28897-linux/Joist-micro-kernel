@@ -37,6 +37,7 @@ void _start(void);
 static struct mm M;
 static int ready;
 static uint64_t tables_left;              /* pages left to lend in MM_S_TABLES */
+_Static_assert(MM_S_ROOT - MM_S_FREE >= MM_MAX_TASKS, "a slot for each task record's table run");
 static uint64_t next_slot = MM_S_FREE;    /* mm's own slots, up to MM_S_ROOT */
 static uint64_t table_run[MM_MAX_TASKS];  /* the run lent to the task with that index */
 static uint64_t gen[MM_MAX_TASKS];        /* each index's generation: its id's (MM_ID) */
@@ -197,6 +198,12 @@ static uint64_t init(void)
         return MM_E_NOMEM;
     }
     tables_left = j_frame_pages(MM_S_TABLES);
+    /* A table run for every task record (0028, found in Phase 5 step 4):
+     * with fewer, a fork bomb could spend them all below its tree's task
+     * ceiling, and no other tree could make a task. */
+    if (tables_left < (uint64_t)MM_MAX_TASKS * MM_TABLE_PAGES + 1u) {
+        return MM_E_NOMEM;
+    }
     /* The second leaf, for the tasks mm makes (MM_S_CHILD on), and the
      * third, for its region capabilities (MM_S_REGION on). */
     if (j_cspace_grow(MM_S_CHILD / 128u) != J_OK || j_cspace_grow(MM_S_REGION / 128u) != J_OK) {

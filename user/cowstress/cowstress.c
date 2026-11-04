@@ -45,7 +45,6 @@
 #include "../lib/testroot.h"
 #include "../lib/cow.h"
 #define HOST_POOL_PAGES 512u
-#define HOST_TABLE_RUNS MM_MAX_TASKS
 #define HOST_HELPER_TOP COW_HELPER_TOP
 #define HOST_PRIO       128u
 #include "../lib/mmhost.h"

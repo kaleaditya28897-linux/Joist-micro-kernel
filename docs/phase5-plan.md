@@ -497,4 +497,8 @@ Implementation choices inside 0028, so *(changeable)*.
     prevent. `mmroot` lends `mm` one run per task record
     (`HOST_TABLE_RUNS` = `MM_MAX_TASKS`), so the task ceiling bounds the
     runs too. Whoever starts `mm` (the root, later RS) must do the same,
-    or `mm` must count runs per tree.
+    or `mm` must count runs per tree. **Decided** (the owner, 2026-11-04):
+    `mm` refuses `MM_REQ_INIT` (`MM_E_NOMEM`) unless it is given a run for
+    every task record, so its starter can't get it wrong; `mmhost.h` gives
+    that by default, and `mmroot`, `cowstress` and `mmbench` no longer set
+    their own.

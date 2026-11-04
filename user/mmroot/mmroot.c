@@ -19,9 +19,6 @@
  * confirms the fork (MM_REQ_CLONE_DONE); a child still pending when its
  * parent goes is destroyed with it (the orphans test). */
 #define TEST_NAME "mm"
-/* A table run for every task record, so that a tree's task ceiling (0028)
- * bounds the table pages a fork bomb can take too. */
-#define HOST_TABLE_RUNS MM_MAX_TASKS
 #include "../lib/testroot.h"
 #include "../lib/mmhost.h"
 

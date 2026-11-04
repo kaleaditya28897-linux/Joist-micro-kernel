@@ -24,7 +24,6 @@
 #define MMB_CLONE_PAGES 256u
 #endif
 #define HOST_POOL_PAGES MMB_POOL
-#define HOST_TABLE_RUNS 4u
 #ifdef MMB_TABLES
 #define HOST_MM_TABLES MMB_TABLES
 #endif
