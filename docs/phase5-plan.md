@@ -502,3 +502,20 @@ Implementation choices inside 0028, so *(changeable)*.
     every task record, so its starter can't get it wrong; `mmhost.h` gives
     that by default, and `mmroot`, `cowstress` and `mmbench` no longer set
     their own.
+
+### Step 5: the glibc inventory (2026-11-04)
+
+`docs/phase5-data/step5-glibc-inventory/README.md` has the method, the
+data and the estimate; `tools/phase5/glibc-inventory.sh` reproduces it
+from Debian's hurd-amd64 packages and sources, checked by SHA-256.
+
+- **Reached:** 883 members of glibc and the Hurd's libraries (`hello` 880,
+  a raw libports server 746, the test client 702); 84 are glibc's Mach
+  layer, and the rest use 82 of its symbols directly: locks (`gsync`, under
+  every lock), ports, messages, tasks and threads, memory, time and start-up.
+- **Nested functions:** 11 members, 9 of them in glibc's Hurd layer and
+  `htl`, rewritten for clang.
+- **A narrower scope barely narrows glibc:** the libports server alone
+  needs 77 of the 82 symbols (a static glibc's start-up brings the rest).
+- **Estimate:** 13.5 weeks (likely 10 to 17) for the glibc part, past
+  0031's 6 weeks: the owner's decision.

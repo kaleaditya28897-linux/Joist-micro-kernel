@@ -1,0 +1,884 @@
+archive,member,glibc source,class,programs,Mach symbols used directly
+libcrt.a,C-address.o,locale/C-address.c,generic,client hello portsrv,
+libcrt.a,C-collate.o,locale/C-collate.c,generic,client hello portsrv,
+libcrt.a,C-ctype.o,locale/C-ctype.c,generic,client hello portsrv,
+libcrt.a,C-identification.o,locale/C-identification.c,generic,client hello portsrv,
+libcrt.a,C-measurement.o,locale/C-measurement.c,generic,client hello portsrv,
+libcrt.a,C-messages.o,locale/C-messages.c,generic,client hello portsrv,
+libcrt.a,C-monetary.o,locale/C-monetary.c,generic,client hello portsrv,
+libcrt.a,C-name.o,locale/C-name.c,generic,client hello portsrv,
+libcrt.a,C-numeric.o,locale/C-numeric.c,generic,client hello portsrv,
+libcrt.a,C-paper.o,locale/C-paper.c,generic,client hello portsrv,
+libcrt.a,C-telephone.o,locale/C-telephone.c,generic,client hello portsrv,
+libcrt.a,C-time.o,locale/C-time.c,generic,client hello portsrv,
+libcrt.a,C_name.o,locale/C_name.c,generic,client hello portsrv,
+libcrt.a,SYS_libc.o,locale/SYS_libc.c,generic,client hello portsrv,
+libcrt.a,____longjmp_chk.o,sysdeps/mach/hurd/x86_64/____longjmp_chk.S,hurd,client hello portsrv,
+libcrt.a,__libc_assert_fail.o,assert/__libc_assert_fail.c,generic,client hello portsrv,
+libcrt.a,__longjmp.o,sysdeps/mach/hurd/x86_64/__longjmp.S,hurd,client hello portsrv,
+libcrt.a,_exit.o,sysdeps/mach/hurd/_exit.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self __mach_task_self_ __mach_thread_self
+libcrt.a,_fitoa_word.o,stdio-common/_fitoa_word.c,generic,client hello portsrv,
+libcrt.a,_strerror.o,sysdeps/mach/_strerror.c,mach,client hello portsrv,
+libcrt.a,abort.o,stdlib/abort.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,add_n.o,sysdeps/x86_64/add_n.S,generic,client hello portsrv,
+libcrt.a,addmul_1.o,sysdeps/x86_64/addmul_1.S,generic,client hello portsrv,
+libcrt.a,alloc-fd.o,hurd/alloc-fd.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,alloc_buffer_alloc_array.o,malloc/alloc_buffer_alloc_array.c,generic,client hello portsrv,
+libcrt.a,alloc_buffer_allocate.o,malloc/alloc_buffer_allocate.c,generic,client hello portsrv,
+libcrt.a,alloc_buffer_copy_bytes.o,malloc/alloc_buffer_copy_bytes.c,generic,client hello portsrv,
+libcrt.a,alloc_buffer_copy_string.o,malloc/alloc_buffer_copy_string.c,generic,client hello portsrv,
+libcrt.a,alloc_buffer_create_failure.o,malloc/alloc_buffer_create_failure.c,generic,client hello portsrv,
+libcrt.a,alloca_cutoff.o,htl/alloca_cutoff.c,htl,client hello portsrv,
+libcrt.a,argp-ba.o,argp/argp-ba.c,generic,hello,
+libcrt.a,argp-eexst.o,argp/argp-eexst.c,generic,hello,
+libcrt.a,argp-fmtstream.o,argp/argp-fmtstream.c,generic,hello,
+libcrt.a,argp-help.o,argp/argp-help.c,generic,hello,__strerror_r
+libcrt.a,argp-parse.o,argp/argp-parse.c,generic,hello,__sleep
+libcrt.a,argp-pvh.o,argp/argp-pvh.c,generic,hello,
+libcrt.a,argz-addsep.o,string/argz-addsep.c,generic,client hello portsrv,
+libcrt.a,argz-append.o,string/argz-append.c,generic,hello,
+libcrt.a,argz-count.o,string/argz-count.c,generic,client hello portsrv,
+libcrt.a,argz-ctsep.o,string/argz-ctsep.c,generic,client hello portsrv,
+libcrt.a,argz-extract.o,string/argz-extract.c,generic,client hello portsrv,
+libcrt.a,asprintf.o,stdio-common/asprintf.c,generic,client hello portsrv,
+libcrt.a,asprintf_chk.o,debug/asprintf_chk.c,generic,client hello portsrv,
+libcrt.a,assert-perr.o,assert/assert-perr.c,generic,client hello portsrv,__strerror_r
+libcrt.a,assert.o,assert/assert.c,generic,hello portsrv,
+libcrt.a,backtrace.o,debug/backtrace.c,generic,hello portsrv,
+libcrt.a,backtracesyms.o,debug/backtracesyms.c,generic,hello portsrv,
+libcrt.a,backtracesymsfd.o,debug/backtracesymsfd.c,generic,hello portsrv,
+libcrt.a,brk.o,sysdeps/mach/hurd/brk.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __mutex_init __vm_page_size __vm_protect
+libcrt.a,bsd-_setjmp.o,sysdeps/x86_64/bsd-_setjmp.S,generic,client hello portsrv,
+libcrt.a,btowc.o,wcsmbs/btowc.c,generic,client hello portsrv,
+libcrt.a,cancellation.o,htl/cancellation.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,catch-exc.o,hurd/catch-exc.c,hurd,client hello portsrv,__gsync_wake __mach_port_deallocate __mach_task_self_
+libcrt.a,check_fds.o,sysdeps/mach/hurd/check_fds.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,chk_fail.o,debug/chk_fail.c,generic,client hello portsrv,
+libcrt.a,clock_gettime.o,sysdeps/mach/clock_gettime.c,mach,client hello portsrv,
+libcrt.a,close.o,sysdeps/mach/hurd/close.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,close_nocancel.o,sysdeps/mach/hurd/close_nocancel.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,close_nocancel_nostatus.o,sysdeps/mach/hurd/close_nocancel_nostatus.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,closedir.o,sysdeps/mach/hurd/closedir.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,cmp.o,stdlib/cmp.c,generic,client hello portsrv,
+libcrt.a,ctty-input.o,hurd/ctty-input.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,ctty-output.o,hurd/ctty-output.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,ctype-info.o,ctype/ctype-info.c,generic,client hello portsrv,
+libcrt.a,cxa_atexit.o,stdlib/cxa_atexit.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dbl2mpn.o,sysdeps/ieee754/dbl-64/dbl2mpn.c,generic,client hello portsrv,
+libcrt.a,dcgettext.o,intl/dcgettext.c,generic,client hello portsrv,
+libcrt.a,dcigettext.o,intl/dcigettext.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,divrem.o,stdlib/divrem.c,generic,client hello portsrv,
+libcrt.a,dl-addr-obj.o,elf/dl-addr-obj.c,generic,client hello portsrv,
+libcrt.a,dl-addr.o,elf/dl-addr.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dl-cache.o,elf/dl-cache.c,generic,client hello portsrv,__munmap
+libcrt.a,dl-call-libc-early-init.o,elf/dl-call-libc-early-init.c,generic,client hello portsrv,
+libcrt.a,dl-call_fini.o,elf/dl-call_fini.c,generic,client hello portsrv,
+libcrt.a,dl-catch.o,elf/dl-catch.c,generic,client hello portsrv,__strerror_r
+libcrt.a,dl-close.o,elf/dl-close.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dl-debug-symbols.o,elf/dl-debug-symbols.S,generic,client hello portsrv,
+libcrt.a,dl-debug.o,elf/dl-debug.c,generic,client hello portsrv,
+libcrt.a,dl-debug_state.o,elf/dl-debug_state.c,generic,client hello portsrv,
+libcrt.a,dl-deps.o,elf/dl-deps.c,generic,client hello portsrv,
+libcrt.a,dl-early_allocate.o,elf/dl-early_allocate.c,generic,client hello portsrv,
+libcrt.a,dl-exception.o,elf/dl-exception.c,generic,client hello portsrv,
+libcrt.a,dl-execstack-tunable.o,elf/dl-execstack-tunable.c,generic,client hello portsrv,
+libcrt.a,dl-execstack.o,sysdeps/mach/hurd/dl-execstack.c,hurd,client hello portsrv,
+libcrt.a,dl-find_object.o,elf/dl-find_object.c,generic,client hello portsrv,
+libcrt.a,dl-init.o,elf/dl-init.c,generic,client hello portsrv,
+libcrt.a,dl-libc.o,elf/dl-libc.c,generic,client hello portsrv,
+libcrt.a,dl-load.o,elf/dl-load.c,generic,client hello portsrv,__mprotect __munmap
+libcrt.a,dl-lookup-direct.o,elf/dl-lookup-direct.c,generic,client hello portsrv,
+libcrt.a,dl-lookup.o,elf/dl-lookup.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dl-misc.o,elf/dl-misc.c,generic,client hello portsrv,
+libcrt.a,dl-object.o,elf/dl-object.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dl-open.o,elf/dl-open.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dl-origin.o,elf/dl-origin.c,generic,client hello portsrv,
+libcrt.a,dl-printf.o,elf/dl-printf.c,generic,client hello portsrv,
+libcrt.a,dl-readonly-area.o,elf/dl-readonly-area.c,generic,client hello portsrv,
+libcrt.a,dl-reloc.o,elf/dl-reloc.c,generic,client hello portsrv,__mprotect
+libcrt.a,dl-runtime.o,elf/dl-runtime.c,generic,client hello portsrv,__gsync_wake __mach_task_self_
+libcrt.a,dl-scope.o,elf/dl-scope.c,generic,client hello portsrv,
+libcrt.a,dl-setup_hash.o,elf/dl-setup_hash.c,generic,client hello portsrv,
+libcrt.a,dl-sort-maps.o,elf/dl-sort-maps.c,generic,client hello portsrv,
+libcrt.a,dl-support.o,sysdeps/htl/dl-support.c,htl,client hello portsrv,
+libcrt.a,dl-sym.o,elf/dl-sym.c,generic,client hello portsrv,__gsync_wake __mach_task_self_
+libcrt.a,dl-sysdep.o,sysdeps/mach/hurd/x86/dl-sysdep.c,hurd,client hello portsrv,
+libcrt.a,dl-thread_gscope_wait.o,sysdeps/htl/dl-thread_gscope_wait.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dl-tls-initialized.o,sysdeps/mach/hurd/x86_64/dl-tls-initialized.c,hurd,client hello portsrv,
+libcrt.a,dl-tls.o,sysdeps/x86_64/dl-tls.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dl-tls_init_tp.o,elf/dl-tls_init_tp.c,generic,client hello portsrv,
+libcrt.a,dl-tlsdesc.o,sysdeps/x86_64/dl-tlsdesc.S,generic,client hello portsrv,
+libcrt.a,dl-trampoline.o,sysdeps/x86_64/dl-trampoline.S,generic,client hello portsrv,
+libcrt.a,dl-tunables.o,elf/dl-tunables.c,generic,client hello portsrv,
+libcrt.a,dl-version.o,elf/dl-version.c,generic,client hello portsrv,
+libcrt.a,dladdr.o,dlfcn/dladdr.c,generic,client hello portsrv,
+libcrt.a,dladdr1.o,dlfcn/dladdr1.c,generic,client hello portsrv,
+libcrt.a,dlclose.o,dlfcn/dlclose.c,generic,client hello portsrv,
+libcrt.a,dlerror.o,dlfcn/dlerror.c,generic,client hello portsrv,
+libcrt.a,dlinfo.o,dlfcn/dlinfo.c,generic,client hello portsrv,
+libcrt.a,dlmopen.o,dlfcn/dlmopen.c,generic,client hello portsrv,
+libcrt.a,dlopen.o,dlfcn/dlopen.c,generic,client hello portsrv,
+libcrt.a,dlsym.o,dlfcn/dlsym.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dlvsym.o,dlfcn/dlvsym.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,dtable.o,hurd/dtable.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_destroy __mach_port_mod_refs __mach_reply_port __mach_task_self_ __mach_thread_self __mutex_init
+libcrt.a,dup.o,sysdeps/posix/dup.c,generic,client,
+libcrt.a,dynarray_at_failure.o,malloc/dynarray_at_failure.c,generic,client hello portsrv,
+libcrt.a,dynarray_emplace_enlarge.o,malloc/dynarray_emplace_enlarge.c,generic,client hello portsrv,
+libcrt.a,enbl-secure.o,elf/enbl-secure.c,generic,client hello portsrv,
+libcrt.a,environ.o,posix/environ.c,generic,client hello portsrv,
+libcrt.a,errlist-data.o,stdio-common/errlist-data.S,generic,client hello portsrv,
+libcrt.a,errname.o,sysdeps/mach/hurd/errname.c,hurd,client hello portsrv,
+libcrt.a,errno-loc.o,sysdeps/mach/hurd/errno-loc.c,hurd,hello portsrv,
+libcrt.a,errno.o,csu/errno.c,generic,client hello portsrv,
+libcrt.a,error.o,misc/error.c,generic,hello portsrv,__strerror_r
+libcrt.a,error_compat.o,mach/error_compat.c,mach,client hello portsrv,
+libcrt.a,errsystems.o,,generic,client hello portsrv,
+libcrt.a,exc2signal.o,sysdeps/mach/hurd/x86/exc2signal.c,hurd,client hello portsrv,
+libcrt.a,exit.o,stdlib/exit.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,explodename.o,intl/explodename.c,generic,client hello portsrv,
+libcrt.a,f_setlk.o,sysdeps/mach/hurd/f_setlk.c,hurd,client hello portsrv,
+libcrt.a,fcntl.o,sysdeps/mach/hurd/fcntl.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_mod_refs __mach_task_self_ __mach_thread_self
+libcrt.a,fd-cleanup.o,hurd/fd-cleanup.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,fd-close.o,hurd/fd-close.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,fd-read.o,hurd/fd-read.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,fd-write.o,hurd/fd-write.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,file_change_detection.o,io/file_change_detection.c,generic,client hello portsrv,
+libcrt.a,filedoalloc.o,libio/filedoalloc.c,generic,client hello portsrv,
+libcrt.a,fileno.o,libio/fileno.c,generic,client hello portsrv,
+libcrt.a,fileops.o,libio/fileops.c,generic,client hello portsrv,__getpagesize __gsync_wait __gsync_wake __mach_task_self_ __munmap
+libcrt.a,finddomain.o,intl/finddomain.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,findlocale.o,locale/findlocale.c,generic,client hello portsrv,
+libcrt.a,float1282mpn.o,,generic,client hello portsrv,
+libcrt.a,flock.o,sysdeps/mach/hurd/flock.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,flockfile.o,sysdeps/htl/flockfile.c,htl,hello,__gsync_wait __mach_task_self_
+libcrt.a,fortify_fail.o,debug/fortify_fail.c,generic,client hello portsrv,
+libcrt.a,fpioconst.o,stdlib/fpioconst.c,generic,client hello portsrv,
+libcrt.a,fprintf_chk.o,debug/fprintf_chk.c,generic,client hello portsrv,
+libcrt.a,fpu_control.o,math/fpu_control.c,generic,client hello portsrv,
+libcrt.a,fputc.o,libio/fputc.c,generic,hello,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,fstat64.o,sysdeps/mach/hurd/fstat64.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,fstatat64.o,sysdeps/mach/hurd/fstatat64.c,hurd,client hello portsrv,__mach_port_deallocate __mach_task_self_
+libcrt.a,funlockfile.o,sysdeps/htl/funlockfile.c,htl,client hello portsrv,__gsync_wake __mach_task_self_
+libcrt.a,fxprintf.o,stdio-common/fxprintf.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,gconv.o,iconv/gconv.c,generic,client hello portsrv,
+libcrt.a,gconv_builtin.o,iconv/gconv_builtin.c,generic,client hello portsrv,
+libcrt.a,gconv_cache.o,iconv/gconv_cache.c,generic,client hello portsrv,__munmap
+libcrt.a,gconv_charset.o,iconv/gconv_charset.c,generic,client hello portsrv,
+libcrt.a,gconv_close.o,iconv/gconv_close.c,generic,client hello portsrv,
+libcrt.a,gconv_conf.o,iconv/gconv_conf.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,gconv_db.o,iconv/gconv_db.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,gconv_dl.o,iconv/gconv_dl.c,generic,client hello portsrv,
+libcrt.a,gconv_open.o,iconv/gconv_open.c,generic,client hello portsrv,
+libcrt.a,gconv_simple.o,iconv/gconv_simple.c,generic,client hello portsrv,
+libcrt.a,gconv_trans.o,iconv/gconv_trans.c,generic,client hello portsrv,
+libcrt.a,genops.o,libio/genops.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,get-host.o,hurd/get-host.c,hurd,client hello portsrv,__mach_port_deallocate __mach_task_self_
+libcrt.a,get_child_max.o,posix/get_child_max.c,generic,client hello portsrv,
+libcrt.a,getclktck.o,sysdeps/mach/hurd/getclktck.c,hurd,client hello portsrv,
+libcrt.a,getcwd.o,sysdeps/mach/hurd/getcwd.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __vm_page_size
+libcrt.a,getdport.o,hurd/getdport.c,hurd,client hello portsrv,__mach_port_mod_refs __mach_task_self_
+libcrt.a,getdtsz.o,sysdeps/mach/hurd/getdtsz.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,getenv.o,stdlib/getenv.c,generic,client hello portsrv,
+libcrt.a,gethostname.o,sysdeps/mach/hurd/gethostname.c,hurd,client hello portsrv,
+libcrt.a,getline.o,stdio-common/getline.c,generic,client hello portsrv,
+libcrt.a,getopt.o,posix/getopt.c,generic,hello,
+libcrt.a,getopt1.o,posix/getopt1.c,generic,hello,
+libcrt.a,getpagesize.o,sysdeps/mach/getpagesize.c,mach,client hello portsrv,
+libcrt.a,getpid.o,sysdeps/mach/hurd/getpid.c,hurd,client hello portsrv,
+libcrt.a,getrandom.o,sysdeps/mach/hurd/getrandom.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_get_refs __mach_task_self_
+libcrt.a,getrlimit.o,sysdeps/mach/hurd/getrlimit.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,getsysstats.o,sysdeps/mach/getsysstats.c,mach,client hello portsrv,
+libcrt.a,getuid.o,sysdeps/mach/hurd/getuid.c,hurd,hello,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,global-locale.o,locale/global-locale.c,generic,client hello portsrv,
+libcrt.a,grouping.o,stdlib/grouping.c,generic,client hello portsrv,
+libcrt.a,grouping_iterator.o,stdio-common/grouping_iterator.c,generic,client hello portsrv,
+libcrt.a,hash-string.o,intl/hash-string.c,generic,client hello portsrv,
+libcrt.a,hurd-raise.o,hurd/hurd-raise.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,hurdauth.o,hurd/hurdauth.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __vm_page_size
+libcrt.a,hurdfault.o,hurd/hurdfault.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_msg __mach_msg_destroy __mach_port_allocate __mach_port_deallocate __mach_port_insert_right __mach_port_set_qlimit __mach_task_self_ __mach_thread_self __thread_set_special_port
+libcrt.a,hurdid.o,hurd/hurdid.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __mutex_init
+libcrt.a,hurdinit.o,hurd/hurdinit.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,hurdioctl.o,hurd/hurdioctl.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_mod_refs __mach_task_self_ __mach_thread_self
+libcrt.a,hurdkill.o,hurd/hurdkill.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,hurdlock.o,hurd/hurdlock.c,hurd,client hello portsrv,__clock_gettime __gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_
+libcrt.a,hurdlookup.o,hurd/hurdlookup.c,hurd,client hello portsrv,__mach_port_mod_refs __mach_task_self_
+libcrt.a,hurdmalloc.o,hurd/hurdmalloc.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __vm_page_size
+libcrt.a,hurdmsg.o,hurd/hurdmsg.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_mod_refs __mach_task_self_ __mach_thread_self
+libcrt.a,hurdpid.o,hurd/hurdpid.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,hurdports.o,hurd/hurdports.c,hurd,hello,
+libcrt.a,hurdrlimit.o,hurd/hurdrlimit.c,hurd,client hello portsrv,__mach_task_self_ __mutex_init __vm_get_size_limit
+libcrt.a,hurdsig.o,hurd/hurdsig.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_msg __mach_port_allocate __mach_port_deallocate __mach_port_destroy __mach_port_insert_right __mach_port_mod_refs __mach_reply_port __mach_setup_thread_call __mach_setup_tls __mach_task_self_ __mach_thread_self __mutex_init __task_threads __thread_abort __thread_create __thread_get_state __thread_resume __thread_set_state __thread_suspend __vm_page_size
+libcrt.a,hurdsock.o,hurd/hurdsock.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __mutex_init
+libcrt.a,hurdstartup.o,hurd/hurdstartup.c,hurd,client hello portsrv,__mach_port_deallocate __mach_task_self_ __task_get_special_port __vm_page_size
+libcrt.a,if_index.o,sysdeps/mach/hurd/if_index.c,hurd,client hello portsrv,__mach_task_self_
+libcrt.a,ifreq.o,sysdeps/mach/hurd/ifreq.c,hurd,client hello portsrv,__munmap
+libcrt.a,inet6_scopeid_pton.o,inet/inet6_scopeid_pton.c,generic,client hello portsrv,
+libcrt.a,inet_addr.o,resolv/inet_addr.c,generic,client hello portsrv,
+libcrt.a,inet_mkadr.o,inet/inet_mkadr.c,generic,client hello portsrv,
+libcrt.a,inet_pton.o,resolv/inet_pton.c,generic,client hello portsrv,
+libcrt.a,inet_pton_length.o,resolv/inet_pton_length.c,generic,client hello portsrv,
+libcrt.a,init-first.o,sysdeps/mach/hurd/init-first.c,hurd,client hello portsrv,__mach_init __mach_port_deallocate __mach_task_self_ __mach_thread_self __thread_set_state __vm_page_size
+libcrt.a,init-misc.o,misc/init-misc.c,generic,client hello portsrv,
+libcrt.a,intern-fd.o,hurd/intern-fd.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,intr-msg.o,hurd/intr-msg.c,hurd,client hello portsrv,__mach_msg __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,ioctl.o,sysdeps/mach/hurd/ioctl.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_msg_destroy __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,iofclose.o,libio/iofclose.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,iofdopen.o,libio/iofdopen.c,generic,client,
+libcrt.a,iofflush.o,libio/iofflush.c,generic,hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,iofgets_u.o,libio/iofgets_u.c,generic,client hello portsrv,
+libcrt.a,iofopen.o,libio/iofopen.c,generic,client hello portsrv,
+libcrt.a,iofputs.o,libio/iofputs.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,iofputws_u.o,libio/iofputws_u.c,generic,hello portsrv,
+libcrt.a,iofwide.o,libio/iofwide.c,generic,client hello portsrv,
+libcrt.a,iofwrite.o,libio/iofwrite.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,iogetdelim.o,libio/iogetdelim.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,iogetline.o,libio/iogetline.c,generic,client hello portsrv,
+libcrt.a,ioputs.o,libio/ioputs.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,iovsprintf.o,libio/iovsprintf.c,generic,hello portsrv,
+libcrt.a,isatty.o,sysdeps/mach/hurd/isatty.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,isatty_nostatus.o,termios/isatty_nostatus.c,generic,client hello portsrv,
+libcrt.a,itoa-digits.o,stdio-common/itoa-digits.c,generic,client hello portsrv,
+libcrt.a,itoa-udigits.o,stdio-common/itoa-udigits.c,generic,client hello portsrv,
+libcrt.a,itowa-digits.o,stdio-common/itowa-digits.c,generic,client hello portsrv,
+libcrt.a,jmp-unwind.o,sysdeps/mach/hurd/jmp-unwind.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,kill.o,sysdeps/mach/hurd/kill.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __task_resume
+libcrt.a,l10nflist.o,sysdeps/x86_64/l10nflist.c,generic,client hello portsrv,
+libcrt.a,lc-ctype.o,locale/lc-ctype.c,generic,client hello portsrv,
+libcrt.a,lc-numeric.o,locale/lc-numeric.c,generic,client hello portsrv,
+libcrt.a,lc-time-cleanup.o,time/lc-time-cleanup.c,generic,client hello portsrv,
+libcrt.a,ldbl2mpn.o,sysdeps/x86/ldbl2mpn.c,generic,client hello portsrv,
+libcrt.a,libc-start.o,sysdeps/x86/libc-start.c,generic,client hello portsrv,
+libcrt.a,libc-tls.o,csu/libc-tls.c,generic,client hello portsrv,__mach_port_deallocate __mach_task_self_ __mach_thread_self __thread_set_state
+libcrt.a,libc_dlerror_result.o,dlfcn/libc_dlerror_result.c,generic,client hello portsrv,
+libcrt.a,libc_early_init.o,elf/libc_early_init.c,generic,client hello portsrv,__mach_init
+libcrt.a,libc_fatal.o,sysdeps/posix/libc_fatal.c,generic,client hello portsrv,__munmap
+libcrt.a,libc_sigaction.o,sysdeps/mach/hurd/libc_sigaction.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,loadarchive.o,locale/loadarchive.c,generic,client hello portsrv,__munmap
+libcrt.a,loadlocale.o,locale/loadlocale.c,generic,client hello portsrv,__munmap
+libcrt.a,loadmsgcat.o,intl/loadmsgcat.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __munmap
+libcrt.a,localealias.o,intl/localealias.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,localename.o,locale/localename.c,generic,client hello portsrv,
+libcrt.a,longjmp-ts.o,sysdeps/mach/hurd/x86_64/longjmp-ts.c,hurd,client hello portsrv,
+libcrt.a,longjmp_chk.o,debug/longjmp_chk.c,generic,client hello portsrv,
+libcrt.a,lookup-at.o,hurd/lookup-at.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,lookup-retry.o,hurd/lookup-retry.c,hurd,client hello portsrv,__host_info __mach_host_self_ __mach_port_deallocate __mach_port_destroy __mach_port_mod_refs __mach_reply_port __mach_task_self_
+libcrt.a,lseek64.o,sysdeps/mach/hurd/lseek64.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,lshift.o,sysdeps/x86_64/lshift.S,generic,client hello portsrv,
+libcrt.a,mach_host_self.o,,mach,client hello portsrv,
+libcrt.a,mach_init.o,mach/mach_init.c,mach,client hello portsrv,
+libcrt.a,mach_msg_trap.o,,mach,client hello portsrv,
+libcrt.a,mach_port_allocate.o,,mach,client hello portsrv,
+libcrt.a,mach_port_deallocate.o,,mach,client hello portsrv,
+libcrt.a,mach_port_insert_right.o,,mach,client hello portsrv,
+libcrt.a,mach_print.o,,mach,hello portsrv,
+libcrt.a,mach_reply_port.o,,mach,client hello portsrv,
+libcrt.a,mach_task_self.o,,mach,client hello portsrv,
+libcrt.a,mach_thread_self.o,,mach,client hello portsrv,
+libcrt.a,malloc-hugepages.o,sysdeps/generic/malloc-hugepages.c,generic,client hello portsrv,
+libcrt.a,malloc.o,malloc/malloc.c,generic,client hello portsrv,__clock_gettime __get_nprocs __gsync_wait __gsync_wake __mach_task_self_ __mprotect __munmap
+libcrt.a,mbsrtowcs.o,wcsmbs/mbsrtowcs.c,generic,client hello portsrv,
+libcrt.a,mbsrtowcs_l.o,wcsmbs/mbsrtowcs_l.c,generic,client hello portsrv,
+libcrt.a,memccpy.o,string/memccpy.c,generic,client hello portsrv,
+libcrt.a,memchr-avx2-rtm.o,sysdeps/x86_64/multiarch/memchr-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,memchr-avx2.o,sysdeps/x86_64/multiarch/memchr-avx2.S,generic,client hello portsrv,
+libcrt.a,memchr-evex-rtm.o,sysdeps/x86_64/multiarch/memchr-evex-rtm.S,generic,client hello portsrv,
+libcrt.a,memchr-evex.o,sysdeps/x86_64/multiarch/memchr-evex.S,generic,client hello portsrv,
+libcrt.a,memchr-sse2.o,sysdeps/x86_64/multiarch/memchr-sse2.S,generic,client hello portsrv,
+libcrt.a,memchr.o,sysdeps/x86_64/memchr.S,generic,client hello portsrv,
+libcrt.a,memcmp-avx2-movbe-rtm.o,sysdeps/x86_64/multiarch/memcmp-avx2-movbe-rtm.S,generic,client hello portsrv,
+libcrt.a,memcmp-avx2-movbe.o,sysdeps/x86_64/multiarch/memcmp-avx2-movbe.S,generic,client hello portsrv,
+libcrt.a,memcmp-evex-movbe.o,sysdeps/x86_64/multiarch/memcmp-evex-movbe.S,generic,client hello portsrv,
+libcrt.a,memcmp-sse2.o,sysdeps/x86_64/multiarch/memcmp-sse2.S,generic,client hello portsrv,
+libcrt.a,memcmp.o,sysdeps/x86_64/memcmp.S,generic,client hello portsrv,
+libcrt.a,memcpy.o,sysdeps/x86_64/memcpy.S,generic,client hello portsrv,
+libcrt.a,memcpy_chk-nonshared.o,sysdeps/x86_64/multiarch/memcpy_chk-nonshared.S,generic,client hello portsrv,
+libcrt.a,memmem.o,string/memmem.c,generic,client hello portsrv,
+libcrt.a,memmove-avx-unaligned-erms-rtm.o,sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms-rtm.S,generic,client hello portsrv,
+libcrt.a,memmove-avx-unaligned-erms.o,sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memmove-avx512-no-vzeroupper.o,sysdeps/x86_64/multiarch/memmove-avx512-no-vzeroupper.S,generic,client hello portsrv,
+libcrt.a,memmove-avx512-unaligned-erms.o,sysdeps/x86_64/multiarch/memmove-avx512-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memmove-erms.o,sysdeps/x86_64/multiarch/memmove-erms.S,generic,client hello portsrv,
+libcrt.a,memmove-evex-unaligned-erms.o,sysdeps/x86_64/multiarch/memmove-evex-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memmove-sse2-unaligned-erms.o,sysdeps/x86_64/multiarch/memmove-sse2-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memmove-ssse3.o,sysdeps/x86_64/multiarch/memmove-ssse3.S,generic,client hello portsrv,
+libcrt.a,memmove.o,sysdeps/x86_64/memmove.S,generic,client hello portsrv,
+libcrt.a,memmove_chk-nonshared.o,sysdeps/x86_64/multiarch/memmove_chk-nonshared.S,generic,client hello portsrv,
+libcrt.a,mempcpy.o,sysdeps/x86_64/mempcpy.S,generic,client hello portsrv,
+libcrt.a,mempcpy_chk-nonshared.o,sysdeps/x86_64/multiarch/mempcpy_chk-nonshared.S,generic,client hello portsrv,
+libcrt.a,memrchr-avx2-rtm.o,sysdeps/x86_64/multiarch/memrchr-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,memrchr-avx2.o,sysdeps/x86_64/multiarch/memrchr-avx2.S,generic,client hello portsrv,
+libcrt.a,memrchr-evex.o,sysdeps/x86_64/multiarch/memrchr-evex.S,generic,client hello portsrv,
+libcrt.a,memrchr-sse2.o,sysdeps/x86_64/multiarch/memrchr-sse2.S,generic,client hello portsrv,
+libcrt.a,memrchr.o,sysdeps/x86_64/memrchr.S,generic,client hello portsrv,
+libcrt.a,memset-avx2-unaligned-erms-rtm.o,sysdeps/x86_64/multiarch/memset-avx2-unaligned-erms-rtm.S,generic,client hello portsrv,
+libcrt.a,memset-avx2-unaligned-erms.o,sysdeps/x86_64/multiarch/memset-avx2-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memset-avx512-no-vzeroupper.o,sysdeps/x86_64/multiarch/memset-avx512-no-vzeroupper.S,generic,client hello portsrv,
+libcrt.a,memset-avx512-unaligned-erms.o,sysdeps/x86_64/multiarch/memset-avx512-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memset-erms.o,sysdeps/x86_64/multiarch/memset-erms.S,generic,client hello portsrv,
+libcrt.a,memset-evex-unaligned-erms.o,sysdeps/x86_64/multiarch/memset-evex-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memset-sse2-unaligned-erms.o,sysdeps/x86_64/multiarch/memset-sse2-unaligned-erms.S,generic,client hello portsrv,
+libcrt.a,memset.o,sysdeps/x86_64/memset.S,generic,client hello portsrv,
+libcrt.a,memset_chk-nonshared.o,sysdeps/x86_64/multiarch/memset_chk-nonshared.S,generic,client hello portsrv,
+libcrt.a,memstream.o,libio/memstream.c,generic,hello,
+libcrt.a,mig-alloc.o,mach/mig-alloc.c,mach,client hello portsrv,
+libcrt.a,mig-dealloc.o,mach/mig-dealloc.c,mach,client hello portsrv,
+libcrt.a,mig-reply.o,sysdeps/mach/hurd/mig-reply.c,hurd,client hello portsrv,__mach_port_mod_refs __mach_reply_port __mach_task_self_
+libcrt.a,mig_memcpy.o,mach/mig_memcpy.c,mach,client hello portsrv,
+libcrt.a,mig_strncpy.o,mach/mig_strncpy.c,mach,client hello portsrv,
+libcrt.a,mmap.o,sysdeps/mach/hurd/mmap.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __vm_page_size
+libcrt.a,mmap64.o,sysdeps/mach/hurd/mmap64.c,hurd,client hello portsrv,
+libcrt.a,mprotect.o,sysdeps/mach/mprotect.c,mach,client hello portsrv,
+libcrt.a,msg-destroy.o,mach/msg-destroy.c,mach,client hello portsrv,
+libcrt.a,msg.o,mach/msg.c,mach,client hello portsrv,
+libcrt.a,msgportdemux.o,hurd/msgportdemux.c,hurd,client hello portsrv,_S_exc_server __mach_msg_server __mach_port_deallocate __mach_task_self_ __mach_thread_self __vm_page_size
+libcrt.a,msgserver.o,mach/msgserver.c,mach,client hello portsrv,
+libcrt.a,mul.o,stdlib/mul.c,generic,client hello portsrv,
+libcrt.a,mul_1.o,sysdeps/x86_64/mul_1.S,generic,client hello portsrv,
+libcrt.a,mul_n.o,stdlib/mul_n.c,generic,client hello portsrv,
+libcrt.a,munmap.o,sysdeps/mach/munmap.c,mach,client hello portsrv,
+libcrt.a,mutex-init.o,mach/mutex-init.c,mach,client hello portsrv,
+libcrt.a,new-fd.o,hurd/new-fd.c,hurd,client hello portsrv,
+libcrt.a,open.o,sysdeps/mach/hurd/open.c,hurd,client hello portsrv,
+libcrt.a,open_nocancel.o,sysdeps/mach/hurd/open_nocancel.c,hurd,client hello portsrv,
+libcrt.a,openat_nocancel.o,sysdeps/mach/hurd/openat_nocancel.c,hurd,client hello portsrv,
+libcrt.a,opendir.o,sysdeps/mach/hurd/opendir.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,perror.o,stdio-common/perror.c,generic,client,__strerror_r
+libcrt.a,pid2task.o,hurd/pid2task.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,plural-exp.o,intl/plural-exp.c,generic,client hello portsrv,
+libcrt.a,plural.o,,generic,client hello portsrv,
+libcrt.a,port-cleanup.o,hurd/port-cleanup.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,port2fd.o,hurd/port2fd.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,ports-get.o,hurd/ports-get.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_mod_refs __mach_task_self_ __mach_thread_self __task_get_special_port
+libcrt.a,ports-set.o,hurd/ports-set.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_mod_refs __mach_task_self_ __mach_thread_self
+libcrt.a,pread64_nocancel.o,sysdeps/mach/hurd/pread64_nocancel.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,printf-parsemb.o,stdio-common/printf-parsemb.c,generic,client hello portsrv,
+libcrt.a,printf-parsewc.o,stdio-common/printf-parsewc.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_as_file.o,stdio-common/printf_buffer_as_file.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_done.o,stdio-common/printf_buffer_done.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_flush.o,stdio-common/printf_buffer_flush.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_pad_1.o,stdio-common/printf_buffer_pad_1.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_putc_1.o,stdio-common/printf_buffer_putc_1.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_puts_1.o,stdio-common/printf_buffer_puts_1.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_to_file.o,stdio-common/printf_buffer_to_file.c,generic,client hello portsrv,
+libcrt.a,printf_buffer_write.o,stdio-common/printf_buffer_write.c,generic,client hello portsrv,
+libcrt.a,printf_fp.o,stdio-common/printf_fp.c,generic,client hello portsrv,
+libcrt.a,printf_fphex.o,sysdeps/x86_64/fpu/printf_fphex.c,generic,client hello portsrv,
+libcrt.a,printf_function_invoke.o,stdio-common/printf_function_invoke.c,generic,client hello portsrv,
+libcrt.a,pt-alloc.o,htl/pt-alloc.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-attr-getstack.o,sysdeps/htl/pt-attr-getstack.c,htl,client hello portsrv,
+libcrt.a,pt-attr-getstackaddr.o,sysdeps/htl/pt-attr-getstackaddr.c,htl,client hello portsrv,
+libcrt.a,pt-attr-getstacksize.o,sysdeps/htl/pt-attr-getstacksize.c,htl,client hello portsrv,
+libcrt.a,pt-attr-init.o,sysdeps/htl/pt-attr-init.c,htl,client hello portsrv,
+libcrt.a,pt-attr-setstack.o,sysdeps/htl/pt-attr-setstack.c,htl,client hello portsrv,
+libcrt.a,pt-attr-setstackaddr.o,sysdeps/htl/pt-attr-setstackaddr.c,htl,client hello portsrv,
+libcrt.a,pt-attr-setstacksize.o,sysdeps/htl/pt-attr-setstacksize.c,htl,client hello portsrv,
+libcrt.a,pt-attr.o,sysdeps/htl/pt-attr.c,htl,client hello portsrv,
+libcrt.a,pt-block.o,sysdeps/mach/htl/pt-block.c,htl,hello portsrv,__mach_msg
+libcrt.a,pt-cleanup.o,htl/pt-cleanup.c,htl,client hello portsrv,
+libcrt.a,pt-cond-brdcast.o,sysdeps/htl/pt-cond-brdcast.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-cond.o,sysdeps/htl/pt-cond.c,htl,hello portsrv,
+libcrt.a,pt-create.o,htl/pt-create.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __vm_page_size
+libcrt.a,pt-dealloc.o,htl/pt-dealloc.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-destroy-specific.o,sysdeps/htl/pt-destroy-specific.c,htl,client hello portsrv,__sched_yield
+libcrt.a,pt-detach.o,htl/pt-detach.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-exit.o,htl/pt-exit.c,htl,client hello portsrv,
+libcrt.a,pt-getattr.o,htl/pt-getattr.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __vm_page_size
+libcrt.a,pt-hurd-cond-timedwait.o,sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c,htl,hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,pt-hurd-cond-wait.o,sysdeps/mach/hurd/htl/pt-hurd-cond-wait.c,htl,hello portsrv,
+libcrt.a,pt-init-specific.o,sysdeps/htl/pt-init-specific.c,htl,client hello portsrv,
+libcrt.a,pt-key-create.o,sysdeps/htl/pt-key-create.c,htl,client hello portsrv,
+libcrt.a,pt-mutex-checklocked.o,sysdeps/mach/hurd/htl/pt-mutex-checklocked.c,htl,hello portsrv,
+libcrt.a,pt-mutex-init.o,sysdeps/mach/hurd/htl/pt-mutex-init.c,htl,client hello portsrv,
+libcrt.a,pt-mutex-lock.o,sysdeps/mach/hurd/htl/pt-mutex-lock.c,htl,client hello portsrv,__gsync_wait __mach_task_self_
+libcrt.a,pt-mutex-unlock.o,sysdeps/mach/hurd/htl/pt-mutex-unlock.c,htl,client hello portsrv,__gsync_wake __mach_task_self_
+libcrt.a,pt-mutexattr-destroy.o,sysdeps/mach/hurd/htl/pt-mutexattr-destroy.c,htl,client hello portsrv,
+libcrt.a,pt-mutexattr-init.o,sysdeps/mach/hurd/htl/pt-mutexattr-init.c,htl,client hello portsrv,
+libcrt.a,pt-mutexattr-settype.o,sysdeps/mach/hurd/htl/pt-mutexattr-settype.c,htl,client hello portsrv,
+libcrt.a,pt-nthreads.o,htl/pt-nthreads.c,htl,client hello portsrv,
+libcrt.a,pt-once.o,sysdeps/htl/pt-once.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-pthread_self.o,sysdeps/mach/hurd/htl/pt-pthread_self.c,htl,client hello portsrv,
+libcrt.a,pt-rwlock-rdlock.o,sysdeps/htl/pt-rwlock-rdlock.c,htl,hello portsrv,
+libcrt.a,pt-rwlock-timedrdlock.o,sysdeps/htl/pt-rwlock-timedrdlock.c,htl,hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-rwlock-timedwrlock.o,sysdeps/htl/pt-rwlock-timedwrlock.c,htl,hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-rwlock-unlock.o,sysdeps/htl/pt-rwlock-unlock.c,htl,hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,pt-rwlock-wrlock.o,sysdeps/htl/pt-rwlock-wrlock.c,htl,hello portsrv,
+libcrt.a,pt-setcancelstate.o,htl/pt-setcancelstate.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,pt-setup.o,sysdeps/mach/hurd/x86_64/htl/pt-setup.c,htl,client hello portsrv,__mach_task_self_ __thread_set_state __vm_page_size __vm_protect
+libcrt.a,pt-sigmask.o,htl/pt-sigmask.c,htl,client hello portsrv,__mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,pt-sigstate-destroy.o,sysdeps/mach/hurd/htl/pt-sigstate-destroy.c,htl,client hello portsrv,
+libcrt.a,pt-sigstate-init.o,sysdeps/mach/hurd/htl/pt-sigstate-init.c,htl,client hello portsrv,
+libcrt.a,pt-sigstate.o,sysdeps/mach/hurd/htl/pt-sigstate.c,htl,client hello portsrv,
+libcrt.a,pt-spin-inlines.o,htl/pt-spin-inlines.c,htl,hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __spin_lock_solid
+libcrt.a,pt-stack-alloc.o,sysdeps/mach/htl/pt-stack-alloc.c,htl,client hello portsrv,__mach_task_self_
+libcrt.a,pt-startup.o,sysdeps/htl/pt-startup.c,htl,client hello portsrv,
+libcrt.a,pt-sysdep.o,sysdeps/mach/hurd/htl/pt-sysdep.c,htl,client hello portsrv,__mach_port_deallocate __mach_task_self_ __vm_page_size __vm_region
+libcrt.a,pt-testcancel.o,htl/pt-testcancel.c,htl,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,pt-thread-alloc.o,sysdeps/mach/htl/pt-thread-alloc.c,htl,client hello portsrv,__mach_port_allocate __mach_port_destroy __mach_port_insert_right __mach_port_set_qlimit __mach_task_self_ __mach_thread_self __thread_create
+libcrt.a,pt-thread-start.o,sysdeps/mach/htl/pt-thread-start.c,htl,client hello portsrv,__mach_port_deallocate __mach_task_self_ __mach_thread_self __thread_resume
+libcrt.a,pt-thread-terminate.o,sysdeps/mach/htl/pt-thread-terminate.c,htl,client hello portsrv,__mach_port_deallocate __mach_port_destroy __mach_task_self_ __mach_thread_self __thread_terminate __thread_terminate_release __vm_page_size
+libcrt.a,pt-timedblock.o,sysdeps/mach/htl/pt-timedblock.c,htl,hello portsrv,__clock_gettime __mach_msg
+libcrt.a,pt-wakeup.o,sysdeps/mach/htl/pt-wakeup.c,htl,client hello portsrv,__mach_msg
+libcrt.a,putwc_u.o,libio/putwc_u.c,generic,hello,
+libcrt.a,qsort.o,stdlib/qsort.c,generic,client hello portsrv,
+libcrt.a,raise.o,sysdeps/htl/raise.c,htl,client hello portsrv,
+libcrt.a,read.o,sysdeps/mach/hurd/read.c,hurd,client hello portsrv,
+libcrt.a,read_nocancel.o,sysdeps/mach/hurd/read_nocancel.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,readdir64.o,sysdeps/mach/hurd/readdir64.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __vm_page_size
+libcrt.a,readonly-area-fallback.o,sysdeps/mach/readonly-area-fallback.c,mach,client hello portsrv,
+libcrt.a,readonly-area.o,debug/readonly-area.c,generic,client hello portsrv,__readonly_area_fallback
+libcrt.a,reg-modifier.o,stdio-common/reg-modifier.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,reg-printf.o,stdio-common/reg-printf.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,reg-type.o,stdio-common/reg-type.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,register-atfork.o,posix/register-atfork.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,report-wait.o,hurd/report-wait.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __thread_get_state
+libcrt.a,res-close.o,resolv/res-close.c,generic,client hello portsrv,
+libcrt.a,res_hconf.o,nscd/res_hconf.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __munmap
+libcrt.a,res_init.o,resolv/res_init.c,generic,client hello portsrv,
+libcrt.a,res_libc.o,resolv/res_libc.c,generic,client hello portsrv,
+libcrt.a,res_randomid.o,resolv/res_randomid.c,generic,client hello portsrv,__clock_gettime
+libcrt.a,resolv_conf.o,resolv/resolv_conf.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,resolv_context.o,resolv/resolv_context.c,generic,client hello portsrv,
+libcrt.a,rshift.o,sysdeps/x86_64/rshift.S,generic,client hello portsrv,
+libcrt.a,rtld_static_init.o,elf/rtld_static_init.c,generic,client hello portsrv,
+libcrt.a,sbrk.o,sysdeps/mach/hurd/sbrk.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,sched_yield.o,sysdeps/mach/sched_yield.c,mach,client hello portsrv,
+libcrt.a,scratch_buffer_grow_preserve.o,malloc/scratch_buffer_grow_preserve.c,generic,client hello portsrv,
+libcrt.a,scratch_buffer_set_array_size.o,malloc/scratch_buffer_set_array_size.c,generic,client hello portsrv,
+libcrt.a,setauth.o,hurd/setauth.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_destroy __mach_port_mod_refs __mach_reply_port __mach_task_self_ __mach_thread_self
+libcrt.a,setenv.o,stdlib/setenv.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,setfpucw.o,math/setfpucw.c,generic,client hello portsrv,
+libcrt.a,setjmp.o,sysdeps/x86_64/setjmp.S,generic,client hello portsrv,
+libcrt.a,setlocale.o,locale/setlocale.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,setup-thread.o,mach/setup-thread.c,mach,client hello portsrv,
+libcrt.a,sigaction.o,signal/sigaction.c,generic,hello,
+libcrt.a,siginfo.o,hurd/siginfo.c,hurd,client hello portsrv,
+libcrt.a,sigjmp.o,setjmp/sigjmp.c,generic,client hello portsrv,
+libcrt.a,sigprocmask.o,sysdeps/mach/hurd/sigprocmask.c,hurd,client hello portsrv,__mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,sigreturn.o,sysdeps/mach/hurd/x86_64/sigreturn.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_mod_refs __mach_task_self_ __mach_thread_self
+libcrt.a,sigthreadmask.o,sysdeps/mach/hurd/sigthreadmask.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,sigunwind.o,hurd/sigunwind.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_port_mod_refs __mach_task_self_ __mach_thread_self
+libcrt.a,single_threaded.o,misc/single_threaded.c,generic,client hello portsrv,
+libcrt.a,sleep.o,sysdeps/mach/sleep.c,mach,hello,
+libcrt.a,snprintf.o,stdio-common/snprintf.c,generic,client hello portsrv,
+libcrt.a,snprintf_chk.o,debug/snprintf_chk.c,generic,hello,
+libcrt.a,socket.o,sysdeps/mach/hurd/socket.c,hurd,client hello portsrv,
+libcrt.a,spin-lock.o,mach/spin-lock.c,mach,hello portsrv,
+libcrt.a,spin-solid.o,mach/spin-solid.c,mach,hello portsrv,
+libcrt.a,sprintf.o,stdio-common/sprintf.c,generic,hello portsrv,
+libcrt.a,stack_chk_fail.o,debug/stack_chk_fail.c,generic,client hello portsrv,
+libcrt.a,stat64.o,sysdeps/mach/hurd/stat64.c,hurd,client hello portsrv,
+libcrt.a,stdfiles.o,libio/stdfiles.c,generic,client hello portsrv,
+libcrt.a,stdio.o,libio/stdio.c,generic,client hello portsrv,
+libcrt.a,stpcpy-avx2-rtm.o,sysdeps/x86_64/multiarch/stpcpy-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,stpcpy-avx2.o,sysdeps/x86_64/multiarch/stpcpy-avx2.S,generic,client hello portsrv,
+libcrt.a,stpcpy-evex.o,sysdeps/x86_64/multiarch/stpcpy-evex.S,generic,client hello portsrv,
+libcrt.a,stpcpy-sse2-unaligned.o,sysdeps/x86_64/multiarch/stpcpy-sse2-unaligned.S,generic,client hello portsrv,
+libcrt.a,stpcpy-sse2.o,sysdeps/x86_64/multiarch/stpcpy-sse2.S,generic,client hello portsrv,
+libcrt.a,stpcpy.o,sysdeps/x86_64/stpcpy.S,generic,client hello portsrv,
+libcrt.a,stpncpy-avx2-rtm.o,sysdeps/x86_64/multiarch/stpncpy-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,stpncpy-avx2.o,sysdeps/x86_64/multiarch/stpncpy-avx2.S,generic,client hello portsrv,
+libcrt.a,stpncpy-evex.o,sysdeps/x86_64/multiarch/stpncpy-evex.S,generic,client hello portsrv,
+libcrt.a,stpncpy-sse2-unaligned.o,sysdeps/x86_64/multiarch/stpncpy-sse2-unaligned.S,generic,client hello portsrv,
+libcrt.a,stpncpy.o,sysdeps/x86_64/stpncpy.S,generic,client hello portsrv,
+libcrt.a,strcasecmp.o,sysdeps/x86_64/strcasecmp.S,generic,client hello portsrv,
+libcrt.a,strcasecmp_l-avx2-rtm.o,sysdeps/x86_64/multiarch/strcasecmp_l-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strcasecmp_l-avx2.o,sysdeps/x86_64/multiarch/strcasecmp_l-avx2.S,generic,client hello portsrv,
+libcrt.a,strcasecmp_l-evex.o,sysdeps/x86_64/multiarch/strcasecmp_l-evex.S,generic,client hello portsrv,
+libcrt.a,strcasecmp_l-nonascii.o,sysdeps/x86_64/strcasecmp_l-nonascii.c,generic,client hello portsrv,
+libcrt.a,strcasecmp_l-sse2.o,sysdeps/x86_64/multiarch/strcasecmp_l-sse2.S,generic,client hello portsrv,
+libcrt.a,strcasecmp_l-sse4_2.o,sysdeps/x86_64/multiarch/strcasecmp_l-sse4_2.S,generic,client hello portsrv,
+libcrt.a,strcasecmp_l.o,sysdeps/x86_64/strcasecmp_l.S,generic,client hello portsrv,
+libcrt.a,strchr-avx2-rtm.o,sysdeps/x86_64/multiarch/strchr-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strchr-avx2.o,sysdeps/x86_64/multiarch/strchr-avx2.S,generic,client hello portsrv,
+libcrt.a,strchr-evex.o,sysdeps/x86_64/multiarch/strchr-evex.S,generic,client hello portsrv,
+libcrt.a,strchr-sse2-no-bsf.o,sysdeps/x86_64/multiarch/strchr-sse2-no-bsf.S,generic,client hello portsrv,
+libcrt.a,strchr-sse2.o,sysdeps/x86_64/multiarch/strchr-sse2.S,generic,client hello portsrv,
+libcrt.a,strchr.o,sysdeps/x86_64/strchr.S,generic,client hello portsrv,
+libcrt.a,strchrnul-avx2-rtm.o,sysdeps/x86_64/multiarch/strchrnul-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strchrnul-avx2.o,sysdeps/x86_64/multiarch/strchrnul-avx2.S,generic,client hello portsrv,
+libcrt.a,strchrnul-evex.o,sysdeps/x86_64/multiarch/strchrnul-evex.S,generic,client hello portsrv,
+libcrt.a,strchrnul-sse2.o,sysdeps/x86_64/multiarch/strchrnul-sse2.S,generic,client hello portsrv,
+libcrt.a,strchrnul.o,sysdeps/x86_64/strchrnul.S,generic,client hello portsrv,
+libcrt.a,strcmp-avx2-rtm.o,sysdeps/x86_64/multiarch/strcmp-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strcmp-avx2.o,sysdeps/x86_64/multiarch/strcmp-avx2.S,generic,client hello portsrv,
+libcrt.a,strcmp-evex.o,sysdeps/x86_64/multiarch/strcmp-evex.S,generic,client hello portsrv,
+libcrt.a,strcmp-sse2-unaligned.o,sysdeps/x86_64/multiarch/strcmp-sse2-unaligned.S,generic,client hello portsrv,
+libcrt.a,strcmp-sse2.o,sysdeps/x86_64/multiarch/strcmp-sse2.S,generic,client hello portsrv,
+libcrt.a,strcmp-sse4_2.o,sysdeps/x86_64/multiarch/strcmp-sse4_2.S,generic,client hello portsrv,
+libcrt.a,strcmp.o,sysdeps/x86_64/strcmp.S,generic,client hello portsrv,
+libcrt.a,strcpy-avx2-rtm.o,sysdeps/x86_64/multiarch/strcpy-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strcpy-avx2.o,sysdeps/x86_64/multiarch/strcpy-avx2.S,generic,client hello portsrv,
+libcrt.a,strcpy-evex.o,sysdeps/x86_64/multiarch/strcpy-evex.S,generic,client hello portsrv,
+libcrt.a,strcpy-sse2-unaligned.o,sysdeps/x86_64/multiarch/strcpy-sse2-unaligned.S,generic,client hello portsrv,
+libcrt.a,strcpy-sse2.o,sysdeps/x86_64/multiarch/strcpy-sse2.S,generic,client hello portsrv,
+libcrt.a,strcpy.o,sysdeps/x86_64/strcpy.S,generic,client hello portsrv,
+libcrt.a,strcspn-generic.o,sysdeps/x86_64/strcspn-generic.c,generic,client hello portsrv,
+libcrt.a,strcspn-sse4.o,sysdeps/x86_64/multiarch/strcspn-sse4.c,generic,client hello portsrv,
+libcrt.a,strcspn.o,sysdeps/x86_64/strcspn.c,generic,client hello portsrv,
+libcrt.a,strdup.o,string/strdup.c,generic,client hello portsrv,
+libcrt.a,strlen-avx2-rtm.o,sysdeps/x86_64/multiarch/strlen-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strlen-avx2.o,sysdeps/x86_64/multiarch/strlen-avx2.S,generic,client hello portsrv,
+libcrt.a,strlen-evex.o,sysdeps/x86_64/multiarch/strlen-evex.S,generic,client hello portsrv,
+libcrt.a,strlen-sse2.o,sysdeps/x86_64/multiarch/strlen-sse2.S,generic,client hello portsrv,
+libcrt.a,strlen.o,sysdeps/x86_64/strlen.S,generic,client hello portsrv,
+libcrt.a,strncase.o,sysdeps/x86_64/strncase.S,generic,client hello portsrv,
+libcrt.a,strncase_l-avx2-rtm.o,sysdeps/x86_64/multiarch/strncase_l-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strncase_l-avx2.o,sysdeps/x86_64/multiarch/strncase_l-avx2.S,generic,client hello portsrv,
+libcrt.a,strncase_l-evex.o,sysdeps/x86_64/multiarch/strncase_l-evex.S,generic,client hello portsrv,
+libcrt.a,strncase_l-nonascii.o,sysdeps/x86_64/strncase_l-nonascii.c,generic,client hello portsrv,
+libcrt.a,strncase_l-sse2.o,sysdeps/x86_64/multiarch/strncase_l-sse2.S,generic,client hello portsrv,
+libcrt.a,strncase_l-sse4_2.o,sysdeps/x86_64/multiarch/strncase_l-sse4_2.S,generic,client hello portsrv,
+libcrt.a,strncmp-avx2-rtm.o,sysdeps/x86_64/multiarch/strncmp-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strncmp-avx2.o,sysdeps/x86_64/multiarch/strncmp-avx2.S,generic,client hello portsrv,
+libcrt.a,strncmp-evex.o,sysdeps/x86_64/multiarch/strncmp-evex.S,generic,client hello portsrv,
+libcrt.a,strncmp-sse2.o,sysdeps/x86_64/multiarch/strncmp-sse2.S,generic,client hello portsrv,
+libcrt.a,strncmp-sse4_2.o,sysdeps/x86_64/multiarch/strncmp-sse4_2.S,generic,client hello portsrv,
+libcrt.a,strncmp.o,sysdeps/x86_64/strncmp.S,generic,client hello portsrv,
+libcrt.a,strncpy-avx2-rtm.o,sysdeps/x86_64/multiarch/strncpy-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strncpy-avx2.o,sysdeps/x86_64/multiarch/strncpy-avx2.S,generic,client hello portsrv,
+libcrt.a,strncpy-evex.o,sysdeps/x86_64/multiarch/strncpy-evex.S,generic,client hello portsrv,
+libcrt.a,strncpy-sse2-unaligned.o,sysdeps/x86_64/multiarch/strncpy-sse2-unaligned.S,generic,client hello portsrv,
+libcrt.a,strncpy.o,sysdeps/x86_64/strncpy.S,generic,client hello portsrv,
+libcrt.a,strncpy_chk.o,debug/strncpy_chk.c,generic,client hello portsrv,
+libcrt.a,strndup.o,string/strndup.c,generic,client hello portsrv,
+libcrt.a,strnlen-avx2-rtm.o,sysdeps/x86_64/multiarch/strnlen-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strnlen-avx2.o,sysdeps/x86_64/multiarch/strnlen-avx2.S,generic,client hello portsrv,
+libcrt.a,strnlen-evex.o,sysdeps/x86_64/multiarch/strnlen-evex.S,generic,client hello portsrv,
+libcrt.a,strnlen-sse2.o,sysdeps/x86_64/multiarch/strnlen-sse2.S,generic,client hello portsrv,
+libcrt.a,strnlen.o,sysdeps/x86_64/strnlen.S,generic,client hello portsrv,
+libcrt.a,strops.o,libio/strops.c,generic,client hello portsrv,
+libcrt.a,strpbrk-generic.o,sysdeps/x86_64/strpbrk-generic.c,generic,client hello portsrv,
+libcrt.a,strpbrk-sse4.o,sysdeps/x86_64/multiarch/strpbrk-sse4.c,generic,client hello portsrv,
+libcrt.a,strpbrk.o,sysdeps/x86_64/strpbrk.c,generic,client hello portsrv,
+libcrt.a,strrchr-avx2-rtm.o,sysdeps/x86_64/multiarch/strrchr-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,strrchr-avx2.o,sysdeps/x86_64/multiarch/strrchr-avx2.S,generic,client hello portsrv,
+libcrt.a,strrchr-evex.o,sysdeps/x86_64/multiarch/strrchr-evex.S,generic,client hello portsrv,
+libcrt.a,strrchr-sse2.o,sysdeps/x86_64/multiarch/strrchr-sse2.S,generic,client hello portsrv,
+libcrt.a,strrchr.o,sysdeps/x86_64/strrchr.S,generic,client hello portsrv,
+libcrt.a,strsep.o,string/strsep.c,generic,client hello portsrv,
+libcrt.a,strspn-generic.o,sysdeps/x86_64/strspn-generic.c,generic,client hello portsrv,
+libcrt.a,strspn-sse4.o,sysdeps/x86_64/multiarch/strspn-sse4.c,generic,client hello portsrv,
+libcrt.a,strspn.o,sysdeps/x86_64/strspn.c,generic,client hello portsrv,
+libcrt.a,strstr-sse2-unaligned.o,sysdeps/x86_64/multiarch/strstr-sse2-unaligned.S,generic,client hello portsrv,
+libcrt.a,strstr.o,string/strstr.c,generic,client hello portsrv,
+libcrt.a,strtok_r.o,string/strtok_r.c,generic,client hello portsrv,
+libcrt.a,strtol.o,sysdeps/wordsize-64/strtol.c,generic,client hello portsrv,
+libcrt.a,strtol_l.o,sysdeps/wordsize-64/strtol_l.c,generic,client hello portsrv,
+libcrt.a,strtoul.o,sysdeps/wordsize-64/strtoul.c,generic,client hello portsrv,
+libcrt.a,strtoul_l.o,sysdeps/wordsize-64/strtoul_l.c,generic,client hello portsrv,
+libcrt.a,sub_n.o,sysdeps/x86_64/sub_n.S,generic,client hello portsrv,
+libcrt.a,submul_1.o,sysdeps/x86_64/submul_1.S,generic,client hello portsrv,
+libcrt.a,swtch.o,,generic,client hello portsrv,
+libcrt.a,swtch_pri.o,,generic,client hello portsrv,
+libcrt.a,syscall_mach_port_allocate.o,,mach,client hello portsrv,
+libcrt.a,syscall_mach_port_deallocate.o,,mach,client hello portsrv,
+libcrt.a,syscall_mach_port_insert_right.o,,mach,client hello portsrv,
+libcrt.a,syscall_task_set_special_port.o,,mach,client hello portsrv,
+libcrt.a,syscall_task_suspend.o,,mach,client hello portsrv,
+libcrt.a,syscall_task_terminate.o,,mach,client hello portsrv,
+libcrt.a,syscall_vm_allocate.o,,mach,client hello portsrv,
+libcrt.a,syscall_vm_deallocate.o,,mach,client hello portsrv,
+libcrt.a,syscall_vm_map.o,,mach,client hello portsrv,
+libcrt.a,sysconf.o,sysdeps/mach/hurd/sysconf.c,hurd,client hello portsrv,__get_avphys_pages __get_nprocs __get_nprocs_conf __get_phys_pages __getpagesize
+libcrt.a,task_set_special_port.o,,generic,client hello portsrv,__syscall_task_set_special_port __task_set_special_port_rpc
+libcrt.a,task_suspend.o,,generic,client hello portsrv,__syscall_task_suspend __task_suspend_rpc
+libcrt.a,task_terminate.o,,generic,client hello portsrv,__syscall_task_terminate __task_terminate_rpc
+libcrt.a,thread-cancel.o,hurd/thread-cancel.c,hurd,hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self __thread_resume __thread_set_state __thread_suspend
+libcrt.a,thread-freeres.o,malloc/thread-freeres.c,generic,client hello portsrv,
+libcrt.a,thread-self.o,hurd/thread-self.c,hurd,client hello portsrv,__mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,tlsdesc.o,sysdeps/x86_64/tlsdesc.c,generic,client hello portsrv,__munmap
+libcrt.a,trampoline.o,sysdeps/mach/hurd/x86/trampoline.c,hurd,client hello portsrv,__i386_get_xstate_size __mach_host_self_ __thread_get_state
+libcrt.a,translated_number_width.o,stdio-common/translated_number_width.c,generic,client hello portsrv,
+libcrt.a,tsearch.o,misc/tsearch.c,generic,client hello portsrv,
+libcrt.a,varshift.o,sysdeps/x86_64/varshift.c,generic,client hello portsrv,
+libcrt.a,vasprintf.o,libio/vasprintf.c,generic,client hello portsrv,
+libcrt.a,vfprintf-internal.o,stdio-common/vfprintf-internal.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __strerror_r
+libcrt.a,vfwprintf-internal.o,stdio-common/vfwprintf-internal.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_ __strerror_r
+libcrt.a,vm_allocate.o,,generic,client hello portsrv,__syscall_vm_allocate __vm_allocate_rpc
+libcrt.a,vm_deallocate.o,,generic,client hello portsrv,__syscall_vm_deallocate __vm_deallocate_rpc
+libcrt.a,vm_map.o,,generic,client hello portsrv,__syscall_vm_map __vm_map_rpc
+libcrt.a,vsnprintf.o,libio/vsnprintf.c,generic,client hello portsrv,
+libcrt.a,vtables.o,libio/vtables.c,generic,client hello portsrv,
+libcrt.a,wcrtomb.o,wcsmbs/wcrtomb.c,generic,client hello portsrv,
+libcrt.a,wcschrnul.o,wcsmbs/wcschrnul.c,generic,client hello portsrv,
+libcrt.a,wcslen-avx2-rtm.o,sysdeps/x86_64/multiarch/wcslen-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,wcslen-avx2.o,sysdeps/x86_64/multiarch/wcslen-avx2.S,generic,client hello portsrv,
+libcrt.a,wcslen-evex.o,sysdeps/x86_64/multiarch/wcslen-evex.S,generic,client hello portsrv,
+libcrt.a,wcslen-sse2.o,sysdeps/x86_64/multiarch/wcslen-sse2.S,generic,client hello portsrv,
+libcrt.a,wcslen-sse4_1.o,sysdeps/x86_64/multiarch/wcslen-sse4_1.S,generic,client hello portsrv,
+libcrt.a,wcslen.o,sysdeps/x86_64/wcslen.S,generic,client hello portsrv,
+libcrt.a,wcsmbsload.o,wcsmbs/wcsmbsload.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,wcsnlen-avx2-rtm.o,sysdeps/x86_64/multiarch/wcsnlen-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,wcsnlen-avx2.o,sysdeps/x86_64/multiarch/wcsnlen-avx2.S,generic,client hello portsrv,
+libcrt.a,wcsnlen-evex.o,sysdeps/x86_64/multiarch/wcsnlen-evex.S,generic,client hello portsrv,
+libcrt.a,wcsnlen-generic.o,sysdeps/x86_64/wcsnlen-generic.c,generic,client hello portsrv,
+libcrt.a,wcsnlen-sse4_1.o,sysdeps/x86_64/multiarch/wcsnlen-sse4_1.S,generic,client hello portsrv,
+libcrt.a,wcsnlen.o,sysdeps/x86_64/wcsnlen.S,generic,client hello portsrv,
+libcrt.a,wcsrtombs.o,wcsmbs/wcsrtombs.c,generic,client hello portsrv,
+libcrt.a,wfileops.o,libio/wfileops.c,generic,client hello portsrv,__gsync_wait __gsync_wake __mach_task_self_
+libcrt.a,wgenops.o,libio/wgenops.c,generic,client hello portsrv,__gsync_wake __mach_task_self_
+libcrt.a,wmemchr-avx2-rtm.o,sysdeps/x86_64/multiarch/wmemchr-avx2-rtm.S,generic,client hello portsrv,
+libcrt.a,wmemchr-avx2.o,sysdeps/x86_64/multiarch/wmemchr-avx2.S,generic,client hello portsrv,
+libcrt.a,wmemchr-evex-rtm.o,sysdeps/x86_64/multiarch/wmemchr-evex-rtm.S,generic,client hello portsrv,
+libcrt.a,wmemchr-evex.o,sysdeps/x86_64/multiarch/wmemchr-evex.S,generic,client hello portsrv,
+libcrt.a,wmemchr-sse2.o,sysdeps/x86_64/multiarch/wmemchr-sse2.S,generic,client hello portsrv,
+libcrt.a,wmemchr.o,sysdeps/x86_64/wmemchr.S,generic,client hello portsrv,
+libcrt.a,wmemcpy.o,wcsmbs/wmemcpy.c,generic,client hello portsrv,
+libcrt.a,wmemmove.o,wcsmbs/wmemmove.c,generic,client hello portsrv,
+libcrt.a,wmempcpy.o,wcsmbs/wmempcpy.c,generic,client hello portsrv,
+libcrt.a,wmemset.o,sysdeps/x86_64/wmemset.S,generic,client hello portsrv,
+libcrt.a,wprintf_buffer_as_file.o,stdio-common/wprintf_buffer_as_file.c,generic,client hello portsrv,
+libcrt.a,wprintf_buffer_done.o,stdio-common/wprintf_buffer_done.c,generic,client hello portsrv,
+libcrt.a,wprintf_buffer_flush.o,stdio-common/wprintf_buffer_flush.c,generic,client hello portsrv,
+libcrt.a,wprintf_buffer_pad_1.o,stdio-common/wprintf_buffer_pad_1.c,generic,client hello portsrv,
+libcrt.a,wprintf_buffer_putc_1.o,stdio-common/wprintf_buffer_putc_1.c,generic,client hello portsrv,
+libcrt.a,wprintf_buffer_to_file.o,stdio-common/wprintf_buffer_to_file.c,generic,client hello portsrv,
+libcrt.a,wprintf_buffer_write.o,stdio-common/wprintf_buffer_write.c,generic,client hello portsrv,
+libcrt.a,wprintf_function_invoke.o,stdio-common/wprintf_function_invoke.c,generic,client hello portsrv,
+libcrt.a,write.o,sysdeps/mach/hurd/write.c,hurd,client hello portsrv,
+libcrt.a,write_nocancel.o,sysdeps/mach/hurd/write_nocancel.c,hurd,client hello portsrv,__gsync_wait __gsync_wake __mach_port_deallocate __mach_task_self_ __mach_thread_self
+libcrt.a,writev.o,sysdeps/posix/writev.c,generic,client hello portsrv,
+libcrt.a,xlocale.o,locale/xlocale.c,generic,client hello portsrv,
+libfshelp.a,set-options.o,,hurd-lib,hello,
+libgcc.a,_popcountsi2.o,,gcc,client hello portsrv,
+libgcc.a,letf2.o,,gcc,client hello portsrv,
+libgcc.a,sfp-exceptions.o,,gcc,client hello portsrv,
+libgcc.a,unordtf2.o,,gcc,client hello portsrv,
+libgcc_eh.a,unwind-c.o,,gcc,client hello portsrv,
+libgcc_eh.a,unwind-dw2-fde-dip.o,,gcc,client hello portsrv,
+libgcc_eh.a,unwind-dw2.o,,gcc,client hello portsrv,
+libhurduser.a,RPC_auth_getids.o,,hurd-rpc,client hello portsrv,__mig_allocate __mig_memcpy
+libhurduser.a,RPC_auth_makeauth.o,,hurd-rpc,client hello portsrv,__mig_memcpy
+libhurduser.a,RPC_auth_server_authenticate.o,,hurd-rpc,hello,__mig_allocate __mig_memcpy
+libhurduser.a,RPC_auth_user_authenticate.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_crash_dump_task.o,,hurd-rpc,client hello portsrv,__mach_msg
+libhurduser.a,RPC_dir_link.o,,hurd-rpc,client hello portsrv,__mig_strncpy
+libhurduser.a,RPC_dir_lookup.o,,hurd-rpc,client hello portsrv,__mig_strncpy
+libhurduser.a,RPC_dir_mkfile.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_dir_readdir.o,,hurd-rpc,client hello portsrv,__mig_allocate __mig_memcpy
+libhurduser.a,RPC_exec_startup_get_info.o,,hurd-rpc,client hello portsrv,__mach_msg __mig_allocate __mig_memcpy
+libhurduser.a,RPC_file_chauthor.o,,hurd-rpc,hello,
+libhurduser.a,RPC_file_check_access.o,,hurd-rpc,hello,
+libhurduser.a,RPC_file_chflags.o,,hurd-rpc,hello,
+libhurduser.a,RPC_file_chmod.o,,hurd-rpc,hello,
+libhurduser.a,RPC_file_chown.o,,hurd-rpc,hello,
+libhurduser.a,RPC_file_get_translator.o,,hurd-rpc,client hello portsrv,__mig_allocate __mig_memcpy
+libhurduser.a,RPC_file_lock.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_file_record_lock.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_file_set_size.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_file_set_translator.o,,hurd-rpc,hello,__mig_memcpy
+libhurduser.a,RPC_file_sync.o,,hurd-rpc,hello,
+libhurduser.a,RPC_file_utimens.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_file_utimes.o,,hurd-rpc,hello,
+libhurduser.a,RPC_fsys_goaway.o,,hurd-rpc,hello,
+libhurduser.a,RPC_fsys_startup.o,,hurd-rpc,hello,
+libhurduser.a,RPC_gsync_wait_intr.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_interrupt_operation.o,,hurd-rpc,client hello portsrv,__mach_msg
+libhurduser.a,RPC_io_clear_some_openmodes.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_duplicate.o,,hurd-rpc,hello,
+libhurduser.a,RPC_io_get_icky_async_id.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_get_openmodes.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_get_owner.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_identity.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_map.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_mod_owner.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_pathconf.o,,hurd-rpc,hello,
+libhurduser.a,RPC_io_read.o,,hurd-rpc,client hello portsrv,__mig_allocate __mig_memcpy
+libhurduser.a,RPC_io_readable.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_reauthenticate.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_restrict_auth.o,,hurd-rpc,hello,__mig_memcpy
+libhurduser.a,RPC_io_revoke.o,,hurd-rpc,hello,
+libhurduser.a,RPC_io_seek.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_set_all_openmodes.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_set_some_openmodes.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_stat.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_io_write.o,,hurd-rpc,client hello portsrv,__mig_memcpy
+libhurduser.a,RPC_msg_sig_post.o,,hurd-rpc,client hello portsrv,__mach_msg
+libhurduser.a,RPC_msg_sig_post_reply.o,,hurd-rpc,client hello portsrv,__mach_msg
+libhurduser.a,RPC_msg_sig_post_untraced_reply.o,,hurd-rpc,client hello portsrv,__mach_msg
+libhurduser.a,RPC_pfinet_siocgifconf.o,,hurd-rpc,client hello portsrv,__mig_allocate __mig_memcpy
+libhurduser.a,RPC_proc_dostop.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_getmsgport.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_getpgrp.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_getpgrppids.o,,hurd-rpc,client hello portsrv,__mig_allocate __mig_memcpy
+libhurduser.a,RPC_proc_getpids.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_getsidport.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_handle_exceptions.o,,hurd-rpc,client hello portsrv,__mig_memcpy
+libhurduser.a,RPC_proc_mark_cont.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_mark_exit.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_mark_important.o,,hurd-rpc,hello,
+libhurduser.a,RPC_proc_mark_stop.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_mod_stopchild.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_pid2task.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_reauthenticate.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_reauthenticate_complete.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_set_arg_locations.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_setmsgport.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_proc_setowner.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_socket_create.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_term_getctty.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_term_open_ctty.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_termctty_open_terminal.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,RPC_tioctl_tiocspgrp.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,faultexc_server.o,,hurd-rpc,client hello portsrv,
+libhurduser.a,msg_server.o,,hurd-rpc,client hello portsrv,__mig_deallocate
+libihash.a,ihash.o,,hurd-lib,hello portsrv,
+libiohelp.a,iouser-create.o,,hurd-lib,hello,
+libiohelp.a,iouser-dup.o,,hurd-lib,hello,
+libiohelp.a,iouser-free.o,,hurd-lib,hello,
+libiohelp.a,iouser-reauth.o,,hurd-lib,hello,munmap
+libiohelp.a,return-buffer.o,,hurd-lib,hello,
+libmachuser.a,RPC_gsync_wait.o,,mach,client hello portsrv,
+libmachuser.a,RPC_gsync_wake.o,,mach,client hello portsrv,
+libmachuser.a,RPC_host_get_time.o,,mach,client hello portsrv,
+libmachuser.a,RPC_host_get_time64.o,,mach,client hello portsrv,
+libmachuser.a,RPC_host_get_uptime64.o,,mach,client hello portsrv,
+libmachuser.a,RPC_host_info.o,,mach,client hello portsrv,
+libmachuser.a,RPC_i386_get_xstate_size.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_allocate_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_deallocate_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_destroy.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_extract_right.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_get_receive_status.o,,mach,hello,
+libmachuser.a,RPC_mach_port_get_refs.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_insert_right_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_mod_refs.o,,mach,client hello portsrv,
+libmachuser.a,RPC_mach_port_move_member.o,,mach,hello portsrv,
+libmachuser.a,RPC_mach_port_request_notification.o,,mach,hello portsrv,
+libmachuser.a,RPC_mach_port_set_protected_payload.o,,mach,hello portsrv,
+libmachuser.a,RPC_mach_port_set_qlimit.o,,mach,client hello portsrv,
+libmachuser.a,RPC_task_get_special_port.o,,mach,client hello portsrv,
+libmachuser.a,RPC_task_info.o,,mach,client hello portsrv,
+libmachuser.a,RPC_task_resume.o,,mach,client hello portsrv,
+libmachuser.a,RPC_task_set_special_port_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_task_suspend_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_task_terminate_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_task_threads.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_abort.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_create.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_get_state.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_info.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_resume.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_set_special_port.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_set_state.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_suspend.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_terminate.o,,mach,client hello portsrv,
+libmachuser.a,RPC_thread_terminate_release.o,,mach,client hello portsrv,
+libmachuser.a,RPC_vm_allocate_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_vm_deallocate_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_vm_get_size_limit.o,,mach,client hello portsrv,
+libmachuser.a,RPC_vm_map_rpc.o,,mach,client hello portsrv,
+libmachuser.a,RPC_vm_protect.o,,mach,client hello portsrv,
+libmachuser.a,RPC_vm_region.o,,mach,client hello portsrv,
+libmachuser.a,RPC_vm_statistics.o,,mach,client hello portsrv,
+libmachuser.a,exc_server.o,,mach,client hello portsrv,
+libports.a,begin-rpc.o,,hurd-lib,hello portsrv,
+libports.a,complete-deallocate.o,,hurd-lib,hello portsrv,__mach_task_self_ mach_port_mod_refs
+libports.a,create-bucket.o,,hurd-lib,hello portsrv,__mach_task_self_ mach_port_allocate
+libports.a,create-class.o,,hurd-lib,hello portsrv,
+libports.a,create-internal.o,,hurd-lib,hello portsrv,__mach_task_self_ mach_port_allocate mach_port_mod_refs mach_port_move_member mach_port_set_protected_payload
+libports.a,create-port-noinstall.o,,hurd-lib,hello,
+libports.a,create-port.o,,hurd-lib,hello portsrv,
+libports.a,dead-name.o,,hurd-lib,hello,
+libports.a,default-uninhibitable-rpcs.o,,hurd-lib,hello portsrv,
+libports.a,end-rpc.o,,hurd-lib,hello portsrv,
+libports.a,get-right.o,,hurd-lib,hello portsrv,__mach_task_self_ mach_port_deallocate mach_port_request_notification
+libports.a,get-send-right.o,,hurd-lib,hello,__mach_task_self_ mach_port_insert_right
+libports.a,init.o,,hurd-lib,hello portsrv,
+libports.a,interrupt-notified-rpcs.o,,hurd-lib,hello portsrv,__mach_task_self_ mach_port_deallocate mach_port_request_notification
+libports.a,interrupt-operation.o,,hurd-lib,hello,
+libports.a,interrupt-rpcs.o,,hurd-lib,hello,
+libports.a,interruptServer.o,,hurd-lib,hello,
+libports.a,interrupted.o,,hurd-lib,hello portsrv,
+libports.a,lookup-port.o,,hurd-lib,hello portsrv,
+libports.a,manage-one-thread.o,,hurd-lib,hello portsrv,__mach_task_self_ mach_msg_server_timeout mach_port_deallocate
+libports.a,no-senders.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate mach_port_request_notification
+libports.a,notify-dead-name.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate
+libports.a,notify-msg-accepted.o,,hurd-lib,hello,
+libports.a,notify-no-senders.o,,hurd-lib,hello,__mach_task_self_ mach_port_get_receive_status
+libports.a,notify-port-deleted.o,,hurd-lib,hello,
+libports.a,notify-port-destroyed.o,,hurd-lib,hello,
+libports.a,notify-send-once.o,,hurd-lib,hello,
+libports.a,notifyServer.o,,hurd-lib,hello,
+libports.a,port-deref-deferred.o,,hurd-lib,hello portsrv,
+libports.a,port-deref.o,,hurd-lib,hello portsrv,
+libports.a,port-ref.o,,hurd-lib,hello,
+libshouldbeinlibc.a,assert-backtrace.o,,hurd-lib,hello portsrv,mach_print strerror_r
+libshouldbeinlibc.a,idvec.o,,hurd-lib,hello,
+libtrivfs.a,cntl-clean.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate mach_port_destroy
+libtrivfs.a,cntl-create.o,,hurd-lib,hello,__mach_task_self_ mach_port_allocate mach_port_destroy
+libtrivfs.a,demuxer.o,,hurd-lib,hello,
+libtrivfs.a,dir-chg.o,,hurd-lib,hello,
+libtrivfs.a,dir-link.o,,hurd-lib,hello,
+libtrivfs.a,dir-lookup.o,,hurd-lib,hello,__mach_task_self_ mach_port_mod_refs
+libtrivfs.a,dir-mkdir.o,,hurd-lib,hello,
+libtrivfs.a,dir-mkfile.o,,hurd-lib,hello,
+libtrivfs.a,dir-readdir.o,,hurd-lib,hello,
+libtrivfs.a,dir-rename.o,,hurd-lib,hello,
+libtrivfs.a,dir-rmdir.o,,hurd-lib,hello,
+libtrivfs.a,dir-unlink.o,,hurd-lib,hello,
+libtrivfs.a,dyn-classes.o,,hurd-lib,hello,
+libtrivfs.a,file-access.o,,hurd-lib,hello,
+libtrivfs.a,file-chauthor.o,,hurd-lib,hello,
+libtrivfs.a,file-chflags.o,,hurd-lib,hello,
+libtrivfs.a,file-chg.o,,hurd-lib,hello,
+libtrivfs.a,file-chmod.o,,hurd-lib,hello,
+libtrivfs.a,file-chown.o,,hurd-lib,hello,
+libtrivfs.a,file-exec.o,,hurd-lib,hello,
+libtrivfs.a,file-get-fs-options.o,,hurd-lib,hello,
+libtrivfs.a,file-get-storage-info.o,,hurd-lib,hello,
+libtrivfs.a,file-get-trans.o,,hurd-lib,hello,
+libtrivfs.a,file-get-transcntl.o,,hurd-lib,hello,
+libtrivfs.a,file-getcontrol.o,,hurd-lib,hello,
+libtrivfs.a,file-getfh.o,,hurd-lib,hello,
+libtrivfs.a,file-getlinknode.o,,hurd-lib,hello,
+libtrivfs.a,file-lock-stat.o,,hurd-lib,hello,
+libtrivfs.a,file-lock.o,,hurd-lib,hello,
+libtrivfs.a,file-record-lock.o,,hurd-lib,hello,
+libtrivfs.a,file-reparent.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate
+libtrivfs.a,file-set-size.o,,hurd-lib,hello,
+libtrivfs.a,file-set-trans.o,,hurd-lib,hello,
+libtrivfs.a,file-statfs.o,,hurd-lib,hello,
+libtrivfs.a,file-sync.o,,hurd-lib,hello,
+libtrivfs.a,file-syncfs.o,,hurd-lib,hello,
+libtrivfs.a,file-utimes.o,,hurd-lib,hello,
+libtrivfs.a,fsServer.o,,hurd-lib,hello,__mig_deallocate
+libtrivfs.a,fsys-forward.o,,hurd-lib,hello,
+libtrivfs.a,fsys-get-children.o,,hurd-lib,hello,
+libtrivfs.a,fsys-get-options.o,,hurd-lib,hello,
+libtrivfs.a,fsys-get-source.o,,hurd-lib,hello,
+libtrivfs.a,fsys-getroot.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate
+libtrivfs.a,fsys-goaway.o,,hurd-lib,hello,
+libtrivfs.a,fsys-set-options.o,,hurd-lib,hello,
+libtrivfs.a,fsys-stubs.o,,hurd-lib,hello,
+libtrivfs.a,fsys-syncfs.o,,hurd-lib,hello,
+libtrivfs.a,fsysServer.o,,hurd-lib,hello,__mig_deallocate
+libtrivfs.a,get-source.o,,hurd-lib,hello,
+libtrivfs.a,io-async-icky.o,,hurd-lib,hello,
+libtrivfs.a,io-async.o,,hurd-lib,hello,
+libtrivfs.a,io-duplicate.o,,hurd-lib,hello,
+libtrivfs.a,io-identity.o,,hurd-lib,hello,
+libtrivfs.a,io-map.o,,hurd-lib,hello,
+libtrivfs.a,io-modes-get.o,,hurd-lib,hello,
+libtrivfs.a,io-modes-off.o,,hurd-lib,hello,
+libtrivfs.a,io-modes-on.o,,hurd-lib,hello,
+libtrivfs.a,io-modes-set.o,,hurd-lib,hello,
+libtrivfs.a,io-owner-get.o,,hurd-lib,hello,
+libtrivfs.a,io-owner-mod.o,,hurd-lib,hello,
+libtrivfs.a,io-pathconf.o,,hurd-lib,hello,
+libtrivfs.a,io-readable.o,,hurd-lib,hello,
+libtrivfs.a,io-reauthenticate.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate mach_port_move_member
+libtrivfs.a,io-restrict-auth.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate
+libtrivfs.a,io-revoke.o,,hurd-lib,hello,
+libtrivfs.a,io-select.o,,hurd-lib,hello,
+libtrivfs.a,io-stat.o,,hurd-lib,hello,
+libtrivfs.a,io-stubs.o,,hurd-lib,hello,
+libtrivfs.a,io-version.o,,hurd-lib,hello,
+libtrivfs.a,io-write.o,,hurd-lib,hello,
+libtrivfs.a,ioServer.o,,hurd-lib,hello,__mig_deallocate
+libtrivfs.a,open.o,,hurd-lib,hello,
+libtrivfs.a,priv.o,,hurd-lib,hello,
+libtrivfs.a,protid-clean.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate
+libtrivfs.a,protid-dup.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate mach_port_mod_refs
+libtrivfs.a,set-options.o,,hurd-lib,hello,
+libtrivfs.a,startup.o,,hurd-lib,hello,__mach_task_self_ mach_port_deallocate
