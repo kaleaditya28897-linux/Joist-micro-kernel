@@ -10,7 +10,10 @@
  * not writable). Random sequences of map, read, write, unmap, protect,
  * share, clone and exit, seeded and replayable. Phase 5 step 3 adds a region
  * capability (0030) a task asks mm for and maps in itself: its extents' pages
- * hold values; a clone copies them, never shares them. After every step: every
+ * hold values; a clone copies them, never shares them. Step 4 adds trees
+ * (0028): a clone's child in its parent's tree, some trees with small
+ * ceilings and reservations, a refusal only where a tree has no room. After
+ * every step: every
  * value read must be the abstract one, mm's records and the kernel's
  * invariants must hold, and mm's records must cover the kernel's mappings
  * exactly (no page mapped that mm doesn't know of, none it knows of
@@ -155,8 +158,10 @@ static struct {
     int live;
     uint32_t mt;     /* mm's index for it */
     joist_cspace s;  /* the kernel's space */
+    uint32_t tree;   /* its tree, as the abstract machine names them */
     struct apage pg[WN];
 } at[NT];
+static uint32_t next_tree;
 
 /* Each task's region capability (0030): one table at RLO, its capability
  * in the task's slot RS. Its extents' pages hold values (cells); each page
@@ -204,13 +209,28 @@ static uint32_t pick(uint32_t n)
     return (uint32_t)(rng % n);
 }
 
-static int start_task(unsigned i)
+/* Task place i started: adopted (a tree of its own, which may have the
+ * whole pool), or, with parent < NT, a clone's child in its parent's tree. */
+static int start_task(unsigned i, unsigned parent)
 {
     if (joist_task_create(&k, root, 20, TSLOT(i)) != JOIST_OK ||
-        joist_space_donate(&k, root, TSLOT(i), MSLOT(i)) != JOIST_OK ||
-        mm_task_add(&m, TSLOT(i), &at[i].mt) != MM_OK) {
+        joist_space_donate(&k, root, TSLOT(i), MSLOT(i)) != JOIST_OK) {
         return 0;
     }
+    /* An adopted tree: mostly the whole pool; now and then small limits
+     * (0028), so that its ceiling and the others' reservations refuse. */
+    uint64_t reserve = pick(6) == 0 ? pick(16) : 0;
+    uint64_t ceil = pick(6) == 0 ? 8u + pick(40) : POOL_PAGES;
+    uint32_t tasks = pick(6) == 0 ? 2u + pick(3) : MM_MAX_TASKS;
+    if (parent < NT ? mm_task_add_child(&m, TSLOT(i), at[parent].mt, &at[i].mt) != MM_OK
+                    : mm_task_add(&m, TSLOT(i), &at[i].mt) != MM_OK ||
+                          (mm_set_limit(&m, at[i].mt, reserve, ceil, tasks) != MM_OK &&
+                           mm_set_limit(&m, at[i].mt, 0, ceil, tasks) != MM_OK)) {
+        (void)joist_task_destroy(&k, root, TSLOT(i));
+        (void)joist_cap_delete(&k, root, TSLOT(i));
+        return 0;
+    }
+    at[i].tree = parent < NT ? at[parent].tree : ++next_tree;
     at[i].live = 1;
     at[i].s = k.obj[k.cs[root].slot[TSLOT(i)].obj - 1u].target - 1u;
     memset(at[i].pg, 0, sizeof at[i].pg);
@@ -224,6 +244,7 @@ static int setup(void)
     memset(pool, 0xa5, sizeof pool);
     memset(at, 0, sizeof at);
     memset(ar, 0, sizeof ar);
+    next_tree = 0;
     ncells = 0;
     next_region = 0;
     k.hooks.page = page;
@@ -238,7 +259,7 @@ static int setup(void)
     }
     mm_init(&m, &kops);
     m.kreg_slot = KREG;
-    return mm_add_frame(&m, POOL, POOL_PAGES) == MM_OK && start_task(0);
+    return mm_add_frame(&m, POOL, POOL_PAGES) == MM_OK && start_task(0, NT);
 }
 
 /* The kernel's entry for page va of space s, 0 if none. */
@@ -270,6 +291,7 @@ static struct {
     unsigned long cow_copies;    /* write faults on a present page that took a new page */
     unsigned long clones, shares, unmaps, protects, exits, refused;
     unsigned long rnew, rgrow, rmaps, rrefused, runmaps, rprotects, rreads, rwrites, rfrees, rclones;
+    unsigned long trefused, tclones_refused; /* refused by a tree's limits (or a full pool) */
 } cov;
 #define WRONG(...)                                                                                 \
     do {                                                                                           \
@@ -313,6 +335,23 @@ static uint64_t pick_used(unsigned i, int w)
     return pick(WN);
 }
 
+/* Whether task i's tree has room for one more page, by 0028's rule, on
+ * mm's records (mm_check checks those records against the pages). */
+static int tree_room1(unsigned i)
+{
+    const struct mm_tree *g = &m.tree[m.task[at[i].mt].tree];
+    if (m.nfree == 0 || g->pages >= g->ceil) {
+        return 0;
+    }
+    uint64_t unused = 0;
+    for (uint32_t r = 0; r < MM_MAX_TASKS; r++) {
+        const struct mm_tree *h = &m.tree[r];
+        unused += h->live && h->reserve > h->pages ? h->reserve - h->pages : 0;
+    }
+    uint64_t own = g->reserve > g->pages ? 1u : 0u;
+    return m.nfree - 1u >= unused - own;
+}
+
 /* Read page a (an offset in the window) of task i: as the task would, a
  * fault into mm if the kernel has nothing there. */
 static int do_read(unsigned i, uint64_t a)
@@ -323,8 +362,9 @@ static int do_read(unsigned i, uint64_t a)
     if (e == 0) {
         int r = mm_fault(&m, at[i].mt, va, MM_ACCESS_READ);
         if (r != (p->region != 0)) {
-            if (r == 0 && m.nfree == 0) {
-                return 1; /* the pool spent: an honest refusal */
+            if (r == 0 && !tree_room1(i)) {
+                cov.trefused++;
+                return 1; /* the pool spent, or the tree's limits: an honest refusal */
             }
             WRONG("read of task %u page 0x%llx: mm says %d, the region %u", i, (unsigned long long)va,
                   r, p->region);
@@ -362,7 +402,8 @@ static int do_write(unsigned i, uint64_t a, uint64_t v)
         cov.cow_copies += r == 1 && e != 0 && m.nfree < before;
         cov.refused += r == 0;
         if (r != allowed) {
-            if (r == 0 && m.nfree == 0) {
+            if (r == 0 && !tree_room1(i)) {
+                cov.trefused++;
                 return 1;
             }
             WRONG("write to task %u page 0x%llx: mm says %d, allowed %d", i, (unsigned long long)va, r,
@@ -626,7 +667,7 @@ static int step(void)
 {
     unsigned i = live_task();
     if (i == NT) {
-        if (!start_task(0)) {
+        if (!start_task(0, NT)) {
             WRONG("no task could be started");
         }
         return 1;
@@ -723,10 +764,27 @@ static int step(void)
                 break;
             }
         }
-        if (c == NT || !start_task(c)) {
+        if (c == NT) {
+            return 1;
+        }
+        if (!start_task(c, i)) {
+            cov.tclones_refused++; /* its tree's task ceiling */
             return 1;
         }
         int e = mm_clone(&m, t, at[c].mt);
+        if (e == MM_E_NOMEM) {
+            /* Its region pages past the tree's limits: undone, as mm's
+             * server does. */
+            if (joist_task_destroy(&k, root, TSLOT(c)) != JOIST_OK || k_finish(NULL) != 1 ||
+                joist_cap_delete(&k, root, TSLOT(c)) != JOIST_OK) {
+                WRONG("a refused clone's child could not be destroyed");
+            }
+            mm_task_gone(&m, at[c].mt);
+            at[c].live = 0;
+            memset(&ar[c], 0, sizeof ar[c]);
+            cov.tclones_refused++;
+            return 1;
+        }
         if (e != MM_OK) {
             WRONG("clone(task %u into %u): %d", i, c, e);
         }
@@ -819,9 +877,18 @@ static int step(void)
     }
 }
 
-/* mm's records and the kernel's mappings agree, task by task. */
+/* mm's records and the kernel's mappings agree, task by task; and its
+ * trees are the abstract machine's. */
 static int covered(void)
 {
+    for (unsigned i = 0; i < NT; i++) {
+        for (unsigned j = i + 1u; at[i].live && j < NT; j++) {
+            if (at[j].live && (at[i].tree == at[j].tree) != (m.task[at[i].mt].tree == m.task[at[j].mt].tree)) {
+                WRONG("tasks %u and %u: one tree %s, mm says %s", i, j, at[i].tree == at[j].tree ? "yes" : "no",
+                      at[i].tree == at[j].tree ? "no" : "yes");
+            }
+        }
+    }
     for (unsigned i = 0; i < NT; i++) {
         if (!at[i].live) {
             continue;
@@ -934,10 +1001,13 @@ JT_TEST(mm_refines_the_abstract_machine)
             "of written pages, %lu writes, %lu faults refused, %lu frees, %lu cloned\n",
             cov.rnew, cov.rgrow, cov.rmaps, cov.runmaps, cov.rprotects, cov.rreads, cov.rwrites,
             cov.rrefused, cov.rfrees, cov.rclones);
+    fprintf(stderr, "  coverage mm trees: %lu faults and %lu clones refused at a tree's limits\n",
+            cov.trefused, cov.tclones_refused);
     /* Floors: each path is taken often enough to mean something. */
     JT_CHECK(cov.reads_written > 2000 && cov.writes > 2000 && cov.cow_copies > 200);
     JT_CHECK(cov.clones > 100 && cov.shares > 100 && cov.unmaps > 200 && cov.protects > 100);
     JT_CHECK(cov.exits > 50 && cov.refused > 100);
     JT_CHECK(cov.rnew > 100 && cov.rgrow > 200 && cov.rmaps > 200 && cov.runmaps > 50 && cov.rprotects > 50);
     JT_CHECK(cov.rreads > 150 && cov.rwrites > 150 && cov.rrefused > 100 && cov.rfrees > 30 && cov.rclones > 30);
+    JT_CHECK(cov.trefused > 50 && cov.tclones_refused > 20);
 }

@@ -227,10 +227,12 @@ static void collect(void);
 
 /* Records for a new task, whose capability is (or is to be) in `slot`: a
  * fresh generation for its index, no acceptance pending, and not a
- * pending child. */
-static int task_new(uint64_t slot, uint32_t *t)
+ * pending child. Adopted (parent MM_MAX_TASKS), a tree of its own;
+ * otherwise in its parent's tree (0028). */
+static int task_new(uint64_t slot, uint32_t parent, uint32_t *t)
 {
-    int e = mm_task_add(&M, (uint32_t)slot, t);
+    int e = parent < MM_MAX_TASKS ? mm_task_add_child(&M, (uint32_t)slot, parent, t)
+                                  : mm_task_add(&M, (uint32_t)slot, t);
     if (e == MM_OK) {
         gen[*t]++;
         accept[*t].n = 0;
@@ -291,7 +293,7 @@ static uint64_t adopt(uint64_t slot, uint64_t *badge)
         return MM_E_RANGE;
     }
     uint32_t t;
-    int e = task_new(slot, &t);
+    int e = task_new(slot, MM_MAX_TASKS, &t);
     if (e != MM_OK) {
         return (uint64_t)e;
     }
@@ -351,7 +353,7 @@ static void unmake(uint32_t t)
  * and *id. */
 static uint64_t clone(uint32_t parent, uint32_t *t, uint64_t *id)
 {
-    int e = task_new(0, t);
+    int e = task_new(0, parent, t);
     if (e != MM_OK) {
         return (uint64_t)e;
     }
@@ -472,6 +474,14 @@ static void handle(const struct j_msg *in, struct j_msg *out)
             return;
         case MM_REQ_STATUS:
             out->r[0] = status(out);
+            return;
+        case MM_REQ_SET_LIMIT:
+            /* r[1] a task's badge: its tree's limits (0028). */
+            out->r[0] = !ready || in->r[1] == 0 || in->r[1] > MM_MAX_TASKS || in->r[3] > UINT32_MAX
+                            ? MM_E_RANGE
+                            : (uint64_t)mm_set_limit(&M, (uint32_t)(in->r[1] - 1u),
+                                                     in->r[2] & 0xffffffffu, in->r[2] >> 32,
+                                                     (uint32_t)in->r[3]);
             return;
         default:
             out->r[0] = MM_E_RANGE;

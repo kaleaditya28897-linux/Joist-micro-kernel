@@ -62,8 +62,12 @@ enum {
                      * a guard can't be mapped over, and a touch ends the thread */
     MMC_QUOTA,      /* a child spends its quota (MM_CHILD_QUOTA), then forks: its child's
                      * thread refused, the clone cancelled, mm forgets the child */
-    MMC_REGION      /* a region capability (0030): asked for, grown, mapped by the task
+    MMC_REGION,     /* a region capability (0030): asked for, grown, mapped by the task
                      * itself; a fork's child holds a copy of its own; freed, and again */
+    MMC_BOMB,       /* clones (never confirmed) until mm refuses: RES how many */
+    MMC_HOG,        /* touches page after page, each index in aux first, until mm ends it */
+    MMC_STEADY      /* after the root's go: faults pages and forks, round after round;
+                     * every request must succeed (0028: its tree's reservation) */
 };
 #define MMC_B 100u
 enum {

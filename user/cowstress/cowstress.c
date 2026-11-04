@@ -576,6 +576,7 @@ static void first_task(void)
     must(j_cap_give(mm_task, r->task, MM_S_ROOT, J_R_ALL), "cap_give (to mm)");
     struct j_msg m = ask(MM_REQ_ADOPT, MM_S_ROOT);
     check(m.r[0] == MM_OK, "mm's ADOPT failed");
+    tree_unlimited(m.r[1]); /* the round's one tree: mm full is what it tests */
     give_root_cap(i);
     ld_stack(r->task, COW_HELPER_TOP);
     must(j_thread_spawn(r->task, r->thread, entry, CHILD_LO), "thread_spawn");

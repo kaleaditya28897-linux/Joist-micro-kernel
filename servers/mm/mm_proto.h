@@ -63,9 +63,14 @@ enum { MM_CLONE_KEEP = 0, MM_CLONE_CANCEL = 1 };
 enum {
     MM_REQ_INIT = MM_REQ_BASE + 0x100u, /* pool pages, table pages: what it was given */
     MM_REQ_ADOPT,                       /* the slot of mm's space the root put a task
-                                         * capability (CONTROL) in -> r[1] its badge */
-    MM_REQ_STATUS                       /* -> r[1] tasks served, r[2] free pages,
+                                         * capability (CONTROL) in -> r[1] its badge. It
+                                         * starts a tree (0028); MM_E_NOMEM if the tree's
+                                         * reservation doesn't fit beside the others' */
+    MM_REQ_STATUS,                      /* -> r[1] tasks served, r[2] free pages,
                                          * r[3] faults mm_check finds in its records */
+    MM_REQ_SET_LIMIT                    /* a task's badge; its tree's reservation |
+                                         * page ceiling << 32; its task ceiling (0028;
+                                         * proc's in Phase 8) */
 };
 
 #define MM_ROOT_BADGE 0x7fff0000u /* above any task's (a task's is its index plus one) */

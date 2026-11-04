@@ -74,6 +74,16 @@ static struct j_msg ask(uint64_t r0, uint64_t r1)
     return m;
 }
 
+/* The tree of the task with this badge may have the whole pool and every
+ * task record, with no reservation (0028): for a test whose subject is mm
+ * being full, not a tree's limits. */
+static inline void tree_unlimited(uint64_t badge)
+{
+    struct j_msg m = {.r = {MM_REQ_SET_LIMIT, badge, (uint64_t)HOST_POOL_PAGES << 32, MM_MAX_TASKS}};
+    must(j_call(mm_root, &m, J_FOREVER), "call (mm)");
+    check(m.r[0] == MM_OK, "mm's SET_LIMIT failed");
+}
+
 static void start_mm(void)
 {
     mm_ep = slot_new();

@@ -285,10 +285,12 @@ run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 # and kept across a clone, refused clones undone, a child still pending
 # when its parent goes destroyed with it. Phase 5 step 3 (0030): a region
 # capability asked of mm, grown, mapped by the client itself, copied by a
-# fork, freed, its pages counted by mm throughout.
+# fork, freed, its pages counted by mm throughout. Phase 5 step 4 (0028):
+# a fork bomb and two memory hogs, each its own tree, stopped at their
+# trees' limits beside a fourth tree that faults and forks, never refused.
 run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" "mm: guard page ok" \
     "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: orphans ok" "mm: quota ok" "mm: region ok" \
-    "mm: all ok" "root task exited with code 0"
+    "mm: trees ok" "mm: all ok" "root task exited with code 0"
 run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
 # Phase 4's exit (docs/phase4-plan.md, *Testing*): cowstress, fork trees

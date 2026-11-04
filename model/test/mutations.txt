@@ -347,3 +347,15 @@ mm-kreg-clone-skipped @@ ../servers/mm/mmlib.c @@     return kreg_clone(m, paren
 mm-kreg-clone-not-copied @@ ../servers/mm/mmlib.c @@                 memcpy(bytes(m, m->kreg[j].ext[x].page + k), bytes(m, pr->ext[x].page + k), PAGE_BYTES); @@                 (void)k;
 mm-kreg-clone-maps-shared @@ ../servers/mm/mmlib.c @@     int e = m->k.region_map(m->k.ctx, m->kreg_slot + j, r->ext, r->page, r->n, r->va, r->perms); @@     int e = m->k.region_map(m->k.ctx, m->kreg_slot + j, r->ext, r->page, r->n, r->va, 0);
 mm-kreg-clone-run-ignores-extent @@ ../servers/mm/mmlib.c @@                 if (run.n != 0 && run.ext == y && run.page + run.n == page && @@                 if (run.n != 0 && run.page + run.n == page &&
+# Phase 5 step 4: mm's trees (0028).
+mm-tree-ceiling-ignored @@ ../servers/mm/mmlib.c @@     if (n > m->nfree || n > g->ceil || g->pages > g->ceil - n) { @@     if (n > m->nfree) {
+mm-tree-reserve-ignored @@ ../servers/mm/mmlib.c @@     return m->nfree - n >= unused_all(m) - own; @@     return own <= n;
+mm-tree-admission-unchecked @@ ../servers/mm/mmlib.c @@     if (r == MM_MAX_TASKS || m->nfree < unused_all(m) + MM_TREE_RESERVE) { @@     if (r == MM_MAX_TASKS) {
+mm-tree-child-own-tree @@ ../servers/mm/mmlib.c @@     return task_in(m, slot, r, t); @@     return mm_task_add(m, slot, t);
+mm-tree-child-ceiling-ignored @@ ../servers/mm/mmlib.c @@     if (m->tree[r].tasks >= m->tree[r].ceil_tasks) { @@     if (m->tree[r].tasks > MM_MAX_TASKS) {
+mm-tree-tasks-uncounted @@ ../servers/mm/mmlib.c @@             m->tree[r].tasks++; @@             (void)r;
+mm-tree-page-not-uncharged @@ ../servers/mm/mmlib.c @@         page_uncharge(m, p); @@         (void)p;
+mm-tree-reserve-kept-without-tasks @@ ../servers/mm/mmlib.c @@         g->reserve = 0; @@         (void)0;
+mm-tree-share-room-unchecked @@ ../servers/mm/mmlib.c @@         !tree_room(m, tk->tree, n - mapped + cow)) { @@         0) {
+mm-tree-set-limit-unchecked @@ ../servers/mm/mmlib.c @@     if (m->nfree < unused_all(m) - was + now) { @@     if (was > now + MM_PAGES) {
+mm-tree-lost-still-charged @@ ../servers/mm/mmlib.c @@                 page_uncharge(m, r->ext[x].page + k); @@                 (void)k;

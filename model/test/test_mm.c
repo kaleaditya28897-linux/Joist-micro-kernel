@@ -205,17 +205,22 @@ static void setup(void)
     T = k.obj[k.cs[root].slot[TK].obj - 1u].target - 1u;
     mm_init(&m, &kops);
     m.kreg_slot = KREG;
-    if (mm_add_frame(&m, POOL, POOL_PAGES) != MM_OK || mm_task_add(&m, TK, &t) != MM_OK) {
+    /* T's tree may have the whole pool (the trees' limits have tests of
+     * their own: 0028). */
+    if (mm_add_frame(&m, POOL, POOL_PAGES) != MM_OK || mm_task_add(&m, TK, &t) != MM_OK ||
+        mm_set_limit(&m, t, 0, POOL_PAGES, MM_MAX_TASKS) != MM_OK) {
         jt_fail(__FILE__, __LINE__, "mm could not be set up as written", 0);
     }
 }
 
-/* C and D, served by mm too, each with its tables' pages. */
+/* C and D, served by mm too, each with its tables' pages: C in T's tree
+ * (a clone's child), D a tree of its own. */
 static void more_tasks(void)
 {
     if (joist_task_create(&k, root, 20, TC) != JOIST_OK || joist_space_donate(&k, root, TC, MEMC) != JOIST_OK ||
         joist_task_create(&k, root, 20, TD) != JOIST_OK || joist_space_donate(&k, root, TD, MEMD) != JOIST_OK ||
-        mm_task_add(&m, TC, &c) != MM_OK || mm_task_add(&m, TD, &d) != MM_OK) {
+        mm_task_add_child(&m, TC, t, &c) != MM_OK || mm_task_add(&m, TD, &d) != MM_OK ||
+        mm_set_limit(&m, d, 0, POOL_PAGES, MM_MAX_TASKS) != MM_OK) {
         jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
         return;
     }
@@ -573,7 +578,8 @@ static void two_frames(uint64_t first)
     mm_init(&m, &kops);
     if (joist_frame_split(&k, root, POOL, first, POOL2) != JOIST_OK ||
         mm_add_frame(&m, POOL, first) != MM_OK ||
-        mm_add_frame(&m, POOL2, POOL_PAGES - first) != MM_OK || mm_task_add(&m, TK, &t) != MM_OK) {
+        mm_add_frame(&m, POOL2, POOL_PAGES - first) != MM_OK || mm_task_add(&m, TK, &t) != MM_OK ||
+        mm_set_limit(&m, t, 0, POOL_PAGES, MM_MAX_TASKS) != MM_OK) {
         jt_fail(__FILE__, __LINE__, "mm could not be set up as written", 0);
         return;
     }
@@ -999,3 +1005,141 @@ JT_TEST(mm_clone_copies_region_pages_and_maps_them_alike)
     JT_CHECK(clean());
 }
 
+
+/* ---- Phase 5 step 4: trees, their reservations and ceilings (0028) ---- */
+
+/* A kernel task in root's slot ts, its tables paid from frame mem. */
+static int task_made(uint32_t ts, uint32_t memf)
+{
+    return joist_task_create(&k, root, 20, ts) == JOIST_OK && joist_space_donate(&k, root, ts, memf) == JOIST_OK;
+}
+
+static uint32_t tree_of(uint32_t x)
+{
+    return m.task[x].tree;
+}
+
+JT_TEST(mm_tree_ceiling_holds_on_every_path_that_makes_a_page)
+{
+    setup();
+    more_tasks(); /* C in T's tree, D a tree of its own */
+    JT_REQUIRE(mm_set_limit(&m, t, 0, 6, MM_MAX_TASKS) == MM_OK);
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 16, MM_W) == MM_OK);
+    /* Demand-zero: six pages, then the ceiling. */
+    for (uint64_t i = 0; i < 6; i++) {
+        JT_REQUIRE(mm_fault(&m, t, 0x400 + i, MM_ACCESS_WRITE) == 1);
+    }
+    JT_CHECK(mm_fault(&m, t, 0x406, MM_ACCESS_WRITE) == 0 && m.tree[tree_of(t)].pages == 6u);
+    JT_CHECK(mm_fault(&m, t, 0x406, MM_ACCESS_READ) == 0);
+    /* A copy on write in C (the same tree): refused at the ceiling, made
+     * once a page is given back. */
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    JT_CHECK(mm_fault(&m, c, 0x400, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == 0);
+    JT_REQUIRE(mm_unmap(&m, t, 0x405, 1) == MM_OK && mm_unmap(&m, c, 0x405, 1) == MM_OK);
+    JT_CHECK(m.tree[tree_of(t)].pages == 5u);
+    JT_CHECK(mm_fault(&m, c, 0x400, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == 1);
+    JT_CHECK(m.tree[tree_of(t)].pages == 6u);
+    /* SHARE that must make a page: refused before it changes anything. */
+    struct mm_region before[MM_REGIONS];
+    memcpy(before, m.task[t].reg, sizeof before);
+    JT_CHECK(mm_share(&m, t, 0x408, 2, d, 0x900) == MM_E_NOMEM);
+    JT_CHECK(memcmp(before, m.task[t].reg, sizeof before) == 0 && m.task[d].reg[0].n == 0);
+    /* A region's extent: refused past the ceiling. */
+    JT_REQUIRE(mm_region_new(&m, t, LO, 1, MM_W, RS) == MM_OK);
+    uint32_t x;
+    JT_CHECK(mm_region_grow(&m, t, RS, 1, &x) == MM_E_NOMEM);
+    /* D, another tree, isn't held back by T's ceiling. */
+    JT_REQUIRE(mm_map_anon(&m, d, 0x400, 8, MM_W) == MM_OK);
+    JT_CHECK(mm_fault(&m, d, 0x400, MM_ACCESS_READ) == 1 && m.tree[tree_of(d)].pages > 6u);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tree_reservation_is_kept_for_it)
+{
+    setup();
+    more_tasks();
+    JT_REQUIRE(mm_set_limit(&m, d, 10, POOL_PAGES, MM_MAX_TASKS) == MM_OK);
+    /* T may take all but D's 10. */
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, POOL_PAGES, MM_W) == MM_OK);
+    for (uint64_t i = 0; i < POOL_PAGES - 10u; i++) {
+        JT_REQUIRE(mm_fault(&m, t, 0x400 + i, MM_ACCESS_WRITE) == 1);
+    }
+    JT_CHECK(mm_fault(&m, t, 0x400 + POOL_PAGES - 10u, MM_ACCESS_WRITE) == 0 && m.nfree == 10u);
+    /* D gets its 10, past them nothing (the pool is empty). */
+    JT_REQUIRE(mm_map_anon(&m, d, 0x400, 16, MM_W) == MM_OK);
+    for (uint64_t i = 0; i < 10; i++) {
+        JT_CHECK(mm_fault(&m, d, 0x400 + i, MM_ACCESS_WRITE) == 1);
+    }
+    JT_CHECK(mm_fault(&m, d, 0x40a, MM_ACCESS_WRITE) == 0 && m.nfree == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tree_admission_and_limits_refused_when_reservations_dont_fit)
+{
+    setup();
+    JT_REQUIRE(mm_set_limit(&m, t, 40, POOL_PAGES, MM_MAX_TASKS) == MM_OK);
+    JT_CHECK(mm_set_limit(&m, t, POOL_PAGES + 1u, POOL_PAGES, MM_MAX_TASKS) == MM_E_NOMEM);
+    JT_REQUIRE(task_made(TD, MEMD));
+    /* 8 pages left unreserved: the default reservation (32) doesn't fit. */
+    JT_CHECK(mm_task_add(&m, TD, &d) == MM_E_NOMEM);
+    JT_CHECK(m.tree[1].live == 0 && !m.task[1].live);
+    JT_REQUIRE(mm_set_limit(&m, t, POOL_PAGES - MM_TREE_RESERVE, POOL_PAGES, MM_MAX_TASKS) == MM_OK);
+    JT_REQUIRE(mm_task_add(&m, TD, &d) == MM_OK);
+    JT_CHECK(m.tree[tree_of(d)].reserve == MM_TREE_RESERVE && m.tree[tree_of(d)].ceil == POOL_PAGES / 2u &&
+             m.tree[tree_of(d)].ceil_tasks == MM_MAX_TASKS / 2u);
+    /* Every page reserved now: neither may grow its reservation. */
+    JT_CHECK(mm_set_limit(&m, d, MM_TREE_RESERVE + 1u, POOL_PAGES, MM_MAX_TASKS) == MM_E_NOMEM);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tree_tasks_children_counted_kept_and_given_back)
+{
+    setup();
+    JT_REQUIRE(mm_set_limit(&m, t, 4, POOL_PAGES, 2) == MM_OK);
+    uint32_t r = tree_of(t);
+    JT_REQUIRE(task_made(TC, MEMC) && task_made(TD, MEMD));
+    /* A child counts from the moment it is made (pending, 0023): a second
+     * is past the task ceiling of 2. */
+    JT_REQUIRE(mm_task_add_child(&m, TC, t, &c) == MM_OK);
+    JT_CHECK(tree_of(c) == r && m.tree[r].tasks == 2u);
+    JT_CHECK(mm_task_add_child(&m, TD, t, &d) == MM_E_NOMEM && m.tree[r].tasks == 2u);
+    /* A clone needs its child in its tree. */
+    JT_REQUIRE(mm_task_add(&m, TD, &d) == MM_OK);
+    JT_CHECK(mm_clone(&m, t, d) == MM_E_STATE);
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 4, MM_W) == MM_OK && mm_fault(&m, t, 0x400, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_clone(&m, t, c) == MM_OK);
+    /* The parent goes: the child stays in the tree, which keeps its pages
+     * (the shared one) and its limits. */
+    JT_REQUIRE(joist_task_destroy(&k, root, TK) == JOIST_OK && k_finish(NULL) == 1);
+    mm_task_gone(&m, t);
+    JT_CHECK(m.tree[r].live && m.tree[r].tasks == 1u && m.tree[r].pages == 1u && m.tree[r].reserve == 4u);
+    JT_CHECK(mm_fault(&m, c, 0x401, MM_ACCESS_WRITE) == 1 && m.tree[r].pages == 2u);
+    JT_CHECK(clean());
+    /* The last one goes: the tree with it, and everything comes back. */
+    JT_REQUIRE(joist_task_destroy(&k, root, TC) == JOIST_OK && k_finish(NULL) == 1);
+    mm_task_gone(&m, c);
+    JT_CHECK(!m.tree[r].live && m.nfree == POOL_PAGES);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tree_keeps_pages_it_shared_after_its_tasks_go)
+{
+    setup();
+    more_tasks();
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 4, MM_W) == MM_OK && mm_fault(&m, t, 0x400, MM_ACCESS_WRITE) == 1);
+    JT_REQUIRE(mm_share(&m, t, 0x400, 2, d, 0x900) == MM_OK); /* T makes the second page */
+    uint32_t r = tree_of(t);
+    JT_REQUIRE(mm_set_limit(&m, t, 5, POOL_PAGES, MM_MAX_TASKS) == MM_OK);
+    JT_CHECK(m.tree[r].pages == 2u && m.tree[tree_of(d)].pages == 0);
+    /* T and its child C go: T's tree stays while D maps its pages, with no
+     * reservation; it goes when D lets them go. */
+    JT_REQUIRE(joist_task_destroy(&k, root, TK) == JOIST_OK && joist_task_destroy(&k, root, TC) == JOIST_OK &&
+               k_finish(NULL) == 1);
+    mm_task_gone(&m, t);
+    mm_task_gone(&m, c);
+    JT_CHECK(m.tree[r].live && m.tree[r].tasks == 0 && m.tree[r].reserve == 0 && m.tree[r].pages == 2u);
+    JT_CHECK(clean());
+    JT_REQUIRE(mm_unmap(&m, d, 0x900, 2) == MM_OK);
+    JT_CHECK(!m.tree[r].live && m.nfree == POOL_PAGES);
+    JT_CHECK(clean());
+}

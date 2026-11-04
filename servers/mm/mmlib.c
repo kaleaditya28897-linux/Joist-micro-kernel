@@ -29,16 +29,67 @@ static uint8_t *bytes(const struct mm *m, uint32_t p)
     return m->k.page(m->k.ctx, m->frame[g->frame].slot, g->off);
 }
 
-/* A free page, zeroed, with one reference; -1 if none is left. */
-static int64_t page_new(struct mm *m)
+/* ---- trees (0028) ---- */
+
+/* Every tree's reservation it doesn't use yet: pages mm keeps free. */
+static uint64_t unused_all(const struct mm *m)
 {
-    if (m->free == 0) {
+    uint64_t u = 0;
+    for (uint32_t r = 0; r < MM_MAX_TASKS; r++) {
+        const struct mm_tree *g = &m->tree[r];
+        u += g->live && g->reserve > g->pages ? g->reserve - g->pages : 0;
+    }
+    return u;
+}
+
+/* Whether tree r may take n more pages: within its ceiling, and, past its
+ * reservation, from pages no tree has reserved. */
+static int tree_room(const struct mm *m, uint32_t r, uint64_t n)
+{
+    const struct mm_tree *g = &m->tree[r];
+    if (n > m->nfree || n > g->ceil || g->pages > g->ceil - n) {
+        return 0;
+    }
+    uint64_t below = g->reserve > g->pages ? g->reserve - g->pages : 0;
+    uint64_t own = n < below ? n : below; /* taken from its own reservation */
+    return m->nfree - n >= unused_all(m) - own;
+}
+
+/* Tree r forgotten once it has neither tasks nor pages; with no tasks, its
+ * reservation is given back at once. */
+static void tree_drop(struct mm *m, uint32_t r)
+{
+    struct mm_tree *g = &m->tree[r];
+    if (g->tasks == 0) {
+        g->reserve = 0;
+        if (g->pages == 0) {
+            memset(g, 0, sizeof *g);
+        }
+    }
+}
+
+/* Page p no longer charged to its tree. */
+static void page_uncharge(struct mm *m, uint32_t p)
+{
+    uint32_t r = m->pg[p].tree - 1u;
+    m->pg[p].tree = 0;
+    m->tree[r].pages--;
+    tree_drop(m, r);
+}
+
+/* A free page, zeroed, with one reference, charged to tree r; -1 if none
+ * is left, or r may not take it. */
+static int64_t page_new(struct mm *m, uint32_t r)
+{
+    if (m->free == 0 || !tree_room(m, r, 1)) {
         return -1;
     }
     uint32_t p = m->free - 1u;
     m->free = m->pg[p].next;
     m->pg[p].next = 0;
     m->pg[p].refs = 1;
+    m->pg[p].tree = r + 1u;
+    m->tree[r].pages++;
     m->nfree--;
     memset(bytes(m, p), 0, PAGE_BYTES);
     return p;
@@ -47,6 +98,7 @@ static int64_t page_new(struct mm *m)
 static void page_unref(struct mm *m, uint32_t p)
 {
     if (--m->pg[p].refs == 0) {
+        page_uncharge(m, p);
         m->pg[p].next = m->free;
         m->free = p + 1u;
         m->nfree++;
@@ -159,9 +211,10 @@ static uint64_t kreg_pages(const struct mm_kregion *r)
     return n;
 }
 
-/* n free pages in a row of one frame, taken for region capability i (off
- * the free list, which keeps its order): the first's index, or -1. */
-static int64_t run_take(struct mm *m, uint32_t n, uint32_t i)
+/* n free pages in a row of one frame, taken for region capability i and
+ * charged to tree r (off the free list, which keeps its order): the
+ * first's index, or -1. The caller checked r may take them. */
+static int64_t run_take(struct mm *m, uint32_t n, uint32_t i, uint32_t r)
 {
     uint32_t len = 0;
     for (uint32_t p = 0; p < m->npages; p++) {
@@ -176,7 +229,9 @@ static int64_t run_take(struct mm *m, uint32_t n, uint32_t i)
         uint32_t first = p + 1u - n;
         for (uint32_t q = first; q <= p; q++) {
             m->pg[q].kreg = i + 1u;
+            m->pg[q].tree = r + 1u;
         }
+        m->tree[r].pages += n;
         for (uint32_t *at = &m->free; *at != 0;) {
             struct mm_page *g = &m->pg[*at - 1u];
             if (g->kreg != 0) {
@@ -198,6 +253,9 @@ static void run_give(struct mm *m, uint32_t first, uint32_t n)
 {
     for (uint32_t k = n; k-- > 0;) {
         struct mm_page *g = &m->pg[first + k];
+        if (g->tree != 0) {
+            page_uncharge(m, first + k);
+        }
         g->kreg = 0;
         g->next = m->free;
         m->free = first + k + 1u;
@@ -302,18 +360,71 @@ int mm_add_frame(struct mm *m, uint32_t frame_slot, uint64_t npages)
     return MM_OK;
 }
 
-int mm_task_add(struct mm *m, uint32_t slot, uint32_t *t)
+/* A free task record for slot, in tree r (whose count it joins). */
+static int task_in(struct mm *m, uint32_t slot, uint32_t r, uint32_t *t)
 {
     for (uint32_t i = 0; i < MM_MAX_TASKS; i++) {
         if (!m->task[i].live) {
             memset(&m->task[i], 0, sizeof m->task[i]);
             m->task[i].live = 1;
             m->task[i].slot = slot;
+            m->task[i].tree = r;
+            m->tree[r].tasks++;
             *t = i;
             return MM_OK;
         }
     }
     return MM_E_NOMEM;
+}
+
+int mm_task_add(struct mm *m, uint32_t slot, uint32_t *t)
+{
+    uint32_t r = 0;
+    while (r < MM_MAX_TASKS && m->tree[r].live) {
+        r++;
+    }
+    /* Admission (0028): its reservation must fit beside the others'. */
+    if (r == MM_MAX_TASKS || m->nfree < unused_all(m) + MM_TREE_RESERVE) {
+        return MM_E_NOMEM;
+    }
+    m->tree[r] = (struct mm_tree){.live = 1,
+                                  .reserve = MM_TREE_RESERVE,
+                                  .ceil = (m->npages - m->lost) / 2u,
+                                  .ceil_tasks = MM_MAX_TASKS / 2u};
+    int e = task_in(m, slot, r, t);
+    if (e != MM_OK) {
+        memset(&m->tree[r], 0, sizeof m->tree[r]);
+    }
+    return e;
+}
+
+int mm_task_add_child(struct mm *m, uint32_t slot, uint32_t parent, uint32_t *t)
+{
+    if (!task_ok(m, parent)) {
+        return MM_E_STATE;
+    }
+    uint32_t r = m->task[parent].tree;
+    if (m->tree[r].tasks >= m->tree[r].ceil_tasks) {
+        return MM_E_NOMEM; /* fork's EAGAIN */
+    }
+    return task_in(m, slot, r, t);
+}
+
+int mm_set_limit(struct mm *m, uint32_t t, uint64_t reserve, uint64_t ceil, uint32_t ceil_tasks)
+{
+    if (!task_ok(m, t)) {
+        return MM_E_STATE;
+    }
+    struct mm_tree *g = &m->tree[m->task[t].tree];
+    uint64_t was = g->reserve > g->pages ? g->reserve - g->pages : 0;
+    uint64_t now = reserve > g->pages ? reserve - g->pages : 0;
+    if (m->nfree < unused_all(m) - was + now) {
+        return MM_E_NOMEM;
+    }
+    g->reserve = reserve;
+    g->ceil = ceil;
+    g->ceil_tasks = ceil_tasks;
+    return MM_OK;
 }
 
 void mm_task_gone(struct mm *m, uint32_t t)
@@ -335,7 +446,10 @@ void mm_task_gone(struct mm *m, uint32_t t)
             kreg_release(m, i);
         }
     }
+    uint32_t r = tk->tree;
     memset(tk, 0, sizeof *tk);
+    m->tree[r].tasks--;
+    tree_drop(m, r);
 }
 
 /* ---- requests ---- */
@@ -561,7 +675,7 @@ static int cow_break(struct mm *m, uint32_t t, uint32_t mi, unsigned perms)
 {
     struct mm_task *tk = &m->task[t];
     uint32_t p = tk->map[mi].page;
-    int64_t q = page_new(m);
+    int64_t q = page_new(m, tk->tree);
     if (q < 0) {
         return MM_E_NOMEM;
     }
@@ -602,7 +716,7 @@ static int demand_zero(struct mm *m, uint32_t t, const struct mm_region *r, uint
         if (map_at(tk, at) >= 0) {
             break;
         }
-        int64_t p = page_new(m);
+        int64_t p = page_new(m, tk->tree);
         if (p < 0) {
             break;
         }
@@ -734,10 +848,11 @@ int mm_region_grow(struct mm *m, uint32_t t, uint32_t tslot, uint64_t n, uint32_
     }
     struct mm_kregion *r = &m->kreg[i];
     struct mm_task *tk = &m->task[t];
-    if (r->next == MM_REGION_EXTENTS || n > MM_TASK_PAGES - tk->nmap - tk->rpages || n > m->nfree) {
+    if (r->next == MM_REGION_EXTENTS || n > MM_TASK_PAGES - tk->nmap - tk->rpages ||
+        !tree_room(m, tk->tree, n)) {
         return MM_E_NOMEM;
     }
-    int64_t p = run_take(m, (uint32_t)n, (uint32_t)i);
+    int64_t p = run_take(m, (uint32_t)n, (uint32_t)i, tk->tree);
     if (p < 0) {
         return MM_E_NOMEM; /* no run that long in one frame */
     }
@@ -778,6 +893,13 @@ int mm_region_free(struct mm *m, uint32_t t, uint32_t tslot)
     struct mm_kregion *r = &m->kreg[i];
     m->task[t].rpages -= (uint32_t)kreg_pages(r);
     if (!done) {
+        /* Out of the pool for good: no tree pays for them any more. */
+        for (uint32_t x = 0; x < r->next; x++) {
+            for (uint32_t k = 0; k < r->ext[x].n; k++) {
+                page_uncharge(m, r->ext[x].page + k);
+            }
+            m->lost += r->ext[x].n;
+        }
         r->lost = 1;
         r->task = MM_MAX_TASKS;
         return MM_OK;
@@ -902,8 +1024,9 @@ static int kreg_clone(struct mm *m, uint32_t parent, uint32_t child)
 
 int mm_clone(struct mm *m, uint32_t parent, uint32_t child)
 {
-    if (!task_ok(m, parent) || !task_ok(m, child) || parent == child) {
-        return MM_E_STATE;
+    if (!task_ok(m, parent) || !task_ok(m, child) || parent == child ||
+        m->task[child].tree != m->task[parent].tree) {
+        return MM_E_STATE; /* the child is made in its parent's tree (mm_task_add_child) */
     }
     struct mm_task *pt = &m->task[parent];
     struct mm_task *ct = &m->task[child];
@@ -1000,8 +1123,9 @@ int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint
         mapped++;
         cow += !r.shared && m->pg[tk->map[i].page].refs > 1u;
     }
-    if (n - mapped > MM_TASK_PAGES - tk->nmap - tk->rpages || n - mapped + cow > m->nfree) {
-        return MM_E_NOMEM;
+    if (n - mapped > MM_TASK_PAGES - tk->nmap - tk->rpages || n - mapped + cow > m->nfree ||
+        !tree_room(m, tk->tree, n - mapped + cow)) {
+        return MM_E_NOMEM; /* the pages it makes are t's tree's (0028) */
     }
     unsigned need = 1;
     unsigned have = 0;
@@ -1033,7 +1157,7 @@ int mm_share(struct mm *m, uint32_t t, uint64_t va, uint64_t n, uint32_t o, uint
     for (uint64_t k = 0; k < n; k++) {
         int64_t mi = map_at(tk, va + k);
         if (mi < 0) {
-            int64_t p = page_new(m);
+            int64_t p = page_new(m, tk->tree);
             if (p < 0 || map_add(tk, va + k, (uint32_t)p) != MM_OK) {
                 (void)run_flush(m, &run);
                 return MM_E_NOMEM; /* (checked above: not reached) */
@@ -1225,6 +1349,61 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
     }
     if (nfree != m->nfree) {
         FAULT("mm: %u pages free, nfree says %u", nfree, m->nfree);
+    }
+    /* Trees (0028): each page in use charged to one live tree (a lost
+     * region's to none), each tree's counts right, and every tree's unused
+     * reservation kept free. */
+    static uint64_t tpages[MM_MAX_TASKS];
+    static uint32_t ttasks[MM_MAX_TASKS];
+    for (uint32_t r = 0; r < MM_MAX_TASKS; r++) {
+        tpages[r] = 0;
+        ttasks[r] = 0;
+    }
+    uint64_t charged = 0;
+    for (uint32_t p = 0; p < m->npages; p++) {
+        const struct mm_page *g = &m->pg[p];
+        int lostp = g->kreg != 0 && g->kreg <= MM_KREGIONS && m->kreg[g->kreg - 1u].lost;
+        int used = (g->refs != 0 || g->kreg != 0) && !lostp;
+        if ((g->tree != 0) != used || g->tree > MM_MAX_TASKS ||
+            (g->tree != 0 && !m->tree[g->tree - 1u].live)) {
+            FAULT("mm: page %u charged to tree %u, in use %d", p, g->tree, used);
+            continue;
+        }
+        if (g->tree != 0) {
+            tpages[g->tree - 1u]++;
+            charged++;
+        }
+    }
+    for (uint32_t t = 0; t < MM_MAX_TASKS; t++) {
+        const struct mm_task *tk = &m->task[t];
+        if (tk->live) {
+            if (tk->tree >= MM_MAX_TASKS || !m->tree[tk->tree].live) {
+                FAULT("mm: task %u in no live tree", t);
+                continue;
+            }
+            ttasks[tk->tree]++;
+        }
+    }
+    for (uint32_t r = 0; r < MM_MAX_TASKS; r++) {
+        const struct mm_tree *g = &m->tree[r];
+        if (!g->live) {
+            if (g->tasks != 0 || g->pages != 0 || g->reserve != 0) {
+                FAULT("mm: free tree record %u carries state", r);
+            }
+            continue;
+        }
+        if (g->tasks != ttasks[r] || g->pages != tpages[r]) {
+            FAULT("mm: tree %u counts %u tasks, %llu pages; has %u, %llu", r, g->tasks,
+                  (unsigned long long)g->pages, ttasks[r], (unsigned long long)tpages[r]);
+        }
+        if ((g->tasks == 0 && g->reserve != 0) || (g->tasks == 0 && g->pages == 0)) {
+            FAULT("mm: tree %u has no tasks but keeps a reservation, or is kept for nothing", r);
+        }
+    }
+    if (m->nfree + m->lost + charged != m->npages || m->nfree < unused_all(m)) {
+        FAULT("mm: %u free, %llu lost, %llu charged of %u pages; %llu reserved unused", m->nfree,
+              (unsigned long long)m->lost, (unsigned long long)charged, m->npages,
+              (unsigned long long)unused_all(m));
     }
     uint32_t listed = 0;
     for (uint32_t p = m->free; p != 0 && listed <= m->npages; p = m->pg[p - 1u].next) {

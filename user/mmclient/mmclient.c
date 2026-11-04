@@ -1079,6 +1079,69 @@ static uint64_t region_test(struct work *w)
     return 0;
 }
 
+/* ---- trees (0028) ---- */
+
+static uint64_t bomb(struct work *w)
+{
+    uint64_t n = 0;
+    uint64_t r;
+    while ((r = clone_only()) == MM_OK) {
+        n++;
+    }
+    if (r != MM_E_NOMEM) {
+        return 1;
+    }
+    MMC_W(w, MMC_RES) = n;
+    pause_for_root(w, 1); /* its children pending till it goes */
+    return 0;
+}
+
+#define HOG_PAGES 256u
+
+static uint64_t hog(struct work *w)
+{
+    if (req(MM_REQ_MAP_ANON, MMC_VA / J_PAGE, HOG_PAGES, MM_W) != MM_OK) {
+        return 1;
+    }
+    for (uint64_t i = 0; i < HOG_PAGES; i++) {
+        w->aux = i;
+        page(i)[0] = i + 1u; /* mm ends the thread here at its tree's limit */
+    }
+    return 2;
+}
+
+#define STEADY_PAGES 16u
+
+static uint64_t steady(struct work *w)
+{
+    uint64_t va = MMC_VA / J_PAGE;
+    pause_for_root(w, 1); /* the bomb and the hogs at their limits */
+    for (uint64_t round = 1; round <= 8u; round++) {
+        if (req(MM_REQ_MAP_ANON, va, STEADY_PAGES, MM_W) != MM_OK) {
+            return 1;
+        }
+        fill(0, STEADY_PAGES, round); /* a fault a page */
+        if (fork_kid(MMC_CHILD) != 0) {
+            return 2;
+        }
+        struct kid *k = &kids[nkids - 1u];
+        if (cmd(k, MMC_C_CHECK, 0, STEADY_PAGES, round) != 0) {
+            return 3;
+        }
+        (void)cmd(k, MMC_C_FILL, 0, STEADY_PAGES, round + 100u); /* its copies */
+        if (cmd(k, MMC_C_CHECK, 0, STEADY_PAGES, round + 100u) != 0 || check(0, STEADY_PAGES, round) != 0) {
+            return 4;
+        }
+        if (end_kid(k) != 0) {
+            return 5; /* (its number not used again: its work page stays mapped here) */
+        }
+        if (req(MM_REQ_UNMAP, va, STEADY_PAGES, 0) != MM_OK) {
+            return 6;
+        }
+    }
+    return 0;
+}
+
 void _start(void)
 {
     struct work *w = (struct work *)(uintptr_t)WORK_VA;
@@ -1127,6 +1190,15 @@ void _start(void)
         break;
     case MMC_REGION:
         w->arg = region_test(w);
+        break;
+    case MMC_BOMB:
+        w->arg = bomb(w);
+        break;
+    case MMC_HOG:
+        w->arg = hog(w);
+        break;
+    case MMC_STEADY:
+        w->arg = steady(w);
         break;
     case MMC_CHILD:
         child(w);

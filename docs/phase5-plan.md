@@ -401,3 +401,46 @@ Implementation choices inside 0030, so *(changeable)*.
     its arenas. Recorded in 0030. (`cowstress` keeps a task's helper
     thread idle while it forks, so it doesn't reach this.)
   - Part 2's commit message says 15 new `mm` mutations; there are 14.
+
+### Step 4: the design of `mm`'s per-tree limits (2026-11-04)
+
+Implementation choices inside 0028, so *(changeable)*.
+
+- **Trees.** `mm` keeps a table of trees (`MM_MAX_TASKS` of them: at most
+  one a task). An adopted task starts one; a child joins its parent's at
+  `MM_REQ_CLONE` (so a pending child counts at once) and stays in it if
+  the parent dies; a cancelled clone leaves it. A tree's record: its
+  tasks, its pages, its reservation, its page and task ceilings. It lasts
+  until it has no tasks and no pages charged to it.
+- **Which tree pays for a page.** The tree of the task that made it: a
+  demand-zero page, a copy-on-write copy, a page `SHARE` makes, a region's
+  extent. A page keeps its tree while any task maps it, so a page shared
+  into another tree stays charged to its maker's (a COW share is always
+  within one tree). Each page records its tree.
+- **The rule for a new page** (`n` pages for a region's extent): refused
+  if its tree would pass its ceiling, or if it is past its reservation and
+  the pool's free pages, less every tree's unused reservation, are fewer
+  than `n`. So `mm` always keeps enough free pages for every tree's unused
+  reservation; `mm_check` checks that sum (every tree's larger of pages
+  and reservation) never passes the pool.
+- **Tasks.** A clone that would take a tree past its task ceiling is
+  refused (`MM_E_NOMEM`: `fork`'s `EAGAIN` later).
+- **Admission.** `MM_REQ_ADOPT` is refused (`MM_E_NOMEM`) if the new
+  tree's reservation doesn't fit beside the others'. A tree with no tasks
+  left gives its reservation back at once.
+- **Defaults** (build-time): a new tree's reservation `MM_TREE_RESERVE`
+  (32 pages), its ceilings half the pool and half the task records.
+- **`MM_SET_LIMIT`** (root badge): the tree of an adopted task (named by
+  its badge), its reservation and page ceiling (`r[2]`, packed 32 and 32
+  bits), its task ceiling (`r[3]`). Refused if the reservation doesn't
+  fit; a ceiling below what the tree holds refuses only its next pages.
+  The root's tests set their trees' limits with it where the default
+  ceiling would change what they test (`cowstress`'s one big tree).
+- **Tests** (0028's *Verification*): `mmlib` unit tests (a tree at its
+  ceiling, on every path that makes a page; a fork past the task ceiling;
+  an adoption refused; a confirmed child kept after its parent dies; a
+  pending child counted; a tree's counts returned with its last task); the
+  four mutations 0028 names, and more; trees and their counts in the
+  refinement test; on the kernel, a fork bomb and a memory hog, each its
+  own tree, beside a third tree that keeps faulting and forking and is
+  never refused (Phase 5's exit line).

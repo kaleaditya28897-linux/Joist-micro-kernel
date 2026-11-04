@@ -111,6 +111,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     must(j_cap_give(mm_task, k.task, MM_S_ROOT, J_R_ALL), "cap_give (client, to mm)");
     struct j_msg r = ask(MM_REQ_ADOPT, MM_S_ROOT);
     check(r.r[0] == MM_OK, "mm's ADOPT failed");
+    tree_unlimited(r.r[1]); /* its clones of up to the whole pool */
     unsigned ri = rec_new();
     must(j_cap_derive(k.task, recs[ri].task, J_R_ALL), "cap_derive (client)");
     give_root_cap(ri); /* for SHARE's child */

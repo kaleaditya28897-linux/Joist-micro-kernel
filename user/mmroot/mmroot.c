@@ -19,6 +19,9 @@
  * confirms the fork (MM_REQ_CLONE_DONE); a child still pending when its
  * parent goes is destroyed with it (the orphans test). */
 #define TEST_NAME "mm"
+/* A table run for every task record, so that a tree's task ceiling (0028)
+ * bounds the table pages a fork bomb can take too. */
+#define HOST_TABLE_RUNS MM_MAX_TASKS
 #include "../lib/testroot.h"
 #include "../lib/mmhost.h"
 
@@ -31,6 +34,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
 #define SHORT_NS     (5u * J_MS)
 
 static unsigned nclients;
+static uint64_t last_badge; /* the last client's, from ADOPT */
 static struct j_counters base; /* the kernel's, with mm started */
 
 static void expect_status(uint64_t tasks, const char *what)
@@ -83,7 +87,9 @@ static void go_on(struct worker *k, uint64_t mark)
 }
 
 /* A client in `role`, served by mm, running. */
-static struct worker client(uint64_t role)
+/* A client in `role`, served by mm, running; its tree unlimited (0028) if
+ * `unlimited` (for a test of mm being full, not of a tree's limits). */
+static struct worker client_tree(uint64_t role, int unlimited)
 {
     struct worker k;
     k.task = slot_new();
@@ -104,12 +110,21 @@ static struct worker client(uint64_t role)
     must(j_cap_give(mm_task, k.task, at, J_R_ALL), "cap_give (client, to mm)");
     struct j_msg r = ask(MM_REQ_ADOPT, at);
     check(r.r[0] == MM_OK && r.r[1] >= 1 && r.r[1] <= MM_MAX_TASKS, "mm's ADOPT failed");
+    last_badge = r.r[1];
+    if (unlimited) {
+        tree_unlimited(r.r[1]);
+    }
     unsigned ri = rec_new();
     must(j_cap_derive(k.task, recs[ri].task, J_R_ALL), "cap_derive (client)");
     give_root_cap(ri);
     must(j_thread_spawn(k.task, k.thread, entry, CHILD_LO), "thread_spawn (client)");
     worker_run(&k, 100, 10 * J_MS, 10 * J_MS);
     return k;
+}
+
+static struct worker client(uint64_t role)
+{
+    return client_tree(role, 0);
 }
 
 /* Wait until the client's count reaches `until`, or stays below it. */
@@ -207,7 +222,7 @@ static void test_fork(void)
  * (the child already has its badge). */
 static void test_clone_full(void)
 {
-    struct worker k = client(MMC_CLONE_FULL);
+    struct worker k = client_tree(MMC_CLONE_FULL, 1); /* mm's table pages, not a tree's ceiling */
     at_mark(&k, 1, "the clone-full client failed");
     /* Each index has its table run; the client's is one. */
     uint64_t n = MMC_W(k.w, MMC_RES);
@@ -361,6 +376,69 @@ static void test_region(void)
     j_puts("mm: region ok\n");
 }
 
+/* A hog's pages when mm stops it: it touches one page after another, each
+ * index in aux first, until a fault is refused and its thread ends. */
+static uint64_t hog_pages(struct worker *k, uint64_t want)
+{
+    for (unsigned i = 0; i < WAIT_ROUNDS && k->w->aux < want; i++) {
+        sleep_ns(SHORT_NS);
+    }
+    sleep_ns(20u * SHORT_NS);
+    check(j_thread_suspend(k->thread) == J_E_GONE, "a hog wasn't stopped by its tree's limits");
+    return k->w->aux;
+}
+
+/* Phase 5 step 4 (0028), the phase's exit line: a fork bomb and two memory
+ * hogs, each its own tree with the default limits, beside a fourth tree
+ * that keeps faulting and forking, and is never refused. The bomb stops at
+ * its task ceiling (its children pending, counted from CLONE); the first
+ * hog at its page ceiling (half the pool); the second where the pool, less
+ * the other trees' reservations, runs out. */
+static void test_trees(void)
+{
+    struct worker s = client(MMC_STEADY);
+    uint64_t sb = last_badge;
+    at_mark(&s, 1, "the steady client failed");
+    struct worker b = client(MMC_BOMB);
+    at_mark(&b, 1, "the fork bomb failed");
+    check(MMC_W(b.w, MMC_RES) == MM_MAX_TASKS / 2u - 1u, "the fork bomb wasn't stopped at its tree's task ceiling");
+    struct worker h1 = client(MMC_HOG);
+    uint64_t p1 = hog_pages(&h1, POOL_PAGES / 2u);
+    struct worker h2 = client(MMC_HOG);
+    uint64_t p2 = hog_pages(&h2, POOL_PAGES / 2u - 2u * MM_TREE_RESERVE);
+    j_puts("mm: trees: bomb ");
+    j_putu(MMC_W(b.w, MMC_RES));
+    j_puts(" children, hogs ");
+    j_putu(p1);
+    j_puts(" and ");
+    j_putu(p2);
+    j_puts(" pages\n");
+    check(p1 == POOL_PAGES / 2u && p2 == POOL_PAGES / 2u - 2u * MM_TREE_RESERVE,
+          "a hog wasn't stopped where its tree's limits say");
+    /* Every free page is reserved now: a fifth tree isn't admitted, and the
+     * steady tree's reservation can't grow (MM_SET_LIMIT, the root's). */
+    uint64_t x = slot_new();
+    (void)ld_load(1, x);
+    uint64_t at = MM_S_ROOT + nclients++;
+    must(j_cap_give(mm_task, x, at, J_R_ALL), "cap_give (a fifth tree, to mm)");
+    check(ask(MM_REQ_ADOPT, at).r[0] == MM_E_NOMEM, "a tree was admitted whose reservation doesn't fit");
+    must(j_task_destroy(x), "task_destroy (a fifth tree)");
+    struct j_msg l = {.r = {MM_REQ_SET_LIMIT, sb, (MM_TREE_RESERVE + 1u) | (uint64_t)POOL_PAGES << 32, MM_MAX_TASKS}};
+    must(j_call(mm_root, &l, J_FOREVER), "call (mm)");
+    check(l.r[0] == MM_E_NOMEM, "a reservation was raised past what is free");
+    l = (struct j_msg){.r = {MM_REQ_SET_LIMIT, sb, MM_TREE_RESERVE | (uint64_t)(POOL_PAGES / 2u) << 32, MM_MAX_TASKS / 2u}};
+    must(j_call(mm_root, &l, J_FOREVER), "call (mm)");
+    check(l.r[0] == MM_OK, "SET_LIMIT refused limits that fit");
+    go_on(&s, 1);
+    serve(&s, 99);
+    check(s.w->count == 2 && s.w->arg == 0, "the steady client was refused beside the bomb and the hogs");
+    must(j_task_destroy(b.task), "task_destroy (bomb)");
+    must(j_task_destroy(h1.task), "task_destroy (hog)");
+    must(j_task_destroy(h2.task), "task_destroy (hog)");
+    finish(&s); /* and the bomb's pending children with it, the pages back */
+    j_puts("mm: trees ok\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free)
 {
@@ -383,6 +461,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_orphan();
     test_quota();
     test_region();
+    test_trees();
     /* Again, so that badges and table runs are used a second time. */
     test_basic();
     j_puts("mm: all ok\n");

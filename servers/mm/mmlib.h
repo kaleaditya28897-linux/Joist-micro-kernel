@@ -40,6 +40,9 @@
 #endif
 #define MM_REGION_EXTENTS 8u /* the kernel's JOIST_REGION_EXTENTS */
 #define MM_REGION_TABLES 32u /* the kernel's JOIST_REGION_TABLES */
+#ifndef MM_TREE_RESERVE
+#define MM_TREE_RESERVE 32u /* a new tree's reservation, in pages (0028) */
+#endif
 #define MM_SPAN 512u   /* the kernel's JOIST_MAP_SPAN: one call's pages */
 #define MM_AROUND 16u  /* pages a read fault maps at most (0023) */
 
@@ -117,9 +120,24 @@ struct mm_map {
     uint32_t page; /* mm's page (an index into mm.pg) */
 };
 
+/* A tree (0028): an adopted task and the tasks forked from it. Every page
+ * is charged to the tree of the task that made it, for as long as it is
+ * mm's; a tree past its reservation takes pages only from what no tree has
+ * reserved, and never past its ceiling. A tree lasts until it has neither
+ * tasks nor pages; with no tasks its reservation is given back. */
+struct mm_tree {
+    uint8_t live;
+    uint32_t tasks;
+    uint64_t pages;     /* charged to it */
+    uint64_t reserve;   /* pages kept for it */
+    uint64_t ceil;      /* pages it may have */
+    uint32_t ceil_tasks;
+};
+
 struct mm_task {
     uint32_t slot; /* mm's task capability (CONTROL); 0 with live == 0 */
     uint8_t live;
+    uint32_t tree; /* its tree's index */
     struct mm_region reg[MM_REGIONS];
     struct mm_map map[MM_TASK_PAGES]; /* sorted by va */
     uint32_t nmap;
@@ -134,6 +152,7 @@ struct mm_page {
     uint32_t refs;   /* mappings of it; 0 and kreg 0: free */
     uint32_t next;   /* the free list (an index plus one) */
     uint32_t kreg;   /* the region capability whose extent holds it, plus one */
+    uint32_t tree;   /* the tree it is charged to, plus one; 0 while free */
 };
 
 /* A region capability (0030) mm made for a task: the kernel's object, in
@@ -171,6 +190,8 @@ struct mm {
     uint32_t free;   /* the first free page, plus one; 0: none */
     uint32_t nfree;
     struct mm_task task[MM_MAX_TASKS];
+    struct mm_tree tree[MM_MAX_TASKS];
+    uint64_t lost; /* pages of lost regions: out of the pool for good */
     struct mm_kregion kreg[MM_KREGIONS];
     uint32_t kreg_slot; /* mm's slot for kreg[0]'s capability: the server sets it */
 };
@@ -179,8 +200,18 @@ void mm_init(struct mm *m, const struct mm_kops *k);
 /* Give mm a frame to manage: its pages join the free pool. */
 int mm_add_frame(struct mm *m, uint32_t frame_slot, uint64_t npages);
 /* Serve a task mm holds a task capability for, in slot: its index, the
- * badge mm gives it being the index plus one. */
+ * badge mm gives it being the index plus one. An adopted task starts a tree
+ * of its own, with the default limits (MM_TREE_RESERVE; half the pool and
+ * half the task records): MM_E_NOMEM if there is no record, or its
+ * reservation doesn't fit beside the others'. */
 int mm_task_add(struct mm *m, uint32_t slot, uint32_t *t);
+/* A clone's child (before mm_clone), in its parent's tree from now on:
+ * MM_E_NOMEM past the tree's task ceiling, or no record. */
+int mm_task_add_child(struct mm *m, uint32_t slot, uint32_t parent, uint32_t *t);
+/* The limits of task t's tree (MM_SET_LIMIT): MM_E_NOMEM if the reservation
+ * doesn't fit beside the others'. A ceiling below what it holds refuses
+ * only its next pages. */
+int mm_set_limit(struct mm *m, uint32_t t, uint64_t reserve, uint64_t ceil, uint32_t ceil_tasks);
 /* The task is gone (its badge's no-senders): its pages' references go. */
 void mm_task_gone(struct mm *m, uint32_t t);
 
