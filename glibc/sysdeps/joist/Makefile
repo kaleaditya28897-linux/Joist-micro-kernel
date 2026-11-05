@@ -26,3 +26,12 @@ endif
 ifeq ($(subdir),elf)
 sysdep-rtld-routines += joist-ports
 endif
+
+# The task's address reservations (joist-mem.c, which includes joist-vm.c):
+# one table in a program, as the name table.
+ifeq ($(subdir),mach)
+routines += joist-mem
+endif
+ifeq ($(subdir),elf)
+sysdep-rtld-routines += joist-mem
+endif
