@@ -26,6 +26,15 @@ Mach's `.defs` (`mach_port_allocate.c`, `RPC_mach_port_mod_refs.c`, ...).
 - `sysdeps/joist/joist-gsync.{c,h}`: the futex queues (0014 B): a
   notification per thread and a fixed table of FIFO waiter queues, under
   Mach's `gsync_wait`, `gsync_wake` and `gsync_requeue`.
+- `sysdeps/joist/joist-names.{c,h}`: Mach port names on capability slots
+  (the design's items 2 and 3), tested against the kernel model
+  (`model/test/test_names.c`).
+- `sysdeps/joist/joist-ports.{c,h}`, `joist-sys.h`: libc's one name table
+  under a lock, its kernel calls, and the `mach_port_*` calls on it
+  (`mach_port_allocate.c`, `RPC_mach_port_mod_refs.c`, ...: each replaces
+  the generated stub of that name; libmachuser's reach the table through
+  `Versions`, GLIBC_PRIVATE). A call naming another task is refused
+  (`MACH_SEND_INVALID_DEST`).
 - `test/`: host tests (`make check`: real threads on an exact emulation of
   Joist's notifications, under ASan, UBSan, MSan and TSan), mutations
   (`make mutate`) and CBMC proofs (`make cbmc`).

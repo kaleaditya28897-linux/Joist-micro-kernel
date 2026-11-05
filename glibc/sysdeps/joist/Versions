@@ -1,0 +1,8 @@
+libc {
+  GLIBC_PRIVATE {
+    # The port name table, for libmachuser's mach_port_* calls.
+    __joist_ports_lock; __joist_ports_unlock;
+    __jn_destroy; __jn_get_refs; __jn_mod_refs; __jn_move_member;
+    __jn_set_payload; __jn_type;
+  }
+}
