@@ -372,3 +372,6 @@ names ep kept      @@ ../glibc/sysdeps/joist/joist-names.c @@       (void) __joi
 names no shrink    @@ ../glibc/sysdeps/joist/joist-names.c @@       (void) __joist_names_shrink ((uint32_t) grew); @@       (void) grew;
 names move kept    @@ ../glibc/sysdeps/joist/joist-names.c @@     (void) __jn_deallocate (t, name); @@     (void) name;
 names derive undo  @@ ../glibc/sysdeps/joist/joist-names.c @@       untake (t, name, g); @@       t->e[name].kind = JN_FREE;
+names reply type   @@ ../glibc/sysdeps/joist/joist-names.c @@   if (e->kind == JN_RECEIVE || e->kind == JN_REPLY) @@   if (e->kind == JN_RECEIVE)
+names reply stays  @@ ../glibc/sysdeps/joist/joist-names.c @@       if (e->kind != JN_RECEIVE && e->kind != JN_REPLY) @@       if (e->kind != JN_RECEIVE)
+names reply refs   @@ ../glibc/sysdeps/joist/joist-names.c @@ *refs = e->kind == JN_RECEIVE || e->kind == JN_REPLY; @@ *refs = e->kind == JN_RECEIVE;

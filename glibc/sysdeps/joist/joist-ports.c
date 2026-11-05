@@ -18,7 +18,12 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include "joist-ports.h"
+
+/* One table in a program (joist-ports.h): nothing here in libc.so.  */
+#if !(defined SHARED && IS_IN (libc))
+
 #include "joist-sys.h"
+#include "joist-names.c"
 
 #include <libc-lock.h>
 
@@ -37,14 +42,25 @@ __joist_ports_lock (void)
     }
   return &table;
 }
-libc_hidden_def (__joist_ports_lock)
+rtld_hidden_def (__joist_ports_lock)
 
 void
 __joist_ports_unlock (void)
 {
   __libc_lock_unlock (lock);
 }
-libc_hidden_def (__joist_ports_unlock)
+rtld_hidden_def (__joist_ports_unlock)
+
+rtld_hidden_def (__jn_allocate)
+rtld_hidden_def (__jn_deallocate)
+rtld_hidden_def (__jn_destroy)
+rtld_hidden_def (__jn_get_refs)
+rtld_hidden_def (__jn_insert_right)
+rtld_hidden_def (__jn_mod_refs)
+rtld_hidden_def (__jn_move_member)
+rtld_hidden_def (__jn_reply_name)
+rtld_hidden_def (__jn_set_payload)
+rtld_hidden_def (__jn_type)
 
 /* The table's environment (joist-names.h): the kernel's calls on this
    task's own space, their codes as the kernel gives them.  */
@@ -87,3 +103,5 @@ __joist_names_shrink (uint32_t leaf)
 {
   return __joist_sys (JOIST_SYS_CSPACE_SHRINK, leaf, 0, 0, 0, NULL);
 }
+
+#endif

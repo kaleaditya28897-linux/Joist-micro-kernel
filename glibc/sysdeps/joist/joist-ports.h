@@ -32,12 +32,24 @@
 
 #define JOIST_FIXED_NAMES 16u
 
-/* The table, locked (made on first use).  libmachuser's calls use them
-   too (with the __jn_* calls they need: Versions, GLIBC_PRIVATE).  */
+/* The table, locked (made on first use).  A program has one table: in
+   ld.so if it is dynamic (ld.so runs first; libc.so and libmachuser use
+   its table through these and the __jn_* calls, exported at
+   GLIBC_PRIVATE: Versions), in libc.a if it is static.  */
 extern struct jn_table *__joist_ports_lock (void);
-libc_hidden_proto (__joist_ports_lock)
 extern void __joist_ports_unlock (void);
-libc_hidden_proto (__joist_ports_unlock)
+rtld_hidden_proto (__joist_ports_lock)
+rtld_hidden_proto (__joist_ports_unlock)
+rtld_hidden_proto (__jn_allocate)
+rtld_hidden_proto (__jn_deallocate)
+rtld_hidden_proto (__jn_destroy)
+rtld_hidden_proto (__jn_get_refs)
+rtld_hidden_proto (__jn_insert_right)
+rtld_hidden_proto (__jn_mod_refs)
+rtld_hidden_proto (__jn_move_member)
+rtld_hidden_proto (__jn_reply_name)
+rtld_hidden_proto (__jn_set_payload)
+rtld_hidden_proto (__jn_type)
 
 /* Whether TASK is this task.  */
 #define JOIST_PORTS_SELF(task) ((task) == __mach_task_self ())

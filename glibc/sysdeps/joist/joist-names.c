@@ -243,6 +243,13 @@ __jn_allocate (struct jn_table *t, int right, uint32_t *name)
     }
 }
 
+int
+__jn_reply_name (struct jn_table *t, uint32_t *name)
+{
+  int g;
+  return take_name (t, JN_REPLY, name, &g);
+}
+
 /* A send right's (or receive right's own send right's) references to
    NEW, the capability deleted at 0.  */
 static int
@@ -364,11 +371,18 @@ __jn_mod_refs (struct jn_table *t, uint32_t name, int right, int delta)
 	return set_send_refs (t, name, (uint32_t) n);
       }
     case JN_RIGHT_RECEIVE:
-      if (e->kind != JN_RECEIVE)
+      if (e->kind != JN_RECEIVE && e->kind != JN_REPLY)
 	return JN_INVALID_RIGHT;
       if (delta < -1 || delta > 0)
 	return JN_INVALID_VALUE;
-      return delta == 0 ? JN_OK : end_receive (t, name);
+      if (delta == 0)
+	return JN_OK;
+      if (e->kind == JN_REPLY)
+	{
+	  free_name (t, name);
+	  return JN_OK;
+	}
+      return end_receive (t, name);
     case JN_RIGHT_PORT_SET:
       if (e->kind != JN_PORTSET)
 	return JN_INVALID_RIGHT;
@@ -401,7 +415,7 @@ __jn_destroy (struct jn_table *t, uint32_t name)
       }
     case JN_PORTSET:
       return end_portset (t, name);
-    default:			/* JN_DEAD */
+    default:			/* JN_DEAD, JN_REPLY */
       free_name (t, name);
       return JN_OK;
     }
@@ -423,7 +437,7 @@ __jn_get_refs (const struct jn_table *t, uint32_t name, int right,
       *refs = 0;
       return JN_OK;
     case JN_RIGHT_RECEIVE:
-      *refs = e->kind == JN_RECEIVE;
+      *refs = e->kind == JN_RECEIVE || e->kind == JN_REPLY;
       return JN_OK;
     case JN_RIGHT_PORT_SET:
       *refs = e->kind == JN_PORTSET;
@@ -445,7 +459,7 @@ __jn_type (const struct jn_table *t, uint32_t name, uint32_t *type)
   uint32_t ty = 0;
   if (e->kind == JN_FIXED || has_send (e))
     ty |= JN_TYPE_SEND;
-  if (e->kind == JN_RECEIVE)
+  if (e->kind == JN_RECEIVE || e->kind == JN_REPLY)
     ty |= JN_TYPE_RECEIVE;
   if (e->kind == JN_PORTSET)
     ty |= JN_TYPE_PORT_SET;

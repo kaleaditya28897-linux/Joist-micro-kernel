@@ -1,8 +1,9 @@
-libc {
+ld {
   GLIBC_PRIVATE {
-    # The port name table, for libmachuser's mach_port_* calls.
+    # The port name table: in ld.so, for libc.so and libmachuser too.
     __joist_ports_lock; __joist_ports_unlock;
-    __jn_destroy; __jn_get_refs; __jn_mod_refs; __jn_move_member;
+    __jn_allocate; __jn_deallocate; __jn_destroy; __jn_get_refs;
+    __jn_insert_right; __jn_mod_refs; __jn_move_member; __jn_reply_name;
     __jn_set_payload; __jn_type;
   }
 }

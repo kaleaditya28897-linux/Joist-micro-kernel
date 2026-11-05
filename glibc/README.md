@@ -29,12 +29,17 @@ Mach's `.defs` (`mach_port_allocate.c`, `RPC_mach_port_mod_refs.c`, ...).
 - `sysdeps/joist/joist-names.{c,h}`: Mach port names on capability slots
   (the design's items 2 and 3), tested against the kernel model
   (`model/test/test_names.c`).
-- `sysdeps/joist/joist-ports.{c,h}`, `joist-sys.h`: libc's one name table
-  under a lock, its kernel calls, and the `mach_port_*` calls on it
-  (`mach_port_allocate.c`, `RPC_mach_port_mod_refs.c`, ...: each replaces
-  the generated stub of that name; libmachuser's reach the table through
-  `Versions`, GLIBC_PRIVATE). A call naming another task is refused
-  (`MACH_SEND_INVALID_DEST`).
+- `sysdeps/joist/joist-ports.{c,h}`, `joist-sys.h`: the program's one name
+  table under a lock (in ld.so for a dynamic program, which libc.so and
+  libmachuser use through its GLIBC_PRIVATE exports in `Versions`; in
+  libc.a for a static one), its kernel calls, and the `mach_port_*` calls
+  on it (`mach_port_allocate.c`, `RPC_mach_port_mod_refs.c`, ...: each
+  replaces the generated stub of that name). A call naming another task
+  is refused (`MACH_SEND_INVALID_DEST`).
+- `sysdeps/joist/mach_reply_port.c`, `mig-reply.c`: reply names, which
+  stand for a call's own reply capability; `mig_get_reply_port` gives one
+  for the task, the reply sentinel. `msg.c`, `mach_msg_trap.c`:
+  `mach_msg` is not provided (`MACH_SEND_INVALID_HEADER`).
 - `test/`: host tests (`make check`: real threads on an exact emulation of
   Joist's notifications, under ASan, UBSan, MSan and TSan), mutations
   (`make mutate`) and CBMC proofs (`make cbmc`).

@@ -35,6 +35,10 @@
      sender, and no-senders would never fire.  Once it has a badge, its
      set and payload no longer change (KERN_INVALID_RIGHT, as 0005 says).
    - A **dead name** holds nothing.
+   - A **reply name** (mach_reply_port) holds nothing either: it stands for
+     the reply capability every call has of its own (the design's item 4).
+     It reads as a receive right, and goes as one (mod_refs of RECEIVE by
+     -1, or destroy); nothing else may be done with it.
 
    Where Joist differs from Mach, by construction:
    - two send rights to one port that arrive separately get two names (the
@@ -84,7 +88,8 @@ enum jn_kind
   JN_PORTSET,
   JN_DEAD,
   JN_HIDDEN,			/* a receive right's own endpoint */
-  JN_LANDING			/* where a capability may arrive */
+  JN_LANDING,			/* where a capability may arrive */
+  JN_REPLY			/* stands for a call's reply capability */
 };
 
 struct jn_entry
@@ -141,6 +146,8 @@ extern void __jn_init (struct jn_table *t, uint32_t fixed);
 
 /* mach_port_allocate: a new receive right, port set or dead name.  */
 extern int __jn_allocate (struct jn_table *t, int right, uint32_t *name);
+/* mach_reply_port: a reply name.  */
+extern int __jn_reply_name (struct jn_table *t, uint32_t *name);
 /* mach_port_deallocate: one user reference of a send right or dead
    name.  */
 extern int __jn_deallocate (struct jn_table *t, uint32_t name);

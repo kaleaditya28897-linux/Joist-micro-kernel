@@ -8,7 +8,7 @@
  * the space holds in its slot (a send right a capability with SEND, a
  * receive right its badged send capability exactly while it has send
  * references, a port set or a receive right's own endpoint an endpoint,
- * free names, dead names and landing slots nothing), and no capability is
+ * free names, dead names, landing slots and reply names nothing), and no capability is
  * in a slot the table doesn't account for. A refused operation must change
  * neither the table nor the space. Directed tests follow libports' uses
  * and transfers between two tasks (no-senders included); the property test
@@ -90,6 +90,7 @@ static int names_agree(const struct jn_table *t, joist_cspace cs, uint32_t fixed
         case JN_FREE:
         case JN_DEAD:
         case JN_LANDING:
+        case JN_REPLY:
             if (has || (e->kind == JN_DEAD && e->refs == 0)) {
                 return (int)__LINE__;
             }
@@ -406,6 +407,38 @@ static int unchanged(void)
 
 /* Two ports of one set with no payload: each its own badge from the
  * counter (the property test seldom has two minted ports in one set). */
+/* mach_reply_port's names: nothing in the space, a receive right to
+ * mach_port_type, gone by mod_refs or destroy, refused for anything else. */
+JT_TEST(names_reply)
+{
+    setup();
+    uint32_t r1, r2, set, type, refs, slot;
+    int temp;
+    JT_REQUIRE(__jn_reply_name(&TA, &r1) == JN_OK && __jn_reply_name(&TA, &r2) == JN_OK);
+    JT_CHECK(r1 >= A_FIXED && r1 != r2);
+    JT_CHECK(__jn_type(&TA, r1, &type) == JN_OK && type == JN_TYPE_RECEIVE);
+    JT_CHECK(__jn_get_refs(&TA, r1, JN_RIGHT_RECEIVE, &refs) == JN_OK && refs == 1);
+    JT_CHECK(__jn_get_refs(&TA, r1, JN_RIGHT_SEND, &refs) == JN_OK && refs == 0);
+    JT_CHECK(agree());
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_PORT_SET, &set) == JN_OK);
+    snapshot();
+    JT_CHECK(__jn_deallocate(&TA, r1) == JN_INVALID_RIGHT);
+    JT_CHECK(__jn_insert_right(&TA, r1, r1, JN_MAKE_SEND) == JN_INVALID_RIGHT);
+    JT_CHECK(__jn_move_member(&TA, r1, set) == JN_INVALID_RIGHT);
+    JT_CHECK(__jn_set_payload(&TA, r1, 0x1000) == JN_INVALID_RIGHT);
+    JT_CHECK(__jn_send_prepare(&TA, r1, JN_MAKE_SEND, &slot, &temp) != JN_OK);
+    JT_CHECK(__jn_mod_refs(&TA, r1, JN_RIGHT_SEND, 1) == JN_INVALID_RIGHT);
+    JT_CHECK(__jn_mod_refs(&TA, r1, JN_RIGHT_RECEIVE, -2) == JN_INVALID_VALUE);
+    JT_CHECK(__jn_mod_refs(&TA, r1, JN_RIGHT_RECEIVE, 0) == JN_OK);
+    JT_CHECK(__jn_recv_slot(&TA, r1) == 0 && __jn_badge(&TA, r1) == 0);
+    JT_CHECK(unchanged());
+    JT_CHECK(__jn_mod_refs(&TA, r1, JN_RIGHT_RECEIVE, -1) == JN_OK);
+    JT_CHECK(__jn_type(&TA, r1, &type) == JN_INVALID_NAME);
+    JT_CHECK(__jn_destroy(&TA, r2) == JN_OK);
+    JT_CHECK(__jn_type(&TA, r2, &type) == JN_INVALID_NAME);
+    JT_CHECK(agree());
+}
+
 JT_TEST(names_badges_distinct)
 {
     setup();
@@ -519,7 +552,7 @@ JT_TEST(names_property)
                     }
                 }
             }
-            int r = JN_OK, op = (int)(rnd() % 12u);
+            int r = JN_OK, op = (int)(rnd() % 13u);
             uint32_t out, slot;
             int temp;
             cur = A;
@@ -571,13 +604,19 @@ JT_TEST(names_property)
                     __jn_send_done(&TA, name, disp, slot, temp, sent);
                 }
                 break;
+            case 10:
+                r = __jn_reply_name(&TA, &out);
+                if (r == JN_OK) {
+                    recent[rnd() % 8u] = out;
+                }
+                break;
             default: /* B gives up one of what it got */
                 cur = B;
                 (void)__jn_deallocate(&TB, B_FIXED + (uint32_t)(rnd() % (JN_NAMES - B_FIXED)));
                 cur = A;
                 break;
             }
-            if (r != JN_OK && op <= 9) {
+            if (r != JN_OK && op <= 10) {
                 refused++;
                 if (!unchanged()) {
                     fprintf(stderr, "  seed %u step %u: op %d refused (%d) but changed something\n", seed,

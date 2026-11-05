@@ -17,7 +17,12 @@
 # License along with the GNU C Library; if not, see
 # <https://www.gnu.org/licenses/>.
 
+# The port name table: joist-ports.c, which includes joist-names.c.  A
+# program has one: ld.so's if it is dynamic, libc.a's if it is static
+# (libc.so's joist-ports.o is empty).
 ifeq ($(subdir),mach)
-# The port name table (joist-names.c) and libc's own (joist-ports.c).
-routines += joist-names joist-ports
+routines += joist-ports
+endif
+ifeq ($(subdir),elf)
+sysdep-rtld-routines += joist-ports
 endif
