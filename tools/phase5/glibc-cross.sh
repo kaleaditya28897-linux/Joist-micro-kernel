@@ -9,6 +9,11 @@
 #
 # usage: tools/phase5/glibc-cross.sh WORKDIR [JOBS]
 #
+# Joist's Mach layer (step 7 proper): glibc/sysdeps/joist is copied into
+# the source as sysdeps/joist and glibc configured with --enable-joist
+# (patch 0011), which puts it before the Mach layer's directories. JOIST=0
+# builds part 1's glibc, the Mach layer alone.
+#
 # Inputs, each checked by SHA-256: glibc's source as GNU releases it (its
 # signature checked once, 2026-11-05: good, from release manager Andreas K.
 # Huettel, RSA FD19E6D31B192EE4DC63EAD3DC2B16215ED5412A; the same files as
@@ -24,6 +29,7 @@
 set -eu
 W=$(mkdir -p "$1" && cd "$1" && pwd)
 J=${2:-2}
+JOIST=${JOIST:-1}
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
 PORTS=https://deb.debian.org/debian-ports
@@ -65,6 +71,11 @@ for p in "$here"/glibc-patches/*.patch; do
     (cd src/glibc-2.43 && patch -p1 --quiet --no-backup-if-mismatch < "$p") ||
         { echo "patch failed: $p"; exit 1; }
 done
+joist_opt=
+if [ "$JOIST" = 1 ]; then
+    cp -r "$repo/glibc/sysdeps/joist" src/glibc-2.43/sysdeps/joist
+    joist_opt=--enable-joist
+fi
 
 # The compiler: clang for x86_64-gnu (see above), linking with lld.
 cat > bin/x86_64-gnu-clang <<'EOF'
@@ -89,7 +100,7 @@ cd build
 echo "configure: $(date -u)" > "$W/logs/stamps"
 "$W/src/glibc-2.43/configure" --host=x86_64-gnu --build=x86_64-pc-linux-gnu --prefix=/usr \
     --with-headers="$W/headers/include" --disable-werror --disable-profile --disable-nscd \
-    --disable-timezone-tools CC="$W/bin/x86_64-gnu-clang" CXX=false BUILD_CC=clang \
+    --disable-timezone-tools $joist_opt CC="$W/bin/x86_64-gnu-clang" CXX=false BUILD_CC=clang \
     AR=llvm-ar RANLIB=llvm-ranlib NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump \
     READELF=llvm-readelf MIG="$W/mig/bin/x86_64-gnu-mig" > "$W/logs/configure.log" 2>&1 ||
     { echo "configure failed: logs/configure.log"; tail -20 "$W/logs/configure.log"; exit 1; }

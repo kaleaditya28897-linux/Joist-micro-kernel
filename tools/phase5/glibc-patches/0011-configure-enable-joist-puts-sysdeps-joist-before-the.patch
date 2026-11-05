@@ -1,0 +1,139 @@
+From d0386c4fe8c38bd4b7083d8f12cfda3cbf1d0413 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 18:53:04 +0530
+Subject: [PATCH] configure: --enable-joist puts sysdeps/joist before the Mach
+ layer
+
+With --enable-joist, configure places sysdeps/joist just before the
+first sysdeps/mach directory of the sysdeps list (for x86_64-gnu, the
+front of it): a file there replaces the Mach layer's file of the same
+name, so the list of files in sysdeps/joist is the interface to Joist,
+and the Hurd layer and the rest of glibc are kept as they are.  The
+host stays x86_64-gnu.  Refused for a configuration without the Mach
+layer.  configure is edited by hand as Autoconf 2.72 would make it
+(its generated option parsing and help text).  Joist, Phase 5 step 7.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ configure    | 36 ++++++++++++++++++++++++++++++++++++
+ configure.ac | 29 +++++++++++++++++++++++++++++
+ 2 files changed, 65 insertions(+)
+
+diff --git a/configure b/configure
+index 0cd22698..d9954ccd 100755
+--- a/configure
++++ b/configure
+@@ -813,6 +813,7 @@ enable_kernel
+ enable_werror
+ enable_multi_arch
+ enable_memory_tagging
++enable_joist
+ enable_systemtap
+ enable_build_nscd
+ enable_nscd
+@@ -1493,6 +1494,8 @@ Optional Features:
+                           architectures
+   --enable-memory-tagging enable memory tagging if supported by the
+                           architecture [default=no]
++  --enable-joist          build the Mach layer for the Joist microkernel
++                          (sysdeps/joist) [default=no]
+   --enable-systemtap      enable systemtap static probe points [default=no]
+   --disable-build-nscd    disable building and installing the nscd daemon
+   --disable-nscd          library functions will not contact the nscd daemon
+@@ -4710,6 +4713,16 @@ if test "$memory_tagging" = yes; then
+   esac
+ fi
+ 
++# Check whether --enable-joist was given.
++if test ${enable_joist+y}
++then :
++  enableval=$enable_joist; enable_joist=$enableval
++else case e in #(
++  e) enable_joist=no ;;
++esac
++fi
++
++
+ 
+ # Check whether --enable-systemtap was given.
+ if test ${enable_systemtap+y}
+@@ -6681,6 +6694,29 @@ Implies_before='$Implies_before' Implies_after='$Implies_after'" >&2
+   test -n "$sysnames" && set $sysnames
+ done
+ 
++# With --enable-joist, sysdeps/joist goes before the first of the Mach
++# layer's directories: a file there replaces the Mach layer's file of the
++# same name, and the Hurd layer is kept as it is.
++if test "x$enable_joist" = xyes; then
++  case " $names " in
++  *" sysdeps/mach"*) ;;
++  *) as_fn_error $? "--enable-joist is for a configuration with the Mach layer" "$LINENO" 5 ;;
++  esac
++  joist_names=
++  for name in $names; do
++    case $name in
++    sysdeps/mach*)
++      case " $joist_names " in
++      *" sysdeps/joist "*) ;;
++      *) joist_names="$joist_names sysdeps/joist" ;;
++      esac
++      ;;
++    esac
++    joist_names="$joist_names $name"
++  done
++  names=$joist_names
++fi
++
+ # Add the default directories.
+ default_sysnames="sysdeps/generic"
+ sysnames="$names $default_sysnames"
+diff --git a/configure.ac b/configure.ac
+index 3e4a601c..cbbad38b 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -343,6 +343,12 @@ if test "$memory_tagging" = yes; then
+ fi
+ AC_SUBST(memory_tagging)
+ 
++AC_ARG_ENABLE([joist],
++	      AS_HELP_STRING([--enable-joist],
++			     [build the Mach layer for the Joist microkernel (sysdeps/joist) @<:@default=no@:>@]),
++	      [enable_joist=$enableval],
++	      [enable_joist=no])
++
+ AC_ARG_ENABLE([systemtap],
+               [AS_HELP_STRING([--enable-systemtap],
+ 	       [enable systemtap static probe points @<:@default=no@:>@])],
+@@ -1103,6 +1109,29 @@ Implies_before='$Implies_before' Implies_after='$Implies_after'" >&2
+   test -n "$sysnames" && set $sysnames
+ done
+ 
++# With --enable-joist, sysdeps/joist goes before the first of the Mach
++# layer's directories: a file there replaces the Mach layer's file of the
++# same name, and the Hurd layer is kept as it is.
++if test "x$enable_joist" = xyes; then
++  case " $names " in
++  *" sysdeps/mach"*) ;;
++  *) AC_MSG_ERROR([--enable-joist is for a configuration with the Mach layer]) ;;
++  esac
++  joist_names=
++  for name in $names; do
++    case $name in
++    sysdeps/mach*)
++      case " $joist_names " in
++      *" sysdeps/joist "*) ;;
++      *) joist_names="$joist_names sysdeps/joist" ;;
++      esac
++      ;;
++    esac
++    joist_names="$joist_names $name"
++  done
++  names=$joist_names
++fi
++
+ # Add the default directories.
+ default_sysnames="sysdeps/generic"
+ sysnames="$names $default_sysnames"
+-- 
+2.55.0
+
