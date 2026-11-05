@@ -1,5 +1,5 @@
-# Injected bugs in ../sysdeps/joist/joist-gsync.c that test_gsync.c must catch
-# (make mutate). Each block: '== name FILE' (FILE relative to glibc/), then
+# Injected bugs in ../sysdeps/joist (joist-gsync.c, joist-vm.c) that the host tests
+# must catch (make mutate). Each block: '== name FILE' (FILE relative to glibc/), then
 # '-- find' and the text (found exactly once), then '-- replace' and its
 # replacement. A hang counts as caught only when the watchdog ends it.
 
@@ -118,3 +118,73 @@
 	  left = now < deadline ? deadline - now : 0;
 -- replace
 	  left = JG_FOREVER;
+
+# The address reservations (joist-vm.c; test_vm.c)
+== vm-find-not-first sysdeps/joist/joist-vm.c
+-- find
+      if (t->r[i].page >= at + pages)
+-- replace
+      if (t->r[i].page > at + pages)
+
+== vm-reserve-overlap sysdeps/joist/joist-vm.c
+-- find
+  if (i < t->n && t->r[i].page < page + pages)
+    return JV_NO_SPACE;
+-- replace
+  if (i < t->n && t->r[i].page < page)
+    return JV_NO_SPACE;
+
+== vm-release-no-room sysdeps/joist/joist-vm.c
+-- find
+  if (i < t->n && end_of (&t->r[i]) > page + pages && t->n == JV_MAX)
+-- replace
+  if (0)
+
+== vm-release-tail-kept sysdeps/joist/joist-vm.c
+-- find
+      t->r[i].pages = page - t->r[i].page;	/* its tail goes */
+-- replace
+      (void) 0;
+
+== vm-release-head-kept sysdeps/joist/joist-vm.c
+-- find
+      t->r[j].page = end;
+-- replace
+      (void) end;
+
+== vm-protect-hole sysdeps/joist/joist-vm.c
+-- find
+      if (i == t->n || t->r[i].page > at)
+-- replace
+      if (i == t->n)
+
+== vm-protect-room sysdeps/joist/joist-vm.c
+-- find
+  if (more > JV_MAX - t->n)
+-- replace
+  if (more > JV_MAX - t->n + 1)
+
+== vm-protect-not-cut sysdeps/joist/joist-vm.c
+-- find
+  split_at (t, end);
+  for
+-- replace
+  for
+
+== vm-region-ends-at sysdeps/joist/joist-vm.c
+-- find
+  while (i < t->n && end_of (&t->r[i]) <= page)
+-- replace
+  while (i < t->n && end_of (&t->r[i]) < page)
+
+== vm-user-end sysdeps/joist/joist-vm.c
+-- find
+  return page >= 1 && page < JV_USER_PAGES && pages <= JV_USER_PAGES - page;
+-- replace
+  return page >= 1 && page < JV_USER_PAGES && pages <= JV_USER_PAGES;
+
+== vm-find-unaligned sysdeps/joist/joist-vm.c
+-- find
+	at = align_up (end_of (&t->r[i]), align);
+-- replace
+	at = end_of (&t->r[i]);

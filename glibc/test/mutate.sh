@@ -51,18 +51,25 @@ open(p, 'w').write(s.replace(a, b))
 PY
     then
         echo "STALE    $name: text not found once" > "$d/res"
-    elif ! make -s -C "$d/glibc/test" CC="$CC" WARN=-w build/plain/test-gsync > "$d/build.log" 2>&1; then
+    elif ! make -s -C "$d/glibc/test" CC="$CC" WARN=-w build/plain/test-gsync build/plain/test-vm > "$d/build.log" 2>&1; then
         echo "STALE    $name: does not build" > "$d/res"
-    elif GSYNC_WATCHDOG=20 timeout 120 "$d/glibc/test/build/plain/test-gsync" 10 8 > "$d/out" 2>&1; then
+    elif GSYNC_WATCHDOG=20 timeout 120 "$d/glibc/test/build/plain/test-gsync" 10 8 > "$d/out" 2>&1 &&
+        timeout 120 "$d/glibc/test/build/plain/test-vm" > "$d/out" 2>&1; then
         echo "SURVIVED $name" > "$d/res"
     else
-        echo "caught   $name: $(grep -m1 'test-gsync:' "$d/out" | cut -c1-90)" > "$d/res"
+        echo "caught   $name: $(grep -m1 -E 'test-(gsync|vm): .*(fail|disagree)' "$d/out" | cut -c1-90)" > "$d/res"
     fi
     rm -rf "$d/glibc"
 }
+# In batches of MUTATE_JOBS (a count of `jobs -p` in a command
+# substitution sees the subshell's jobs, none, and so limited nothing).
+n=0
 for d in "$WORK"/[0-9]*; do
-    while [ "$(jobs -p | wc -l)" -ge "${MUTATE_JOBS:-4}" ]; do sleep 1; done
     one "$d" &
+    n=$((n + 1))
+    if [ $((n % ${MUTATE_JOBS:-4})) -eq 0 ]; then
+        wait
+    fi
 done
 wait
 bad=0

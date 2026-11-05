@@ -40,6 +40,13 @@ Mach's `.defs` (`mach_port_allocate.c`, `RPC_mach_port_mod_refs.c`, ...).
   stand for a call's own reply capability; `mig_get_reply_port` gives one
   for the task, the reply sentinel. `msg.c`, `mach_msg_trap.c`:
   `mach_msg` is not provided (`MACH_SEND_INVALID_HEADER`).
-- `test/`: host tests (`make check`: real threads on an exact emulation of
-  Joist's notifications, under ASan, UBSan, MSan and TSan), mutations
+- `sysdeps/joist/joist-vm.{c,h}`: the task's address reservations (the
+  design's item 6): libc chooses every address `mm` maps, first fit in a
+  window (4 GiB to 64 TiB) or where it is told, and answers `vm_region`;
+  checked before any change, so a refusal changes nothing. Host-tested
+  against a page-level model (`test/test_vm.c`). The `vm_*` calls on it
+  are not here yet.
+- `test/`: host tests (`make check`: the futex queues with real threads on
+  an exact emulation of Joist's notifications, and the reservations
+  against their model, under ASan, UBSan, MSan and TSan), mutations
   (`make mutate`) and CBMC proofs (`make cbmc`).
