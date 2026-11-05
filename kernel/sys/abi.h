@@ -84,6 +84,7 @@ enum {
 #define ABI_TASK_SET_MCP     53u /* task, mcp */
 #define ABI_YIELD            54u /* (decision 0014) */
 #define ABI_SC_BIND_FALLBACK 55u /* context, thread (decision 0025) */
+#define ABI_CLOCK            56u /* -> RDX the time in ns since boot, R10 the CPUs (Phase 5 step 7) */
 #define ABI_CONTINUE         60u /* budget */
 #define ABI_TASK_REAP        61u /* task id */
 #define ABI_TASK_DESCENDANT  62u /* from -> RDX the task id */
@@ -147,6 +148,9 @@ struct abi_env {
     /* Where debug_write's bytes go. */
     void (*out)(void *ctx, const uint8_t *buf, size_t n);
     void *ctx;
+    /* The CPUs the kernel runs on, for clock (0 counts as 1: the host
+     * tests). */
+    uint32_t ncpus;
     /* Set by exit from the root task: the run is over. */
     int finished;
     uint64_t exit_code;

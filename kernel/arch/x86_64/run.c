@@ -1006,6 +1006,7 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
     }
     env = (struct abi_env){.k = &K, .space_of = space_of, .out = serial_sink, .ctx = NULL,
                            .machine_counters = machine_counters};
+    env.ncpus = ncpus; /* clock's CPU count */
     boot_frames = fa;
     for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
         env.exact[i] = 1; /* until a thread enters by a system call */

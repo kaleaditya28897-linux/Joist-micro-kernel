@@ -170,6 +170,33 @@ static void test_donation(void)
     report("donation ok: and the spinner beside them kept", kept, beside, alone);
 }
 
+/* 6. The clock (Phase 5 step 7: what glibc's clock_gettime stands on):
+ * it says how many CPUs there are, it never goes back, and a sleep of 5 ms
+ * reads as at least 5 ms (and not wildly more). */
+static void test_clock(uint64_t ncpus)
+{
+    uint64_t t0, cpus;
+    check(j_clock(&t0, &cpus) == J_OK, "clock refused");
+    check(cpus == ncpus, "clock's CPU count isn't the kernel's");
+    uint64_t last = t0;
+    for (unsigned i = 0; i < 1000u; i++) {
+        uint64_t now, c;
+        j_clock(&now, &c);
+        check(now >= last, "the clock went back");
+        last = now;
+    }
+    sleep_ns(5 * J_MS);
+    uint64_t t1;
+    j_clock(&t1, &cpus);
+    check(t1 - t0 >= 5 * J_MS, "a 5 ms sleep read as less");
+    check(t1 - t0 < 1000 * J_MS, "a 5 ms sleep read as over a second");
+    j_puts("sched: clock ok: a 5 ms sleep read as ");
+    j_putu((t1 - t0) / 1000u);
+    j_puts(" us, CPUs ");
+    j_putu(cpus);
+    j_puts("\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free, uint64_t ncpus)
 {
@@ -184,6 +211,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_kernel_time();
     test_equals();
     test_donation();
+    test_clock(ncpus);
     j_puts("sched: all ok\n");
     j_exit(0);
 }

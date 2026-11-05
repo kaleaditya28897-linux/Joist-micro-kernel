@@ -558,7 +558,10 @@ threads, 40-46 frames and mappings
 argument, the permissions, in `R9`, `map_replace` the old frame and its
 offset in `R12` and `R13`, and `map_query` its buffer in `R8`), 50-53
 scheduling contexts, 54 `yield` (decision 0014: the calling thread gives up
-the rest of its turn and goes behind its equals; its budget is untouched), 60-65 destruction, ancestry and lifetime
+the rest of its turn and goes behind its equals; its budget is untouched), 55 `sc_bind_fallback` (0025),
+56 `clock` (Phase 5 step 7: the time in nanoseconds since boot in `RDX`,
+monotonic, as the kernel read it on entry, and the number of CPUs in `R10`;
+always `OK`, constant time, for glibc's `clock_gettime`), 60-65 destruction, ancestry and lifetime
 notifications, 70-71 a thread's registers (`thread_read_regs`,
 `thread_write_regs`), 72 `ipc_buffer`, 80-84 regions (`region_create`,
 `region_add`, `region_map`, `region_unmap`, `region_protect`;

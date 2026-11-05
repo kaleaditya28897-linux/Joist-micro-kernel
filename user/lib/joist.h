@@ -64,7 +64,7 @@ enum {
     J_SYS_FRAME_SPLIT = 40, J_SYS_MAP, J_SYS_UNMAP, J_SYS_MAP_REPLACE, J_SYS_PROTECT,
     J_SYS_SPACE_DONATE, J_SYS_MAP_QUERY,
     J_SYS_SC_CREATE = 50, J_SYS_SC_BIND, J_SYS_SC_UNBIND, J_SYS_TASK_SET_MCP, J_SYS_YIELD,
-    J_SYS_SC_BIND_FALLBACK,
+    J_SYS_SC_BIND_FALLBACK, J_SYS_CLOCK,
     J_SYS_CONTINUE = 60, J_SYS_TASK_REAP, J_SYS_TASK_DESCENDANT, J_SYS_NOSENDERS_NEXT,
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
     J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER,
@@ -503,6 +503,16 @@ struct j_counters {
 static inline uint64_t j_debug_counters(struct j_counters *out)
 {
     return j_sys4(J_SYS_DEBUG_COUNTERS, (uint64_t)(uintptr_t)out, 0, 0, 0);
+}
+
+/* The time in nanoseconds since boot (monotonic), and the CPUs. J_OK. */
+static inline uint64_t j_clock(uint64_t *ns, uint64_t *cpus)
+{
+    struct j_regs r = {.rax = J_SYS_CLOCK};
+    j_syscall(&r);
+    *ns = r.rdx;
+    *cpus = r.r10;
+    return r.rax;
 }
 
 /* Give up the rest of this turn: behind equals (decision 0014). */

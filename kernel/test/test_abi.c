@@ -687,6 +687,22 @@ JT_TEST(abi_ipc_buffer_words_in_r9)
     JT_CHECK(clean());
 }
 
+JT_TEST(abi_clock)
+{
+    setup();
+    joist_thread a;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    k.now = 123456789u;
+    JT_CHECK(sys(a, ABI_CLOCK, 0, 0, 0, 0) == ABI_DONE && k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(k.th[a].regs.r[ABI_RDX] == 123456789u && k.th[a].regs.r[ABI_R10] == 1u);
+    env.ncpus = 4;
+    joist_tick(&k, 1000u);
+    JT_CHECK(sys(a, ABI_CLOCK, 0, 0, 0, 0) == ABI_DONE && k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(k.th[a].regs.r[ABI_RDX] == 123457789u && k.th[a].regs.r[ABI_R10] == 4u);
+    env.ncpus = 0;
+    JT_CHECK(clean());
+}
+
 JT_TEST(abi_yield)
 {
     setup();

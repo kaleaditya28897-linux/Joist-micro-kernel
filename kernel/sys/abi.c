@@ -288,6 +288,13 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_YIELD:
         e = joist_yield(k, t);
         break;
+    case ABI_CLOCK:
+        /* The core's clock, as read at this entry (monotonic), and the
+         * CPUs: what glibc's clock_gettime and CPU count stand on. */
+        e = JOIST_OK;
+        out = k->now;
+        R->r[ABI_R10] = env->ncpus != 0 ? env->ncpus : 1u;
+        break;
     case ABI_CONTINUE:
         /* No caller may ask for more at once than the kernel's own
          * preemption limit allows (0 from a caller would mean all of it). */
