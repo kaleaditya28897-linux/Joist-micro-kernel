@@ -632,5 +632,41 @@ Implementation choices inside choice 3, 0001, 0005 and 0006, so
   what it used (or, for a cleanup using many locals, a local macro), and
   callbacks passed to fixed-signature helpers (`_hurd_ctty_input`,
   `use_init_port`, `_hurd_priority_which_map`, `_hurd_startup`, signal
-  preemptors) get context-taking variants of those helpers. Done (patch
-  0007): 7 functions in 6 files. Not yet rebuilt with 0007.
+  preemptors) get context-taking variants of those helpers. Done: all of
+  them, patches 0007-0009 (0007: 7 functions in 6 files; 0008: lookups,
+  signal delivery, exec; 0009: the rest). Each file compiled with clang.
+- **Accepted by the owner (2026-11-05)** with 0008-0009:
+  - The lookups take a `struct hurd_lookup_ctx` inside libc and ld.so
+    (`sysdeps/hurd/include/hurd/lookup.h`). The exported
+    `hurd_file_name_lookup` and its siblings keep their ABI: a caller's
+    `use_init_port` is given a plain `operate` that reaches its operation
+    through one thread-local pointer (nested lookups keep theirs).
+  - `struct hurd_sigstate`'s `cancel_hook` takes `cancel_hook_arg`, a member
+    added at its end (as htl's own cancel hook); no offset moves.
+  - `_hurdsig_abort_rpcs`, `_hurd_priority_which_map`,
+    `_hurd_ctty_input/output` and `_hurd_startup` (none exported) take a
+    context; the signal handlers of `hurd_catch_signal` and `sigtimedwait`
+    find theirs on the thread's preemptor list, marked by their preemptor
+    functions.
+  - Behaviour unchanged, upstream's quirks included.
+- **Result (2026-11-05): all of glibc 2.43 builds** for `x86_64-gnu` with
+  clang 21 and lld (`make` exits 0; libc.so, ld.so, libc.a, libpthread,
+  libm, libanl and the rest), in about 5 minutes with 4 jobs on the P53.
+  Ten patches; on the way:
+  - glibc's source is now GNU's release tarball (signature checked: good,
+    from the release manager), not Debian's: the same files, and `manual/`,
+    which Debian drops and the Hurd's errno list is made from.
+  - 0002 grew: `hurd/userlink.h`'s bodies under `_FORCE_INLINES` too, a
+    declaration of `__hurd_at_flags`, and the hidden prototypes of
+    `lock-intern.h`, `hurd/port.h` and `hurd/fd.h` moved before the inline
+    bodies (clang ignores one after the body, so libc had no `__GI_`
+    aliases and ld.so no spin locks).
+  - 0010: `gai_misc.h`'s helpers `static inline`: GNU89 `extern inline` has
+    no copy of its own, and only GCC inlines every call.
+- **ABI** (glibc's `check-abi`, a comparison of the exported symbols with
+  the lists glibc keeps for the Hurd on x86-64): every library matches,
+  but for one size, `_nl_default_dirname` (the locale directory's string,
+  set by `--prefix`, not by the code). libmachuser and libhurduser have no
+  lists, and their step fails in glibc's awk on llvm-objdump's output.
+- **Not yet run:** nothing here has run; the libraries are for a Hurd.
+  Next: sysdeps/joist, step 7 proper.

@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 13:38:23 +0530
+Subject: [PATCH] hurd: gai_misc.h: static inline helpers (clang inlines
+ differently)
+
+__gai_start_notify_thread and __gai_create_helper_thread were extern
+inline (GNU89): no copy of their own, so a call the compiler doesn't
+inline is an undefined symbol.  GCC inlines them; clang left one call in
+libanl.  Nothing changes for GCC.  Joist, Phase 5 step 7.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sysdeps/mach/hurd/gai_misc.h | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/sysdeps/mach/hurd/gai_misc.h b/sysdeps/mach/hurd/gai_misc.h
+index 20f15135..16cc818e 100644
+--- a/sysdeps/mach/hurd/gai_misc.h
++++ b/sysdeps/mach/hurd/gai_misc.h
+@@ -22,7 +22,9 @@
+ #define gai_start_notify_thread __gai_start_notify_thread
+ #define gai_create_helper_thread __gai_create_helper_thread
+ 
+-extern inline void
++/* static inline, not extern inline: an extern inline (GNU89) function has
++   no copy of its own, and only GCC inlines every call of these.  */
++static inline void
+ __gai_start_notify_thread (void)
+ {
+   sigset_t ss;
+@@ -32,7 +34,7 @@ __gai_start_notify_thread (void)
+   assert_perror (sigerr);
+ }
+ 
+-extern inline int
++static inline int
+ __gai_create_helper_thread (pthread_t *threadp, void *(*tf) (void *),
+ 			    void *arg)
+ {

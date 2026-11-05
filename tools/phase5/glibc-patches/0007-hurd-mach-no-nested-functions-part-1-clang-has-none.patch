@@ -1,7 +1,7 @@
-From b81faff13e144fcdb72ef39736c815fec6553cb6 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 19:31:35 +0530
-Subject: [PATCH 7/7] hurd, mach: no nested functions, part 1 (clang has none)
+Subject: [PATCH] hurd, mach: no nested functions, part 1 (clang has none)
 
 devstream.c, hurdid.c, hurdkill.c, kill.c, getcwd.c, xattr.c: each nested
 function a static function taking what it used, or (getcwd's cleanup,
@@ -535,6 +535,3 @@ index 630a8724..db805fce 100644
  
    _hurd_port_free (&_hurd_ports[INIT_PORT_PROC], &ulink, proc);
  
--- 
-2.55.0
-

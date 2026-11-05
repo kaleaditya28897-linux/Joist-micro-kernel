@@ -1,0 +1,1926 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 13:01:14 +0530
+Subject: [PATCH] hurd: no nested functions, part 2: lookups, signals, exec
+ (clang has none)
+
+setitimer.c, _Fork.c, hurdexec.c: each nested function a static function
+taking what it used, or a macro naming it with the caller's locals.
+
+hurdsig.c: post_signal's helpers static functions given their context;
+the sig_post reply a struct hurdsig_reply (port, type, reply RPC) passed
+where the nested reply function was, NULL still meaning none
+(_hurdsig_abort_rpcs's last parameter, in <hurd/signal.h>; its one other
+caller passes NULL).
+
+The lookups: the callbacks take their context.  A struct hurd_lookup_ctx
+(sysdeps/hurd/include/hurd/lookup.h, inside libc and ld.so only) holds
+use_init_port, get_dtable_port and lookup; an operation on a port is a
+struct hurd_port_op.  __hurd_file_name_lookup_c, _split_c,
+__hurd_directory_name_split_c, _lookup_retry_c, _path_lookup_c and
+__file_name_path_scan_c take them, and libc's own callers (lookup-at.c,
+faccessat.c, get-host.c, file_name_lookup_under, ld.so's open_file) use
+them.  The exported functions keep their ABI: they call the _c forms
+with their callbacks as a context, whose use_init_port gives the
+caller's a plain operate that finds its operation through a thread's
+pointer, each call keeping the one it replaces (none when the caller's
+is _hurd_ports_use).  Behaviour is unchanged, upstream's quirks included
+(the tty retry reauthenticates into the lookup's result).
+
+Joist, Phase 5 step 7.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ hurd/get-host.c                    |   2 +-
+ hurd/hurd/signal.h                 |   5 +-
+ hurd/hurdexec.c                    |  59 +++---
+ hurd/hurdinit.c                    |  11 ++
+ hurd/hurdlookup.c                  | 297 +++++++++++++++++++++--------
+ hurd/hurdsig.c                     | 255 +++++++++++++++----------
+ hurd/lookup-at.c                   |  74 +++----
+ hurd/lookup-retry.c                | 190 +++++++++++-------
+ hurd/path-lookup.c                 |  78 ++++++--
+ sysdeps/hurd/include/hurd/lookup.h | 101 ++++++++++
+ sysdeps/mach/hurd/_Fork.c          |  34 ++--
+ sysdeps/mach/hurd/dl-sysdep.c      |  51 +++--
+ sysdeps/mach/hurd/faccessat.c      | 146 ++++++++------
+ sysdeps/mach/hurd/setitimer.c      |  21 +-
+ 14 files changed, 874 insertions(+), 450 deletions(-)
+ create mode 100644 sysdeps/hurd/include/hurd/lookup.h
+
+diff --git a/hurd/get-host.c b/hurd/get-host.c
+index 328b575a..0bddd657 100644
+--- a/hurd/get-host.c
++++ b/hurd/get-host.c
+@@ -31,7 +31,7 @@ _hurd_get_host_config (const char *item, char *buf, size_t buflen)
+   vm_size_t more;
+   file_t config;
+ 
+-  err = __hurd_file_name_lookup (&_hurd_ports_use, &__getdport, 0,
++  err = __hurd_file_name_lookup_c (&_hurd_lookup_default,
+ 				 item, O_RDONLY, 0, &config);
+   switch (err)
+     {
+diff --git a/hurd/hurd/signal.h b/hurd/hurd/signal.h
+index cd502b3f..3e1fe312 100644
+--- a/hurd/hurd/signal.h
++++ b/hurd/hurd/signal.h
+@@ -153,10 +153,13 @@ extern void _hurd_sigstate_unlock (struct hurd_sigstate *ss);
+ extern void _hurd_sigstate_delete (thread_t thread);
+ 
+ struct machine_thread_all_state;
++/* The reply owed to a sig_post message (hurdsig.c's), or NULL: a context,
++   not the nested function it was, which clang lacks.  */
++struct hurdsig_reply;
+ extern mach_port_t
+ _hurdsig_abort_rpcs (struct hurd_sigstate *ss, int signo, int sigthread,
+ 		     struct machine_thread_all_state *state, int *state_change,
+-		     void (*reply) (void));
++		     struct hurdsig_reply *reply);
+ 
+ /* Thread listening on our message port; also called the "signal thread".  */
+ 
+diff --git a/hurd/hurdexec.c b/hurd/hurdexec.c
+index 1e37edf9..0b474d67 100644
+--- a/hurd/hurdexec.c
++++ b/hurd/hurdexec.c
+@@ -42,6 +42,21 @@ _hurd_exec (task_t task, file_t file,
+ link_warning (_hurd_exec,
+ 	      "_hurd_exec is deprecated, use _hurd_exec_paths instead");
+ 
++/* Reauthenticate PORT with NEWAUTH: the new port in *NEWPORT.  Not a nested
++   function in _hurd_exec_paths, which clang lacks.  */
++static error_t
++exec_reauth_io (auth_t newauth, io_t port, io_t *newport)
++{
++  mach_port_t ref = __mach_reply_port ();
++  *newport = MACH_PORT_NULL;
++  error_t err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
++  if (!err)
++    err = __auth_user_authenticate (newauth, ref, MACH_MSG_TYPE_MAKE_SEND,
++				    newport);
++  __mach_port_destroy (__mach_task_self (), ref);
++  return err;
++}
++
+ /* Overlay TASK, executing FILE with arguments ARGV and environment ENVP.
+    If TASK == mach_task_self (), some ports are dealloc'd by the exec server.
+    ARGV and ENVP are terminated by NULL pointers.  PATH is the relative path to
+@@ -60,10 +75,9 @@ _hurd_exec_paths (task_t task, file_t file,
+   int ints[INIT_INT_MAX];
+   mach_port_t ports[_hurd_nports];
+   struct hurd_userlink ulink_ports[_hurd_nports];
+-  inline void free_port (unsigned int i)
+-    {
+-      _hurd_port_free (&_hurd_ports[i], &ulink_ports[i], ports[i]);
+-    }
++  /* Macros, not nested functions, which clang lacks.  */
++#define free_port(i) \
++  _hurd_port_free (&_hurd_ports[i], &ulink_ports[i], ports[i])
+   file_t *dtable;
+   unsigned int dtablesize, i, j;
+   struct hurd_port **dtable_cells;
+@@ -269,28 +283,18 @@ retry:
+ 	  /* Now we have to reauthenticate the ports with this new ID.
+ 	   */
+ 
+-	  inline error_t reauth_io (io_t port, io_t *newport)
+-	    {
+-	      mach_port_t ref = __mach_reply_port ();
+-	      *newport = MACH_PORT_NULL;
+-	      error_t err = __io_reauthenticate (port,
+-						 ref, MACH_MSG_TYPE_MAKE_SEND);
+-	      if (!err)
+-		err = __auth_user_authenticate (newauth,
+-						ref, MACH_MSG_TYPE_MAKE_SEND,
+-						newport);
+-	      __mach_port_destroy (__mach_task_self (), ref);
+-	      return err;
+-	    }
+-	  inline void reauth_port (unsigned int idx)
+-	    {
+-	      io_t newport;
+-	      err = reauth_io (ports[idx], &newport) ?: err;
+-	      if (pdp)
+-		*pdp++ = ports[idx]; /* XXX presumed still in _hurd_ports */
+-	      free_port (idx);
+-	      ports[idx] = newport;
+-	    }
++#define reauth_io(port, newport) exec_reauth_io (newauth, port, newport)
++#define reauth_port(idx)						      \
++  do									      \
++    {									      \
++      io_t newport;							      \
++      err = reauth_io (ports[idx], &newport) ?: err;			      \
++      if (pdp)								      \
++	*pdp++ = ports[idx]; /* XXX presumed still in _hurd_ports */	      \
++      free_port (idx);							      \
++      ports[idx] = newport;						      \
++    }									      \
++  while (0)
+ 
+ 	  if (pdp)
+ 	    *pdp++ = ports[INIT_PORT_AUTH];
+@@ -488,5 +492,8 @@ retry:
+  outargs:
+   free (args);
+   return err;
++#undef free_port
++#undef reauth_io
++#undef reauth_port
+ }
+ libc_hidden_def (_hurd_exec_paths)
+diff --git a/hurd/hurdinit.c b/hurd/hurdinit.c
+index 67909d3c..afaee7b1 100644
+--- a/hurd/hurdinit.c
++++ b/hurd/hurdinit.c
+@@ -20,6 +20,7 @@
+ #include <stdio.h>
+ #include <unistd.h>
+ #include <hurd.h>
++#include <hurd/lookup.h>
+ #include <hurd/port.h>
+ #include <ldsodefs.h>
+ #include "set-hooks.h"
+@@ -52,6 +53,16 @@ _hurd_ports_use (int which, error_t (*operate) (mach_port_t))
+   return HURD_PORT_USE (&_hurd_ports[which], (*operate) (port));
+ }
+ 
++error_t
++_hurd_ports_use_op (int which, struct hurd_port_op *op)
++{
++  if (__glibc_unlikely (_hurd_ports == NULL))
++    /* As _hurd_ports_use.  */
++    return EGRATUITOUS;
++
++  return HURD_PORT_USE (&_hurd_ports[which], (*op->fn) (op, port));
++}
++
+ DEFINE_HOOK (_hurd_subinit, (void));
+ 
+ /* Hook for things which should be initialized as soon as the proc
+diff --git a/hurd/hurdlookup.c b/hurd/hurdlookup.c
+index 77a6d19b..76dc8b61 100644
+--- a/hurd/hurdlookup.c
++++ b/hurd/hurdlookup.c
+@@ -38,31 +38,119 @@ lookup_error (error_t error)
+     }
+ }
+ 
++/* The contexts libc's own lookups use.  */
++
++file_t
++_hurd_lookup_getdport (const struct hurd_lookup_ctx *ctx, int fd)
++{
++  return __getdport (fd);
++}
++
++static error_t
++lookup_default_use (const struct hurd_lookup_ctx *ctx, int which,
++		    struct hurd_port_op *op)
++{
++  return _hurd_ports_use_op (which, op);
++}
++
++const struct hurd_lookup_ctx _hurd_lookup_default =
++  { lookup_default_use, _hurd_lookup_getdport, NULL };
++
+ error_t
+-__hurd_file_name_lookup (error_t (*use_init_port)
+-			   (int which, error_t (*operate) (file_t)),
+-			 file_t (*get_dtable_port) (int fd),
+-			 error_t (*lookup)
+-			   (file_t dir, const char *name, int flags, mode_t mode,
+-			    retry_type *do_retry, string_t retry_name,
+-			    mach_port_t *result),
+-			 const char *file_name, int flags, mode_t mode,
+-			 file_t *result)
++_hurd_lookup_under_use (const struct hurd_lookup_ctx *ctx, int which,
++			struct hurd_port_op *op)
++{
++  const struct hurd_lookup_under *u = (const struct hurd_lookup_under *) ctx;
++  return (which == INIT_PORT_CWDIR ? (*op->fn) (op, u->startdir)
++	  : _hurd_ports_use_op (which, op));
++}
++
++/* The exported functions' callbacks as a context.  Their USE_INIT_PORT is
++   given plain_operate, which does the operation the innermost
++   plain_use_init_port of this thread was given: each such call keeps the
++   one it replaces, so nested lookups (a signal handler's too) find
++   theirs.  */
++
++static __thread struct hurd_port_op *plain_op;
++
++static error_t
++plain_operate (mach_port_t port)
++{
++  return (*plain_op->fn) (plain_op, port);
++}
++
++static error_t
++plain_use_init_port (const struct hurd_lookup_ctx *ctx, int which,
++		     struct hurd_port_op *op)
++{
++  const struct hurd_lookup_plain *p = (const struct hurd_lookup_plain *) ctx;
++  struct hurd_port_op *outer = plain_op;
++  error_t err;
++
++  if (p->use_init_port == &_hurd_ports_use)
++    return _hurd_ports_use_op (which, op);
++  plain_op = op;
++  err = (*p->use_init_port) (which, &plain_operate);
++  plain_op = outer;
++  return err;
++}
++
++static file_t
++plain_get_dtable_port (const struct hurd_lookup_ctx *ctx, int fd)
++{
++  const struct hurd_lookup_plain *p = (const struct hurd_lookup_plain *) ctx;
++  return (*p->get_dtable_port) (fd);
++}
++
++void
++_hurd_lookup_plain (struct hurd_lookup_plain *p,
++		    error_t (*use_init_port)
++		      (int which, error_t (*operate) (mach_port_t)),
++		    file_t (*get_dtable_port) (int fd),
++		    error_t (*lookup)
++		      (file_t dir, const char *name, int flags, mode_t mode,
++		       retry_type *do_retry, string_t retry_name,
++		       mach_port_t *result))
++{
++  p->ctx.use_init_port = plain_use_init_port;
++  p->ctx.get_dtable_port = get_dtable_port ? plain_get_dtable_port : NULL;
++  p->ctx.lookup = lookup;
++  p->use_init_port = use_init_port;
++  p->get_dtable_port = get_dtable_port;
++}
++
++/* __hurd_file_name_lookup_c's operation on its start directory.  */
++struct lookup_op
++{
++  struct hurd_port_op op;
++  __typeof (((struct hurd_lookup_ctx *) 0)->lookup) lookup;
++  const char *file_name;
++  int flags;
++  mode_t mode;
++  enum retry_type *doretry;
++  char *retryname;
++  file_t *result;
++};
++
++static error_t
++lookup_op (struct hurd_port_op *op, mach_port_t startdir)
++{
++  struct lookup_op *l = (struct lookup_op *) op;
++  return lookup_error ((*l->lookup) (startdir, l->file_name, l->flags,
++					  l->mode, l->doretry, l->retryname,
++					  l->result));
++}
++
++error_t
++__hurd_file_name_lookup_c (const struct hurd_lookup_ctx *ctx,
++			   const char *file_name, int flags, mode_t mode,
++			   file_t *result)
+ {
+   error_t err;
+   enum retry_type doretry;
+   string_t retryname;
+   int startport;
+ 
+-  error_t lookup_op (mach_port_t startdir)
+-    {
+-      return lookup_error ((*lookup) (startdir, file_name, flags, mode,
+-				      &doretry, retryname, result));
+-    }
+-
+-  if (! lookup)
+-    lookup = __dir_lookup;
+-
+   if (file_name[0] == '\0')
+     return ENOENT;
+ 
+@@ -91,33 +179,79 @@ __hurd_file_name_lookup (error_t (*use_init_port)
+ 	}
+     }
+ 
+-  err = (*use_init_port) (startport, &lookup_op);
++  struct lookup_op l =
++    {
++      { lookup_op }, ctx->lookup ?: __dir_lookup, file_name, flags, mode,
++      &doretry, retryname, result
++    };
++  err = (*ctx->use_init_port) (ctx, startport, &l.op);
+   if (! err)
+-    err = __hurd_file_name_lookup_retry (use_init_port, get_dtable_port,
+-					 lookup, doretry, retryname,
+-					 flags, mode, result);
++    err = __hurd_file_name_lookup_retry_c (ctx, doretry, retryname,
++					   flags, mode, result);
+ 
+   return err;
+ }
++
++error_t
++__hurd_file_name_lookup (error_t (*use_init_port)
++			   (int which, error_t (*operate) (file_t)),
++			 file_t (*get_dtable_port) (int fd),
++			 error_t (*lookup)
++			   (file_t dir, const char *name, int flags, mode_t mode,
++			    retry_type *do_retry, string_t retry_name,
++			    mach_port_t *result),
++			 const char *file_name, int flags, mode_t mode,
++			 file_t *result)
++{
++  struct hurd_lookup_plain p;
++  _hurd_lookup_plain (&p, use_init_port, get_dtable_port, lookup);
++  return __hurd_file_name_lookup_c (&p.ctx, file_name, flags, mode, result);
++}
+ weak_alias (__hurd_file_name_lookup, hurd_file_name_lookup)
+ 
+ error_t
+-__hurd_file_name_split (error_t (*use_init_port)
+-			  (int which, error_t (*operate) (file_t)),
+-			file_t (*get_dtable_port) (int fd),
+-			error_t (*lookup)
+-			  (file_t dir, const char *name, int flags, mode_t mode,
+-			   retry_type *do_retry, string_t retry_name,
+-			   mach_port_t *result),
+-			const char *file_name,
+-			file_t *dir, char **name)
++__hurd_file_name_lookup_retry (error_t (*use_init_port)
++				 (int which, error_t (*operate) (file_t)),
++			       file_t (*get_dtable_port) (int fd),
++			       error_t (*lookup)
++				 (file_t dir, const char *name,
++				  int flags, mode_t mode,
++				  retry_type *do_retry, string_t retry_name,
++				  mach_port_t *result),
++			       enum retry_type doretry,
++			       string_t retryname,
++			       int flags, mode_t mode,
++			       file_t *result)
+ {
+-  error_t addref (file_t crdir)
+-    {
+-      *dir = crdir;
+-      return __mach_port_mod_refs (__mach_task_self (),
+-				   crdir, MACH_PORT_RIGHT_SEND, +1);
+-    }
++  struct hurd_lookup_plain p;
++  _hurd_lookup_plain (&p, use_init_port, get_dtable_port, lookup);
++  return __hurd_file_name_lookup_retry_c (&p.ctx, doretry, retryname,
++					  flags, mode, result);
++}
++weak_alias (__hurd_file_name_lookup_retry, hurd_file_name_lookup_retry)
++
++/* The split functions' operation: the directory is the port, a reference
++   added.  */
++struct addref_op
++{
++  struct hurd_port_op op;
++  file_t *dir;
++};
++
++static error_t
++addref (struct hurd_port_op *op, file_t crdir)
++{
++  struct addref_op *a = (struct addref_op *) op;
++  *a->dir = crdir;
++  return __mach_port_mod_refs (__mach_task_self (),
++			       crdir, MACH_PORT_RIGHT_SEND, +1);
++}
++
++error_t
++__hurd_file_name_split_c (const struct hurd_lookup_ctx *ctx,
++			  const char *file_name, file_t *dir, char **name)
++{
++  struct addref_op a = { { addref }, dir };
+ 
+   const char *lastslash = strrchr (file_name, '/');
+ 
+@@ -127,7 +261,7 @@ __hurd_file_name_split (error_t (*use_init_port)
+ 	{
+ 	  /* "/foobar" => crdir + "foobar".  */
+ 	  *name = (char *) file_name + 1;
+-	  return (*use_init_port) (INIT_PORT_CRDIR, &addref);
++	  return (*ctx->use_init_port) (ctx, INIT_PORT_CRDIR, &a.op);
+ 	}
+       else
+ 	{
+@@ -136,9 +270,7 @@ __hurd_file_name_split (error_t (*use_init_port)
+ 	  memcpy (dirname, file_name, lastslash - file_name);
+ 	  dirname[lastslash - file_name] = '\0';
+ 	  *name = (char *) lastslash + 1;
+-	  return
+-	    __hurd_file_name_lookup (use_init_port, get_dtable_port, lookup,
+-				     dirname, 0, 0, dir);
++	  return __hurd_file_name_lookup_c (ctx, dirname, 0, 0, dir);
+ 	}
+     }
+   else if (file_name[0] == '\0')
+@@ -147,30 +279,35 @@ __hurd_file_name_split (error_t (*use_init_port)
+     {
+       /* "foobar" => cwdir + "foobar".  */
+       *name = (char *) file_name;
+-      return (*use_init_port) (INIT_PORT_CWDIR, &addref);
++      return (*ctx->use_init_port) (ctx, INIT_PORT_CWDIR, &a.op);
+     }
+ }
++
++error_t
++__hurd_file_name_split (error_t (*use_init_port)
++			  (int which, error_t (*operate) (file_t)),
++			file_t (*get_dtable_port) (int fd),
++			error_t (*lookup)
++			  (file_t dir, const char *name, int flags, mode_t mode,
++			   retry_type *do_retry, string_t retry_name,
++			   mach_port_t *result),
++			const char *file_name,
++			file_t *dir, char **name)
++{
++  struct hurd_lookup_plain p;
++  _hurd_lookup_plain (&p, use_init_port, get_dtable_port, lookup);
++  return __hurd_file_name_split_c (&p.ctx, file_name, dir, name);
++}
+ weak_alias (__hurd_file_name_split, hurd_file_name_split)
+ 
+ /* This is the same as hurd_file_name_split, except that it ignores
+    trailing slashes (so *NAME is never "").  */
+ error_t
+-__hurd_directory_name_split (error_t (*use_init_port)
+-			     (int which, error_t (*operate) (file_t)),
+-			     file_t (*get_dtable_port) (int fd),
+-			     error_t (*lookup)
+-			     (file_t dir, const char *name, int flags, mode_t mode,
+-			      retry_type *do_retry, string_t retry_name,
+-			      mach_port_t *result),
+-			     const char *file_name,
+-			     file_t *dir, char **name)
++__hurd_directory_name_split_c (const struct hurd_lookup_ctx *ctx,
++			       const char *file_name,
++			       file_t *dir, char **name)
+ {
+-  error_t addref (file_t crdir)
+-    {
+-      *dir = crdir;
+-      return __mach_port_mod_refs (__mach_task_self (),
+-				   crdir, MACH_PORT_RIGHT_SEND, +1);
+-    }
++  struct addref_op a = { { addref }, dir };
+ 
+   const char *lastslash = strrchr (file_name, '/');
+ 
+@@ -192,7 +329,7 @@ __hurd_directory_name_split (error_t (*use_init_port)
+ 	{
+ 	  /* "/foobar" => crdir + "foobar".  */
+ 	  *name = (char *) file_name + 1;
+-	  return (*use_init_port) (INIT_PORT_CRDIR, &addref);
++	  return (*ctx->use_init_port) (ctx, INIT_PORT_CRDIR, &a.op);
+ 	}
+       else
+ 	{
+@@ -201,9 +338,7 @@ __hurd_directory_name_split (error_t (*use_init_port)
+ 	  memcpy (dirname, file_name, lastslash - file_name);
+ 	  dirname[lastslash - file_name] = '\0';
+ 	  *name = (char *) lastslash + 1;
+-	  return
+-	    __hurd_file_name_lookup (use_init_port, get_dtable_port, lookup,
+-				     dirname, 0, 0, dir);
++	  return __hurd_file_name_lookup_c (ctx, dirname, 0, 0, dir);
+ 	}
+     }
+   else if (file_name[0] == '\0')
+@@ -212,12 +347,28 @@ __hurd_directory_name_split (error_t (*use_init_port)
+     {
+       /* "foobar" => cwdir + "foobar".  */
+       *name = (char *) file_name;
+-      return (*use_init_port) (INIT_PORT_CWDIR, &addref);
++      return (*ctx->use_init_port) (ctx, INIT_PORT_CWDIR, &a.op);
+     }
+ }
++
++error_t
++__hurd_directory_name_split (error_t (*use_init_port)
++			     (int which, error_t (*operate) (file_t)),
++			     file_t (*get_dtable_port) (int fd),
++			     error_t (*lookup)
++			     (file_t dir, const char *name, int flags, mode_t mode,
++			      retry_type *do_retry, string_t retry_name,
++			      mach_port_t *result),
++			     const char *file_name,
++			     file_t *dir, char **name)
++{
++  struct hurd_lookup_plain p;
++  _hurd_lookup_plain (&p, use_init_port, get_dtable_port, lookup);
++  return __hurd_directory_name_split_c (&p.ctx, file_name, dir, name);
++}
+ weak_alias (__hurd_directory_name_split, hurd_directory_name_split)
+ 
+-
++
+ file_t
+ __file_name_lookup (const char *file_name, int flags, mode_t mode)
+ {
+@@ -232,8 +383,8 @@ __file_name_split (const char *file_name, char **name)
+   error_t err;
+   file_t result;
+ 
+-  err = __hurd_file_name_split (&_hurd_ports_use, &__getdport, 0,
+-				file_name, &result, name);
++  err = __hurd_file_name_split_c (&_hurd_lookup_default,
++				  file_name, &result, name);
+ 
+   return err ? (__hurd_fail (err), MACH_PORT_NULL) : result;
+ }
+@@ -245,8 +396,8 @@ __directory_name_split (const char *directory_name, char **name)
+   error_t err;
+   file_t result;
+ 
+-  err = __hurd_directory_name_split (&_hurd_ports_use, &__getdport, 0,
+-				     directory_name, &result, name);
++  err = __hurd_directory_name_split_c (&_hurd_lookup_default,
++				       directory_name, &result, name);
+ 
+   return err ? (__hurd_fail (err), MACH_PORT_NULL) : result;
+ }
+@@ -259,16 +410,10 @@ __file_name_lookup_under (file_t startdir,
+ {
+   error_t err;
+   file_t result;
++  struct hurd_lookup_under u = HURD_LOOKUP_UNDER (startdir);
+ 
+-  error_t use_init_port (int which, error_t (*operate) (mach_port_t))
+-    {
+-      return (which == INIT_PORT_CWDIR ? (*operate) (startdir)
+-	      : _hurd_ports_use (which, operate));
+-    }
+-
+-  err = __hurd_file_name_lookup (&use_init_port, &__getdport, 0,
+-				 file_name, flags, mode & ~_hurd_umask,
+-				 &result);
++  err = __hurd_file_name_lookup_c (&u.ctx, file_name, flags,
++				   mode & ~_hurd_umask, &result);
+ 
+   return err ? (__hurd_fail (err), MACH_PORT_NULL) : result;
+ }
+diff --git a/hurd/hurdsig.c b/hurd/hurdsig.c
+index 91e664d0..bd0bcf9e 100644
+--- a/hurd/hurdsig.c
++++ b/hurd/hurdsig.c
+@@ -307,10 +307,31 @@ write_corefile (int signo, const struct hurd_signal_detail *detail)
+    record whether we have done thread_abort.  */
+ #define THREAD_ABORTED 1
+ 
++/* The reply owed to a sig_post message: sent once, by hurdsig_reply.  */
++struct hurdsig_reply
++{
++  mach_port_t port;
++  mach_msg_type_name_t port_type;
++  __typeof (__msg_sig_post_reply) *rpc;
++};
++
++/* Send REPLY's reply, if it is owed.  */
++static void
++hurdsig_reply (struct hurdsig_reply *reply)
++{
++  error_t err;
++  if (reply == NULL || reply->port == MACH_PORT_NULL)
++    return;
++  err = (*reply->rpc) (reply->port, reply->port_type, 0);
++  reply->port = MACH_PORT_NULL;
++  if (err != MACH_SEND_INVALID_DEST) /* Ignore dead reply port.  */
++    assert_perror (err);
++}
++
+ /* SS->thread is suspended.  Abort the thread and get its basic state.  */
+ static void
+ abort_thread (struct hurd_sigstate *ss, struct machine_thread_all_state *state,
+-	      void (*reply) (void))
++	      struct hurdsig_reply *reply)
+ {
+   assert (ss->thread != MACH_PORT_NULL);
+ 
+@@ -323,8 +344,7 @@ abort_thread (struct hurd_sigstate *ss, struct machine_thread_all_state *state,
+       state->set = THREAD_ABORTED;
+     }
+ 
+-  if (reply)
+-    (*reply) ();
++  hurdsig_reply (reply);
+ 
+   machine_get_basic_state (ss->thread, state);
+ }
+@@ -386,7 +406,7 @@ mach_msg_timeout_t _hurdsig_interrupt_timeout = 1000;
+ mach_port_t
+ _hurdsig_abort_rpcs (struct hurd_sigstate *ss, int signo, int sigthread,
+ 		     struct machine_thread_all_state *state, int *state_change,
+-		     void (*reply) (void))
++		     struct hurdsig_reply *reply)
+ {
+   extern const void _hurd_intr_rpc_msg_about_to attribute_hidden;
+   extern const void _hurd_intr_rpc_msg_setup_done attribute_hidden;
+@@ -607,10 +627,112 @@ weak_alias (_hurdsig_preemptors, _hurdsig_preempters)
+    _hurd_global_sigstate, the sigstate of the actual thread the signal
+    was delivered to).  If the signal is being traced, return NULL with
+    SS unlocked.   */
++/* post_signal's helpers: functions with their context as parameters, not
++   the nested functions they were, which clang lacks.  */
++
++/* Mark the signal as pending.  */
++static void
++post_mark_pending (struct hurd_sigstate *ss, int signo,
++		   const struct hurd_signal_detail *detail)
++{
++  __sigaddset (&ss->pending, signo);
++  /* Save the details to be given to the handler when SIGNO is
++     unblocked.  */
++  ss->pending_data[signo] = *detail;
++}
++
++/* Suspend the process with SIGNO.  */
++static void
++post_suspend (int signo, struct machine_thread_all_state *thread_state,
++	      struct hurdsig_reply *reply,
++	      const struct hurd_signal_detail *detail)
++{
++  /* Stop all other threads and mark ourselves stopped.  */
++  __USEPORT (PROC,
++	     ({
++	       /* Hold the siglock while stopping other threads to be
++		  sure it is not held by another thread afterwards.  */
++	       __mutex_lock (&_hurd_siglock);
++	       __proc_dostop (port, _hurd_msgport_thread);
++	       __mutex_unlock (&_hurd_siglock);
++	       abort_all_rpcs (signo, thread_state, 1);
++	       hurdsig_reply (reply);
++	       __proc_mark_stop (port, signo, detail->code);
++	     }));
++  _hurd_stopped = 1;
++}
++
++/* Resume the process after a suspension.  If HANDLING, the thread
++   HANDLER_THREAD will run a handler and is kept suspended
++   (*SS_SUSPENDED set).  */
++static void
++post_resume (int handling, thread_t handler_thread, int *ss_suspended)
++{
++  /* Resume the process from being stopped.  */
++  thread_t *threads;
++  mach_msg_type_number_t nthreads, i;
++  error_t err;
++
++  if (! _hurd_stopped)
++    return;
++
++  /* Tell the proc server we are continuing.  */
++  __USEPORT (PROC, __proc_mark_cont (port));
++  /* Fetch ports to all our threads and resume them.  */
++  err = __task_threads (__mach_task_self (), &threads, &nthreads);
++  assert_perror (err);
++  for (i = 0; i < nthreads; ++i)
++    {
++      if (handling && threads[i] == handler_thread)
++	{
++	  /* The thread that will run the handler is kept suspended.  */
++	  *ss_suspended = 1;
++	}
++      else if (threads[i] != _hurd_msgport_thread)
++	{
++	  err = __thread_resume (threads[i]);
++	  assert_perror (err);
++	}
++      err = __mach_port_deallocate (__mach_task_self (),
++				    threads[i]);
++      assert_perror (err);
++    }
++  __vm_deallocate (__mach_task_self (),
++		   (vm_address_t) threads,
++		   nthreads * sizeof *threads);
++  _hurd_stopped = 0;
++}
++
++/* The handler a preemptor on the list PE (not null) gives *SIGNO, or
++   SIG_ERR.  */
++static sighandler_t
++post_try_preemptor (struct hurd_signal_preemptor *pe,
++		    struct hurd_sigstate *ss, int *signo,
++		    struct hurd_signal_detail *detail)
++{
++  do
++    {
++      if (HURD_PREEMPT_SIGNAL_P (pe, *signo, detail->exc_subcode))
++	{
++	  if (pe->preemptor)
++	    {
++	      sighandler_t handler = (*pe->preemptor) (pe, ss,
++						       signo, detail);
++	      if (handler != SIG_ERR)
++		return handler;
++	    }
++	  else
++	    return pe->handler;
++	}
++      pe = pe->next;
++    } while (pe != 0);
++  return SIG_ERR;
++}
++
+ static struct hurd_sigstate *
+ post_signal (struct hurd_sigstate *ss,
+ 	     int signo, struct hurd_signal_detail *detail,
+-	     int untraced, void (*reply) (void))
++	     int untraced, struct hurdsig_reply *reply)
+ {
+   struct machine_thread_all_state thread_state;
+   enum { stop, ignore, core, term, handle } act;
+@@ -623,69 +745,11 @@ post_signal (struct hurd_sigstate *ss,
+ 
+   struct sigaction *action;
+ 
+-  /* Mark the signal as pending.  */
+-  void mark_pending (void)
+-    {
+-      __sigaddset (&ss->pending, signo);
+-      /* Save the details to be given to the handler when SIGNO is
+-	 unblocked.  */
+-      ss->pending_data[signo] = *detail;
+-    }
+-
+-  /* Suspend the process with SIGNO.  */
+-  void suspend (void)
+-    {
+-      /* Stop all other threads and mark ourselves stopped.  */
+-      __USEPORT (PROC,
+-		 ({
+-		   /* Hold the siglock while stopping other threads to be
+-		      sure it is not held by another thread afterwards.  */
+-		   __mutex_lock (&_hurd_siglock);
+-		   __proc_dostop (port, _hurd_msgport_thread);
+-		   __mutex_unlock (&_hurd_siglock);
+-		   abort_all_rpcs (signo, &thread_state, 1);
+-		   reply ();
+-		   __proc_mark_stop (port, signo, detail->code);
+-		 }));
+-      _hurd_stopped = 1;
+-    }
+-  /* Resume the process after a suspension.  */
+-  void resume (void)
+-    {
+-      /* Resume the process from being stopped.  */
+-      thread_t *threads;
+-      mach_msg_type_number_t nthreads, i;
+-      error_t err;
+-
+-      if (! _hurd_stopped)
+-	return;
+-
+-      /* Tell the proc server we are continuing.  */
+-      __USEPORT (PROC, __proc_mark_cont (port));
+-      /* Fetch ports to all our threads and resume them.  */
+-      err = __task_threads (__mach_task_self (), &threads, &nthreads);
+-      assert_perror (err);
+-      for (i = 0; i < nthreads; ++i)
+-	{
+-	  if (act == handle && threads[i] == ss->thread)
+-	    {
+-	      /* The thread that will run the handler is kept suspended.  */
+-	      ss_suspended = 1;
+-	    }
+-	  else if (threads[i] != _hurd_msgport_thread)
+-	    {
+-	      err = __thread_resume (threads[i]);
+-	      assert_perror (err);
+-	    }
+-	  err = __mach_port_deallocate (__mach_task_self (),
+-					threads[i]);
+-	  assert_perror (err);
+-	}
+-      __vm_deallocate (__mach_task_self (),
+-		       (vm_address_t) threads,
+-		       nthreads * sizeof *threads);
+-      _hurd_stopped = 0;
+-    }
++  /* The helpers above, with this call's context (SS as it is then).  */
++#define mark_pending() post_mark_pending (ss, signo, detail)
++#define suspend() post_suspend (signo, &thread_state, reply, detail)
++#define resume() post_resume (act == handle, ss->thread, &ss_suspended)
++#define try_preemptor(pe) post_try_preemptor (pe, ss, &signo, detail)
+ 
+   error_t err;
+   sighandler_t handler;
+@@ -741,27 +805,6 @@ post_signal (struct hurd_sigstate *ss,
+   /* Check for a preempted signal.  Preempted signals can arrive during
+      critical sections.  */
+   {
+-    inline sighandler_t try_preemptor (struct hurd_signal_preemptor *pe)
+-      {				/* PE cannot be null.  */
+-	do
+-	  {
+-	    if (HURD_PREEMPT_SIGNAL_P (pe, signo, detail->exc_subcode))
+-	      {
+-		if (pe->preemptor)
+-		  {
+-		    sighandler_t handler = (*pe->preemptor) (pe, ss,
+-							     &signo, detail);
+-		    if (handler != SIG_ERR)
+-		      return handler;
+-		  }
+-		else
+-		  return pe->handler;
+-	      }
+-	    pe = pe->next;
+-	  } while (pe != 0);
+-	return SIG_ERR;
+-      }
+-
+     handler = ss->preemptors ? try_preemptor (ss->preemptors) : SIG_ERR;
+ 
+     /* If no thread-specific preemptor, check for a global one.  */
+@@ -800,7 +843,7 @@ post_signal (struct hurd_sigstate *ss,
+ 	  else
+ 	    suspend ();
+ 	  _hurd_sigstate_unlock (ss);
+-	  reply ();
++	  hurdsig_reply (reply);
+ 	  return NULL;
+ 	}
+ 
+@@ -956,7 +999,7 @@ post_signal (struct hurd_sigstate *ss,
+       assert_perror (err);
+       /* No more user instructions will be executed.
+ 	 The signal can now be considered delivered.  */
+-      reply ();
++      hurdsig_reply (reply);
+       /* Abort all server operations now in progress.  */
+       abort_all_rpcs (signo, &thread_state, 0);
+ 
+@@ -1150,6 +1193,10 @@ post_signal (struct hurd_sigstate *ss,
+     }
+ 
+   return ss;
++#undef mark_pending
++#undef suspend
++#undef resume
++#undef try_preemptor
+ }
+ 
+ /* Return the set of pending signals in SS which should be delivered. */
+@@ -1171,7 +1218,8 @@ pending_signals (struct hurd_sigstate *ss)
+    them is traced, abort immediately and return 0.  SS must be locked on
+    entry and will be unlocked in all cases.  */
+ static int
+-post_pending (struct hurd_sigstate *ss, sigset_t pending, void (*reply) (void))
++post_pending (struct hurd_sigstate *ss, sigset_t pending,
++	      struct hurdsig_reply *reply)
+ {
+   int signo;
+   struct hurd_signal_detail detail;
+@@ -1200,7 +1248,7 @@ post_pending (struct hurd_sigstate *ss, sigset_t pending, void (*reply) (void))
+ /* Post all the pending signals of all threads and return 1.  If a traced
+    signal is encountered, abort immediately and return 0.  */
+ static int
+-post_all_pending_signals (void (*reply) (void))
++post_all_pending_signals (struct hurdsig_reply *reply)
+ {
+   struct hurd_sigstate *ss;
+   sigset_t pending = 0;
+@@ -1237,18 +1285,13 @@ _hurd_internal_post_signal (struct hurd_sigstate *ss,
+ 			    int untraced)
+ {
+   /* Reply to this sig_post message.  */
+-  __typeof (__msg_sig_post_reply) *reply_rpc
+-    = (untraced ? __msg_sig_post_untraced_reply : __msg_sig_post_reply);
+-  void reply (void)
++  struct hurdsig_reply reply_to =
+     {
+-      error_t err;
+-      if (reply_port == MACH_PORT_NULL)
+-	return;
+-      err = (*reply_rpc) (reply_port, reply_port_type, 0);
+-      reply_port = MACH_PORT_NULL;
+-      if (err != MACH_SEND_INVALID_DEST) /* Ignore dead reply port.  */
+-	assert_perror (err);
+-    }
++      .port = reply_port,
++      .port_type = reply_port_type,
++      .rpc = (untraced ? __msg_sig_post_untraced_reply : __msg_sig_post_reply),
++    };
++  struct hurdsig_reply *reply = &reply_to;
+ 
+   ss = post_signal (ss, signo, detail, untraced, reply);
+   if (! ss)
+@@ -1259,7 +1302,7 @@ _hurd_internal_post_signal (struct hurd_sigstate *ss,
+     {
+       /* The signal has either been ignored or is now being handled.  We can
+ 	 consider it delivered and reply to the killer.  */
+-      reply ();
++      hurdsig_reply (reply);
+ 
+       /* Post any pending signals for this thread.  */
+       if (! post_pending (ss, pending_signals (ss), reply))
+@@ -1275,7 +1318,7 @@ _hurd_internal_post_signal (struct hurd_sigstate *ss,
+ 
+       /* All pending signals delivered to all threads.
+ 	 Now we can send the reply message even for signal 0.  */
+-      reply ();
++      hurdsig_reply (reply);
+     }
+ }
+ 
+diff --git a/hurd/lookup-at.c b/hurd/lookup-at.c
+index dfb0b050..57a7c2c9 100644
+--- a/hurd/lookup-at.c
++++ b/hurd/lookup-at.c
+@@ -47,9 +47,9 @@ __file_name_lookup_at (int fd, int at_flags,
+ 					      &result));
+ 
+       if (! err)
+-	err = __hurd_file_name_lookup_retry (&_hurd_ports_use, &__getdport,
+-					     NULL, doretry, retryname,
+-					     flags, mode, &result);
++	err = __hurd_file_name_lookup_retry_c (&_hurd_lookup_default,
++					       doretry, retryname,
++					       flags, mode, &result);
+ 
+       return err ? (__hurd_dfail (fd, err), MACH_PORT_NULL) : result;
+     }
+@@ -60,9 +60,9 @@ __file_name_lookup_at (int fd, int at_flags,
+ 
+   if (fd == AT_FDCWD || file_name[0] == '/')
+     {
+-      err = __hurd_file_name_lookup (&_hurd_ports_use, &__getdport, 0,
+-                                     file_name, flags, mode & ~_hurd_umask,
+-                                     &result);
++      err = __hurd_file_name_lookup_c (&_hurd_lookup_default,
++                                       file_name, flags, mode & ~_hurd_umask,
++                                       &result);
+       if (err)
+         {
+           __hurd_fail (err);
+@@ -71,23 +71,17 @@ __file_name_lookup_at (int fd, int at_flags,
+     }
+   else
+     {
+-      file_t startdir;
+       /* We need to look the file up relative to the given directory (and
+-         not our cwd).  For this to work, we supply our own wrapper for
+-         _hurd_ports_use, which replaces cwd with our startdir.  */
+-      error_t use_init_port (int which, error_t (*operate) (mach_port_t))
+-        {
+-          return (which == INIT_PORT_CWDIR ? (*operate) (startdir)
+-	          : _hurd_ports_use (which, operate));
+-        }
+-
+-      err = HURD_DPORT_USE (fd, (startdir = port,
+-                                 __hurd_file_name_lookup (&use_init_port,
+-                                                          &__getdport, NULL,
+-                                                          file_name,
+-                                                          flags,
+-                                                          mode & ~_hurd_umask,
+-                                                          &result)));
++         not our cwd).  For this to work, we supply our own context, whose
++         cwd is our startdir.  */
++      struct hurd_lookup_under u = HURD_LOOKUP_UNDER (MACH_PORT_NULL);
++
++      err = HURD_DPORT_USE (fd, (u.startdir = port,
++                                 __hurd_file_name_lookup_c (&u.ctx,
++                                                            file_name,
++                                                            flags,
++                                                            mode & ~_hurd_umask,
++                                                            &result)));
+       if (err)
+         {
+           __hurd_dfail (fd, err);
+@@ -123,21 +117,15 @@ __file_name_split_at (int fd, const char *file_name, char **name)
+   if (fd == AT_FDCWD || file_name[0] == '/')
+     return __file_name_split (file_name, name);
+ 
+-  err = __hurd_file_name_split (&_hurd_ports_use, &__getdport, 0,
+-				file_name, &result, name);
++  err = __hurd_file_name_split_c (&_hurd_lookup_default,
++				  file_name, &result, name);
+ 
+-  file_t startdir;
+-  error_t use_init_port (int which, error_t (*operate) (mach_port_t))
+-  {
+-    return (which == INIT_PORT_CWDIR ? (*operate) (startdir)
+-	    : _hurd_ports_use (which, operate));
+-  }
++  struct hurd_lookup_under u = HURD_LOOKUP_UNDER (MACH_PORT_NULL);
+ 
+-  err = HURD_DPORT_USE (fd, (startdir = port,
+-			     __hurd_file_name_split (&use_init_port,
+-						     &__getdport, 0,
+-						     file_name,
+-						     &result, name)));
++  err = HURD_DPORT_USE (fd, (u.startdir = port,
++			     __hurd_file_name_split_c (&u.ctx,
++						       file_name,
++						       &result, name)));
+ 
+   return err ? (__hurd_dfail (fd, err), MACH_PORT_NULL) : result;
+ }
+@@ -151,18 +139,12 @@ __directory_name_split_at (int fd, const char *directory_name, char **name)
+   if (fd == AT_FDCWD || directory_name[0] == '/')
+     return __directory_name_split (directory_name, name);
+ 
+-  file_t startdir;
+-  error_t use_init_port (int which, error_t (*operate) (mach_port_t))
+-    {
+-      return (which == INIT_PORT_CWDIR ? (*operate) (startdir)
+-	      : _hurd_ports_use (which, operate));
+-    }
++  struct hurd_lookup_under u = HURD_LOOKUP_UNDER (MACH_PORT_NULL);
+ 
+-  err = HURD_DPORT_USE (fd, (startdir = port,
+-			     __hurd_directory_name_split (&use_init_port,
+-							  &__getdport, 0,
+-							  directory_name,
+-							  &result, name)));
++  err = HURD_DPORT_USE (fd, (u.startdir = port,
++			     __hurd_directory_name_split_c (&u.ctx,
++							    directory_name,
++							    &result, name)));
+ 
+   return err ? (__hurd_dfail (fd, err), MACH_PORT_NULL) : result;
+ }
+diff --git a/hurd/lookup-retry.c b/hurd/lookup-retry.c
+index 94ff0e32..5ddfc40e 100644
+--- a/hurd/lookup-retry.c
++++ b/hurd/lookup-retry.c
+@@ -43,60 +43,124 @@ lookup_error (error_t error)
+     }
+ }
+ 
++/* The nested functions this file had, which clang lacks, as functions
++   given their context.  */
++
++/* The lookup of *FILE_NAME (its leading slashes trimmed there) from the
++   port.  */
++struct lookup_op
++{
++  struct hurd_port_op op;
++  __typeof (((struct hurd_lookup_ctx *) 0)->lookup) lookup;
++  char **file_name;
++  int flags;
++  mode_t mode;
++  enum retry_type *doretry;
++  char *retryname;
++  file_t *result;
++};
++
++static error_t
++lookup_op (struct hurd_port_op *op, file_t startdir)
++{
++  struct lookup_op *l = (struct lookup_op *) op;
++  char *file_name = *l->file_name;
++
++  if (file_name[0] == '/' && file_name[1] != '\0')
++    {
++      while (file_name[1] == '/')
++	/* Remove double leading slash.  */
++	file_name++;
++      if (file_name[1] != '\0')
++	/* Remove leading slash when we have more than the slash.  */
++	file_name++;
++    }
++  *l->file_name = file_name;
++
++  return lookup_error ((*l->lookup) (startdir, file_name, l->flags, l->mode,
++				     l->doretry, l->retryname, l->result));
++}
++
++/* Authenticate with the auth port: the new port in *RESULT.  */
++struct reauth_op
++{
++  struct hurd_port_op op;
++  mach_port_t ref;
++  file_t *result;
++};
++
++static error_t
++reauth (struct hurd_port_op *op, auth_t auth)
++{
++  struct reauth_op *r = (struct reauth_op *) op;
++  return __auth_user_authenticate (auth, r->ref, MACH_MSG_TYPE_MAKE_SEND,
++				   r->result);
++}
++
++/* UNAUTH (its reference consumed) reauthenticated, into *RESULT.  */
++static error_t
++reauthenticate (const struct hurd_lookup_ctx *ctx, file_t unauth,
++		file_t *result)
++{
++  error_t err;
++  struct reauth_op r = { { reauth }, __mach_reply_port (), result };
++  err = __io_reauthenticate (unauth, r.ref, MACH_MSG_TYPE_MAKE_SEND);
++  if (! err)
++    err = (*ctx->use_init_port) (ctx, INIT_PORT_AUTH, &r.op);
++  __mach_port_destroy (__mach_task_self (), r.ref);
++  __mach_port_deallocate (__mach_task_self (), unauth);
++  return err;
++}
++
++#if !IS_IN (rtld)
++/* Open the controlling terminal: into *TTY, then reauthenticated into
++   *RESULT (as the nested function did: the lookup's result, which *TTY
++   need not be).  */
++struct ctty_open_op
++{
++  struct hurd_port_op op;
++  int flags;
++  file_t *tty;
++};
++
++static error_t
++ctty_open (struct hurd_port_op *op, file_t port)
++{
++  struct ctty_open_op *c = (struct ctty_open_op *) op;
++  if (port == MACH_PORT_NULL)
++    return ENXIO; /* No controlling terminal.  */
++  return __termctty_open_terminal (port, c->flags, c->tty);
++}
++
++static error_t
++opentty (const struct hurd_lookup_ctx *ctx, int flags, file_t *tty,
++	 file_t *result)
++{
++  error_t err;
++  struct ctty_open_op c = { { ctty_open }, flags, tty };
++  err = (*ctx->use_init_port) (ctx, INIT_PORT_CTTYID, &c.op);
++  if (! err)
++    err = reauthenticate (ctx, *tty, result);
++  return err;
++}
++#endif
++
+ error_t
+-__hurd_file_name_lookup_retry (error_t (*use_init_port)
+-				 (int which, error_t (*operate) (file_t)),
+-			       file_t (*get_dtable_port) (int fd),
+-			       error_t (*lookup)
+-				 (file_t dir, const char *name,
+-				  int flags, mode_t mode,
+-				  retry_type *do_retry, string_t retry_name,
+-				  mach_port_t *result),
+-			       enum retry_type doretry,
+-			       string_t retryname,
+-			       int flags, mode_t mode,
+-			       file_t *result)
++__hurd_file_name_lookup_retry_c (const struct hurd_lookup_ctx *ctx,
++				 enum retry_type doretry,
++				 string_t retryname,
++				 int flags, mode_t mode,
++				 file_t *result)
+ {
+   error_t err;
+   char *file_name;
+   int nloops;
+   file_t lastdir = MACH_PORT_NULL;
+-
+-  error_t lookup_op (file_t startdir)
++  struct lookup_op l =
+     {
+-      if (file_name[0] == '/' && file_name[1] != '\0')
+-	{
+-	  while (file_name[1] == '/')
+-	    /* Remove double leading slash.  */
+-	    file_name++;
+-	  if (file_name[1] != '\0')
+-	    /* Remove leading slash when we have more than the slash.  */
+-	    file_name++;
+-	}
+-
+-      return lookup_error ((*lookup) (startdir, file_name, flags, mode,
+-				      &doretry, retryname, result));
+-    }
+-  error_t reauthenticate (file_t unauth)
+-    {
+-      error_t err;
+-      mach_port_t ref = __mach_reply_port ();
+-      error_t reauth (auth_t auth)
+-	{
+-	  return __auth_user_authenticate (auth, ref,
+-					   MACH_MSG_TYPE_MAKE_SEND,
+-					   result);
+-	}
+-      err = __io_reauthenticate (unauth, ref, MACH_MSG_TYPE_MAKE_SEND);
+-      if (! err)
+-	err = (*use_init_port) (INIT_PORT_AUTH, &reauth);
+-      __mach_port_destroy (__mach_task_self (), ref);
+-      __mach_port_deallocate (__mach_task_self (), unauth);
+-      return err;
+-    }
+-
+-  if (! lookup)
+-    lookup = __dir_lookup;
++      { lookup_op }, ctx->lookup ?: __dir_lookup, &file_name, flags, mode,
++      &doretry, retryname, result
++    };
+ 
+   nloops = 0;
+   err = 0;
+@@ -108,7 +172,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
+       switch (doretry)
+ 	{
+ 	case FS_RETRY_REAUTH:
+-	  if (err = reauthenticate (*result))
++	  if (err = reauthenticate (ctx, *result, result))
+ 	    goto out;
+ 	  /* Fall through.  */
+ 
+@@ -234,11 +298,11 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
+ 		      err = ENOENT;
+ 		      goto out;
+ 		    }
+-		  if (! get_dtable_port)
++		  if (! ctx->get_dtable_port)
+ 		    err = EGRATUITOUS;
+ 		  else
+ 		    {
+-		      *result = (*get_dtable_port) (fd);
++		      *result = (*ctx->get_dtable_port) (ctx, fd);
+ 		      if (*result == MACH_PORT_NULL)
+ 			{
+ 			  /* If the name was a proper number, but the file
+@@ -302,28 +366,11 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
+ 	      if (retryname[1] == 't' && retryname[2] == 'y')
+ 		switch (retryname[3])
+ 		  {
+-		    error_t opentty (file_t *result)
+-		      {
+-			error_t err;
+-			error_t ctty_open (file_t port)
+-			  {
+-			    if (port == MACH_PORT_NULL)
+-			      return ENXIO; /* No controlling terminal.  */
+-			    return __termctty_open_terminal (port,
+-							     flags,
+-							     result);
+-			  }
+-			err = (*use_init_port) (INIT_PORT_CTTYID, &ctty_open);
+-			if (! err)
+-			  err = reauthenticate (*result);
+-			return err;
+-		      }
+-
+ 		  case '\0':
+-		    err = opentty (result);
++		    err = opentty (ctx, flags, result, result);
+ 		    goto out;
+ 		  case '/':
+-		    if (err = opentty (&startdir))
++		    if (err = opentty (ctx, flags, &startdir, result))
+ 		      goto out;
+ 		    memmove (retryname, &retryname[4], strlen(retryname + 4) + 1);
+ 		    break;
+@@ -382,12 +429,12 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
+ 
+       if (startdir != MACH_PORT_NULL)
+ 	{
+-	  err = lookup_op (startdir);
++	  err = lookup_op (&l.op, startdir);
+ 	  __mach_port_deallocate (__mach_task_self (), startdir);
+ 	  startdir = MACH_PORT_NULL;
+ 	}
+       else
+-	err = (*use_init_port) (dirport, &lookup_op);
++	err = (*ctx->use_init_port) (ctx, dirport, &l.op);
+     } while (! err);
+ 
+ out:
+@@ -396,4 +443,3 @@ out:
+ 
+   return err;
+ }
+-weak_alias (__hurd_file_name_lookup_retry, hurd_file_name_lookup_retry)
+diff --git a/hurd/path-lookup.c b/hurd/path-lookup.c
+index 25f9f2fe..3f40d44a 100644
+--- a/hurd/path-lookup.c
++++ b/hurd/path-lookup.c
+@@ -28,15 +28,15 @@
+    prefixed path).  If FUN never returns 0, return the first non-ENOENT
+    return value, or ENOENT if there is none.  */
+ error_t
+-file_name_path_scan (const char *file_name, const char *path,
+-		     error_t (*fun)(const char *name),
+-		     char **prefixed_name)
++__file_name_path_scan_c (const char *file_name, const char *path,
++			 error_t (*fun) (void *ctx, const char *name),
++			 void *ctx, char **prefixed_name)
+ {
+   if (path == NULL || strchr (file_name, '/'))
+     {
+       if (prefixed_name)
+ 	*prefixed_name = 0;
+-      return (*fun)(file_name);
++      return (*fun) (ctx, file_name);
+     }
+   else
+     {
+@@ -58,7 +58,7 @@ file_name_path_scan (const char *file_name, const char *path,
+ 	    pfxed_name[pfx_len++] = '/';
+ 	  memcpy (pfxed_name + pfx_len, file_name, file_name_len + 1);
+ 
+-	  err = (*fun)(pfxed_name);
++	  err = (*fun) (ctx, pfxed_name);
+ 	  if (err == 0)
+ 	    {
+ 	      if (prefixed_name)
+@@ -76,6 +76,28 @@ file_name_path_scan (const char *file_name, const char *path,
+     }
+ }
+ 
++/* file_name_path_scan's FUN, given as the context of the above.  */
++struct plain_scan
++{
++  error_t (*fun) (const char *name);
++};
++
++static error_t
++plain_scan (void *ctx, const char *name)
++{
++  return (*((struct plain_scan *) ctx)->fun) (name);
++}
++
++error_t
++file_name_path_scan (const char *file_name, const char *path,
++		     error_t (*fun)(const char *name),
++		     char **prefixed_name)
++{
++  struct plain_scan s = { fun };
++  return __file_name_path_scan_c (file_name, path, plain_scan, &s,
++				  prefixed_name);
++}
++
+ /* Lookup FILE_NAME and return the node opened with FLAGS & MODE in result
+    (see hurd_file_name_lookup for details), but a simple filename (without
+    any directory prefixes) will be consecutively prefixed with the pathnames
+@@ -85,6 +107,35 @@ file_name_path_scan (const char *file_name, const char *path,
+    then if RESULT is looked up directly, *PREFIXED_NAME is set to NULL, and
+    if it is looked up using a prefix from PATH, *PREFIXED_NAME is set to
+    malloced storage containing the prefixed name.  */
++/* A lookup of each name __file_name_path_scan_c tries: the context of its
++   function.  Not a nested function, which clang lacks.  */
++struct scan_lookup
++{
++  const struct hurd_lookup_ctx *ctx;
++  int flags;
++  mode_t mode;
++  file_t *result;
++};
++
++static error_t
++scan_lookup (void *ctx, const char *name)
++{
++  struct scan_lookup *s = ctx;
++  return __hurd_file_name_lookup_c (s->ctx, name, s->flags, s->mode,
++				    s->result);
++}
++
++error_t
++__hurd_file_name_path_lookup_c (const struct hurd_lookup_ctx *ctx,
++				const char *file_name, const char *path,
++				int flags, mode_t mode,
++				file_t *result, char **prefixed_name)
++{
++  struct scan_lookup s = { ctx, flags, mode, result };
++  return __file_name_path_scan_c (file_name, path, scan_lookup, &s,
++				  prefixed_name);
++}
++
+ error_t
+ __hurd_file_name_path_lookup (error_t (*use_init_port)
+ 			        (int which, error_t (*operate) (mach_port_t)),
+@@ -97,13 +148,10 @@ __hurd_file_name_path_lookup (error_t (*use_init_port)
+ 			      int flags, mode_t mode,
+ 			      file_t *result, char **prefixed_name)
+ {
+-  error_t scan_lookup (const char *name)
+-    {
+-      return
+-	__hurd_file_name_lookup (use_init_port, get_dtable_port, lookup,
+-				 name, flags, mode, result);
+-    }
+-  return file_name_path_scan (file_name, path, scan_lookup, prefixed_name);
++  struct hurd_lookup_plain p;
++  _hurd_lookup_plain (&p, use_init_port, get_dtable_port, lookup);
++  return __hurd_file_name_path_lookup_c (&p.ctx, file_name, path, flags,
++					 mode, result, prefixed_name);
+ }
+ strong_alias (__hurd_file_name_path_lookup, hurd_file_name_path_lookup)
+ 
+@@ -114,9 +162,9 @@ file_name_path_lookup (const char *file_name, const char *path,
+   error_t err;
+   file_t result;
+ 
+-  err = __hurd_file_name_path_lookup (&_hurd_ports_use, &__getdport, 0,
+-				      file_name, path, flags, mode,
+-				      &result, prefixed_name);
++  err = __hurd_file_name_path_lookup_c (&_hurd_lookup_default,
++					file_name, path, flags, mode,
++					&result, prefixed_name);
+ 
+   return err ? (__hurd_fail (err), MACH_PORT_NULL) : result;
+ }
+diff --git a/sysdeps/hurd/include/hurd/lookup.h b/sysdeps/hurd/include/hurd/lookup.h
+new file mode 100644
+index 00000000..ca3bdd55
+--- /dev/null
++++ b/sysdeps/hurd/include/hurd/lookup.h
+@@ -0,0 +1,101 @@
++#ifndef	_HURD_LOOKUP_H
++#include_next <hurd/lookup.h>
++
++#ifndef _ISOMAC
++/* The lookup functions' callbacks with their context as a parameter, for
++   use inside libc and ld.so in place of the nested functions they were
++   given, which clang lacks.  The exported functions of <hurd/lookup.h> are
++   kept, and call these (hurdlookup.c).  */
++
++/* An operation on a port (an OPERATE of <hurd/lookup.h>): FN, called with
++   this and the port.  Its user puts it first in a struct holding the
++   operation's context.  */
++struct hurd_port_op
++{
++  error_t (*fn) (struct hurd_port_op *op, mach_port_t port);
++};
++
++/* What a lookup uses: its user may put it first in a struct holding more.  */
++struct hurd_lookup_ctx
++{
++  /* Call OP with the init port WHICH, as USE_INIT_PORT of <hurd/lookup.h>.  */
++  error_t (*use_init_port) (const struct hurd_lookup_ctx *ctx, int which,
++			    struct hurd_port_op *op);
++  /* As GET_DTABLE_PORT, or NULL.  */
++  file_t (*get_dtable_port) (const struct hurd_lookup_ctx *ctx, int fd);
++  /* As LOOKUP: dir_lookup's arguments, or NULL for __dir_lookup.  */
++  error_t (*lookup) (file_t dir, const char *name, int flags, mode_t mode,
++		     retry_type *do_retry, string_t retry_name,
++		     mach_port_t *result);
++};
++
++/* _hurd_ports_use with an operation (hurdinit.c).  */
++extern error_t _hurd_ports_use_op (int which, struct hurd_port_op *op)
++  attribute_hidden;
++
++/* libc's own: the init ports of _hurd_ports, __getdport, __dir_lookup.  */
++extern const struct hurd_lookup_ctx _hurd_lookup_default attribute_hidden;
++
++/* As _hurd_lookup_default, but the init port INIT_PORT_CWDIR is STARTDIR:
++   a lookup relative to STARTDIR.  */
++struct hurd_lookup_under
++{
++  struct hurd_lookup_ctx ctx;
++  file_t startdir;
++};
++extern error_t _hurd_lookup_under_use (const struct hurd_lookup_ctx *ctx,
++				       int which, struct hurd_port_op *op)
++  attribute_hidden;
++extern file_t _hurd_lookup_getdport (const struct hurd_lookup_ctx *ctx,
++				     int fd) attribute_hidden;
++#define HURD_LOOKUP_UNDER(dir) \
++  { { _hurd_lookup_under_use, _hurd_lookup_getdport, NULL }, (dir) }
++
++/* The functions of <hurd/lookup.h>, their callbacks in CTX.  */
++extern error_t __hurd_file_name_lookup_c (const struct hurd_lookup_ctx *ctx,
++					  const char *file_name,
++					  int flags, mode_t mode,
++					  file_t *result) attribute_hidden;
++extern error_t __hurd_file_name_split_c (const struct hurd_lookup_ctx *ctx,
++					 const char *file_name,
++					 file_t *dir, char **name)
++  attribute_hidden;
++extern error_t __hurd_directory_name_split_c
++  (const struct hurd_lookup_ctx *ctx, const char *directory_name,
++   file_t *dir, char **name) attribute_hidden;
++extern error_t __hurd_file_name_lookup_retry_c
++  (const struct hurd_lookup_ctx *ctx, enum retry_type doretry,
++   string_t retryname, int flags, mode_t mode, file_t *result)
++  attribute_hidden;
++extern error_t __hurd_file_name_path_lookup_c
++  (const struct hurd_lookup_ctx *ctx, const char *file_name,
++   const char *path, int flags, mode_t mode, file_t *result,
++   char **prefixed_name) attribute_hidden;
++/* file_name_path_scan, FUN given CTX.  */
++extern error_t __file_name_path_scan_c (const char *file_name,
++					const char *path,
++					error_t (*fun) (void *ctx,
++							const char *name),
++					void *ctx, char **prefixed_name)
++  attribute_hidden;
++
++/* The exported functions' callbacks as a context (hurdlookup.c): a USE_INIT_PORT
++   given a plain OPERATE reaches its operation through a thread's pointer.  */
++struct hurd_lookup_plain
++{
++  struct hurd_lookup_ctx ctx;
++  error_t (*use_init_port) (int which, error_t (*operate) (mach_port_t));
++  file_t (*get_dtable_port) (int fd);
++};
++extern void _hurd_lookup_plain (struct hurd_lookup_plain *p,
++				error_t (*use_init_port)
++				  (int which,
++				   error_t (*operate) (mach_port_t)),
++				file_t (*get_dtable_port) (int fd),
++				error_t (*lookup)
++				  (file_t dir, const char *name, int flags,
++				   mode_t mode, retry_type *do_retry,
++				   string_t retry_name, mach_port_t *result))
++  attribute_hidden;
++#endif
++#endif
+diff --git a/sysdeps/mach/hurd/_Fork.c b/sysdeps/mach/hurd/_Fork.c
+index 7949f536..54e86665 100644
+--- a/sysdeps/mach/hurd/_Fork.c
++++ b/sysdeps/mach/hurd/_Fork.c
+@@ -54,6 +54,23 @@ DEFINE_HOOK (_hurd_fork_child_hook, (void));
+ DEFINE_HOOK (_hurd_fork_parent_hook, (void));
+ 
+ 
++/* Resume the NTHREADS THREADS but SELF, if *STOPPED says they were
++   suspended.  Not a nested function in _Fork, which clang lacks.  */
++static void
++resume_threads (thread_t *threads, mach_msg_type_number_t nthreads,
++		thread_t self, int *stopped)
++{
++  if (! *stopped)
++    return;
++
++  assert (threads);
++
++  for (mach_msg_type_number_t i = 0; i < nthreads; ++i)
++    if (threads[i] != self)
++      __thread_resume (threads[i]);
++  *stopped = 0;
++}
++
+ /* Clone the calling process, creating an exact copy.
+    Return -1 for errors, 0 to the new process,
+    and the process ID of the new process to the old process.  */
+@@ -89,19 +106,6 @@ retry:
+       mach_msg_type_number_t nthreads = 0;
+       int ports_locked = 0, stopped = 0;
+ 
+-      void resume_threads (void)
+-	{
+-	  if (! stopped)
+-	    return;
+-
+-	  assert (threads);
+-
+-	  for (i = 0; i < nthreads; ++i)
+-	    if (threads[i] != ss->thread)
+-	      __thread_resume (threads[i]);
+-	  stopped = 0;
+-	}
+-
+       /* Run things that prepare for forking before we create the task.  */
+       RUN_HOOK (_hurd_fork_prepare_hook, ());
+ 
+@@ -424,7 +428,7 @@ retry:
+ 
+       /* All state has now been copied from the parent.  It is safe to
+ 	 resume other parent threads.  */
+-      resume_threads ();
++      resume_threads (threads, nthreads, ss->thread, &stopped);
+ 
+       /* Create the child main user thread and signal thread.  */
+       if ((err = __thread_create (newtask, &thread))
+@@ -535,7 +539,7 @@ retry:
+ 	for (i = 0; i < _hurd_nports; ++i)
+ 	  __spin_unlock (&_hurd_ports[i].lock);
+ 
+-      resume_threads ();
++      resume_threads (threads, nthreads, ss->thread, &stopped);
+ 
+       if (newtask != MACH_PORT_NULL)
+ 	{
+diff --git a/sysdeps/mach/hurd/dl-sysdep.c b/sysdeps/mach/hurd/dl-sysdep.c
+index 0e348d64..47a942c6 100644
+--- a/sysdeps/mach/hurd/dl-sysdep.c
++++ b/sysdeps/mach/hurd/dl-sysdep.c
+@@ -259,6 +259,33 @@ _dl_sysdep_start_cleanup (void)
+        __attribute__ ((alias (#name)))			\
+        __attribute_copy__ (name);
+ 
++/* open_file's lookups: the init ports and descriptors the exec server
++   gave.  Functions, not the nested ones they were, which clang lacks.  */
++static error_t
++use_init_port (const struct hurd_lookup_ctx *ctx, int which,
++	       struct hurd_port_op *op)
++{
++  return (which < _dl_hurd_data->portarraysize
++	  ? ((*op->fn) (op, _dl_hurd_data->portarray[which]))
++	  : EGRATUITOUS);
++}
++
++static file_t
++get_dtable_port (const struct hurd_lookup_ctx *ctx, int fd)
++{
++  if ((unsigned int) fd < _dl_hurd_data->dtablesize
++      && _dl_hurd_data->dtable[fd] != MACH_PORT_NULL)
++    {
++      __mach_port_mod_refs (__mach_task_self (), _dl_hurd_data->dtable[fd],
++			    MACH_PORT_RIGHT_SEND, +1);
++      return _dl_hurd_data->dtable[fd];
++    }
++  return __hurd_fail (EBADF), MACH_PORT_NULL;
++}
++
++static const struct hurd_lookup_ctx open_file_lookup =
++  { use_init_port, get_dtable_port, __dir_lookup };
++
+ /* Open FILE_NAME and return a Hurd I/O for it in *PORT, or return an
+    error.  If STAT is non-zero, stat the file into that stat buffer.  */
+ static error_t
+@@ -270,24 +297,6 @@ open_file (const char *file_name, int flags,
+   file_t startdir;
+   error_t err;
+ 
+-  error_t use_init_port (int which, error_t (*operate) (file_t))
+-    {
+-      return (which < _dl_hurd_data->portarraysize
+-	      ? ((*operate) (_dl_hurd_data->portarray[which]))
+-	      : EGRATUITOUS);
+-    }
+-  file_t get_dtable_port (int fd)
+-    {
+-      if ((unsigned int) fd < _dl_hurd_data->dtablesize
+-	  && _dl_hurd_data->dtable[fd] != MACH_PORT_NULL)
+-	{
+-	  __mach_port_mod_refs (__mach_task_self (), _dl_hurd_data->dtable[fd],
+-				MACH_PORT_RIGHT_SEND, +1);
+-	  return _dl_hurd_data->dtable[fd];
+-	}
+-      return __hurd_fail (EBADF), MACH_PORT_NULL;
+-    }
+-
+   assert (!(flags & ~(O_READ | O_EXEC | O_CLOEXEC | O_IGNORE_CTTY)));
+   flags &= ~(O_CLOEXEC | O_IGNORE_CTTY);
+ 
+@@ -301,9 +310,9 @@ open_file (const char *file_name, int flags,
+ 		      &doretry, retryname, port);
+ 
+   if (!err)
+-    err = __hurd_file_name_lookup_retry (use_init_port, get_dtable_port,
+-					 __dir_lookup, doretry, retryname,
+-					 flags, 0, port);
++    err = __hurd_file_name_lookup_retry_c (&open_file_lookup,
++					   doretry, retryname,
++					   flags, 0, port);
+   if (!err && stat)
+     {
+       err = __io_stat (*port, stat);
+diff --git a/sysdeps/mach/hurd/faccessat.c b/sysdeps/mach/hurd/faccessat.c
+index e27a8641..10178e54 100644
+--- a/sysdeps/mach/hurd/faccessat.c
++++ b/sysdeps/mach/hurd/faccessat.c
+@@ -39,6 +39,85 @@ hurd_fail_noerrno (error_t err)
+   return -1;
+ }
+ 
++/* __faccessat_common's helpers: functions given their context, not the
++   nested functions they were, which clang lacks.  */
++
++/* Get a port to the FD directory, authenticated with the real IDs.  */
++static error_t
++reauthenticate_cwdir_at (int fd, file_t *result)
++{
++  error_t err;
++  mach_port_t ref;
++  ref = __mach_reply_port ();
++  err = HURD_DPORT_USE
++    (fd,
++     ({
++       err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
++       if (!err)
++	 err = __auth_user_authenticate (_hurd_id.rid_auth,
++					 ref, MACH_MSG_TYPE_MAKE_SEND,
++					 result);
++       err;
++     }));
++  __mach_port_destroy (__mach_task_self (), ref);
++  return err;
++}
++
++/* Get a port to our root directory, authenticated with the real IDs.  */
++static error_t
++reauthenticate (int which, file_t *result)
++{
++  error_t err;
++  mach_port_t ref;
++  ref = __mach_reply_port ();
++  err = HURD_PORT_USE
++    (&_hurd_ports[which],
++     ({
++       err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
++       if (!err)
++	 err = __auth_user_authenticate (_hurd_id.rid_auth,
++					 ref, MACH_MSG_TYPE_MAKE_SEND,
++					 result);
++       err;
++     }));
++  __mach_port_destroy (__mach_task_self (), ref);
++  return err;
++}
++
++/* The lookup's init ports: the auth port and directories with the real
++   IDs.  */
++struct real_ids
++{
++  struct hurd_lookup_ctx ctx;
++  int fd;
++  const char *file;
++  file_t *rcrdir, *rcwdir;
++};
++
++static error_t
++init_port (const struct hurd_lookup_ctx *ctx, int which,
++	   struct hurd_port_op *op)
++{
++  const struct real_ids *r = (const struct real_ids *) ctx;
++  switch (which)
++    {
++    case INIT_PORT_AUTH:
++      return (*op->fn) (op, _hurd_id.rid_auth);
++    case INIT_PORT_CRDIR:
++      return (reauthenticate (INIT_PORT_CRDIR, r->rcrdir) ?:
++	      (*op->fn) (op, *r->rcrdir));
++    case INIT_PORT_CWDIR:
++      if (r->fd == AT_FDCWD || r->file[0] == '/')
++	return (reauthenticate (INIT_PORT_CWDIR, r->rcwdir) ?:
++		(*op->fn) (op, *r->rcwdir));
++      else
++	return (reauthenticate_cwdir_at (r->fd, r->rcwdir) ?:
++		(*op->fn) (op, *r->rcwdir));
++    default:
++      return _hurd_ports_use_op (which, op);
++    }
++}
++
+ static int
+ __faccessat_common (int fd, const char *file, int type, int at_flags,
+                     int (*errfunc) (error_t))
+@@ -64,66 +143,9 @@ __faccessat_common (int fd, const char *file, int type, int at_flags,
+       if (err)
+ 	return errfunc (err);
+ 
+-      error_t reauthenticate_cwdir_at (file_t *result)
+-	{
+-	  /* Get a port to the FD directory, authenticated with the real IDs.  */
+-	  error_t err;
+-	  mach_port_t ref;
+-	  ref = __mach_reply_port ();
+-	  err = HURD_DPORT_USE
+-	    (fd,
+-	     ({
+-	       err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
+-	       if (!err)
+-		 err = __auth_user_authenticate (_hurd_id.rid_auth,
+-						 ref, MACH_MSG_TYPE_MAKE_SEND,
+-						 result);
+-	       err;
+-	     }));
+-	  __mach_port_destroy (__mach_task_self (), ref);
+-	  return err;
+-	}
+-
+-      error_t reauthenticate (int which, file_t *result)
+-	{
+-	  /* Get a port to our root directory, authenticated with the real IDs.  */
+-	  error_t err;
+-	  mach_port_t ref;
+-	  ref = __mach_reply_port ();
+-	  err = HURD_PORT_USE
+-	    (&_hurd_ports[which],
+-	     ({
+-	       err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
+-	       if (!err)
+-		 err = __auth_user_authenticate (_hurd_id.rid_auth,
+-						 ref, MACH_MSG_TYPE_MAKE_SEND,
+-						 result);
+-	       err;
+-	     }));
+-	  __mach_port_destroy (__mach_task_self (), ref);
+-	  return err;
+-	}
+-
+-      error_t init_port (int which, error_t (*operate) (mach_port_t))
+-	{
+-	  switch (which)
+-	    {
+-	    case INIT_PORT_AUTH:
+-	      return (*operate) (_hurd_id.rid_auth);
+-	    case INIT_PORT_CRDIR:
+-	      return (reauthenticate (INIT_PORT_CRDIR, &rcrdir) ?:
+-		      (*operate) (rcrdir));
+-	    case INIT_PORT_CWDIR:
+-	      if (fd == AT_FDCWD || file[0] == '/')
+-		return (reauthenticate (INIT_PORT_CWDIR, &rcwdir) ?:
+-			(*operate) (rcwdir));
+-	      else
+-		return (reauthenticate_cwdir_at (&rcwdir) ?:
+-			(*operate) (rcwdir));
+-	    default:
+-	      return _hurd_ports_use (which, operate);
+-	    }
+-	}
++      struct real_ids real_ids =
++	{ { init_port, _hurd_lookup_getdport, NULL }, fd, file,
++	  &rcrdir, &rcwdir };
+ 
+       rcrdir = rcwdir = MACH_PORT_NULL;
+ 
+@@ -165,8 +187,8 @@ __faccessat_common (int fd, const char *file, int type, int at_flags,
+ 
+       if (!err)
+ 	/* Look up the file name using the modified init ports.  */
+-	err = __hurd_file_name_lookup (&init_port, &__getdport, 0,
+-				       file, hurd_flags, 0, &io);
++	err = __hurd_file_name_lookup_c (&real_ids.ctx,
++					 file, hurd_flags, 0, &io);
+ 
+       /* We are done with _hurd_id.rid_auth now.  */
+      lose:
+diff --git a/sysdeps/mach/hurd/setitimer.c b/sysdeps/mach/hurd/setitimer.c
+index 5a57280e..ef1e5f70 100644
+--- a/sysdeps/mach/hurd/setitimer.c
++++ b/sysdeps/mach/hurd/setitimer.c
+@@ -153,6 +153,18 @@ restart_itimer (struct hurd_signal_preemptor *preemptor,
+ }
+ 
+ 
++/* End the itimer thread and free its stack.  Not a nested function in
++   setitimer_locked, which clang lacks: it used nothing of its.  */
++static inline void
++kill_itimer_thread (void)
++{
++  __thread_terminate (_hurd_itimer_thread);
++  __vm_deallocate (__mach_task_self (),
++		   _hurd_itimer_thread_stack_base,
++		   _hurd_itimer_thread_stack_size);
++  _hurd_itimer_thread = MACH_PORT_NULL;
++}
++
+ /* Called before any normal SIGALRM signal is delivered.
+    Reload the itimer, or disable the itimer.  */
+ 
+@@ -165,15 +177,6 @@ setitimer_locked (const struct itimerval *new, struct itimerval *old,
+   struct timeval old_interval;
+   error_t err;
+ 
+-  inline void kill_itimer_thread (void)
+-    {
+-      __thread_terminate (_hurd_itimer_thread);
+-      __vm_deallocate (__mach_task_self (),
+-		       _hurd_itimer_thread_stack_base,
+-		       _hurd_itimer_thread_stack_size);
+-      _hurd_itimer_thread = MACH_PORT_NULL;
+-    }
+-
+   if (!new)
+     {
+       /* Just return the current value in OLD without changing anything.

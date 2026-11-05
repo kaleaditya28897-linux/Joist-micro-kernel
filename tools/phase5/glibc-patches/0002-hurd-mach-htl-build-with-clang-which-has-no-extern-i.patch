@@ -1,7 +1,7 @@
-From 2adca74129c5fec2cc0efd63596d6bb1eeb28251 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 18:30:35 +0530
-Subject: [PATCH 2/7] hurd, mach, htl: build with clang, which has no extern
+Subject: [PATCH] hurd, mach, htl: build with clang, which has no extern
  inlines in libc
 
 features.h gives clang's builds of libc no __USE_EXTERN_INLINES (public
@@ -20,18 +20,21 @@ behind it, and made their out-of-line copies by turning it on.
 
 Nothing changes for GCC. Joist, Phase 5 step 7.
 ---
- htl/pt-spin-inlines.c                    |  3 +++
+ htl/pt-spin-inlines.c                    |  3 ++
  hurd/Makefile                            |  1 +
  hurd/hurd.h                              |  2 +-
- hurd/hurd/fd.h                           | 17 ++++++++++-------
- hurd/hurd/port.h                         | 14 +++++++-------
- hurd/hurd/userlink.h                     |  4 +++-
- mach/lock-intern.h                       | 20 +++++++++++---------
- mach/spin-lock.c                         |  4 +++-
- sysdeps/hurd/include/hurd/signal.h       | 14 +++++++-------
- sysdeps/mach/htl/bits/spin-lock-inline.h | 10 ++++++++++
- sysdeps/mach/x86/machine-lock.h          |  6 +++---
- 11 files changed, 59 insertions(+), 36 deletions(-)
+ hurd/hurd/fd.h                           | 30 ++++++++++++++-----
+ hurd/hurd/port.h                         | 24 ++++++++++-----
+ hurd/hurd/userlink.h                     | 12 ++++----
+ mach/lock-intern.h                       | 38 ++++++++++++++++++------
+ mach/spin-lock.c                         |  4 ++-
+ sysdeps/hurd/include/hurd/fd.h           |  2 --
+ sysdeps/hurd/include/hurd/port.h         |  2 --
+ sysdeps/hurd/include/hurd/signal.h       | 14 ++++-----
+ sysdeps/mach/htl/bits/spin-lock-inline.h | 10 +++++++
+ sysdeps/mach/include/lock-intern.h       | 13 ++------
+ sysdeps/mach/x86/machine-lock.h          |  6 ++--
+ 14 files changed, 106 insertions(+), 55 deletions(-)
 
 diff --git a/htl/pt-spin-inlines.c b/htl/pt-spin-inlines.c
 index 72b14662..de22a4b7 100644
@@ -73,7 +76,7 @@ index 05674a93..ca910f7d 100644
  __hurd_fail (error_t err)
  {
 diff --git a/hurd/hurd/fd.h b/hurd/hurd/fd.h
-index e46941ca..fa7829b8 100644
+index e46941ca..988e1957 100644
 --- a/hurd/hurd/fd.h
 +++ b/hurd/hurd/fd.h
 @@ -45,7 +45,10 @@ struct hurd_fd
@@ -88,7 +91,21 @@ index e46941ca..fa7829b8 100644
  #include <lock-intern.h>
  extern int _hurd_dtablesize;
  extern struct hurd_fd **_hurd_dtable;
-@@ -64,7 +67,7 @@ extern struct mutex _hurd_dtable_lock; /* Locks those two variables.  */
+@@ -58,13 +61,21 @@ extern struct mutex _hurd_dtable_lock; /* Locks those two variables.  */
+ #define _HURD_FD_H_EXTERN_INLINE __extern_inline
+ #endif
+ 
++/* Inside libc, a function's hidden prototype, after its declaration and
++   before its inline body: clang ignores one after the body.  */
++#if defined _LIBC && !defined _ISOMAC
++# define _HURD_FD_H_HIDDEN(name) libc_hidden_proto (name)
++#else
++# define _HURD_FD_H_HIDDEN(name)
++#endif
++
+ /* Returns the descriptor cell for FD.  If FD is invalid or unused, return
+    NULL.  The cell is unlocked; when ready to use it, lock it and check for
+    it being unused.  */
  
  extern struct hurd_fd *_hurd_fd_get (int fd);
  
@@ -97,25 +114,29 @@ index e46941ca..fa7829b8 100644
  # if IS_IN (libc)
  _HURD_FD_H_EXTERN_INLINE struct hurd_fd *
  _hurd_fd_get (int fd)
-@@ -151,7 +154,7 @@ _hurd_fd_get (int fd)
+@@ -150,8 +161,9 @@ _hurd_fd_get (int fd)
+    Returns the signal to take, or zero if none.  */
  
  extern int _hurd_fd_error_signal (error_t err) __COLD;
++_HURD_FD_H_HIDDEN (_hurd_fd_error_signal)
  
 -#ifdef __USE_EXTERN_INLINES
 +#if defined __USE_EXTERN_INLINES || defined _FORCE_INLINES
  _HURD_FD_H_EXTERN_INLINE int
  _hurd_fd_error_signal (error_t err)
  {
-@@ -176,7 +179,7 @@ _hurd_fd_error_signal (error_t err)
+@@ -175,8 +187,9 @@ _hurd_fd_error_signal (error_t err)
+    descriptor ports.  Some errors are translated into signals.  */
  
  extern error_t _hurd_fd_error (int fd, error_t err) __COLD;
++_HURD_FD_H_HIDDEN (_hurd_fd_error)
  
 -#ifdef __USE_EXTERN_INLINES
 +#if defined __USE_EXTERN_INLINES || defined _FORCE_INLINES
  _HURD_FD_H_EXTERN_INLINE error_t
  _hurd_fd_error (int fd, error_t err)
  {
-@@ -196,7 +199,7 @@ _hurd_fd_error (int fd, error_t err)
+@@ -196,7 +209,7 @@ _hurd_fd_error (int fd, error_t err)
  
  extern int __hurd_dfail (int fd, error_t err) __COLD;
  
@@ -124,7 +145,7 @@ index e46941ca..fa7829b8 100644
  _HURD_FD_H_EXTERN_INLINE int
  __hurd_dfail (int fd, error_t err)
  {
-@@ -210,7 +213,7 @@ __hurd_dfail (int fd, error_t err)
+@@ -210,7 +223,7 @@ __hurd_dfail (int fd, error_t err)
  
  extern int __hurd_sockfail (int fd, int flags, error_t err) __COLD;
  
@@ -133,20 +154,36 @@ index e46941ca..fa7829b8 100644
  _HURD_FD_H_EXTERN_INLINE int
  __hurd_sockfail (int fd, int flags, error_t err)
  {
-@@ -285,7 +288,7 @@ extern int _hurd_select (int nfds, struct pollfd *pollfds,
+@@ -285,7 +298,10 @@ extern int _hurd_select (int nfds, struct pollfd *pollfds,
  /* Apply AT_FLAGS on FLAGS, in preparation for calling
     __hurd_file_name_lookup.  */
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
++#if defined _LIBC && IS_IN (libc)
++extern error_t __hurd_at_flags (int *at_flags, int *flags);
++#endif
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  # if IS_IN (libc)
  _HURD_FD_H_EXTERN_INLINE error_t
  __hurd_at_flags (int *at_flags, int *flags)
 diff --git a/hurd/hurd/port.h b/hurd/hurd/port.h
-index 174a53a3..4e2953b0 100644
+index 174a53a3..2baf7249 100644
 --- a/hurd/hurd/port.h
 +++ b/hurd/hurd/port.h
-@@ -62,7 +62,7 @@ struct hurd_port
+@@ -57,12 +57,20 @@ struct hurd_port
+ #define _HURD_PORT_H_EXTERN_INLINE __extern_inline
+ #endif
+ 
++/* Inside libc, a function's hidden prototype, after its declaration and
++   before its inline body: clang ignores one after the body.  */
++#if defined _LIBC && !defined _ISOMAC
++# define _HURD_PORT_H_HIDDEN(name) libc_hidden_proto (name)
++#else
++# define _HURD_PORT_H_HIDDEN(name)
++#endif
++
+ 
+ /* Initialize *PORT to INIT.  */
  
  extern void _hurd_port_init (struct hurd_port *port, mach_port_t init);
  
@@ -155,16 +192,18 @@ index 174a53a3..4e2953b0 100644
  # if IS_IN (libc)
  _HURD_PORT_H_EXTERN_INLINE void
  _hurd_port_init (struct hurd_port *port, mach_port_t init)
-@@ -85,7 +85,7 @@ extern mach_port_t
+@@ -84,8 +92,9 @@ extern void _hurd_port_cleanup (void *, jmp_buf, int);
+ extern mach_port_t
  _hurd_port_locked_get (struct hurd_port *port,
  		       struct hurd_userlink *link);
++_HURD_PORT_H_HIDDEN (_hurd_port_locked_get)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  # if IS_IN (libc)
  _HURD_PORT_H_EXTERN_INLINE mach_port_t
  _hurd_port_locked_get (struct hurd_port *port,
-@@ -111,7 +111,7 @@ extern mach_port_t
+@@ -111,7 +120,7 @@ extern mach_port_t
  _hurd_port_get (struct hurd_port *port,
  		struct hurd_userlink *link);
  
@@ -173,7 +212,7 @@ index 174a53a3..4e2953b0 100644
  # if IS_IN (libc)
  _HURD_PORT_H_EXTERN_INLINE mach_port_t
  _hurd_port_get (struct hurd_port *port,
-@@ -136,7 +136,7 @@ _hurd_port_move (struct hurd_port *port,
+@@ -136,7 +145,7 @@ _hurd_port_move (struct hurd_port *port,
  		 struct hurd_userlink *new_link,
  		 struct hurd_userlink *link);
  
@@ -182,7 +221,7 @@ index 174a53a3..4e2953b0 100644
  # if IS_IN (libc)
  _HURD_PORT_H_EXTERN_INLINE void
  _hurd_port_move (struct hurd_port *port,
-@@ -160,7 +160,7 @@ _hurd_port_free (struct hurd_port *port,
+@@ -160,7 +169,7 @@ _hurd_port_free (struct hurd_port *port,
  		 struct hurd_userlink *link,
  		 mach_port_t used_port);
  
@@ -191,16 +230,18 @@ index 174a53a3..4e2953b0 100644
  # if IS_IN (libc)
  _HURD_PORT_H_EXTERN_INLINE void
  _hurd_port_free (struct hurd_port *port,
-@@ -190,7 +190,7 @@ _hurd_port_free (struct hurd_port *port,
+@@ -189,8 +198,9 @@ _hurd_port_free (struct hurd_port *port,
+    PORT->lock is locked.  */
  
  extern void _hurd_port_locked_set (struct hurd_port *port, mach_port_t newport);
++_HURD_PORT_H_HIDDEN (_hurd_port_locked_set)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  # if IS_IN (libc)
  _HURD_PORT_H_EXTERN_INLINE void
  _hurd_port_locked_set (struct hurd_port *port, mach_port_t newport)
-@@ -209,7 +209,7 @@ _hurd_port_locked_set (struct hurd_port *port, mach_port_t newport)
+@@ -209,7 +219,7 @@ _hurd_port_locked_set (struct hurd_port *port, mach_port_t newport)
  
  extern void _hurd_port_set (struct hurd_port *port, mach_port_t newport);
  
@@ -210,7 +251,7 @@ index 174a53a3..4e2953b0 100644
  _HURD_PORT_H_EXTERN_INLINE void
  _hurd_port_set (struct hurd_port *port, mach_port_t newport)
 diff --git a/hurd/hurd/userlink.h b/hurd/hurd/userlink.h
-index 78ffae47..dc62c0de 100644
+index 78ffae47..3b1cd83a 100644
 --- a/hurd/hurd/userlink.h
 +++ b/hurd/hurd/userlink.h
 @@ -24,7 +24,9 @@
@@ -224,8 +265,44 @@ index 78ffae47..dc62c0de 100644
  # if IS_IN (libc)
  #  include <hurd/signal.h>
  # endif
+@@ -84,7 +86,7 @@ extern void
+ _hurd_userlink_link (struct hurd_userlink **chainp,
+ 		     struct hurd_userlink *link);
+ 
+-#if defined __USE_EXTERN_INLINES && defined _LIBC
++#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
+ # if IS_IN (libc)
+ _HURD_USERLINK_H_EXTERN_INLINE void
+ _hurd_userlink_link (struct hurd_userlink **chainp,
+@@ -118,7 +120,7 @@ _hurd_userlink_link (struct hurd_userlink **chainp,
+ 
+ extern int _hurd_userlink_unlink (struct hurd_userlink *link);
+ 
+-#if defined __USE_EXTERN_INLINES && defined _LIBC
++#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
+ # if IS_IN (libc)
+ _HURD_USERLINK_H_EXTERN_INLINE int
+ _hurd_userlink_unlink (struct hurd_userlink *link)
+@@ -154,7 +156,7 @@ _hurd_userlink_unlink (struct hurd_userlink *link)
+ extern void _hurd_userlink_move (struct hurd_userlink *new_link,
+                                 struct hurd_userlink *link);
+ 
+-#if defined __USE_EXTERN_INLINES && defined _LIBC
++#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
+ # if IS_IN (libc)
+ _HURD_USERLINK_H_EXTERN_INLINE void
+ _hurd_userlink_move (struct hurd_userlink *new_link,
+@@ -184,7 +186,7 @@ _hurd_userlink_move (struct hurd_userlink *new_link,
+ 
+ extern int _hurd_userlink_clear (struct hurd_userlink **chainp);
+ 
+-#if defined __USE_EXTERN_INLINES && defined _LIBC
++#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
+ # if IS_IN (libc)
+ _HURD_USERLINK_H_EXTERN_INLINE int
+ _hurd_userlink_clear (struct hurd_userlink **chainp)
 diff --git a/mach/lock-intern.h b/mach/lock-intern.h
-index 05bb4778..67f8e16e 100644
+index 05bb4778..645ed947 100644
 --- a/mach/lock-intern.h
 +++ b/mach/lock-intern.h
 @@ -19,7 +19,9 @@
@@ -239,7 +316,23 @@ index 05bb4778..67f8e16e 100644
  # include <lowlevellock.h>
  #endif
  
-@@ -37,7 +39,7 @@ typedef unsigned int __spin_lock_t;
+@@ -27,6 +29,15 @@
+ #define _EXTERN_INLINE __extern_inline
+ #endif
+ 
++/* Inside libc, each function's hidden prototype, after its declaration
++   and before its inline body: clang ignores one that comes after the body
++   (the bodies are in libc whatever the compiler, _FORCE_INLINES).  */
++#if defined _LIBC && !defined _ISOMAC
++# define __LOCK_INTERN_HIDDEN(name) libc_hidden_proto (name)
++#else
++# define __LOCK_INTERN_HIDDEN(name)
++#endif
++
+ /* The type of a spin lock variable.  */
+ typedef unsigned int __spin_lock_t;
+ 
+@@ -37,7 +48,7 @@ typedef unsigned int __spin_lock_t;
  
  extern void __spin_lock_init (__spin_lock_t *__lock);
  
@@ -248,63 +341,87 @@ index 05bb4778..67f8e16e 100644
  _EXTERN_INLINE void
  __spin_lock_init (__spin_lock_t *__lock)
  {
-@@ -53,7 +55,7 @@ extern void __spin_lock_solid (__spin_lock_t *__lock);
+@@ -48,12 +59,14 @@ __spin_lock_init (__spin_lock_t *__lock)
+ 
+ /* Lock LOCK, blocking if we can't get it.  */
+ extern void __spin_lock_solid (__spin_lock_t *__lock);
++__LOCK_INTERN_HIDDEN (__spin_lock_solid)
+ 
+ /* Lock the spin lock LOCK.  */
  
  extern void __spin_lock (__spin_lock_t *__lock);
++__LOCK_INTERN_HIDDEN (__spin_lock)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  _EXTERN_INLINE void
  __spin_lock (__spin_lock_t *__lock)
  {
-@@ -64,7 +66,7 @@ __spin_lock (__spin_lock_t *__lock)
+@@ -63,8 +76,9 @@ __spin_lock (__spin_lock_t *__lock)
+ 
  /* Unlock LOCK.  */
  extern void __spin_unlock (__spin_lock_t *__lock);
++__LOCK_INTERN_HIDDEN (__spin_unlock)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  _EXTERN_INLINE void
  __spin_unlock (__spin_lock_t *__lock)
  {
-@@ -75,7 +77,7 @@ __spin_unlock (__spin_lock_t *__lock)
+@@ -74,8 +88,9 @@ __spin_unlock (__spin_lock_t *__lock)
+ 
  /* Try to lock LOCK; return nonzero if we locked it, zero if another has.  */
  extern int __spin_try_lock (__spin_lock_t *__lock);
++__LOCK_INTERN_HIDDEN (__spin_try_lock)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  _EXTERN_INLINE int
  __spin_try_lock (__spin_lock_t *__lock)
  {
-@@ -86,7 +88,7 @@ __spin_try_lock (__spin_lock_t *__lock)
+@@ -85,8 +100,9 @@ __spin_try_lock (__spin_lock_t *__lock)
+ 
  /* Return nonzero if LOCK is locked.  */
  extern int __spin_lock_locked (__spin_lock_t *__lock);
++__LOCK_INTERN_HIDDEN (__spin_lock_locked)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  _EXTERN_INLINE int
  __spin_lock_locked (__spin_lock_t *__lock)
  {
-@@ -112,7 +114,7 @@ extern void __mutex_init (void *__lock);
+@@ -107,12 +123,14 @@ struct mutex {
+ 
+ /* Initialize the newly allocated mutex lock LOCK for further use.  */
+ extern void __mutex_init (void *__lock);
++__LOCK_INTERN_HIDDEN (__mutex_init)
+ 
+ /* Lock the mutex lock LOCK.  */
  
  extern void __mutex_lock (void *__lock);
++__LOCK_INTERN_HIDDEN (__mutex_lock)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  _EXTERN_INLINE void
  __mutex_lock (void *__lock)
  {
-@@ -124,7 +126,7 @@ __mutex_lock (void *__lock)
+@@ -123,8 +141,9 @@ __mutex_lock (void *__lock)
+ /* Unlock the mutex lock LOCK.  */
  
  extern void __mutex_unlock (void *__lock);
++__LOCK_INTERN_HIDDEN (__mutex_unlock)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
  _EXTERN_INLINE void
  __mutex_unlock (void *__lock)
  {
-@@ -135,7 +137,7 @@ __mutex_unlock (void *__lock)
+@@ -134,8 +153,9 @@ __mutex_unlock (void *__lock)
+ 
  
  extern int __mutex_trylock (void *__lock);
++__LOCK_INTERN_HIDDEN (__mutex_trylock)
  
 -#if defined __USE_EXTERN_INLINES && defined _LIBC
 +#if (defined __USE_EXTERN_INLINES || defined _FORCE_INLINES) && defined _LIBC
@@ -323,6 +440,32 @@ index e5c730d7..d37b22f6 100644
  #define _EXTERN_INLINE /* Empty to define the real functions.  */
  #include "spin-lock.h"
  
+diff --git a/sysdeps/hurd/include/hurd/fd.h b/sysdeps/hurd/include/hurd/fd.h
+index 1985b6fb..d151a1d4 100644
+--- a/sysdeps/hurd/include/hurd/fd.h
++++ b/sysdeps/hurd/include/hurd/fd.h
+@@ -44,8 +44,6 @@ extern void _hurd_fd_port_use_cleanup (void *arg);
+      __result; })
+ 
+ libc_hidden_proto (_hurd_intern_fd)
+-libc_hidden_proto (_hurd_fd_error)
+-libc_hidden_proto (_hurd_fd_error_signal)
+ #  ifdef _HURD_FD_H_HIDDEN_DEF
+ libc_hidden_def (_hurd_fd_error)
+ libc_hidden_def (_hurd_fd_error_signal)
+diff --git a/sysdeps/hurd/include/hurd/port.h b/sysdeps/hurd/include/hurd/port.h
+index e8c4b713..bc0fcbcf 100644
+--- a/sysdeps/hurd/include/hurd/port.h
++++ b/sysdeps/hurd/include/hurd/port.h
+@@ -28,8 +28,6 @@ extern void _hurd_port_use_cleanup (void *arg);
+      __libc_cleanup_pop (1);						      \
+      __result; })
+ 
+-libc_hidden_proto (_hurd_port_locked_get)
+-libc_hidden_proto (_hurd_port_locked_set)
+ #ifdef _HURD_PORT_H_HIDDEN_DEF
+ libc_hidden_def (_hurd_port_locked_get)
+ libc_hidden_def (_hurd_port_locked_set)
 diff --git a/sysdeps/hurd/include/hurd/signal.h b/sysdeps/hurd/include/hurd/signal.h
 index 4d94b5ab..7684e05f 100644
 --- a/sysdeps/hurd/include/hurd/signal.h
@@ -382,6 +525,27 @@ index 275c4cd3..90d42458 100644
  #if defined __USE_EXTERN_INLINES || defined _FORCE_INLINES
  
  # ifndef __EBUSY
+diff --git a/sysdeps/mach/include/lock-intern.h b/sysdeps/mach/include/lock-intern.h
+index e42ad17b..f47f0510 100644
+--- a/sysdeps/mach/include/lock-intern.h
++++ b/sysdeps/mach/include/lock-intern.h
+@@ -1,14 +1,5 @@
+ #ifndef _LOCK_INTERN_H
++/* The hidden prototypes are in <mach/lock-intern.h> itself, before the
++   inline bodies (__LOCK_INTERN_HIDDEN).  */
+ #include <mach/lock-intern.h>
+-#ifndef _ISOMAC
+-libc_hidden_proto (__spin_lock_locked)
+-libc_hidden_proto (__spin_lock)
+-libc_hidden_proto (__spin_lock_solid)
+-libc_hidden_proto (__spin_unlock)
+-libc_hidden_proto (__spin_try_lock)
+-libc_hidden_proto (__mutex_init)
+-libc_hidden_proto (__mutex_lock)
+-libc_hidden_proto (__mutex_unlock)
+-libc_hidden_proto (__mutex_trylock)
+-#endif
+ #endif
 diff --git a/sysdeps/mach/x86/machine-lock.h b/sysdeps/mach/x86/machine-lock.h
 index e80ff070..1ed60aa8 100644
 --- a/sysdeps/mach/x86/machine-lock.h
@@ -413,6 +577,3 @@ index e80ff070..1ed60aa8 100644
  _EXTERN_INLINE int
  __spin_lock_locked (__spin_lock_t *__lock)
  {
--- 
-2.55.0
-

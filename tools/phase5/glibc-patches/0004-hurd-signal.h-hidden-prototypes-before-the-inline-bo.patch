@@ -1,8 +1,8 @@
-From 1d821fffaf29aef517c93936283cfcb40c10787b Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 18:37:13 +0530
-Subject: [PATCH 4/7] hurd: signal.h: hidden prototypes before the inline
- bodies use them
+Subject: [PATCH] hurd: signal.h: hidden prototypes before the inline bodies
+ use them
 
 clang refuses an asm label (libc_hidden_proto's) on a function after its
 first use; with the inline bodies defined (the out-of-line copies,
@@ -54,6 +54,3 @@ index 7684e05f..5342747f 100644
  #endif
  #ifdef _HURD_SIGNAL_H_HIDDEN_DEF
  libc_hidden_def (_hurd_self_sigstate)
--- 
-2.55.0
-

@@ -1,0 +1,3337 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 13:14:30 +0530
+Subject: [PATCH] hurd, htl: no nested functions, part 3: the rest (clang has
+ none)
+
+Helpers that used nothing of their function, or only what they can be
+passed (hurdauth.c, sendto.c, recvmsg.c, intr-msg.c, sigunwind.c,
+ptrace.c): static functions, and a macro naming one with its caller's
+locals where they were many.
+
+Callbacks given a context: _hurd_priority_which_map (get/setpriority),
+_hurd_ctty_input/_output (fd-read.c, fd-write.c, ioctl.c),
+_hurd_startup (init-first.c's doinit, ld.so's go) take a context
+argument, none of them exported; the sigstate's cancel_hook takes
+cancel_hook_arg, a member added at the end of struct hurd_sigstate, as
+htl's own cancel hook does (pt-hurd-cond-timedwait.c).  ioctl.c's
+message is a type of its own, and send_rpc's context.  spawni.c's
+helpers share a context of pointers to __spawni's locals, its lookups a
+struct hurd_lookup_ctx (part 2).
+
+Signal handlers, which are given no context: catch-signal.c's throw and
+sigtimedwait.c's handler find theirs on the thread's own preemptor list.
+A catch's preemptor function (called with the signal thread holding the
+sigstate lock, the thread stopped) marks the matched catch, and no other,
+the one fired; throw jumps to it.  A wait's preemptor records its
+signal; the handler takes the innermost wait whose signal came.
+
+Behaviour is unchanged.  Joist, Phase 5 step 7.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ hurd/catch-signal.c                           | 202 ++++--
+ hurd/ctty-input.c                             |   7 +-
+ hurd/ctty-output.c                            |   9 +-
+ hurd/fd-read.c                                |  32 +-
+ hurd/fd-write.c                               |  28 +-
+ hurd/hurd/fd.h                                |   8 +-
+ hurd/hurd/resource.h                          |   7 +-
+ hurd/hurd/signal.h                            |   5 +-
+ hurd/hurdauth.c                               |  85 +--
+ hurd/hurdprio.c                               |  10 +-
+ hurd/hurdsig.c                                |   1 +
+ hurd/hurdstartup.c                            |   5 +-
+ hurd/hurdstartup.h                            |   7 +-
+ hurd/intr-msg.c                               | 126 ++--
+ hurd/sigunwind.c                              |  53 +-
+ hurd/thread-cancel.c                          |   2 +-
+ sysdeps/mach/hurd/dl-sysdep.c                 | 241 +++----
+ sysdeps/mach/hurd/getpriority.c               | 100 +--
+ .../mach/hurd/htl/pt-hurd-cond-timedwait.c    |  53 +-
+ sysdeps/mach/hurd/init-first.c                |  19 +-
+ sysdeps/mach/hurd/ioctl.c                     | 435 +++++++------
+ sysdeps/mach/hurd/ptrace.c                    | 110 ++--
+ sysdeps/mach/hurd/recvmsg.c                   |  49 +-
+ sysdeps/mach/hurd/sendto.c                    |  70 +-
+ sysdeps/mach/hurd/setpriority.c               | 121 ++--
+ sysdeps/mach/hurd/sigtimedwait.c              | 147 +++--
+ sysdeps/mach/hurd/spawni.c                    | 596 ++++++++++--------
+ 27 files changed, 1457 insertions(+), 1071 deletions(-)
+
+diff --git a/hurd/catch-signal.c b/hurd/catch-signal.c
+index e0c4a97c..abb8df1c 100644
+--- a/hurd/catch-signal.c
++++ b/hurd/catch-signal.c
+@@ -21,24 +21,80 @@
+ #include <string.h>
+ #include <assert.h>
+ 
+-error_t
+-__hurd_catch_signal (sigset_t sigset,
+-		     unsigned long int first, unsigned long int last,
+-		     error_t (*operate) (struct hurd_signal_preemptor *),
+-		     sighandler_t handler)
++/* A catch of a signal: its preemptor, and where `throw' goes back to.
++   Not the nested functions there were (a throw for each catch, using its
++   jump buffer), which clang lacks: the preemptor function, run when the
++   signal matches (in the signal thread, this thread stopped, SS->lock
++   held), marks its catch the one fired, and no other catch of this
++   thread; throw, run in this thread, finds that one.  */
++struct catch
++{
++  struct hurd_signal_preemptor pe;
++  int fired;
++  sigjmp_buf *sigbuf;		/* siglongjmp to this, if not NULL, */
++  jmp_buf *buf;			/* else longjmp to this.  */
++};
++
++static void throw (int signo, long int sigcode, struct sigcontext *scp);
++#define THROW ((sighandler_t) &throw)
++
++static void
++throw (int signo, long int sigcode, struct sigcontext *scp)
++{
++  struct hurd_sigstate *const ss = _hurd_self_sigstate ();
++  struct hurd_signal_preemptor *pe;
++  int error = scp->sc_error ?: EGRATUITOUS;
++
++  for (pe = ss->preemptors; pe != NULL; pe = pe->next)
++    if (pe->handler == THROW && ((struct catch *) pe)->fired)
++      break;
++  assert (pe != NULL);
++  struct catch *c = (struct catch *) pe;
++  c->fired = 0;
++  if (c->sigbuf != NULL)
++    siglongjmp (*c->sigbuf, error);
++  longjmp (*c->buf, error);
++}
++
++static sighandler_t
++catch_preempt (struct hurd_signal_preemptor *preemptor,
++	       struct hurd_sigstate *ss, int *signo,
++	       struct hurd_signal_detail *detail)
++{
++  struct hurd_signal_preemptor *pe;
++  for (pe = ss->preemptors; pe != NULL; pe = pe->next)
++    if (pe->handler == THROW)
++      ((struct catch *) pe)->fired = pe == preemptor;
++  return THROW;
++}
++
++/* A catch's preemptor: SIGSET, sigcodes [FIRST, LAST), going back to
++   SIGBUF or BUF; NEXT the next.  */
++#define CATCH(sigset, first, last, sigbuf, buf, next)			      \
++  {									      \
++    { (sigset), (first), (last), &catch_preempt, THROW, (next) },	      \
++    0, (sigbuf), (buf)							      \
++  }
++
++/* __hurd_catch_signal, OPERATE given CTX.  */
++static error_t
++catch_signal (sigset_t sigset,
++	      unsigned long int first, unsigned long int last,
++	      error_t (*operate) (struct hurd_signal_preemptor *, void *ctx),
++	      void *ctx, sighandler_t handler)
+ {
+   /* We need to restore the signal mask, because otherwise the
+      signal-handling code will have blocked the caught signal and for
+      instance calling hurd_catch_signal again would then dump core.  */
+   sigjmp_buf buf;
+-  void throw (int signo, long int sigcode, struct sigcontext *scp)
+-    { siglongjmp (buf, scp->sc_error ?: EGRATUITOUS); }
+ 
+-  struct hurd_signal_preemptor preemptor =
++  struct catch preemptor = CATCH (sigset, first, last, &buf, NULL, NULL);
++  if (handler != SIG_ERR)
+     {
+-      sigset, first, last,
+-      NULL, handler == SIG_ERR ? (sighandler_t) &throw : handler,
+-    };
++      /* Not our handler: no preemptor function.  */
++      preemptor.pe.preemptor = NULL;
++      preemptor.pe.handler = handler;
++    }
+ 
+   struct hurd_sigstate *const ss = _hurd_self_sigstate ();
+   error_t error;
+@@ -54,12 +110,12 @@ __hurd_catch_signal (sigset_t sigset,
+     {
+       /* Install a signal preemptor for the thread.  */
+       __spin_lock (&ss->lock);
+-      preemptor.next = ss->preemptors;
+-      ss->preemptors = &preemptor;
++      preemptor.pe.next = ss->preemptors;
++      ss->preemptors = &preemptor.pe;
+       __spin_unlock (&ss->lock);
+ 
+       /* Try the operation that might crash.  */
+-      (*operate) (&preemptor);
++      (*operate) (&preemptor.pe, ctx);
+     }
+ 
+   /* Either FUNCTION completed happily and ERROR is still zero, or it hit
+@@ -67,75 +123,103 @@ __hurd_catch_signal (sigset_t sigset,
+      code in ERROR.  Now we can remove the preemptor and return.  */
+ 
+   __spin_lock (&ss->lock);
+-  assert (ss->preemptors == &preemptor);
+-  ss->preemptors = preemptor.next;
++  assert (ss->preemptors == &preemptor.pe);
++  ss->preemptors = preemptor.pe.next;
+   __spin_unlock (&ss->lock);
+ 
+   return error;
+ }
++
++/* __hurd_catch_signal's OPERATE, as catch_signal's.  */
++struct plain_operate
++{
++  error_t (*operate) (struct hurd_signal_preemptor *);
++};
++
++static error_t
++plain_operate (struct hurd_signal_preemptor *preemptor, void *ctx)
++{
++  return (*((struct plain_operate *) ctx)->operate) (preemptor);
++}
++
++error_t
++__hurd_catch_signal (sigset_t sigset,
++		     unsigned long int first, unsigned long int last,
++		     error_t (*operate) (struct hurd_signal_preemptor *),
++		     sighandler_t handler)
++{
++  struct plain_operate o = { operate };
++  return catch_signal (sigset, first, last, &plain_operate, &o, handler);
++}
+ strong_alias (__hurd_catch_signal, hurd_catch_signal)
+ 
+ 
++/* The safe functions' operations.  */
++struct mem_op
++{
++  void *dest;
++  const void *src;
++  int byte;
++  size_t nbytes;
++};
++
++static error_t
++memset_op (struct hurd_signal_preemptor *preemptor, void *ctx)
++{
++  struct mem_op *m = ctx;
++  memset (m->dest, m->byte, m->nbytes);
++  return 0;
++}
++
++static error_t
++memcpy_op (struct hurd_signal_preemptor *preemptor, void *ctx)
++{
++  struct mem_op *m = ctx;
++  memcpy (m->dest, m->src, m->nbytes);
++  return 0;
++}
++
+ error_t
+ hurd_safe_memset (void *dest, int byte, size_t nbytes)
+ {
+-  error_t operate (struct hurd_signal_preemptor *preemptor)
+-    {
+-      memset (dest, byte, nbytes);
+-      return 0;
+-    }
+-  return __hurd_catch_signal (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
+-			      (vm_address_t) dest, (vm_address_t) dest + nbytes,
+-			      &operate, SIG_ERR);
++  struct mem_op m = { dest, NULL, byte, nbytes };
++  return catch_signal (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
++		       (vm_address_t) dest, (vm_address_t) dest + nbytes,
++		       &memset_op, &m, SIG_ERR);
+ }
+ 
+ 
+ error_t
+ hurd_safe_copyout (void *dest, const void *src, size_t nbytes)
+ {
+-  error_t operate (struct hurd_signal_preemptor *preemptor)
+-    {
+-      memcpy (dest, src, nbytes);
+-      return 0;
+-    }
+-  return __hurd_catch_signal (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
+-			      (vm_address_t) dest, (vm_address_t) dest + nbytes,
+-			      &operate, SIG_ERR);
++  struct mem_op m = { dest, src, 0, nbytes };
++  return catch_signal (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
++		       (vm_address_t) dest, (vm_address_t) dest + nbytes,
++		       &memcpy_op, &m, SIG_ERR);
+ }
+ 
+ error_t
+ hurd_safe_copyin (void *dest, const void *src, size_t nbytes)
+ {
+-  error_t operate (struct hurd_signal_preemptor *preemptor)
+-    {
+-      memcpy (dest, src, nbytes);
+-      return 0;
+-    }
+-  return __hurd_catch_signal (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
+-			      (vm_address_t) src, (vm_address_t) src + nbytes,
+-			      &operate, SIG_ERR);
++  struct mem_op m = { dest, src, 0, nbytes };
++  return catch_signal (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
++		       (vm_address_t) src, (vm_address_t) src + nbytes,
++		       &memcpy_op, &m, SIG_ERR);
+ }
+ 
+ error_t
+ hurd_safe_memmove (void *dest, const void *src, size_t nbytes)
+ {
+   jmp_buf buf;
+-  void throw (int signo, long int sigcode, struct sigcontext *scp)
+-    { longjmp (buf, scp->sc_error ?: EGRATUITOUS); }
+ 
+-  struct hurd_signal_preemptor src_preemptor =
+-    {
+-      __sigmask (SIGBUS) | __sigmask (SIGSEGV),
+-      (vm_address_t) src, (vm_address_t) src + nbytes,
+-      NULL, (sighandler_t) &throw,
+-    };
+-  struct hurd_signal_preemptor dest_preemptor =
+-    {
+-      __sigmask (SIGBUS) | __sigmask (SIGSEGV),
+-      (vm_address_t) dest, (vm_address_t) dest + nbytes,
+-      NULL, (sighandler_t) &throw,
+-      &src_preemptor
+-    };
++  struct catch src_preemptor =
++    CATCH (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
++	   (vm_address_t) src, (vm_address_t) src + nbytes,
++	   NULL, &buf, NULL);
++  struct catch dest_preemptor =
++    CATCH (__sigmask (SIGBUS) | __sigmask (SIGSEGV),
++	   (vm_address_t) dest, (vm_address_t) dest + nbytes,
++	   NULL, &buf, &src_preemptor.pe);
+ 
+   struct hurd_sigstate *const ss = _hurd_self_sigstate ();
+   error_t error;
+@@ -147,8 +231,8 @@ hurd_safe_memmove (void *dest, const void *src, size_t nbytes)
+     {
+       /* Install a signal preemptor for the thread.  */
+       __spin_lock (&ss->lock);
+-      src_preemptor.next = ss->preemptors;
+-      ss->preemptors = &dest_preemptor;
++      src_preemptor.pe.next = ss->preemptors;
++      ss->preemptors = &dest_preemptor.pe;
+       __spin_unlock (&ss->lock);
+ 
+       /* Do the copy; it might fault.  */
+@@ -160,8 +244,8 @@ hurd_safe_memmove (void *dest, const void *src, size_t nbytes)
+      code in ERROR.  Now we can remove the preemptor and return.  */
+ 
+   __spin_lock (&ss->lock);
+-  assert (ss->preemptors == &dest_preemptor);
+-  ss->preemptors = src_preemptor.next;
++  assert (ss->preemptors == &dest_preemptor.pe);
++  ss->preemptors = src_preemptor.pe.next;
+   __spin_unlock (&ss->lock);
+ 
+   return error;
+diff --git a/hurd/ctty-input.c b/hurd/ctty-input.c
+index 9ecc0efd..025c5758 100644
+--- a/hurd/ctty-input.c
++++ b/hurd/ctty-input.c
+@@ -23,16 +23,17 @@
+    generate SIGTTIN or EIO as appropriate.  */
+ 
+ error_t
+-_hurd_ctty_input (io_t port, io_t ctty, error_t (*rpc) (io_t))
++_hurd_ctty_input (io_t port, io_t ctty, error_t (*rpc) (void *, io_t),
++		  void *ctx)
+ {
+   error_t err;
+ 
+   if (ctty == MACH_PORT_NULL)
+-    return (*rpc) (port);
++    return (*rpc) (ctx, port);
+ 
+   do
+     {
+-      err = (*rpc) (ctty);
++      err = (*rpc) (ctx, ctty);
+       if (err == EBACKGROUND)
+ 	{
+ 	  /* We are a background job and tried to read from the tty.
+diff --git a/hurd/ctty-output.c b/hurd/ctty-output.c
+index fdbe8b50..85a722a6 100644
+--- a/hurd/ctty-output.c
++++ b/hurd/ctty-output.c
+@@ -23,10 +23,11 @@
+    generate SIGTTOU if appropriate.  */
+ 
+ error_t
+-_hurd_ctty_output (io_t port, io_t ctty, error_t (*rpc) (io_t))
++_hurd_ctty_output (io_t port, io_t ctty, error_t (*rpc) (void *, io_t),
++		   void *ctx)
+ {
+   if (ctty == MACH_PORT_NULL)
+-    return (*rpc) (port);
++    return (*rpc) (ctx, port);
+   else
+     {
+       struct hurd_sigstate *ss = _hurd_self_sigstate ();
+@@ -49,9 +50,9 @@ _hurd_ctty_output (io_t port, io_t ctty, error_t (*rpc) (io_t))
+ 	  _hurd_sigstate_unlock (ss);
+ 
+ 	  if (err)
+-	    return (*rpc) (port);
++	    return (*rpc) (ctx, port);
+ 
+-	  err = (*rpc) (ctty);
++	  err = (*rpc) (ctx, ctty);
+ 	  if (err == EBACKGROUND)
+ 	    {
+ 	      if (_hurd_orphaned)
+diff --git a/hurd/fd-read.c b/hurd/fd-read.c
+index 7f4833d8..d7c9410a 100644
+--- a/hurd/fd-read.c
++++ b/hurd/fd-read.c
+@@ -21,22 +21,34 @@
+ #include <hurd/fd.h>
+ #include <string.h>
+ 
+-error_t
+-_hurd_fd_read (struct hurd_fd *fd, void *buf, size_t *nbytes, loff_t offset)
++/* The read, and where its data goes.  Not a nested function in
++   _hurd_fd_read, which clang lacks.  */
++struct readfd
+ {
+-  error_t err;
+   char *data;
+   mach_msg_type_number_t nread;
++  loff_t offset;
++  size_t nbytes;
++};
+ 
+-  error_t readfd (io_t port)
+-    {
+-      return __io_read (port, &data, &nread, offset, *nbytes);
+-    }
++static error_t
++readfd (void *ctx, io_t port)
++{
++  struct readfd *r = ctx;
++  return __io_read (port, &r->data, &r->nread, r->offset, r->nbytes);
++}
++
++error_t
++_hurd_fd_read (struct hurd_fd *fd, void *buf, size_t *nbytes, loff_t offset)
++{
++  error_t err;
++  struct readfd r = { buf, *nbytes, offset, *nbytes };
+ 
+-  data = buf;
+-  nread = *nbytes;
+-  if (err = HURD_FD_PORT_USE_CANCEL (fd, _hurd_ctty_input (port, ctty, readfd)))
++  if (err = HURD_FD_PORT_USE_CANCEL (fd, _hurd_ctty_input (port, ctty,
++							   readfd, &r)))
+     return err;
++  char *data = r.data;
++  mach_msg_type_number_t nread = r.nread;
+ 
+   if (__glibc_unlikely (nread > *nbytes))	/* Sanity check for bogus server.  */
+     {
+diff --git a/hurd/fd-write.c b/hurd/fd-write.c
+index 2dc2eedf..ebfbeb23 100644
+--- a/hurd/fd-write.c
++++ b/hurd/fd-write.c
+@@ -21,19 +21,33 @@
+ #include <hurd.h>
+ #include <hurd/fd.h>
+ 
++/* The write, and what it wrote.  Not a nested function in _hurd_fd_write,
++   which clang lacks.  */
++struct writefd
++{
++  const void *buf;
++  size_t nbytes;
++  loff_t offset;
++  vm_size_t wrote;
++};
++
++static error_t
++writefd (void *ctx, io_t port)
++{
++  struct writefd *w = ctx;
++  return __io_write (port, w->buf, w->nbytes, w->offset, &w->wrote);
++}
++
+ error_t
+ _hurd_fd_write (struct hurd_fd *fd,
+ 		const void *buf, size_t *nbytes, loff_t offset)
+ {
+   error_t err;
+-  vm_size_t wrote;
+-
+-  error_t writefd (io_t port)
+-    {
+-      return __io_write (port, buf, *nbytes, offset, &wrote);
+-    }
++  struct writefd w = { buf, *nbytes, offset, 0 };
+ 
+-  err = HURD_FD_PORT_USE_CANCEL (fd, _hurd_ctty_output (port, ctty, writefd));
++  err = HURD_FD_PORT_USE_CANCEL (fd, _hurd_ctty_output (port, ctty,
++							writefd, &w));
++  vm_size_t wrote = w.wrote;
+   if (err)
+     return err;
+ 
+diff --git a/hurd/hurd/fd.h b/hurd/hurd/fd.h
+index 988e1957..5af159e5 100644
+--- a/hurd/hurd/fd.h
++++ b/hurd/hurd/fd.h
+@@ -278,8 +278,12 @@ extern error_t _hurd_fd_write (struct hurd_fd *fd,
+ /* Call *RPC on PORT and/or CTTY; if a call on CTTY returns EBACKGROUND,
+    generate SIGTTIN/SIGTTOU or EIO as appropriate.  */
+ 
+-extern error_t _hurd_ctty_input (io_t port, io_t ctty, error_t (*rpc) (io_t));
+-extern error_t _hurd_ctty_output (io_t port, io_t ctty, error_t (*rpc) (io_t));
++/* RPC is given CTX: a context, not the nested functions its callers gave,
++   which clang lacks.  */
++extern error_t _hurd_ctty_input (io_t port, io_t ctty,
++				 error_t (*rpc) (void *ctx, io_t), void *ctx);
++extern error_t _hurd_ctty_output (io_t port, io_t ctty,
++				  error_t (*rpc) (void *ctx, io_t), void *ctx);
+ 
+ 
+ /* The guts of `select' and `poll'.  Check the first NFDS descriptors
+diff --git a/hurd/hurd/resource.h b/hurd/hurd/resource.h
+index 80277a0e..85e89078 100644
+--- a/hurd/hurd/resource.h
++++ b/hurd/hurd/resource.h
+@@ -35,11 +35,12 @@ extern struct mutex _hurd_rlimit_lock; /* Locks _hurd_rlimits.  */
+    proc_getprocinfo was already done; FN may use *PI arbitrarily, it is
+    reset on the next call; PI_FLAGS is passed to proc_getprocinfo.  Returns
+    FN's result the first time it returns nonzero.  If FN never returns
+-   nonzero, this returns zero.  */
++   nonzero, this returns zero.  FN is given CTX: a context, not the nested
++   functions its callers gave, which clang lacks.  */
+ extern error_t _hurd_priority_which_map (enum __priority_which which, int who,
+-					 error_t (*fn) (pid_t pid,
++					 error_t (*fn) (void *ctx, pid_t pid,
+ 							struct procinfo *pi),
+-					 int pi_flags);
++					 void *ctx, int pi_flags);
+ 
+ /* Convert between Mach priority values and the priority
+    values used by getpriority, setpriority, and nice.  */
+diff --git a/hurd/hurd/signal.h b/hurd/hurd/signal.h
+index 3e1fe312..d2b9353a 100644
+--- a/hurd/hurd/signal.h
++++ b/hurd/hurd/signal.h
+@@ -110,7 +110,10 @@ struct hurd_sigstate
+ 
+     /* These are locked normally.  */
+     int cancel;			/* Flag set by hurd_thread_cancel.  */
+-    void (*cancel_hook) (void);	/* Called on cancellation.  */
++    /* Called on cancellation, given CANCEL_HOOK_ARG (as htl's own: a
++       context, not a nested function, which clang lacks).  */
++    void (*cancel_hook) (void *);
++    void *cancel_hook_arg;
+   };
+ 
+ /* Linked list of states of all threads whose state has been asked for.  */
+diff --git a/hurd/hurdauth.c b/hurd/hurdauth.c
+index a03351d0..65dcb09b 100644
+--- a/hurd/hurdauth.c
++++ b/hurd/hurdauth.c
+@@ -30,6 +30,50 @@ _hurd_refport_secure_p (mach_port_t ref)
+   return 0;
+ }
+ 
++/* Create a list of ids and store it in NEWLISTP, length NEWLISTLEN.
++   Keep all the ids in EXIST (len NEXIST), adding in those from NEW
++   (len NNEW) which are not already there.  Not a nested function in
++   _S_msg_add_auth, which clang lacks: it used nothing of its.  */
++static error_t
++make_list (uid_t **newlistp, mach_msg_type_number_t *newlistlen,
++	   uid_t *exist, mach_msg_type_number_t nexist,
++	   uid_t *new, mach_msg_type_number_t nnew)
++{
++  error_t urp;
++  int i, j, k;
++  vm_size_t offset;
++
++  urp = __vm_allocate (mach_task_self (), (vm_address_t *) newlistp,
++		       nexist + nnew * sizeof (uid_t), 1);
++  if (urp)
++    return urp;
++
++  j = 0;
++  for (i = 0; i < nexist; i++)
++    (*newlistp)[j++] = exist[i];
++
++  for (i = 0; i < nnew; i++)
++    {
++      for (k = 0; k < nexist; k++)
++	if (exist[k] == new[i])
++	  break;
++      if (k < nexist)
++	continue;
++
++      (*newlistp)[j++] = new[i];
++    }
++
++  offset = (round_page (nexist + nnew * sizeof (uid_t))
++	    - round_page (j * sizeof (uid_t)));
++  if (offset)
++    __vm_deallocate (mach_task_self (),
++		     (vm_address_t) (*newlistp
++				     + (nexist + nnew * sizeof (uid_t))),
++		     offset);
++  *newlistlen = j;
++  return 0;
++}
++
+ kern_return_t
+ _S_msg_add_auth (mach_port_t me,
+ 		 auth_t addauth)
+@@ -41,47 +85,6 @@ _S_msg_add_auth (mach_port_t me,
+   uid_t *newgenuids, *newgengids, *newauxuids, *newauxgids;
+   mach_msg_type_number_t nnewgenuids, nnewgengids, nnewauxuids, nnewauxgids;
+ 
+-  /* Create a list of ids and store it in NEWLISTP, length NEWLISTLEN.
+-     Keep all the ids in EXIST (len NEXIST), adding in those from NEW
+-     (len NNEW) which are not already there.  */
+-  error_t make_list (uid_t **newlistp, mach_msg_type_number_t *newlistlen,
+-		     uid_t *exist, mach_msg_type_number_t nexist,
+-		     uid_t *new, mach_msg_type_number_t nnew)
+-    {
+-      error_t urp;
+-      int i, j, k;
+-      vm_size_t offset;
+-
+-      urp = __vm_allocate (mach_task_self (), (vm_address_t *) newlistp,
+-			   nexist + nnew * sizeof (uid_t), 1);
+-      if (urp)
+-	return urp;
+-
+-      j = 0;
+-      for (i = 0; i < nexist; i++)
+-	(*newlistp)[j++] = exist[i];
+-
+-      for (i = 0; i < nnew; i++)
+-	{
+-	  for (k = 0; k < nexist; k++)
+-	    if (exist[k] == new[i])
+-	      break;
+-	  if (k < nexist)
+-	    continue;
+-
+-	  (*newlistp)[j++] = new[i];
+-	}
+-
+-      offset = (round_page (nexist + nnew * sizeof (uid_t))
+-		- round_page (j * sizeof (uid_t)));
+-      if (offset)
+-	__vm_deallocate (mach_task_self (),
+-		         (vm_address_t) (*newlistp
+-				         + (nexist + nnew * sizeof (uid_t))),
+-		         offset);
+-      *newlistlen = j;
+-      return 0;
+-    }
+ 
+   /* Find out what ids ADDAUTH refers to */
+ 
+diff --git a/hurd/hurdprio.c b/hurd/hurdprio.c
+index f6486f71..8bb3dcaa 100644
+--- a/hurd/hurdprio.c
++++ b/hurd/hurdprio.c
+@@ -23,8 +23,8 @@
+ 
+ error_t
+ _hurd_priority_which_map (enum __priority_which which, int who,
+-			  error_t (*function) (pid_t, struct procinfo *),
+-			  int pi_flags)
++			  error_t (*function) (void *, pid_t, struct procinfo *),
++			  void *ctx, int pi_flags)
+ {
+   mach_msg_type_number_t npids = 64, i;
+   pid_t pidbuf[npids], *pids = pidbuf;
+@@ -39,13 +39,13 @@ _hurd_priority_which_map (enum __priority_which which, int who,
+       return EINVAL;
+ 
+     case PRIO_PROCESS:
+-      err = (*function) (who ?: getpid (), 0); /* XXX special-case self? */
++      err = (*function) (ctx, who ?: getpid (), 0); /* XXX special-case self? */
+       break;
+ 
+     case PRIO_PGRP:
+       err = __USEPORT (PROC, __proc_getpgrppids (port, who, &pids, &npids));
+       for (i = 0; !err && i < npids; ++i)
+-	err = (*function) (pids[i], 0);
++	err = (*function) (ctx, pids[i], 0);
+       break;
+ 
+     case PRIO_USER:
+@@ -73,7 +73,7 @@ _hurd_priority_which_map (enum __priority_which which, int who,
+ 
+ 	      pip = (struct procinfo *) pi;
+ 	      if (pip->owner == (uid_t) who)
+-		err = (*function) (pids[i], pip);
++		err = (*function) (ctx, pids[i], pip);
+ 	    }
+ 	}
+       break;
+diff --git a/hurd/hurdsig.c b/hurd/hurdsig.c
+index bd0bcf9e..41d4e6cb 100644
+--- a/hurd/hurdsig.c
++++ b/hurd/hurdsig.c
+@@ -104,6 +104,7 @@ _hurd_thread_sigstate (thread_t thread)
+       ss->active_resources = NULL;
+       ss->cancel = 0;
+       ss->cancel_hook = NULL;
++      ss->cancel_hook_arg = NULL;
+ 
+       if (thread == MACH_PORT_NULL)
+ 	{
+diff --git a/hurd/hurdstartup.c b/hurd/hurdstartup.c
+index ae52331f..3e97cfe8 100644
+--- a/hurd/hurdstartup.c
++++ b/hurd/hurdstartup.c
+@@ -45,7 +45,8 @@ extern void __mach_init (void);
+ 
+ 
+ void
+-_hurd_startup (void **argptr, void (*main) (intptr_t *data))
++_hurd_startup (void **argptr, void (*main) (intptr_t *data, void *ctx),
++	       void *ctx)
+ {
+   error_t err;
+   mach_port_t in_bootstrap;
+@@ -182,7 +183,7 @@ _hurd_startup (void **argptr, void (*main) (intptr_t *data))
+ 	_hurd_init_dtablesize = d->dtablesize;
+       }
+ 
+-    (*main) (argcptr);
++    (*main) (argcptr, ctx);
+   }
+ 
+   /* Should never get here.  */
+diff --git a/hurd/hurdstartup.h b/hurd/hurdstartup.h
+index 16bc5fdb..f662b059 100644
+--- a/hurd/hurdstartup.h
++++ b/hurd/hurdstartup.h
+@@ -55,9 +55,12 @@ struct hurd_startup_data
+    finally, call *MAIN with the information gleaned.  That function is not
+    expected to return.  ARGPTR should be the address of the first argument
+    of the entry point function that is called with the stack exactly as the
+-   exec server or kernel sets it.  */
++   exec server or kernel sets it.  *MAIN is given CTX: a context, not the
++   nested functions its callers gave, which clang lacks.  */
+ 
+-extern void _hurd_startup (void **argptr, void (*main) (intptr_t *data));
++extern void _hurd_startup (void **argptr,
++			   void (*main) (intptr_t *data, void *ctx),
++			   void *ctx);
+ 
+ 
+ #endif	/* hurdstartup.h */
+diff --git a/hurd/intr-msg.c b/hurd/intr-msg.c
+index 02e51440..7fe8815a 100644
+--- a/hurd/intr-msg.c
++++ b/hurd/intr-msg.c
+@@ -25,6 +25,73 @@
+ 
+ #include "intr-msg.h"
+ 
++/* Release the MOVE_SEND rights of the argument TY (of type NAME, NUMBER of
++   them), making them COPY_SEND, for a message that may be sent again.
++   Functions given what they used, not the nested functions they were,
++   which clang lacks.  */
++
++static void
++mark_copy_send (mach_msg_type_long_t *ty)
++{
++  if (ty->msgtl_header.msgt_longform)
++    ty->msgtl_name = MACH_MSG_TYPE_COPY_SEND;
++  else
++    ty->msgtl_header.msgt_name = MACH_MSG_TYPE_COPY_SEND;
++}
++
++/* Out of line: the rights at DATA, and the memory (LENGTH bytes) freed if
++   DEALLOC.  */
++static void
++clean_ports_and_memory (mach_msg_type_long_t *ty, mach_msg_type_name_t name,
++			mach_msg_type_number_t number, char *data,
++			const vm_size_t length, int dealloc)
++{
++  mach_msg_type_number_t i;
++  switch (name)
++    {
++    case MACH_MSG_TYPE_MOVE_SEND:
++      {
++	mach_port_t *ports = (mach_port_t *) data;
++	for (i = 0; i < number; i++)
++	  __mach_port_deallocate (__mach_task_self (),
++				  *ports++);
++      }
++      mark_copy_send (ty);
++      break;
++    case MACH_MSG_TYPE_COPY_SEND:
++    case MACH_MSG_TYPE_MOVE_RECEIVE:
++      break;
++    default:
++      if (MACH_MSG_TYPE_PORT_ANY (name))
++	assert (! "unexpected port type in interruptible RPC");
++    }
++  if (dealloc)
++    __vm_deallocate (__mach_task_self (), (vm_address_t) data, length);
++}
++
++/* In line: the rights PORTS.  */
++static void
++clean_inlined_ports (mach_msg_type_long_t *ty, mach_msg_type_name_t name,
++		     mach_msg_type_number_t number,
++		     mach_port_name_inlined_t *ports)
++{
++  mach_msg_type_number_t i;
++  switch (name)
++    {
++    case MACH_MSG_TYPE_MOVE_SEND:
++      for (i = 0; i < number; i++)
++	__mach_port_deallocate (__mach_task_self (), ports[i].name);
++      mark_copy_send (ty);
++      break;
++    case MACH_MSG_TYPE_COPY_SEND:
++    case MACH_MSG_TYPE_MOVE_RECEIVE:
++      break;
++    default:
++      if (MACH_MSG_TYPE_PORT_ANY (name))
++	assert (! "unexpected port type in interruptible RPC");
++    }
++}
++
+ error_t
+ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
+ 			 mach_msg_option_t option,
+@@ -176,57 +243,6 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
+ 	      mach_msg_type_size_t size;
+ 	      mach_msg_type_number_t number;
+ 
+-	      inline void clean_ports_and_memory (char *data, const vm_size_t length,
+-						int dealloc)
+-		{
+-		  mach_msg_type_number_t i;
+-		  switch (name)
+-		    {
+-		    case MACH_MSG_TYPE_MOVE_SEND:
+-		      {
+-			mach_port_t *ports = (mach_port_t *) data;
+-			for (i = 0; i < number; i++)
+-			  __mach_port_deallocate (__mach_task_self (),
+-						  *ports++);
+-		      }
+-		      if (ty->msgtl_header.msgt_longform)
+-			ty->msgtl_name = MACH_MSG_TYPE_COPY_SEND;
+-		      else
+-			ty->msgtl_header.msgt_name = MACH_MSG_TYPE_COPY_SEND;
+-		      break;
+-		    case MACH_MSG_TYPE_COPY_SEND:
+-		    case MACH_MSG_TYPE_MOVE_RECEIVE:
+-		      break;
+-		    default:
+-		      if (MACH_MSG_TYPE_PORT_ANY (name))
+-			assert (! "unexpected port type in interruptible RPC");
+-		    }
+-		  if (dealloc)
+-		    __vm_deallocate (__mach_task_self (), (vm_address_t) data, length);
+-		}
+-
+-	      inline void clean_inlined_ports (mach_port_name_inlined_t *ports)
+-		{
+-		  mach_msg_type_number_t i;
+-		  switch (name)
+-		    {
+-		    case MACH_MSG_TYPE_MOVE_SEND:
+-		      for (i = 0; i < number; i++)
+-			__mach_port_deallocate (__mach_task_self (), ports[i].name);
+-		      if (ty->msgtl_header.msgt_longform)
+-			ty->msgtl_name = MACH_MSG_TYPE_COPY_SEND;
+-		      else
+-			ty->msgtl_header.msgt_name = MACH_MSG_TYPE_COPY_SEND;
+-		      break;
+-		    case MACH_MSG_TYPE_COPY_SEND:
+-		    case MACH_MSG_TYPE_MOVE_RECEIVE:
+-		      break;
+-		    default:
+-		      if (MACH_MSG_TYPE_PORT_ANY (name))
+-			assert (! "unexpected port type in interruptible RPC");
+-		    }
+-		}
+-
+ 	      char *data;
+ 	      if (ty->msgtl_header.msgt_longform)
+ 		{
+@@ -247,14 +263,16 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
+ 	      const vm_size_t length = ((number * size) + 7) >> 3;
+ 	      if (ty->msgtl_header.msgt_inline)
+ 		{
+-		  clean_inlined_ports ((mach_port_name_inlined_t *) data);
++		  clean_inlined_ports (ty, name, number,
++				       (mach_port_name_inlined_t *) data);
+ 		  /* Move to the next argument.  */
+ 		  ty = (void *) PTR_ALIGN_UP (data + length, __alignof__ (uintptr_t));
+ 		}
+ 	      else
+ 		{
+-		  clean_ports_and_memory (*(void **) data, length,
+-			       ty->msgtl_header.msgt_deallocate);
++		  clean_ports_and_memory (ty, name, number, *(void **) data,
++					  length,
++					  ty->msgtl_header.msgt_deallocate);
+ 		  ty = (void *) data + sizeof (void *);
+ 		}
+ 	    }
+diff --git a/hurd/sigunwind.c b/hurd/sigunwind.c
+index 9ad81e6b..4f6e80f6 100644
+--- a/hurd/sigunwind.c
++++ b/hurd/sigunwind.c
+@@ -28,29 +28,41 @@
+    describing the context interrupted by the signal, when `longjmp' is jumping
+    to an environment that unwinds past the interrupted frame.  */
+ 
++/* Destroy the MiG reply port used by the signal handler, and restore
++   the reply port in use by the thread when interrupted (SCP's).  Not a
++   nested function, which clang lacks.  */
++static inline void
++unwind_cleanup (struct sigcontext *scp)
++{
++  mach_port_t reply_port = THREAD_GETMEM (THREAD_SELF, reply_port);
++  /* Assigning MACH_PORT_DEAD here tells libc's mig_get_reply_port not to
++     get another reply port, but avoids mig_dealloc_reply_port trying to
++     deallocate it after the receive fails (which it will, because the
++     reply port will be bogus, regardless).  */
++  THREAD_SETMEM (THREAD_SELF, reply_port, MACH_PORT_DEAD);
++  if (MACH_PORT_VALID (reply_port))
++    __mach_port_mod_refs (__mach_task_self (), reply_port,
++			  MACH_PORT_RIGHT_RECEIVE, -1);
++  if (scp->sc_reply_port)
++    __mach_port_mod_refs (__mach_task_self (), scp->sc_reply_port,
++			  MACH_PORT_RIGHT_RECEIVE, -1);
++}
++
++static inline uintptr_t
++demangle_ptr (uintptr_t x)
++{
++  PTR_DEMANGLE (x);
++  return x;
++}
++
+ void
+ _hurdsig_longjmp_from_handler (void *data, jmp_buf env, int val)
+ {
+   struct sigcontext *scp = data;
+   struct hurd_sigstate *ss = _hurd_self_sigstate ();
+   int onstack;
+-  inline void cleanup (void)
+-    {
+-      /* Destroy the MiG reply port used by the signal handler, and restore
+-	 the reply port in use by the thread when interrupted.  */
+-      mach_port_t reply_port = THREAD_GETMEM (THREAD_SELF, reply_port);
+-      /* Assigning MACH_PORT_DEAD here tells libc's mig_get_reply_port not to
+-         get another reply port, but avoids mig_dealloc_reply_port trying to
+-         deallocate it after the receive fails (which it will, because the
+-         reply port will be bogus, regardless).  */
+-      THREAD_SETMEM (THREAD_SELF, reply_port, MACH_PORT_DEAD);
+-      if (MACH_PORT_VALID (reply_port))
+-        __mach_port_mod_refs (__mach_task_self (), reply_port,
+-                              MACH_PORT_RIGHT_RECEIVE, -1);
+-      if (scp->sc_reply_port)
+-        __mach_port_mod_refs (__mach_task_self (), scp->sc_reply_port,
+-                              MACH_PORT_RIGHT_RECEIVE, -1);
+-    }
++  /* With SCP as it is then.  */
++#define cleanup() unwind_cleanup (scp)
+ 
+   __spin_lock (&ss->lock);
+   /* We should only ever be called from _longjmp_unwind (in jmp-unwind.c),
+@@ -69,12 +81,6 @@ _hurdsig_longjmp_from_handler (void *data, jmp_buf env, int val)
+ 
+       struct hurd_userlink *link;
+ 
+-      inline uintptr_t demangle_ptr (uintptr_t x)
+-	{
+-	  PTR_DEMANGLE (x);
+-	  return x;
+-	}
+-
+       /* Continue _longjmp_unwind's job of running the unwind
+ 	 forms for frames being unwound, since we will not
+ 	 return to its loop like this one, which called us.  */
+@@ -142,4 +148,5 @@ _hurdsig_longjmp_from_handler (void *data, jmp_buf env, int val)
+      frame and let _longjmp_unwind continue unwinding.  */
+   cleanup ();
+   ss->intr_port = scp->sc_intr_port;
++#undef cleanup
+ }
+diff --git a/hurd/thread-cancel.c b/hurd/thread-cancel.c
+index 0a9fd4a0..05a74847 100644
+--- a/hurd/thread-cancel.c
++++ b/hurd/thread-cancel.c
+@@ -65,7 +65,7 @@ hurd_thread_cancel (thread_t thread)
+ 	/* The code being cancelled has a special wakeup function.
+ 	   Calling this should make the thread wake up and check the
+ 	   cancellation flag.  */
+-	(*ss->cancel_hook) ();
++	(*ss->cancel_hook) (ss->cancel_hook_arg);
+ 
+       __thread_resume (thread);
+     }
+diff --git a/sysdeps/mach/hurd/dl-sysdep.c b/sysdeps/mach/hurd/dl-sysdep.c
+index 47a942c6..d49636cb 100644
+--- a/sysdeps/mach/hurd/dl-sysdep.c
++++ b/sysdeps/mach/hurd/dl-sysdep.c
+@@ -66,155 +66,162 @@ void *_dl_random attribute_relro = NULL;
+ struct hurd_startup_data *_dl_hurd_data;
+ 
+ 
+-ElfW(Addr)
+-_dl_sysdep_start (void **start_argptr,
+-		  void (*dl_main) (const ElfW(Phdr) *phdr, ElfW(Word) phent,
+-				   ElfW(Addr) *user_entry,
+-				   ElfW(auxv_t) *auxv))
++typedef void dl_main_t (const ElfW(Phdr) *phdr, ElfW(Word) phent,
++			ElfW(Addr) *user_entry, ElfW(auxv_t) *auxv);
++
++/* _dl_sysdep_start's callback from _hurd_startup: CTX its dl_main.  Not
++   a nested function, which clang lacks.  */
++static void
++go (intptr_t *argdata, void *ctx)
+ {
+-  void go (intptr_t *argdata)
+-    {
+-      char *orig_argv0;
+-      char **p;
++  dl_main_t *dl_main = *(dl_main_t **) ctx;
++  char *orig_argv0;
++  char **p;
+ 
+-      /* Cache the information in various global variables.  */
+-      _dl_argc = *argdata;
+-      _dl_argv = 1 + (char **) argdata;
+-      _environ = &_dl_argv[_dl_argc + 1];
+-      for (p = _environ; *p++;); /* Skip environ pointers and terminator.  */
++  /* Cache the information in various global variables.  */
++  _dl_argc = *argdata;
++  _dl_argv = 1 + (char **) argdata;
++  _environ = &_dl_argv[_dl_argc + 1];
++  for (p = _environ; *p++;); /* Skip environ pointers and terminator.  */
+ 
+-      orig_argv0 = _dl_argv[0];
++  orig_argv0 = _dl_argv[0];
+ 
+-      if ((void *) p == _dl_argv[0])
+-	{
+-	  static struct hurd_startup_data nodata;
+-	  _dl_hurd_data = &nodata;
+-	  nodata.user_entry = (vm_address_t) ENTRY_POINT;
+-	}
+-      else
+-	_dl_hurd_data = (void *) p;
++  if ((void *) p == _dl_argv[0])
++    {
++      static struct hurd_startup_data nodata;
++      _dl_hurd_data = &nodata;
++      nodata.user_entry = (vm_address_t) ENTRY_POINT;
++    }
++  else
++    _dl_hurd_data = (void *) p;
+ 
+-      GLRO(dl_platform) = NULL; /* Default to nothing known about the platform.  */
++  GLRO(dl_platform) = NULL; /* Default to nothing known about the platform.  */
+ 
+-      __libc_enable_secure = _dl_hurd_data->flags & EXEC_SECURE;
++  __libc_enable_secure = _dl_hurd_data->flags & EXEC_SECURE;
+ 
+-      __tunables_init (_environ);
++  __tunables_init (_environ);
+ 
+-      /* Initialize DSO sorting algorithm after tunables.  */
+-      _dl_sort_maps_init ();
++  /* Initialize DSO sorting algorithm after tunables.  */
++  _dl_sort_maps_init ();
+ 
+ #ifdef DL_SYSDEP_INIT
+-      DL_SYSDEP_INIT;
++  DL_SYSDEP_INIT;
+ #endif
+ 
+ #ifdef DL_PLATFORM_INIT
+-      DL_PLATFORM_INIT;
++  DL_PLATFORM_INIT;
+ #endif
+ 
+-      /* Determine the length of the platform name.  */
+-      if (GLRO(dl_platform) != NULL)
+-	GLRO(dl_platformlen) = strlen (GLRO(dl_platform));
++  /* Determine the length of the platform name.  */
++  if (GLRO(dl_platform) != NULL)
++    GLRO(dl_platformlen) = strlen (GLRO(dl_platform));
+ 
+-      if (_dl_hurd_data->flags & EXEC_STACK_ARGS
+-	  && _dl_hurd_data->user_entry == 0)
+-	_dl_hurd_data->user_entry = (vm_address_t) ENTRY_POINT;
++  if (_dl_hurd_data->flags & EXEC_STACK_ARGS
++      && _dl_hurd_data->user_entry == 0)
++    _dl_hurd_data->user_entry = (vm_address_t) ENTRY_POINT;
+ 
+ #if 0				/* XXX make this work for real someday... */
+-      if (_dl_hurd_data->user_entry == (vm_address_t) ENTRY_POINT)
+-	/* We were invoked as a command, not as the program interpreter.
+-	   The generic ld.so code supports this: it will parse the args
+-	   as "ld.so PROGRAM [ARGS...]".  For booting the Hurd, we
+-	   support an additional special syntax:
+-	     ld.so [-LIBS...] PROGRAM [ARGS...]
+-	   Each LIBS word consists of "FILENAME=MEMOBJ";
+-	   for example "-/lib/libc.so=123" says that the contents of
+-	   /lib/libc.so are found in a memory object whose port name
+-	   in our task is 123.  */
+-	while (_dl_argc > 2 && _dl_argv[1][0] == '-' && _dl_argv[1][1] != '-')
+-	  {
+-	    char *lastslash, *memobjname, *p;
+-	    struct link_map *l;
+-	    mach_port_t memobj;
+-	    error_t err;
+-
+-	    --_dl_argc;
+-	    p = _dl_argv++[1] + 1;
+-
+-	    memobjname = strchr (p, '=');
+-	    if (! memobjname)
+-	      _dl_sysdep_fatal ("Bogus library spec: ", p, "\n", NULL);
+-	    *memobjname++ = '\0';
+-	    memobj = 0;
+-	    while (*memobjname != '\0')
+-	      memobj = (memobj * 10) + (*memobjname++ - '0');
+-
+-	    /* Add a user reference on the memory object port, so we will
+-	       still have one after _dl_map_object_from_fd calls our
+-	       `close'.  */
+-	    err = __mach_port_mod_refs (__mach_task_self (), memobj,
+-					MACH_PORT_RIGHT_SEND, +1);
+-	    assert_perror (err);
+-
+-	    lastslash = strrchr (p, '/');
+-	    l = _dl_map_object_from_fd (lastslash ? lastslash + 1 : p, NULL,
+-					memobj, strdup (p), 0);
+-
+-	    /* Squirrel away the memory object port where it
+-	       can be retrieved by the program later.  */
+-	    l->l_info[DT_NULL] = (void *) memobj;
+-	  }
++  if (_dl_hurd_data->user_entry == (vm_address_t) ENTRY_POINT)
++    /* We were invoked as a command, not as the program interpreter.
++       The generic ld.so code supports this: it will parse the args
++       as "ld.so PROGRAM [ARGS...]".  For booting the Hurd, we
++       support an additional special syntax:
++	 ld.so [-LIBS...] PROGRAM [ARGS...]
++       Each LIBS word consists of "FILENAME=MEMOBJ";
++       for example "-/lib/libc.so=123" says that the contents of
++       /lib/libc.so are found in a memory object whose port name
++       in our task is 123.  */
++    while (_dl_argc > 2 && _dl_argv[1][0] == '-' && _dl_argv[1][1] != '-')
++      {
++	char *lastslash, *memobjname, *p;
++	struct link_map *l;
++	mach_port_t memobj;
++	error_t err;
++
++	--_dl_argc;
++	p = _dl_argv++[1] + 1;
++
++	memobjname = strchr (p, '=');
++	if (! memobjname)
++	  _dl_sysdep_fatal ("Bogus library spec: ", p, "\n", NULL);
++	*memobjname++ = '\0';
++	memobj = 0;
++	while (*memobjname != '\0')
++	  memobj = (memobj * 10) + (*memobjname++ - '0');
++
++	/* Add a user reference on the memory object port, so we will
++	   still have one after _dl_map_object_from_fd calls our
++	   `close'.  */
++	err = __mach_port_mod_refs (__mach_task_self (), memobj,
++				    MACH_PORT_RIGHT_SEND, +1);
++	assert_perror (err);
++
++	lastslash = strrchr (p, '/');
++	l = _dl_map_object_from_fd (lastslash ? lastslash + 1 : p, NULL,
++				    memobj, strdup (p), 0);
++
++	/* Squirrel away the memory object port where it
++	   can be retrieved by the program later.  */
++	l->l_info[DT_NULL] = (void *) memobj;
++      }
+ #endif
+ 
+-      /* Call elf/rtld.c's main program.  It will set everything
+-	 up and leave us to transfer control to USER_ENTRY.  */
+-      (*dl_main) ((const ElfW(Phdr) *) _dl_hurd_data->phdr,
+-		  _dl_hurd_data->phdrsz / sizeof (ElfW(Phdr)),
+-		  (ElfW(Addr) *) &_dl_hurd_data->user_entry, NULL);
++  /* Call elf/rtld.c's main program.  It will set everything
++     up and leave us to transfer control to USER_ENTRY.  */
++  (*dl_main) ((const ElfW(Phdr) *) _dl_hurd_data->phdr,
++	      _dl_hurd_data->phdrsz / sizeof (ElfW(Phdr)),
++	      (ElfW(Addr) *) &_dl_hurd_data->user_entry, NULL);
+ 
+-      /* The call above might screw a few things up.
++  /* The call above might screw a few things up.
+ 
+-	 P is the location after the terminating NULL of the list of
+-	 environment variables.  It has to point to the Hurd startup
+-	 data or if that's missing then P == ARGV[0] must hold. The
+-	 startup code in init-first.c will get confused if this is not
+-	 the case, so we must rearrange things to make it so.  We'll
+-	 recompute P and move the Hurd data or the new ARGV[0] there.
++     P is the location after the terminating NULL of the list of
++     environment variables.  It has to point to the Hurd startup
++     data or if that's missing then P == ARGV[0] must hold. The
++     startup code in init-first.c will get confused if this is not
++     the case, so we must rearrange things to make it so.  We'll
++     recompute P and move the Hurd data or the new ARGV[0] there.
+ 
+-	 Note: directly invoked ld.so can move arguments and env vars.
++     Note: directly invoked ld.so can move arguments and env vars.
+ 
+-	 We use memmove, since the locations might overlap.  */
++     We use memmove, since the locations might overlap.  */
+ 
+-      char **newp;
+-      for (newp = _environ; *newp++;);
++  char **newp;
++  for (newp = _environ; *newp++;);
+ 
+-      if (newp != p || _dl_argv[0] != orig_argv0)
++  if (newp != p || _dl_argv[0] != orig_argv0)
++    {
++      if (orig_argv0 == (char *) p)
+ 	{
+-	  if (orig_argv0 == (char *) p)
++	  if ((char *) newp != _dl_argv[0])
+ 	    {
+-	      if ((char *) newp != _dl_argv[0])
+-		{
+-		  assert ((char *) newp < _dl_argv[0]);
+-		  _dl_argv[0] = memmove ((char *) newp, _dl_argv[0],
+-					 strlen (_dl_argv[0]) + 1);
+-		}
+-	    }
+-	  else
+-	    {
+-	      if ((void *) newp != _dl_hurd_data)
+-		memmove (newp, _dl_hurd_data, sizeof (*_dl_hurd_data));
++	      assert ((char *) newp < _dl_argv[0]);
++	      _dl_argv[0] = memmove ((char *) newp, _dl_argv[0],
++				     strlen (_dl_argv[0]) + 1);
+ 	    }
+ 	}
++      else
++	{
++	  if ((void *) newp != _dl_hurd_data)
++	    memmove (newp, _dl_hurd_data, sizeof (*_dl_hurd_data));
++	}
++    }
+ 
+-      _dl_init_first (argdata);
++  _dl_init_first (argdata);
+ 
+-      {
+-	extern void _dl_start_user (void);
+-	/* Unwind the stack to ARGDATA and simulate a return from _dl_start
+-	   to the RTLD_START code which will run the user's entry point.  */
+-	RETURN_TO (argdata, &_dl_start_user, _dl_hurd_data->user_entry);
+-      }
+-    }
++  {
++    extern void _dl_start_user (void);
++    /* Unwind the stack to ARGDATA and simulate a return from _dl_start
++       to the RTLD_START code which will run the user's entry point.  */
++    RETURN_TO (argdata, &_dl_start_user, _dl_hurd_data->user_entry);
++  }
++}
+ 
++ElfW(Addr)
++_dl_sysdep_start (void **start_argptr,
++		  void (*dl_main) (const ElfW(Phdr) *phdr, ElfW(Word) phent,
++				   ElfW(Addr) *user_entry,
++				   ElfW(auxv_t) *auxv))
++{
+   /* Set up so we can do RPCs.  */
+   __mach_init ();
+ 
+@@ -224,7 +231,7 @@ _dl_sysdep_start (void **start_argptr,
+   /* See hurd/hurdstartup.c; this deals with getting information
+      from the exec server and slicing up the arguments.
+      Then it will call `go', above.  */
+-  _hurd_startup (start_argptr, &go);
++  _hurd_startup (start_argptr, &go, &dl_main);
+ 
+   LOSE;
+   abort ();
+diff --git a/sysdeps/mach/hurd/getpriority.c b/sysdeps/mach/hurd/getpriority.c
+index 938ae6ce..65753563 100644
+--- a/sysdeps/mach/hurd/getpriority.c
++++ b/sysdeps/mach/hurd/getpriority.c
+@@ -19,6 +19,51 @@
+ #include <hurd.h>
+ #include <hurd/resource.h>
+ 
++/* What getonepriority keeps over the processes.  */
++struct getpriority
++{
++  error_t onerr;
++  int maxpri;
++  int *pi, *pibuf;
++  mach_msg_type_number_t pisize;
++};
++
++/* One process's priority into G's maximum.  Not a nested function in
++   __getpriority, which clang lacks.  */
++static error_t
++getonepriority (void *ctx, pid_t pid, struct procinfo *pip)
++{
++  struct getpriority *g = ctx;
++  if (pip)
++    g->onerr = 0;
++  else
++    {
++      int *oldpi = g->pi;
++      mach_msg_type_number_t oldpisize = g->pisize;
++      char *tw = 0;
++      mach_msg_type_number_t twsz = 0;
++      int flags = PI_FETCH_TASKINFO;
++      g->onerr = __USEPORT (PROC, __proc_getprocinfo (port, pid, &flags,
++						       &g->pi, &g->pisize,
++						       &tw, &twsz));
++      if (twsz)
++	__vm_deallocate (__mach_task_self (), (vm_address_t) tw, twsz);
++      if (g->pi != oldpi && oldpi != g->pibuf)
++	/* Old buffer from last call was not reused; free it.  */
++	__vm_deallocate (__mach_task_self (),
++			 (vm_address_t) oldpi, oldpisize * sizeof g->pi[0]);
++      pip = (struct procinfo *) g->pi;
++    }
++#ifdef TASK_SCHED_TIMESHARE_INFO
++  if (!g->onerr && pip->timeshare_base_info.base_priority > g->maxpri)
++    g->maxpri = pip->timeshare_base_info.base_priority;
++#else
++  if (!g->onerr && pip->taskinfo.base_priority > g->maxpri)
++    g->maxpri = pip->taskinfo.base_priority;
++#endif
++  return 0;
++}
++
+ /* Return the highest priority of any process specified by WHICH and WHO
+    (see <sys/resource.h>); if WHO is zero, the current process, process group,
+    or user (as specified by WHO) is used.  A lower priority number means higher
+@@ -26,60 +71,27 @@
+ int
+ __getpriority (enum __priority_which which, id_t who)
+ {
+-  error_t err, onerr;
+-  int maxpri = INT_MIN;
++  error_t err;
+   struct procinfo *pip;		/* Just for sizeof.  */
+-  int pibuf[sizeof *pip + 2 * sizeof (pip->threadinfos[0])], *pi = pibuf;
+-  mach_msg_type_number_t pisize = sizeof pibuf / sizeof pibuf[0];
+-
+-  error_t getonepriority (pid_t pid, struct procinfo *pip)
+-    {
+-      if (pip)
+-	onerr = 0;
+-      else
+-	{
+-	  int *oldpi = pi;
+-	  mach_msg_type_number_t oldpisize = pisize;
+-	  char *tw = 0;
+-	  mach_msg_type_number_t twsz = 0;
+-	  int flags = PI_FETCH_TASKINFO;
+-	  onerr = __USEPORT (PROC, __proc_getprocinfo (port, pid, &flags,
+-						       &pi, &pisize,
+-						       &tw, &twsz));
+-	  if (twsz)
+-	    __vm_deallocate (__mach_task_self (), (vm_address_t) tw, twsz);
+-	  if (pi != oldpi && oldpi != pibuf)
+-	    /* Old buffer from last call was not reused; free it.  */
+-	    __vm_deallocate (__mach_task_self (),
+-			     (vm_address_t) oldpi, oldpisize * sizeof pi[0]);
+-	  pip = (struct procinfo *) pi;
+-	}
+-#ifdef TASK_SCHED_TIMESHARE_INFO
+-      if (!onerr && pip->timeshare_base_info.base_priority > maxpri)
+-	maxpri = pip->timeshare_base_info.base_priority;
+-#else
+-      if (!onerr && pip->taskinfo.base_priority > maxpri)
+-	maxpri = pip->taskinfo.base_priority;
+-#endif
+-      return 0;
+-    }
++  int pibuf[sizeof *pip + 2 * sizeof (pip->threadinfos[0])];
++  struct getpriority g =
++    { 0, INT_MIN, pibuf, pibuf, sizeof pibuf / sizeof pibuf[0] };
+ 
+-  onerr = 0;
+-  err = _hurd_priority_which_map (which, who,
+-				  getonepriority, PI_FETCH_TASKINFO);
++  err = _hurd_priority_which_map (which, who, getonepriority, &g,
++				  PI_FETCH_TASKINFO);
+ 
+-  if (pi != pibuf)
++  if (g.pi != pibuf)
+     __vm_deallocate (__mach_task_self (),
+-		     (vm_address_t) pi, pisize * sizeof pi[0]);
++		     (vm_address_t) g.pi, g.pisize * sizeof g.pi[0]);
+ 
+-  if (!err && maxpri == INT_MIN)
++  if (!err && g.maxpri == INT_MIN)
+     /* No error, but no pids found.  */
+-    err = onerr ?: ESRCH;
++    err = g.onerr ?: ESRCH;
+ 
+   if (err)
+     return __hurd_fail (err);
+ 
+-  return MACH_PRIORITY_TO_NICE (maxpri);
++  return MACH_PRIORITY_TO_NICE (g.maxpri);
+ }
+ libc_hidden_def (__getpriority)
+ weak_alias (__getpriority, getpriority)
+diff --git a/sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c b/sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c
+index 091c5c3f..5c194f67 100644
+--- a/sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c
++++ b/sysdeps/mach/hurd/htl/pt-hurd-cond-timedwait.c
+@@ -43,6 +43,37 @@ versioned_symbol (libc, __pthread_hurd_cond_timedwait_np, pthread_hurd_cond_time
+ compat_symbol (libpthread, __pthread_hurd_cond_timedwait_np, pthread_hurd_cond_timedwait_np, GLIBC_2_21);
+ #endif
+ 
++/* What cancel_me wakes.  */
++struct cancel_ctx
++{
++  pthread_cond_t *cond;
++  struct __pthread *self;
++};
++
++/* This function will be called by hurd_thread_cancel while we are blocked
++   We wake up our thread if it's still blocking or about to block, so it will
++   progress and notice the cancellation flag.  Not a nested function, which
++   clang lacks.  */
++static void
++cancel_me (void *arg)
++{
++  struct cancel_ctx *ctx = arg;
++  pthread_cond_t *cond = ctx->cond;
++  struct __pthread *self = ctx->self;
++  int unblock;
++
++  __pthread_spin_wait (&cond->__lock);
++  /* The thread only needs to be awaken if it's blocking or about to block.
++     If it was already unblocked, it's not queued any more.  */
++  unblock = self->prevp != NULL;
++  if (unblock)
++    __pthread_dequeue (self);
++  __pthread_spin_unlock (&cond->__lock);
++
++  if (unblock)
++    __pthread_wakeup (self);
++}
++
+ int
+ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
+ 					pthread_mutex_t *mutex,
+@@ -53,25 +84,7 @@ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
+   error_t err = 0;
+   int cancel, drain;
+   clockid_t clock_id = __pthread_default_condattr.__clock;
+-
+-  /* This function will be called by hurd_thread_cancel while we are blocked
+-     We wake up our thread if it's still blocking or about to block, so it will
+-     progress and notice the cancellation flag.  */
+-  void cancel_me (void)
+-  {
+-    int unblock;
+-
+-    __pthread_spin_wait (&cond->__lock);
+-    /* The thread only needs to be awaken if it's blocking or about to block.
+-       If it was already unblocked, it's not queued any more.  */
+-    unblock = self->prevp != NULL;
+-    if (unblock)
+-      __pthread_dequeue (self);
+-    __pthread_spin_unlock (&cond->__lock);
+-
+-    if (unblock)
+-      __pthread_wakeup (self);
+-  }
++  struct cancel_ctx ctx = { cond, self };
+ 
+   assert (ss->intr_port == MACH_PORT_NULL);	/* Sanity check for signal bugs. */
+ 
+@@ -104,6 +117,7 @@ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
+ 	clock_id = cond->__attr->__clock;
+       /* Tell hurd_thread_cancel how to unblock us.  */
+       ss->cancel_hook = &cancel_me;
++      ss->cancel_hook_arg = &ctx;
+     }
+   __pthread_spin_unlock (&cond->__lock);
+   __spin_unlock (&ss->lock);
+@@ -168,6 +182,7 @@ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
+ 
+   /* Clear the hook, now that we are done blocking.  */
+   ss->cancel_hook = NULL;
++  ss->cancel_hook_arg = NULL;
+   /* Check the cancellation flag; we might have unblocked due to
+      cancellation rather than a normal pthread_cond_signal or
+      pthread_cond_broadcast (or we might have just happened to get cancelled
+diff --git a/sysdeps/mach/hurd/init-first.c b/sysdeps/mach/hurd/init-first.c
+index 74517aab..9a55022a 100644
+--- a/sysdeps/mach/hurd/init-first.c
++++ b/sysdeps/mach/hurd/init-first.c
+@@ -203,6 +203,16 @@ __libc_init_first (int argc, char **argv, char **envp)
+ 
+ strong_alias (posixland_init, __libc_init_first);
+ 
++/* _hurd_stack_setup's callback: init, then back to CALLER (as below).  Not
++   a nested function, which clang lacks.  */
++static void
++doinit (intptr_t *data, void *caller)
++{
++  init ((void **) data);
++  RETURN_TO (data, caller, 0);
++  __builtin_unreachable ();
++}
++
+ /* XXX This is all a crock and I am not happy with it.
+    This poorly-named function is called by static-start.S,
+    which should not exist at all.  */
+@@ -226,13 +236,6 @@ _hurd_stack_setup (void **argptr)
+   /* Init the essential things.  */
+   first_init ();
+ 
+-  void doinit (intptr_t *data)
+-    {
+-      init ((void **) data);
+-      RETURN_TO (data, caller, 0);
+-      __builtin_unreachable ();
+-    }
+-
+   /* _hurd_startup () will attempt to receive the data block from the exec
+      server; or if that is not possible, will take the data from the pointer
+      we pass it here.  The important point here is that the data
+@@ -246,7 +249,7 @@ _hurd_stack_setup (void **argptr)
+      the stack pointer to the data (which is somewhere on the current stack
+      anyway).  This way, _start1 find the data on the top of the stack, just as
+      it expects to.  */
+-  _hurd_startup (argptr, &doinit);
++  _hurd_startup (argptr, &doinit, caller);
+   __builtin_unreachable ();
+ }
+ 
+diff --git a/sysdeps/mach/hurd/ioctl.c b/sysdeps/mach/hurd/ioctl.c
+index a58fff2f..60178d60 100644
+--- a/sysdeps/mach/hurd/ioctl.c
++++ b/sysdeps/mach/hurd/ioctl.c
+@@ -36,16 +36,14 @@
+ #define msg_align(x) ALIGN_UP (x, __alignof__ (uintptr_t))
+ #define typesize(type)	(1 << (type))
+ 
+-/* Perform the I/O control operation specified by REQUEST on FD.
+-   The actual type and use of ARG and the return value depend on REQUEST.  */
+-int
+-__ioctl (int fd, unsigned long int request, ...)
+-{
++/* __ioctl's helpers and its message: at file scope, given what they use,
++   not the nested functions they were, which clang lacks.  */
++
+ #ifdef MACH_MSG_TYPE_BIT
+-  /* Map individual type fields to Mach IPC types.  */
+-  static const int mach_types[] =
+-    { MACH_MSG_TYPE_CHAR, MACH_MSG_TYPE_INTEGER_16, MACH_MSG_TYPE_INTEGER_32,
+-      MACH_MSG_TYPE_INTEGER_64 };
++/* Map individual type fields to Mach IPC types.  */
++static const int mach_types[] =
++  { MACH_MSG_TYPE_CHAR, MACH_MSG_TYPE_INTEGER_16, MACH_MSG_TYPE_INTEGER_32,
++    MACH_MSG_TYPE_INTEGER_64 };
+ #define io2mach_type(count, type)   \
+   ((mach_msg_type_t) {		    \
+    .msgt_name = mach_types[type],   \
+@@ -58,167 +56,247 @@ __ioctl (int fd, unsigned long int request, ...)
+    })
+ #endif
+ 
+-  /* Extract the type information encoded in the request.  */
+-  unsigned int type = _IOC_TYPE (request);
+-
+-  /* Message buffer.  */
+-  struct
+-  {
++/* Message buffer.  */
++struct ioctl_msg
++{
+ #ifdef MACH_MSG_TYPE_BIT
+-    union
++  union
++  {
++    mig_reply_header_t header;
++    struct
+     {
+-      mig_reply_header_t header;
+-      struct
+-      {
+-	mach_msg_header_t	Head;
+-	mach_msg_type_t		RetCodeType;
+-	kern_return_t		RetCode;
+-      } header_typecheck;
+-    };
+-    /* The largest any request needs (counts of at most 31, 31 and 7 data
+-       of at most 8 bytes: <bits/ioctls.h>), not this request's: a
+-       variable-sized array in a struct is a GCC extension clang lacks.
+-       Only the receive buffer is larger; msgh_size is computed below.  */
+-    char data[3 * sizeof (mach_msg_type_t)
+-	      + msg_align (31 * 8) + msg_align (31 * 8) + msg_align (7 * 8)];
++      mach_msg_header_t	Head;
++      mach_msg_type_t		RetCodeType;
++      kern_return_t		RetCode;
++    } header_typecheck;
++  };
++  /* The largest any request needs (counts of at most 31, 31 and 7 data
++     of at most 8 bytes: <bits/ioctls.h>), not this request's: a
++     variable-sized array in a struct is a GCC extension clang lacks.
++     Only the receive buffer is larger; msgh_size is computed below.  */
++  char data[3 * sizeof (mach_msg_type_t)
++	    + msg_align (31 * 8) + msg_align (31 * 8) + msg_align (7 * 8)];
+ #else  /* Untyped Mach IPC format.  */
+-    mig_reply_error_t header;
+-    /* The largest any request needs: see above.  */
+-    char data[31 * 8 + 31 * 8 + 7 * 8];
+-    mach_msg_trailer_t trailer;
++  mig_reply_error_t header;
++  /* The largest any request needs: see above.  */
++  char data[31 * 8 + 31 * 8 + 7 * 8];
++  mach_msg_trailer_t trailer;
+ #endif
+-  } msg;
+-  mach_msg_header_t *const m = &msg.header.Head;
++};
++
++/* An RPC: its message, and what send_rpc packs into it.  */
++struct ioctl_rpc
++{
++  struct ioctl_msg msg;
++  unsigned long int request;
++  unsigned int type;
++  void *arg;
+   mach_msg_id_t msgid;
+   unsigned int reply_size;
++};
++
++/* Pack COUNT data of TYPE from *ARGPTR into the message buffer at *POS;
++   advance both.  */
++static void
++pack_in (void **pos, void **argptr, unsigned int count,
++	 enum __ioctl_datum type)
++{
++  if (count > 0)
++    {
++      const size_t len = count * typesize ((unsigned int) type);
+ #ifdef MACH_MSG_TYPE_BIT
+-  mach_msg_type_t *t;
++      mach_msg_type_t *t = *pos;
++      void *p = &t[1];
++      *t = io2mach_type (count, type);
++      p = __mempcpy (p, *argptr, len);
++      p = (void *) msg_align ((uintptr_t) p);
++      *pos = p;
+ #else
+-  void *p;
++      *pos = __mempcpy (*pos, *argptr, len);
+ #endif
++      *argptr += len;
++    }
++}
+ 
+-  void *arg = NULL;
+-
++/* Send the RPC already packed up in R's message to IOPORT
++   and decode the return value.  */
++static error_t
++send_rpc (void *ctx, io_t ioport)
++{
++  struct ioctl_rpc *r = ctx;
++  mach_msg_header_t *const m = &r->msg.header.Head;
++  const unsigned long int request = r->request;
++  const unsigned int type = r->type;
+   error_t err;
++#ifdef MACH_MSG_TYPE_BIT
++  mach_msg_type_t *t = &r->msg.header.RetCodeType;
++#else
++  void *p = &r->msg.header.RetCode;
++#endif
++
++  /* Marshal the request arguments into the message buffer.
++     We must redo this work each time we retry the RPC after a SIGTTOU,
++     because the reply message containing the EBACKGROUND error code
++     clobbers the same message buffer also used for the request.  */
+ 
+-  /* Send the RPC already packed up in MSG to IOPORT
+-     and decode the return value.  */
+-  error_t send_rpc (io_t ioport)
++  if (_IOC_INOUT (request) & IOC_IN)
+     {
+-      error_t err;
++      /* We don't want to advance ARG since it will be used to copy out
++	 too if IOC_OUT is also set.  */
++      void *argptr = r->arg;
++      int zero = 0;
++
++      if (request == TIOCFLUSH && !argptr)
++	argptr = &zero;
++
++      /* Pack the argument data.  */
+ #ifdef MACH_MSG_TYPE_BIT
+-      mach_msg_type_t *t = &msg.header.RetCodeType;
++      void *pos = t;
+ #else
+-      void *p = &msg.header.RetCode;
++      void *pos = p;
+ #endif
+-
+-      /* Marshal the request arguments into the message buffer.
+-	 We must redo this work each time we retry the RPC after a SIGTTOU,
+-	 because the reply message containing the EBACKGROUND error code
+-	 clobbers the same message buffer also used for the request.  */
+-
+-      if (_IOC_INOUT (request) & IOC_IN)
+-	{
+-	  /* We don't want to advance ARG since it will be used to copy out
+-	     too if IOC_OUT is also set.  */
+-	  void *argptr = arg;
+-	  int zero = 0;
+-
+-	  if (request == TIOCFLUSH && !argptr)
+-	    argptr = &zero;
+-
+-	  /* Pack an argument into the message buffer.  */
+-	  void in (unsigned int count, enum __ioctl_datum type)
+-	    {
+-	      if (count > 0)
+-		{
+-		  const size_t len = count * typesize ((unsigned int) type);
++      pack_in (&pos, &argptr, _IOT_COUNT0 (type), _IOT_TYPE0 (type));
++      pack_in (&pos, &argptr, _IOT_COUNT1 (type), _IOT_TYPE1 (type));
++      pack_in (&pos, &argptr, _IOT_COUNT2 (type), _IOT_TYPE2 (type));
+ #ifdef MACH_MSG_TYPE_BIT
+-		  void *p = &t[1];
+-		  *t = io2mach_type (count, type);
+-		  p = __mempcpy (p, argptr, len);
+-		  p = (void *) msg_align ((uintptr_t) p);
+-		  t = p;
++      t = pos;
+ #else
+-		  p = __mempcpy (p, argptr, len);
++      p = pos;
+ #endif
+-		  argptr += len;
+-		}
+-	    }
+-
+-	  /* Pack the argument data.  */
+-	  in (_IOT_COUNT0 (type), _IOT_TYPE0 (type));
+-	  in (_IOT_COUNT1 (type), _IOT_TYPE1 (type));
+-	  in (_IOT_COUNT2 (type), _IOT_TYPE2 (type));
+-	}
+-      else if (_IOC_INOUT (request) == IOC_VOID && _IOT_COUNT0 (type) != 0)
+-	{
+-	  /* The RPC takes a single integer_t argument.
+-	     Rather than pointing to the value, ARG is the value itself.  */
++    }
++  else if (_IOC_INOUT (request) == IOC_VOID && _IOT_COUNT0 (type) != 0)
++    {
++      /* The RPC takes a single integer_t argument.
++	 Rather than pointing to the value, ARG is the value itself.  */
+ #ifdef MACH_MSG_TYPE_BIT
+-	  *t++ = io2mach_type (1, _IOTS (integer_t));
+-	  *(integer_t *) t = (integer_t) (intptr_t) arg;
+-	  t = (void *) msg_align ((uintptr_t) t + sizeof (integer_t));
++      *t++ = io2mach_type (1, _IOTS (integer_t));
++      *(integer_t *) t = (integer_t) (intptr_t) r->arg;
++      t = (void *) msg_align ((uintptr_t) t + sizeof (integer_t));
+ #else
+-	  *(integer_t *) p = (integer_t) (intptr_t) arg;
+-	  p = (void *) p + sizeof (integer_t);
++      *(integer_t *) p = (integer_t) (intptr_t) r->arg;
++      p = (void *) p + sizeof (integer_t);
+ #endif
+-	}
++    }
+ 
+-      memset (m, 0, sizeof *m);	/* Clear unused fields.  */
+-      m->msgh_size = (
++  memset (m, 0, sizeof *m);	/* Clear unused fields.  */
++  m->msgh_size = (
+ #ifdef MACH_MSG_TYPE_BIT
+-		      (char *) t
++		  (char *) t
+ #else
+-		      (char *) p
++		  (char *) p
+ #endif
+-		      - (char *) &msg);
+-      m->msgh_remote_port = ioport;
+-      m->msgh_local_port = __mig_get_reply_port ();
+-      m->msgh_id = msgid;
+-      m->msgh_bits = MACH_MSGH_BITS (MACH_MSG_TYPE_COPY_SEND,
+-				     MACH_MSG_TYPE_MAKE_SEND_ONCE);
+-      err = _hurd_intr_rpc_mach_msg (m, MACH_SEND_MSG|MACH_RCV_MSG,
+-				     m->msgh_size, sizeof (msg),
+-				     m->msgh_local_port,
+-				     MACH_MSG_TIMEOUT_NONE,
+-				     MACH_PORT_NULL);
+-      switch (err)
+-	{
+-	case MACH_MSG_SUCCESS:
+-	  break;
+-	case MACH_SEND_INVALID_REPLY:
+-	case MACH_RCV_INVALID_NAME:
+-	  __mig_dealloc_reply_port (m->msgh_local_port);
+-	  /* Fall through.  */
+-	default:
+-	  return err;
+-	}
+-
+-      if ((m->msgh_bits & MACH_MSGH_BITS_COMPLEX))
+-	{
+-	  /* Allow no ports or VM.  */
+-	  __mach_msg_destroy (m);
+-	  /* Want to return a different error below for a different msgid.  */
+-	  if (m->msgh_id == msgid + 100)
+-	    return MIG_TYPE_ERROR;
+-	}
+-
+-      if (m->msgh_id != msgid + 100)
+-	return (m->msgh_id == MACH_NOTIFY_SEND_ONCE
+-		? MIG_SERVER_DIED : MIG_REPLY_MISMATCH);
+-
+-      if (m->msgh_size != reply_size
+-	  && m->msgh_size != sizeof msg.header)
++		  - (char *) &r->msg);
++  m->msgh_remote_port = ioport;
++  m->msgh_local_port = __mig_get_reply_port ();
++  m->msgh_id = r->msgid;
++  m->msgh_bits = MACH_MSGH_BITS (MACH_MSG_TYPE_COPY_SEND,
++				 MACH_MSG_TYPE_MAKE_SEND_ONCE);
++  err = _hurd_intr_rpc_mach_msg (m, MACH_SEND_MSG|MACH_RCV_MSG,
++				 m->msgh_size, sizeof (r->msg),
++				 m->msgh_local_port,
++				 MACH_MSG_TIMEOUT_NONE,
++				 MACH_PORT_NULL);
++  switch (err)
++    {
++    case MACH_MSG_SUCCESS:
++      break;
++    case MACH_SEND_INVALID_REPLY:
++    case MACH_RCV_INVALID_NAME:
++      __mig_dealloc_reply_port (m->msgh_local_port);
++      /* Fall through.  */
++    default:
++      return err;
++    }
++
++  if ((m->msgh_bits & MACH_MSGH_BITS_COMPLEX))
++    {
++      /* Allow no ports or VM.  */
++      __mach_msg_destroy (m);
++      /* Want to return a different error below for a different msgid.  */
++      if (m->msgh_id == r->msgid + 100)
+ 	return MIG_TYPE_ERROR;
++    }
++
++  if (m->msgh_id != r->msgid + 100)
++    return (m->msgh_id == MACH_NOTIFY_SEND_ONCE
++	    ? MIG_SERVER_DIED : MIG_REPLY_MISMATCH);
++
++  if (m->msgh_size != r->reply_size
++      && m->msgh_size != sizeof r->msg.header)
++    return MIG_TYPE_ERROR;
+ 
+ #ifdef MACH_MSG_TYPE_BIT
+-      mach_msg_type_t ipctype = io2mach_type(1, _IOTS (msg.header.RetCode));
+-      if (BAD_TYPECHECK (&msg.header_typecheck.RetCodeType, &ipctype))
+-	return MIG_TYPE_ERROR;
++  mach_msg_type_t ipctype = io2mach_type(1, _IOTS (r->msg.header.RetCode));
++  if (BAD_TYPECHECK (&r->msg.header_typecheck.RetCodeType, &ipctype))
++    return MIG_TYPE_ERROR;
++#endif
++  return r->msg.header.RetCode;
++}
++
++/* REPLY_SIZE with COUNT data of TYPE more.  */
++static inline unsigned int
++figure_reply (unsigned int reply_size, unsigned int count,
++	      enum __ioctl_datum type)
++{
++  if (count > 0)
++    {
++#ifdef MACH_MSG_TYPE_BIT
++      /* Add the size of the type and data.  */
++      reply_size += sizeof (mach_msg_type_t) + typesize (type) * count;
++      /* Align it to word size.  */
++      reply_size = msg_align (reply_size);
++#else
++      reply_size += typesize (type) * count;
+ #endif
+-      return msg.header.RetCode;
+     }
++  return reply_size;
++}
++
++/* Unpack the message buffer at *POS into the argument location STORE;
++   advance *POS (and *UPDATE, if not NULL).  1 if its type is wrong.  */
++static int
++unpack_out (void **pos, unsigned int count, unsigned int type,
++	    void *store, void **update)
++{
++  if (count > 0)
++    {
++      const size_t len = count * typesize (type);
++#ifdef MACH_MSG_TYPE_BIT
++      mach_msg_type_t *t = *pos;
++      const mach_msg_type_t ipctype = io2mach_type(count, type);
++      if (BAD_TYPECHECK (t, &ipctype))
++	return 1;
++      ++t;
++      memcpy (store, t, len);
++      if (update != NULL)
++	*update += len;
++      *pos = (mach_msg_type_t *) msg_align ((uintptr_t) t + len);
++#else
++      memcpy (store, *pos, len);
++      *pos += len;
++      if (update != NULL)
++	*update += len;
++#endif
++    }
++  return 0;
++}
++
++/* Perform the I/O control operation specified by REQUEST on FD.
++   The actual type and use of ARG and the return value depend on REQUEST.  */
++int
++__ioctl (int fd, unsigned long int request, ...)
++{
++  /* Extract the type information encoded in the request.  */
++  unsigned int type = _IOC_TYPE (request);
++
++  /* The RPC and its message buffer.  */
++  struct ioctl_rpc r;
++  mach_msg_header_t *const m = &r.msg.header.Head;
++  void *pos;
++
++  void *arg = NULL;
++
++  error_t err;
+ 
+   if (_IOT_COUNT0 (type) != 0)
+     {
+@@ -247,34 +325,27 @@ __ioctl (int fd, unsigned long int request, ...)
+       }
+   }
+ 
++  r.request = request;
++  r.type = type;
++  r.arg = arg;
++
+   /* Compute the Mach message ID for the RPC from the group and command
+      parts of the ioctl request.  */
+-  msgid = IOC_MSGID (request);
++  r.msgid = IOC_MSGID (request);
+ 
+   /* Compute the expected size of the reply.  There is a standard header
+      consisting of the message header and the reply code.  Then, for out
+      and in/out ioctls, there come the data with their type headers.  */
+-  reply_size = sizeof msg.header;
++  r.reply_size = sizeof r.msg.header;
+ 
+   if (_IOC_INOUT (request) & IOC_OUT)
+     {
+-      inline void figure_reply (unsigned int count, enum __ioctl_datum type)
+-	{
+-	  if (count > 0)
+-	    {
+-#ifdef MACH_MSG_TYPE_BIT
+-	      /* Add the size of the type and data.  */
+-	      reply_size += sizeof (mach_msg_type_t) + typesize (type) * count;
+-	      /* Align it to word size.  */
+-	      reply_size = msg_align (reply_size);
+-#else
+-	      reply_size += typesize (type) * count;
+-#endif
+-	    }
+-	}
+-      figure_reply (_IOT_COUNT0 (type), _IOT_TYPE0 (type));
+-      figure_reply (_IOT_COUNT1 (type), _IOT_TYPE1 (type));
+-      figure_reply (_IOT_COUNT2 (type), _IOT_TYPE2 (type));
++      r.reply_size = figure_reply (r.reply_size,
++				   _IOT_COUNT0 (type), _IOT_TYPE0 (type));
++      r.reply_size = figure_reply (r.reply_size,
++				   _IOT_COUNT1 (type), _IOT_TYPE1 (type));
++      r.reply_size = figure_reply (r.reply_size,
++				   _IOT_COUNT2 (type), _IOT_TYPE2 (type));
+     }
+ 
+   /* Marshal the arguments into the request message and make the RPC.
+@@ -284,51 +355,25 @@ __ioctl (int fd, unsigned long int request, ...)
+     {
+       /* This is a cancellation point.  */
+       int cancel_oldtype = LIBC_CANCEL_ASYNC();
+-      err = HURD_DPORT_USE_CANCEL (fd, _hurd_ctty_output (port, ctty, send_rpc));
++      err = HURD_DPORT_USE_CANCEL (fd, _hurd_ctty_output (port, ctty,
++							  send_rpc, &r));
+       LIBC_CANCEL_RESET (cancel_oldtype);
+     }
+   else
+-    err = HURD_DPORT_USE (fd, _hurd_ctty_output (port, ctty, send_rpc));
++    err = HURD_DPORT_USE (fd, _hurd_ctty_output (port, ctty, send_rpc, &r));
+ 
+-#ifdef MACH_MSG_TYPE_BIT
+-  t = (mach_msg_type_t *) msg.data;
+-#else
+-  p = (void *) msg.data;
+-#endif
++  pos = r.msg.data;
+   switch (err)
+     {
+-      /* Unpack the message buffer into the argument location.  */
+-      int out (unsigned int count, unsigned int type,
+-	       void *store, void **update)
+-	{
+-	  if (count > 0)
+-	    {
+-	      const size_t len = count * typesize (type);
+-#ifdef MACH_MSG_TYPE_BIT
+-	      const mach_msg_type_t ipctype = io2mach_type(count, type);
+-	      if (BAD_TYPECHECK (t, &ipctype))
+-		return 1;
+-	      ++t;
+-	      memcpy (store, t, len);
+-	      if (update != NULL)
+-		*update += len;
+-	      t = (mach_msg_type_t *) msg_align ((uintptr_t) t + len);
+-#else
+-	      memcpy (store, p, len);
+-	      p += len;
+-	      if (update != NULL)
+-		*update += len;
+-#endif
+-	    }
+-	  return 0;
+-	}
+-
+     case 0:
+-      if (m->msgh_size != reply_size
++      if (m->msgh_size != r.reply_size
+ 	  || ((_IOC_INOUT (request) & IOC_OUT)
+-	      && (out (_IOT_COUNT0 (type), _IOT_TYPE0 (type), arg, &arg)
+-		  || out (_IOT_COUNT1 (type), _IOT_TYPE1 (type), arg, &arg)
+-		  || out (_IOT_COUNT2 (type), _IOT_TYPE2 (type), arg, &arg))))
++	      && (unpack_out (&pos, _IOT_COUNT0 (type), _IOT_TYPE0 (type),
++			      arg, &arg)
++		  || unpack_out (&pos, _IOT_COUNT1 (type), _IOT_TYPE1 (type),
++				 arg, &arg)
++		  || unpack_out (&pos, _IOT_COUNT2 (type), _IOT_TYPE2 (type),
++				 arg, &arg))))
+ 	return __hurd_fail (MIG_TYPE_ERROR);
+       return 0;
+ 
+diff --git a/sysdeps/mach/hurd/ptrace.c b/sysdeps/mach/hurd/ptrace.c
+index 1eacb3ab..913f13fd 100644
+--- a/sysdeps/mach/hurd/ptrace.c
++++ b/sysdeps/mach/hurd/ptrace.c
+@@ -34,6 +34,63 @@
+    appear (those that are used for the particular request) as:
+      pid_t PID, void *ADDR, int DATA, void *ADDR2
+    after PID.  */
++
++/* ptrace's helpers: functions given their context, not the nested
++   functions they were, which clang lacks.  */
++
++/* Read data from PID's address space, from ADDR for DATA bytes.  */
++static error_t
++ptrace_read_data (task_t task, void *addr, natural_t data,
++		  vm_address_t *ourpage, vm_size_t *size)
++{
++  /* Read the pages containing the addressed range.  */
++  error_t err;
++  mach_msg_type_number_t nread;
++  *size = round_page (addr + data) - trunc_page (addr);
++  err = __vm_read (task, trunc_page (addr), *size, ourpage, &nread);
++  if (!err)
++    *size = nread;
++  return err;
++}
++
++/* Fetch the thread port for PID's user thread.  */
++static error_t
++fetch_user_thread (task_t task, thread_t *thread)
++{
++  thread_t threadbuf[3], *threads = threadbuf;
++  mach_msg_type_number_t nthreads = 3, i;
++  error_t err = __task_threads (task, &threads, &nthreads);
++  if (err)
++    return err;
++  if (nthreads == 0)
++    return EINVAL;
++  *thread = threads[0];	/* Assume user thread is first.  */
++  for (i = 1; i < nthreads; ++i)
++    __mach_port_deallocate (__mach_task_self (), threads[i]);
++  if (threads != threadbuf)
++    __vm_deallocate (__mach_task_self (),
++		     (vm_address_t) threads, nthreads * sizeof threads[0]);
++  return 0;
++}
++
++/* Fetch a thread state structure from PID and store it at ADDR.  */
++static int
++ptrace_get_regs (pid_t pid, void *addr, int flavor,
++		 mach_msg_type_number_t count)
++{
++  error_t err;
++  task_t task = __pid2task (pid);
++  thread_t thread;
++  if (task == MACH_PORT_NULL)
++    return -1;
++  err = fetch_user_thread (task, &thread);
++  __mach_port_deallocate (__mach_task_self (), task);
++  if (!err)
++    err = __thread_get_state (thread, flavor, addr, &count);
++  __mach_port_deallocate (__mach_task_self (), thread);
++  return err ? __hurd_fail (err) : 0;
++}
++
+ int
+ ptrace (enum __ptrace_request request, ... )
+ {
+@@ -42,53 +99,10 @@ ptrace (enum __ptrace_request request, ... )
+   natural_t data;
+   va_list ap;
+ 
+-  /* Read data from PID's address space, from ADDR for DATA bytes.  */
+-  error_t read_data (task_t task, vm_address_t *ourpage, vm_size_t *size)
+-    {
+-      /* Read the pages containing the addressed range.  */
+-      error_t err;
+-      mach_msg_type_number_t nread;
+-      *size = round_page (addr + data) - trunc_page (addr);
+-      err = __vm_read (task, trunc_page (addr), *size, ourpage, &nread);
+-      if (!err)
+-	*size = nread;
+-      return err;
+-    }
+-
+-  /* Fetch the thread port for PID's user thread.  */
+-  error_t fetch_user_thread (task_t task, thread_t *thread)
+-    {
+-      thread_t threadbuf[3], *threads = threadbuf;
+-      mach_msg_type_number_t nthreads = 3, i;
+-      error_t err = __task_threads (task, &threads, &nthreads);
+-      if (err)
+-	return err;
+-      if (nthreads == 0)
+-	return EINVAL;
+-      *thread = threads[0];	/* Assume user thread is first.  */
+-      for (i = 1; i < nthreads; ++i)
+-	__mach_port_deallocate (__mach_task_self (), threads[i]);
+-      if (threads != threadbuf)
+-	__vm_deallocate (__mach_task_self (),
+-			 (vm_address_t) threads, nthreads * sizeof threads[0]);
+-      return 0;
+-    }
+-
+-  /* Fetch a thread state structure from PID and store it at ADDR.  */
+-  int get_regs (int flavor, mach_msg_type_number_t count)
+-    {
+-      error_t err;
+-      task_t task = __pid2task (pid);
+-      thread_t thread;
+-      if (task == MACH_PORT_NULL)
+-	return -1;
+-      err = fetch_user_thread (task, &thread);
+-      __mach_port_deallocate (__mach_task_self (), task);
+-      if (!err)
+-	err = __thread_get_state (thread, flavor, addr, &count);
+-      __mach_port_deallocate (__mach_task_self (), thread);
+-      return err ? __hurd_fail (err) : 0;
+-    }
++  /* The helpers above, with PID, ADDR and DATA as they are then.  */
++#define read_data(task, ourpage, size) \
++  ptrace_read_data (task, addr, data, ourpage, size)
++#define get_regs(flavor, count) ptrace_get_regs (pid, addr, flavor, count)
+ 
+ 
+   switch (request)
+@@ -384,4 +398,6 @@ ptrace (enum __ptrace_request request, ... )
+     }
+ 
+   return 0;
++#undef read_data
++#undef get_regs
+ }
+diff --git a/sysdeps/mach/hurd/recvmsg.c b/sysdeps/mach/hurd/recvmsg.c
+index e71961cb..38cd0f4a 100644
+--- a/sysdeps/mach/hurd/recvmsg.c
++++ b/sysdeps/mach/hurd/recvmsg.c
+@@ -24,6 +24,32 @@
+ #include <hurd/socket.h>
+ #include <sysdep-cancel.h>
+ 
++/* PORT reauthenticated, into *RESULT.  Not a nested function in
++   __libc_recvmsg, which clang lacks: it used nothing of its.  */
++static error_t
++reauthenticate (mach_port_t port, mach_port_t *result)
++{
++  error_t err;
++  mach_port_t ref;
++  ref = __mach_reply_port ();
++  int cancel_oldtype;
++
++  cancel_oldtype = LIBC_CANCEL_ASYNC();
++  do
++    err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
++  while (err == EINTR);
++  if (!err)
++    do
++      err = __USEPORT_CANCEL (AUTH, __auth_user_authenticate (port,
++				      ref, MACH_MSG_TYPE_MAKE_SEND,
++				      result));
++    while (err == EINTR);
++  LIBC_CANCEL_RESET (cancel_oldtype);
++
++  __mach_port_destroy (__mach_task_self (), ref);
++  return err;
++}
++
+ /* Receive a message as described by MESSAGE from socket FD.
+    Returns the number of bytes read or -1 for errors.  */
+ ssize_t
+@@ -45,29 +71,6 @@ __libc_recvmsg (int fd, struct msghdr *message, int flags)
+   int newfds;
+   int cancel_oldtype;
+ 
+-  error_t reauthenticate (mach_port_t port, mach_port_t *result)
+-    {
+-      error_t err;
+-      mach_port_t ref;
+-      ref = __mach_reply_port ();
+-      int cancel_oldtype;
+-
+-      cancel_oldtype = LIBC_CANCEL_ASYNC();
+-      do
+-	err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
+-      while (err == EINTR);
+-      if (!err)
+-	do
+-	  err = __USEPORT_CANCEL (AUTH, __auth_user_authenticate (port,
+-					  ref, MACH_MSG_TYPE_MAKE_SEND,
+-					  result));
+-	while (err == EINTR);
+-      LIBC_CANCEL_RESET (cancel_oldtype);
+-
+-      __mach_port_destroy (__mach_task_self (), ref);
+-      return err;
+-    }
+-
+   /* Find the total number of bytes to be read.  */
+   amount = 0;
+   for (i = 0; i < message->msg_iovlen; i++)
+diff --git a/sysdeps/mach/hurd/sendto.c b/sysdeps/mach/hurd/sendto.c
+index 965111cd..9e55c1ea 100644
+--- a/sysdeps/mach/hurd/sendto.c
++++ b/sysdeps/mach/hurd/sendto.c
+@@ -25,6 +25,42 @@
+ #include <sysdep-cancel.h>
+ #include "hurd/hurdsocket.h"
+ 
++/* Get an address port for the desired destination address.  Not a nested
++   function in __sendto, which clang lacks: it used nothing of its.  */
++static error_t
++create_address_port (io_t port,
++		     const struct sockaddr_un *addr,
++		     socklen_t addr_len,
++		     addr_port_t *aport)
++{
++  error_t err_port;
++
++  if (addr->sun_family == AF_LOCAL)
++    {
++      char *name = _hurd_sun_path_dupa (addr, addr_len);
++      /* For the local domain, we must look up the name as a file and talk
++	 to it with the ifsock protocol.  */
++      file_t file = __file_name_lookup (name, 0, 0);
++      if (file == MACH_PORT_NULL)
++	return errno;
++      err_port = __ifsock_getsockaddr (file, aport);
++      __mach_port_deallocate (__mach_task_self (), file);
++      if (err_port == MIG_BAD_ID || err_port == EOPNOTSUPP)
++	/* The file did not grok the ifsock protocol.  */
++	err_port = ENOTSOCK;
++    }
++  else
++    {
++      err_port = __socket_create_address (port,
++					  addr->sun_family,
++					  (char *) addr,
++					  addr_len,
++					  aport);
++    }
++
++  return err_port;
++}
++
+ /* Send N bytes of BUF on socket FD to peer at address ADDR (which is
+    ADDR_LEN bytes long).  Returns the number sent, or -1 for errors.  */
+ ssize_t
+@@ -39,40 +75,6 @@ __sendto (int fd,
+   error_t err;
+   vm_size_t wrote;
+ 
+-  /* Get an address port for the desired destination address.  */
+-  error_t create_address_port (io_t port,
+-			       const struct sockaddr_un *addr,
+-			       socklen_t addr_len,
+-			       addr_port_t *aport)
+-    {
+-      error_t err_port;
+-
+-      if (addr->sun_family == AF_LOCAL)
+-	{
+-	  char *name = _hurd_sun_path_dupa (addr, addr_len);
+-	  /* For the local domain, we must look up the name as a file and talk
+-	     to it with the ifsock protocol.  */
+-	  file_t file = __file_name_lookup (name, 0, 0);
+-	  if (file == MACH_PORT_NULL)
+-	    return errno;
+-	  err_port = __ifsock_getsockaddr (file, aport);
+-	  __mach_port_deallocate (__mach_task_self (), file);
+-	  if (err_port == MIG_BAD_ID || err_port == EOPNOTSUPP)
+-	    /* The file did not grok the ifsock protocol.  */
+-	    err_port = ENOTSOCK;
+-	}
+-      else
+-	{
+-	  err_port = __socket_create_address (port,
+-					      addr->sun_family,
+-					      (char *) addr,
+-					      addr_len,
+-					      aport);
+-	}
+-
+-      return err_port;
+-    }
+-
+   err = HURD_DPORT_USE_CANCEL (fd,
+ 			({
+ 			  if (addr != NULL)
+diff --git a/sysdeps/mach/hurd/setpriority.c b/sysdeps/mach/hurd/setpriority.c
+index 23d678bf..3ed10420 100644
+--- a/sysdeps/mach/hurd/setpriority.c
++++ b/sysdeps/mach/hurd/setpriority.c
+@@ -19,81 +19,88 @@
+ #include <hurd/resource.h>
+ #include <sys/param.h>
+ 
+-/* Set the priority of all processes specified by WHICH and WHO
+-   to PRIO.  Returns 0 on success, -1 on errors.  */
+-int
+-__setpriority (enum __priority_which which, id_t who, int prio)
++/* What setonepriority counts over the processes, and the priority.  */
++struct setpriority
+ {
+-  error_t err;
++  int prio;
+   error_t pidloser, priloser;
+   unsigned int npids, ntasks, nwin, nperm, nacces;
++};
+ 
+-  prio = MAX (0, MIN (2 * NZERO - 1, prio));
+-
+-  error_t setonepriority (pid_t pid, struct procinfo *pi)
++/* Set one process's priority, counted in S.  Not a nested function in
++   __setpriority, which clang lacks.  */
++static error_t
++setonepriority (void *ctx, pid_t pid, struct procinfo *pi)
++{
++  struct setpriority *s = ctx;
++  task_t task;
++  error_t piderr = __USEPORT (PROC, __proc_pid2task (port, pid, &task));
++  if (piderr == EPERM)
++    ++s->nperm;
++  if (piderr != ESRCH)
+     {
+-      task_t task;
+-      error_t piderr = __USEPORT (PROC, __proc_pid2task (port, pid, &task));
+-      if (piderr == EPERM)
+-	++nperm;
+-      if (piderr != ESRCH)
+-	{
+-	  ++npids;
+-	  if (piderr && piderr != EPERM)
+-	    pidloser = piderr;
+-	}
+-      if (! piderr)
+-	{
+-	  error_t prierr;
+-	  ++ntasks;
++      ++s->npids;
++      if (piderr && piderr != EPERM)
++	s->pidloser = piderr;
++    }
++  if (! piderr)
++    {
++      error_t prierr;
++      ++s->ntasks;
+ #ifdef POLICY_TIMESHARE_BASE_COUNT
+-	  {
+-	    /* XXX This assumes timeshare policy.  */
+-	    struct policy_timeshare_base base
+-	      = { NICE_TO_MACH_PRIORITY (prio) };
+-	    prierr = __task_policy (task, POLICY_TIMESHARE,
+-				    (policy_base_t) &base,
+-				    POLICY_TIMESHARE_BASE_COUNT,
+-				    0, 1);
+-	  }
++      {
++	/* XXX This assumes timeshare policy.  */
++	struct policy_timeshare_base base
++	  = { NICE_TO_MACH_PRIORITY (s->prio) };
++	prierr = __task_policy (task, POLICY_TIMESHARE,
++				(policy_base_t) &base,
++				POLICY_TIMESHARE_BASE_COUNT,
++				0, 1);
++      }
+ #else
+-	  prierr = __task_priority (task, NICE_TO_MACH_PRIORITY (prio), 1);
++      prierr = __task_priority (task, NICE_TO_MACH_PRIORITY (s->prio), 1);
+ #endif
+-	  __mach_port_deallocate (__mach_task_self (), task);
+-	  switch (prierr)
+-	    {
+-	    case KERN_FAILURE:
+-	      ++nacces;
+-	      break;
+-	    case KERN_SUCCESS:
+-	      ++nwin;
+-	      break;
+-	    case KERN_INVALID_ARGUMENT: /* Task died.  */
+-	      --npids;
+-	      --ntasks;
+-	      break;
+-	    default:
+-	      priloser = prierr;
+-	    }
++      __mach_port_deallocate (__mach_task_self (), task);
++      switch (prierr)
++	{
++	case KERN_FAILURE:
++	  ++s->nacces;
++	  break;
++	case KERN_SUCCESS:
++	  ++s->nwin;
++	  break;
++	case KERN_INVALID_ARGUMENT: /* Task died.  */
++	  --s->npids;
++	  --s->ntasks;
++	  break;
++	default:
++	  s->priloser = prierr;
+ 	}
+-      return 0;
+     }
++  return 0;
++}
++
++/* Set the priority of all processes specified by WHICH and WHO
++   to PRIO.  Returns 0 on success, -1 on errors.  */
++int
++__setpriority (enum __priority_which which, id_t who, int prio)
++{
++  error_t err;
++  struct setpriority s = { MAX (0, MIN (2 * NZERO - 1, prio)) };
+ 
+-  npids = ntasks = nwin = nperm = nacces = 0;
+-  pidloser = priloser = 0;
+-  err = _hurd_priority_which_map (which, who, setonepriority, 0);
++  err = _hurd_priority_which_map (which, who, setonepriority, &s, 0);
+ 
+-  if (!err && npids == 0)
++  if (!err && s.npids == 0)
+     /* No error, but no pids found.  */
+     err = ESRCH;
+-  else if (nperm == npids)
++  else if (s.nperm == s.npids)
+     /* Got EPERM from proc_task2pid for every process.  */
+     err = EPERM;
+-  else if (nacces == ntasks)
++  else if (s.nacces == s.ntasks)
+     /* Got KERN_FAILURE from task_priority for every task.  */
+     err = EACCES;
+-  else if (nwin == 0)
+-    err = pidloser ?: priloser;
++  else if (s.nwin == 0)
++    err = s.pidloser ?: s.priloser;
+ 
+   return err ? __hurd_fail (err) : 0;
+ }
+diff --git a/sysdeps/mach/hurd/sigtimedwait.c b/sysdeps/mach/hurd/sigtimedwait.c
+index 918af14a..4bc3e5e9 100644
+--- a/sysdeps/mach/hurd/sigtimedwait.c
++++ b/sysdeps/mach/hurd/sigtimedwait.c
+@@ -24,71 +24,95 @@
+ #include <assert.h>
+ #include <sysdep-cancel.h>
+ 
++/* A wait: its preemptor, and what the preemptor and handler use.  Not the
++   nested functions there were, which clang lacks: preempt_fun is given
++   the preemptor; handler (run in the waiting thread) finds the wait whose
++   signal has come, the innermost first.  */
++struct waiter
++{
++  struct hurd_signal_preemptor preemptor;
++  int signo;
++  siginfo_t *info;
++  sigset_t mask, blocked;
++  jmp_buf buf;
++};
++
++static sighandler_t
++preempt_fun (struct hurd_signal_preemptor *pe,
++	     struct hurd_sigstate *ss,
++	     int *sigp,
++	     struct hurd_signal_detail *detail)
++{
++  struct waiter *w = (struct waiter *) pe;
++  siginfo_t *info = w->info;
++
++  if (w->signo)
++    /* We've already been run; don't interfere. */
++    return SIG_ERR;
++
++  w->signo = *sigp;
++
++  if (info)
++    {
++      info->si_signo = w->signo;
++      info->si_errno = detail->error;
++      info->si_code = detail->code;
++
++      /* XXX */
++      info->si_pid = -1;
++      info->si_uid = -1;
++      info->si_addr = (void *) NULL;
++      info->si_status = 0;
++      info->si_band = 0;
++      info->si_value.sival_int = 0;
++    }
++
++  /* Make sure this is all kosher */
++  assert (__sigismember (&w->mask, w->signo));
++
++  /* Restore the blocking mask. */
++  ss->blocked = w->blocked;
++
++  return pe->handler;
++}
++
++static void
++handler (int sig)
++{
++  struct hurd_sigstate *ss = _hurd_self_sigstate ();
++  struct hurd_signal_preemptor *pe;
++
++  for (pe = ss->preemptors; pe != NULL; pe = pe->next)
++    if (pe->preemptor == &preempt_fun && ((struct waiter *) pe)->signo)
++      break;
++  assert (pe != NULL);
++  struct waiter *w = (struct waiter *) pe;
++  assert (sig == w->signo);
++  longjmp (w->buf, 1);
++}
++
+ int
+ __sigtimedwait (const sigset_t *set, siginfo_t *info,
+ 		const struct timespec *timeout)
+ {
+   struct hurd_sigstate *ss;
+-  sigset_t mask, ready, blocked;
++  sigset_t ready;
+   int signo = 0;
+-  struct hurd_signal_preemptor preemptor;
+-  jmp_buf buf;
++  struct waiter w = { .info = info };
++  struct hurd_signal_preemptor *const preemptor = &w.preemptor;
+   mach_port_t wait;
+   mach_msg_header_t msg;
+   int cancel_oldtype;
+   mach_msg_option_t option = 0;
+   mach_msg_timeout_t ms = MACH_MSG_TIMEOUT_NONE;
+ 
+-  sighandler_t
+-    preempt_fun (struct hurd_signal_preemptor *pe,
+-		 struct hurd_sigstate *ss,
+-		 int *sigp,
+-		 struct hurd_signal_detail *detail)
+-    {
+-      if (signo)
+-	/* We've already been run; don't interfere. */
+-	return SIG_ERR;
+-
+-      signo = *sigp;
+-
+-      if (info)
+-	{
+-	  info->si_signo = signo;
+-	  info->si_errno = detail->error;
+-	  info->si_code = detail->code;
+-
+-	  /* XXX */
+-	  info->si_pid = -1;
+-	  info->si_uid = -1;
+-	  info->si_addr = (void *) NULL;
+-	  info->si_status = 0;
+-	  info->si_band = 0;
+-	  info->si_value.sival_int = 0;
+-	}
+-
+-      /* Make sure this is all kosher */
+-      assert (__sigismember (&mask, signo));
+-
+-      /* Restore the blocking mask. */
+-      ss->blocked = blocked;
+-
+-      return pe->handler;
+-    }
+-
+-  void
+-    handler (int sig)
+-    {
+-      assert (sig == signo);
+-      longjmp (buf, 1);
+-    }
+-
+   wait = __mach_reply_port ();
+ 
+   if (set != NULL)
+     /* Crash before locking */
+-    mask = *set;
++    w.mask = *set;
+   else
+-    __sigemptyset (&mask);
++    __sigemptyset (&w.mask);
+ 
+   ss = _hurd_self_sigstate ();
+   cancel_oldtype = LIBC_CANCEL_ASYNC();
+@@ -96,7 +120,7 @@ __sigtimedwait (const sigset_t *set, siginfo_t *info,
+ 
+   /* See if one of these signals is currently pending.  */
+   sigset_t pending = _hurd_sigstate_pending (ss);
+-  __sigandset (&ready, &pending, &mask);
++  __sigandset (&ready, &pending, &w.mask);
+   if (! __sigisemptyset (&ready))
+     {
+       for (signo = 1; signo < NSIG; signo++)
+@@ -111,22 +135,22 @@ __sigtimedwait (const sigset_t *set, siginfo_t *info,
+ 
+   /* Wait for one of them to show up.  */
+ 
+-  if (!setjmp (buf))
++  if (!setjmp (w.buf))
+     {
+       /* Make the preemptor */
+-      preemptor.signals = mask;
+-      preemptor.first = 0;
+-      preemptor.last = -1;
+-      preemptor.preemptor = preempt_fun;
+-      preemptor.handler = handler;
++      preemptor->signals = w.mask;
++      preemptor->first = 0;
++      preemptor->last = -1;
++      preemptor->preemptor = preempt_fun;
++      preemptor->handler = handler;
+ 
+       /* Install this preemptor */
+-      preemptor.next = ss->preemptors;
+-      ss->preemptors = &preemptor;
++      preemptor->next = ss->preemptors;
++      ss->preemptors = preemptor;
+ 
+       /* Unblock the expected signals */
+-      blocked = ss->blocked;
+-      ss->blocked &= ~mask;
++      w.blocked = ss->blocked;
++      ss->blocked &= ~w.mask;
+ 
+       _hurd_sigstate_unlock (ss);
+ 
+@@ -149,13 +173,14 @@ __sigtimedwait (const sigset_t *set, siginfo_t *info,
+     }
+   else
+     {
++      signo = w.signo;
+       assert (signo);
+ 
+       _hurd_sigstate_lock (ss);
+ 
+       /* Delete our preemptor. */
+-      assert (ss->preemptors == &preemptor);
+-      ss->preemptors = preemptor.next;
++      assert (ss->preemptors == preemptor);
++      ss->preemptors = preemptor->next;
+     }
+ 
+ 
+diff --git a/sysdeps/mach/hurd/spawni.c b/sysdeps/mach/hurd/spawni.c
+index 375f7636..1f87f43e 100644
+--- a/sysdeps/mach/hurd/spawni.c
++++ b/sysdeps/mach/hurd/spawni.c
+@@ -34,6 +34,329 @@
+ #include <argz.h>
+ #include "spawn_int.h"
+ 
++/* __spawni's helpers: functions given their context, not the nested
++   functions they were, which clang lacks.  The context points at
++   __spawni's locals, which change as it goes.  */
++struct spawn
++{
++  struct hurd_lookup_ctx ctx;	/* child_init_port, child_fd.  */
++  const short int *flags;
++  const auth_t *auth;
++  file_t *ccwdir;		/* Child current working dir.  */
++  file_t *rcrdir, *rcwdir;
++  file_t **dtable;
++  unsigned int *dtablesize;
++  struct hurd_port ***dtable_cells;
++  struct hurd_userlink **ulink_dtable;
++};
++
++/* For POSIX_SPAWN_RESETIDS, this reauthenticates our root/current
++   directory ports with the new AUTH port.  */
++static error_t
++sp_reauthenticate (struct spawn *s, int which, file_t *result)
++{
++  error_t err;
++  mach_port_t ref;
++  auth_t auth = *s->auth;
++  if (*result != MACH_PORT_NULL)
++    return 0;
++  ref = __mach_reply_port ();
++  if (which == INIT_PORT_CWDIR && *s->ccwdir != MACH_PORT_NULL)
++    {
++      err = __io_reauthenticate (*s->ccwdir, ref, MACH_MSG_TYPE_MAKE_SEND);
++      if (!err)
++	err = __auth_user_authenticate (auth,
++					ref, MACH_MSG_TYPE_MAKE_SEND,
++					result);
++    }
++  else
++    err = HURD_PORT_USE
++      (&_hurd_ports[which],
++       ({
++	 err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
++	 if (!err)
++	   err = __auth_user_authenticate (auth,
++					   ref, MACH_MSG_TYPE_MAKE_SEND,
++					   result);
++	 err;
++       }));
++  __mach_port_destroy (__mach_task_self (), ref);
++  return err;
++}
++
++/* Reauthenticate one of our file descriptors for the child.  A null
++   element of DTABLE_CELLS indicates a descriptor that was already
++   reauthenticated, or was newly opened on behalf of the child.  */
++static error_t
++sp_reauthenticate_fd (struct spawn *s, int fd)
++{
++  file_t *dtable = *s->dtable;
++  struct hurd_port **dtable_cells = *s->dtable_cells;
++  if (dtable_cells[fd] != NULL && dtable[fd] != MACH_PORT_NULL)
++    {
++      file_t newfile;
++      mach_port_t ref = __mach_reply_port ();
++      error_t err = __io_reauthenticate (dtable[fd],
++					 ref, MACH_MSG_TYPE_MAKE_SEND);
++      if (!err)
++	err = __auth_user_authenticate (*s->auth,
++					ref, MACH_MSG_TYPE_MAKE_SEND,
++					&newfile);
++      __mach_port_destroy (__mach_task_self (), ref);
++      if (err)
++	return err;
++      _hurd_port_free (dtable_cells[fd], &(*s->ulink_dtable)[fd], dtable[fd]);
++      dtable_cells[fd] = NULL;
++      dtable[fd] = newfile;
++    }
++  return 0;
++}
++
++/* These callbacks are for looking up file names on behalf of the child.  */
++static error_t
++child_init_port (const struct hurd_lookup_ctx *ctx, int which,
++		 struct hurd_port_op *op)
++{
++  struct spawn *s = (struct spawn *) ctx;
++  if (*s->flags & POSIX_SPAWN_RESETIDS)
++    switch (which)
++      {
++      case INIT_PORT_AUTH:
++	return (*op->fn) (op, *s->auth);
++      case INIT_PORT_CRDIR:
++	return (sp_reauthenticate (s, INIT_PORT_CRDIR, s->rcrdir)
++		?: (*op->fn) (op, *s->rcrdir));
++      case INIT_PORT_CWDIR:
++	return (sp_reauthenticate (s, INIT_PORT_CWDIR, s->rcwdir)
++		?: (*op->fn) (op, *s->rcwdir));
++      }
++  else
++    switch (which)
++      {
++      case INIT_PORT_CWDIR:
++	if (*s->ccwdir != MACH_PORT_NULL)
++	  return (*op->fn) (op, *s->ccwdir);
++	break;
++      }
++  assert (which != INIT_PORT_PROC);
++  return _hurd_ports_use_op (which, op);
++}
++
++static file_t
++child_fd (const struct hurd_lookup_ctx *ctx, int fd)
++{
++  struct spawn *s = (struct spawn *) ctx;
++  file_t *dtable = *s->dtable;
++  if ((unsigned int) fd < *s->dtablesize && dtable[fd] != MACH_PORT_NULL)
++    {
++      if (*s->flags & POSIX_SPAWN_RESETIDS)
++	{
++	  /* Reauthenticate this descriptor right now,
++	     since it is going to be used on behalf of the child.  */
++	  errno = sp_reauthenticate_fd (s, fd);
++	  if (errno)
++	    return MACH_PORT_NULL;
++	}
++      __mach_port_mod_refs (__mach_task_self (), dtable[fd],
++			    MACH_PORT_RIGHT_SEND, +1);
++      return dtable[fd];
++    }
++  return __hurd_fail (EBADF), MACH_PORT_NULL;
++}
++
++static inline error_t
++sp_child_lookup (struct spawn *s, const char *file, int oflag, mode_t mode,
++		 file_t *result)
++{
++  return __hurd_file_name_lookup_c (&s->ctx, file, oflag, mode, result);
++}
++
++static error_t
++sp_child_chdir (struct spawn *s, const char *name)
++{
++  file_t new_ccwdir;
++  size_t len;
++
++  /* Append trailing "/." to directory name to force ENOTDIR if
++     it's not a directory and EACCES if we don't have search
++     permission.  */
++  len = strlen (name);
++  const char *lookup = name;
++  if (len >= 2 && name[len - 2] == '/' && name[len - 1] == '.')
++    lookup = name;
++  else if (len == 0)
++    /* Special-case empty file name according to POSIX.  */
++    return __hurd_fail (ENOENT);
++  else
++    {
++      char *n = alloca (len + 3);
++      memcpy (n, name, len);
++      n[len] = '/';
++      n[len + 1] = '.';
++      n[len + 2] = '\0';
++      lookup = n;
++    }
++
++  error_t err = sp_child_lookup (s, lookup, 0, 0, &new_ccwdir);
++  if (!err)
++    {
++      if (*s->ccwdir != MACH_PORT_NULL)
++	__mach_port_deallocate (__mach_task_self (), *s->ccwdir);
++      *s->ccwdir = new_ccwdir;
++    }
++
++  return err;
++}
++
++/* The child's lookups, its cwd STARTDIR.  */
++struct spawn_under
++{
++  struct hurd_lookup_ctx ctx;
++  struct spawn *s;
++  file_t startdir;
++};
++
++static error_t
++under_init_port (const struct hurd_lookup_ctx *ctx, int which,
++		 struct hurd_port_op *op)
++{
++  const struct spawn_under *u = (const struct spawn_under *) ctx;
++  return (which == INIT_PORT_CWDIR ? (*op->fn) (op, u->startdir)
++	  : child_init_port (&u->s->ctx, which, op));
++}
++
++static file_t
++under_child_fd (const struct hurd_lookup_ctx *ctx, int fd)
++{
++  const struct spawn_under *u = (const struct spawn_under *) ctx;
++  return child_fd (&u->s->ctx, fd);
++}
++
++static inline error_t
++sp_child_lookup_under (struct spawn *s, file_t startdir, const char *file,
++		       int oflag, mode_t mode, file_t *result)
++{
++  struct spawn_under u =
++    { { under_init_port, under_child_fd, NULL }, s, startdir };
++  return __hurd_file_name_lookup_c (&u.ctx, file, oflag, mode, result);
++}
++
++static error_t
++sp_child_fchdir (struct spawn *s, int fd)
++{
++  file_t new_ccwdir;
++  error_t err;
++  file_t *dtable = *s->dtable;
++  struct hurd_port **dtable_cells = *s->dtable_cells;
++
++  if ((unsigned int)fd >= *s->dtablesize
++      || dtable[fd] == MACH_PORT_NULL)
++    return EBADF;
++
++  /* We look up "." to force ENOTDIR if it's not a directory and EACCES if
++     we don't have search permission.  */
++  if (dtable_cells[fd] != NULL)
++      err = HURD_PORT_USE (dtable_cells[fd],
++		({
++		  sp_child_lookup_under (s, port, ".", O_NOTRANS, 0,
++					 &new_ccwdir);
++		 }));
++  else
++      err = sp_child_lookup_under (s, dtable[fd], ".", O_NOTRANS, 0,
++				   &new_ccwdir);
++
++  if (!err)
++    {
++      if (*s->ccwdir != MACH_PORT_NULL)
++	__mach_port_deallocate (__mach_task_self (), *s->ccwdir);
++      *s->ccwdir = new_ccwdir;
++    }
++
++  return err;
++}
++
++/* Close a file descriptor in the child.  */
++static error_t
++sp_do_close (struct spawn *s, int fd)
++{
++  file_t *dtable = *s->dtable;
++  struct hurd_port **dtable_cells = *s->dtable_cells;
++  if ((unsigned int)fd < *s->dtablesize
++      && dtable[fd] != MACH_PORT_NULL)
++    {
++      if (dtable_cells[fd] == NULL)
++	__mach_port_deallocate (__mach_task_self (), dtable[fd]);
++      else
++	{
++	  _hurd_port_free (dtable_cells[fd],
++			   &(*s->ulink_dtable)[fd], dtable[fd]);
++	}
++      dtable_cells[fd] = NULL;
++      dtable[fd] = MACH_PORT_NULL;
++      return 0;
++    }
++  return EBADF;
++}
++
++/* Close file descriptors in the child.  */
++static error_t
++sp_do_closefrom (struct spawn *s, int lowfd)
++{
++  while ((unsigned int) lowfd < *s->dtablesize)
++    {
++      error_t err = sp_do_close (s, lowfd);
++      if (err != 0 && err != EBADF)
++	return err;
++      lowfd++;
++    }
++  return 0;
++}
++
++/* The exec of FILE into TASK, with the rest of what the child inherits.  */
++static error_t
++sp_exec (file_t file, task_t task, const char *relpath, const char *abspath,
++	 char *args, size_t argslen, char *env, size_t envlen,
++	 file_t *dtable, unsigned int dtablesize, mach_port_t *ports,
++	 int *ints)
++{
++  sigset_t old, new;
++
++  /* Avoid getting interrupted while exec(), notably not after the exec
++     server has committed to the exec and started thrashing the task.
++
++     Various issues otherwise show up when building e.g. ghc.
++
++     TODO Rather add proper interrupt support to the exec server, that
++     avoids interrupts in that period.  */
++  __sigfillset(&new);
++  __sigprocmask (SIG_SETMASK, &new, &old);
++
++  error_t err = __file_exec_paths
++    (file, task,
++     __sigismember (&_hurdsig_traced, SIGKILL) ? EXEC_SIGTRAP : 0,
++     relpath, abspath, args, argslen, env, envlen,
++     dtable, MACH_MSG_TYPE_COPY_SEND, dtablesize,
++     ports, MACH_MSG_TYPE_COPY_SEND, _hurd_nports,
++     ints, INIT_INT_MAX,
++     NULL, 0, NULL, 0);
++
++  /* Fallback for backwards compatibility.  This can just be removed
++     when __file_exec goes away.  */
++  if (err == MIG_BAD_ID)
++    err = __file_exec (file, task,
++			(__sigismember (&_hurdsig_traced, SIGKILL)
++			? EXEC_SIGTRAP : 0),
++			args, argslen, env, envlen,
++			dtable, MACH_MSG_TYPE_COPY_SEND, dtablesize,
++			ports, MACH_MSG_TYPE_COPY_SEND, _hurd_nports,
++			ints, INIT_INT_MAX,
++			NULL, 0, NULL, 0);
++
++  __sigprocmask (SIG_SETMASK, &old, NULL);
++
++  return err;
++}
++
+ /* Spawn a new process executing PATH with the attributes describes in *ATTRP.
+    Before running the process perform the actions described in FILE-ACTIONS. */
+ int
+@@ -119,185 +442,24 @@ __spawni (pid_t *pid, const char *file,
+   /* For POSIX_SPAWN_RESETIDS, this reauthenticates our root/current
+      directory ports with the new AUTH port.  */
+   file_t rcrdir = MACH_PORT_NULL, rcwdir = MACH_PORT_NULL;
+-  error_t reauthenticate (int which, file_t *result)
+-    {
+-      error_t err;
+-      mach_port_t ref;
+-      if (*result != MACH_PORT_NULL)
+-	return 0;
+-      ref = __mach_reply_port ();
+-      if (which == INIT_PORT_CWDIR && ccwdir != MACH_PORT_NULL)
+-	{
+-	  err = __io_reauthenticate (ccwdir, ref, MACH_MSG_TYPE_MAKE_SEND);
+-	  if (!err)
+-	    err = __auth_user_authenticate (auth,
+-					    ref, MACH_MSG_TYPE_MAKE_SEND,
+-					    result);
+-	}
+-      else
+-	err = HURD_PORT_USE
+-	  (&_hurd_ports[which],
+-	   ({
+-	     err = __io_reauthenticate (port, ref, MACH_MSG_TYPE_MAKE_SEND);
+-	     if (!err)
+-	       err = __auth_user_authenticate (auth,
+-					       ref, MACH_MSG_TYPE_MAKE_SEND,
+-					       result);
+-	     err;
+-	   }));
+-      __mach_port_destroy (__mach_task_self (), ref);
+-      return err;
+-    }
+ 
+-  /* Reauthenticate one of our file descriptors for the child.  A null
+-     element of DTABLE_CELLS indicates a descriptor that was already
+-     reauthenticated, or was newly opened on behalf of the child.  */
+-  error_t reauthenticate_fd (int fd)
++  struct spawn sp =
+     {
+-      if (dtable_cells[fd] != NULL && dtable[fd] != MACH_PORT_NULL)
+-	{
+-	  file_t newfile;
+-	  mach_port_t ref = __mach_reply_port ();
+-	  error_t err = __io_reauthenticate (dtable[fd],
+-					     ref, MACH_MSG_TYPE_MAKE_SEND);
+-	  if (!err)
+-	    err = __auth_user_authenticate (auth,
+-					    ref, MACH_MSG_TYPE_MAKE_SEND,
+-					    &newfile);
+-	  __mach_port_destroy (__mach_task_self (), ref);
+-	  if (err)
+-	    return err;
+-	  _hurd_port_free (dtable_cells[fd], &ulink_dtable[fd], dtable[fd]);
+-	  dtable_cells[fd] = NULL;
+-	  dtable[fd] = newfile;
+-	}
+-      return 0;
+-    }
+-
+-  /* These callbacks are for looking up file names on behalf of the child.  */
+-  error_t child_init_port (int which, error_t (*operate) (mach_port_t))
+-    {
+-      if (flags & POSIX_SPAWN_RESETIDS)
+-	switch (which)
+-	  {
+-	  case INIT_PORT_AUTH:
+-	    return (*operate) (auth);
+-	  case INIT_PORT_CRDIR:
+-	    return (reauthenticate (INIT_PORT_CRDIR, &rcrdir)
+-		    ?: (*operate) (rcrdir));
+-	  case INIT_PORT_CWDIR:
+-	    return (reauthenticate (INIT_PORT_CWDIR, &rcwdir)
+-		    ?: (*operate) (rcwdir));
+-	  }
+-      else
+-	switch (which)
+-	  {
+-	  case INIT_PORT_CWDIR:
+-	    if (ccwdir != MACH_PORT_NULL)
+-	      return (*operate) (ccwdir);
+-	    break;
+-	  }
+-      assert (which != INIT_PORT_PROC);
+-      return _hurd_ports_use (which, operate);
+-    }
+-  file_t child_fd (int fd)
+-    {
+-      if ((unsigned int) fd < dtablesize && dtable[fd] != MACH_PORT_NULL)
+-	{
+-	  if (flags & POSIX_SPAWN_RESETIDS)
+-	    {
+-	      /* Reauthenticate this descriptor right now,
+-		 since it is going to be used on behalf of the child.  */
+-	      errno = reauthenticate_fd (fd);
+-	      if (errno)
+-		return MACH_PORT_NULL;
+-	    }
+-	  __mach_port_mod_refs (__mach_task_self (), dtable[fd],
+-				MACH_PORT_RIGHT_SEND, +1);
+-	  return dtable[fd];
+-	}
+-      return __hurd_fail (EBADF), MACH_PORT_NULL;
+-    }
+-  inline error_t child_lookup (const char *file, int oflag, mode_t mode,
+-			       file_t *result)
+-    {
+-      return __hurd_file_name_lookup (&child_init_port, &child_fd, 0,
+-				      file, oflag, mode, result);
+-    }
+-  auto error_t child_chdir (const char *name)
+-    {
+-      file_t new_ccwdir;
+-
+-      /* Append trailing "/." to directory name to force ENOTDIR if
+-	 it's not a directory and EACCES if we don't have search
+-	 permission.  */
+-      len = strlen (name);
+-      const char *lookup = name;
+-      if (len >= 2 && name[len - 2] == '/' && name[len - 1] == '.')
+-	lookup = name;
+-      else if (len == 0)
+-	/* Special-case empty file name according to POSIX.  */
+-	return __hurd_fail (ENOENT);
+-      else
+-	{
+-	  char *n = alloca (len + 3);
+-	  memcpy (n, name, len);
+-	  n[len] = '/';
+-	  n[len + 1] = '.';
+-	  n[len + 2] = '\0';
+-	  lookup = n;
+-	}
+-
+-      error_t err = child_lookup (lookup, 0, 0, &new_ccwdir);
+-      if (!err)
+-	{
+-	  if (ccwdir != MACH_PORT_NULL)
+-	    __mach_port_deallocate (__mach_task_self (), ccwdir);
+-	  ccwdir = new_ccwdir;
+-	}
+-
+-      return err;
+-    }
+-  inline error_t child_lookup_under (file_t startdir, const char *file,
+-				     int oflag, mode_t mode, file_t *result)
+-    {
+-      error_t use_init_port (int which, error_t (*operate) (mach_port_t))
+-	{
+-	  return (which == INIT_PORT_CWDIR ? (*operate) (startdir)
+-		  : child_init_port (which, operate));
+-	}
+-
+-      return __hurd_file_name_lookup (&use_init_port, &child_fd, 0,
+-				      file, oflag, mode, result);
+-    }
+-  auto error_t child_fchdir (int fd)
+-    {
+-      file_t new_ccwdir;
+-      error_t err;
+-
+-      if ((unsigned int)fd >= dtablesize
+-	  || dtable[fd] == MACH_PORT_NULL)
+-	return EBADF;
+-
+-      /* We look up "." to force ENOTDIR if it's not a directory and EACCES if
+-         we don't have search permission.  */
+-      if (dtable_cells[fd] != NULL)
+-	  err = HURD_PORT_USE (dtable_cells[fd],
+-		    ({
+-		      child_lookup_under (port, ".", O_NOTRANS, 0, &new_ccwdir);
+-		     }));
+-      else
+-	  err = child_lookup_under (dtable[fd], ".", O_NOTRANS, 0, &new_ccwdir);
+-
+-      if (!err)
+-	{
+-	  if (ccwdir != MACH_PORT_NULL)
+-	    __mach_port_deallocate (__mach_task_self (), ccwdir);
+-	  ccwdir = new_ccwdir;
+-	}
+-
+-      return err;
+-    }
++      { child_init_port, child_fd, NULL }, &flags, &auth, &ccwdir,
++      &rcrdir, &rcwdir, &dtable, &dtablesize, &dtable_cells, &ulink_dtable
++    };
++  /* The helpers above, with this call's context.  */
++#define reauthenticate(which, result) sp_reauthenticate (&sp, which, result)
++#define reauthenticate_fd(fd) sp_reauthenticate_fd (&sp, fd)
++#define child_lookup(file, oflag, mode, result) \
++  sp_child_lookup (&sp, file, oflag, mode, result)
++#define child_chdir(name) sp_child_chdir (&sp, name)
++#define child_fchdir(fd) sp_child_fchdir (&sp, fd)
++#define do_close(fd) sp_do_close (&sp, fd)
++#define do_closefrom(lowfd) sp_do_closefrom (&sp, lowfd)
++#define exec(file) \
++  sp_exec (file, task, relpath, abspath, args, argslen, env, envlen, \
++	   dtable, dtablesize, ports, ints)
+ 
+ 
+   /* Do this once.  */
+@@ -484,39 +646,6 @@ retry:
+   if (file_actions != NULL)
+     for (i = 0; i < file_actions->__used; ++i)
+       {
+-	/* Close a file descriptor in the child.  */
+-	error_t do_close (int fd)
+-	  {
+-	    if ((unsigned int)fd < dtablesize
+-		&& dtable[fd] != MACH_PORT_NULL)
+-	      {
+-		if (dtable_cells[fd] == NULL)
+-		  __mach_port_deallocate (__mach_task_self (), dtable[fd]);
+-		else
+-		  {
+-		    _hurd_port_free (dtable_cells[fd],
+-				     &ulink_dtable[fd], dtable[fd]);
+-		  }
+-		dtable_cells[fd] = NULL;
+-		dtable[fd] = MACH_PORT_NULL;
+-		return 0;
+-	      }
+-	    return EBADF;
+-	  }
+-
+-	/* Close file descriptors in the child.  */
+-	error_t do_closefrom (int lowfd)
+-	  {
+-	    while ((unsigned int) lowfd < dtablesize)
+-	      {
+-		error_t err = do_close (lowfd);
+-		if (err != 0 && err != EBADF)
+-		  return err;
+-		lowfd++;
+-	      }
+-	    return 0;
+-	  }
+-
+ 	/* Make sure the dtable can hold NEWFD.  */
+ #define EXPAND_DTABLE(newfd)						      \
+ 	({								      \
+@@ -828,45 +957,6 @@ retry:
+     char *args = NULL, *env = NULL;
+     size_t argslen = 0, envlen = 0;
+ 
+-    inline error_t exec (file_t file)
+-      {
+-	sigset_t old, new;
+-
+-	/* Avoid getting interrupted while exec(), notably not after the exec
+-	   server has committed to the exec and started thrashing the task.
+-
+-	   Various issues otherwise show up when building e.g. ghc.
+-
+-	   TODO Rather add proper interrupt support to the exec server, that
+-	   avoids interrupts in that period.  */
+-	__sigfillset(&new);
+-	__sigprocmask (SIG_SETMASK, &new, &old);
+-
+-	error_t err = __file_exec_paths
+-	  (file, task,
+-	   __sigismember (&_hurdsig_traced, SIGKILL) ? EXEC_SIGTRAP : 0,
+-	   relpath, abspath, args, argslen, env, envlen,
+-	   dtable, MACH_MSG_TYPE_COPY_SEND, dtablesize,
+-	   ports, MACH_MSG_TYPE_COPY_SEND, _hurd_nports,
+-	   ints, INIT_INT_MAX,
+-	   NULL, 0, NULL, 0);
+-
+-	/* Fallback for backwards compatibility.  This can just be removed
+-	   when __file_exec goes away.  */
+-	if (err == MIG_BAD_ID)
+-	  err = __file_exec (file, task,
+-			      (__sigismember (&_hurdsig_traced, SIGKILL)
+-			      ? EXEC_SIGTRAP : 0),
+-			      args, argslen, env, envlen,
+-			      dtable, MACH_MSG_TYPE_COPY_SEND, dtablesize,
+-			      ports, MACH_MSG_TYPE_COPY_SEND, _hurd_nports,
+-			      ints, INIT_INT_MAX,
+-			      NULL, 0, NULL, 0);
+-
+-	__sigprocmask (SIG_SETMASK, &old, NULL);
+-
+-	return err;
+-      }
+ 
+     /* Now we are out of things that can fail before the file_exec RPC,
+        for which everything else must be prepared.  The only thing left
+@@ -1004,4 +1094,12 @@ retry:
+     err = (__hurd_fail (err), errno);
+ 
+   return err;
++#undef reauthenticate
++#undef reauthenticate_fd
++#undef child_lookup
++#undef child_chdir
++#undef child_fchdir
++#undef do_close
++#undef do_closefrom
++#undef exec
+ }

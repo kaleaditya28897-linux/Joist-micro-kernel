@@ -1,7 +1,7 @@
-From 9693df07dbc6884b7d01bca2fe3a0f0a870cfee9 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
 Date: Wed, 4 Nov 2026 18:30:35 +0530
-Subject: [PATCH 1/7] htl: pt-key.h: no nested function (clang has none)
+Subject: [PATCH] htl: pt-key.h: no nested function (clang has none)
 
 __pthread_key_lock_ready's do_init captured nothing: an ordinary static
 function now. Joist, Phase 5 step 7.
@@ -58,6 +58,3 @@ index b0ef31c1..f5c2d097 100644
 +{
 +  __pthread_once (&__pthread_key_once, __pthread_key_lock_init);
  }
--- 
-2.55.0
-
