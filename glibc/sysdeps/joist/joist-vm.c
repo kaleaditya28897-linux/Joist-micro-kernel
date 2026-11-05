@@ -249,3 +249,133 @@ __jv_check (const struct jv_table *t)
     }
   return 0;
 }
+
+/* The vm_* calls.  */
+
+/* The pages of [ADDR, ADDR + SIZE): 0 if past the address space.  */
+static int
+pages_of (uint64_t addr, uint64_t size, uint64_t *page, uint64_t *pages)
+{
+  uint64_t mask = (1ull << JV_PAGE_SHIFT) - 1;
+  if (size > UINT64_MAX - (addr & mask) - mask)
+    return 0;
+  *page = addr >> JV_PAGE_SHIFT;
+  *pages = ((addr & mask) + size + mask) >> JV_PAGE_SHIFT;
+  return 1;
+}
+
+/* Mach's protection as mm's permissions: 0 if mm can't map it.  */
+static int
+perms_of (uint32_t prot, uint32_t *perms)
+{
+  if ((prot & JV_PROT_WRITE) && (prot & JV_PROT_EXECUTE))
+    return 0;
+  if ((prot & (JV_PROT_READ | JV_PROT_WRITE | JV_PROT_EXECUTE)) == 0)
+    *perms = JV_MM_NONE;
+  else
+    *perms = (prot & JV_PROT_WRITE ? JV_MM_W : 0)
+	     | (prot & JV_PROT_EXECUTE ? JV_MM_X : 0);
+  return 1;
+}
+
+static int
+mm_result (int e)
+{
+  switch (e)
+    {
+    case 0:
+      return JV_OK;
+    case 1:
+      return JV_INVALID_ADDRESS;
+    case 2:
+      return JV_RESOURCE_SHORTAGE;
+    case 3:
+      return JV_NO_SPACE;
+    default:
+      return JV_FAILURE;
+    }
+}
+
+int
+__jv_allocate (struct jv_table *t, uint64_t *addr, uint64_t size,
+	       uint64_t mask, int anywhere, uint32_t prot)
+{
+  uint64_t page, pages;
+  uint32_t perms;
+  if (size == 0 || !pages_of (anywhere ? 0 : *addr, size, &page, &pages))
+    return JV_INVALID_ARGUMENT;
+  if (!perms_of (prot, &perms))
+    return JV_PROTECTION_FAILURE;
+  if (anywhere)
+    {
+      uint64_t align = (mask >> JV_PAGE_SHIFT) + 1;
+      if ((mask & (mask + 1)) != 0)
+	return JV_INVALID_ARGUMENT;	/* not a power of 2, less one */
+      int e = __jv_find (t, pages, align, &page);
+      if (e != JV_OK)
+	return e;
+    }
+  int e = __jv_can_reserve (t, page, pages);
+  if (e != JV_OK)
+    return e;
+  e = mm_result (__joist_vm_mm (JV_MM_MAP_ANON, page, pages, perms));
+  if (e != JV_OK)
+    return e;
+  __jv_reserve (t, page, pages, prot);
+  *addr = page << JV_PAGE_SHIFT;
+  return JV_OK;
+}
+
+int
+__jv_deallocate (struct jv_table *t, uint64_t addr, uint64_t size)
+{
+  uint64_t page, pages;
+  if (size == 0)
+    return JV_OK;
+  if (!pages_of (addr, size, &page, &pages))
+    return JV_INVALID_ADDRESS;
+  int e = __jv_can_release (t, page, pages);
+  if (e != JV_OK)
+    return e;
+  e = mm_result (__joist_vm_mm (JV_MM_UNMAP, page, pages, 0));
+  if (e != JV_OK)
+    return e;
+  __jv_release (t, page, pages);
+  return JV_OK;
+}
+
+int
+__jv_vm_protect (struct jv_table *t, uint64_t addr, uint64_t size,
+		 uint32_t prot)
+{
+  uint64_t page, pages;
+  uint32_t perms;
+  if (size == 0)
+    return JV_OK;
+  if (!pages_of (addr, size, &page, &pages))
+    return JV_INVALID_ADDRESS;
+  if (!perms_of (prot, &perms))
+    return JV_PROTECTION_FAILURE;
+  int e = __jv_can_protect (t, page, pages);
+  if (e != JV_OK)
+    return e;
+  e = mm_result (__joist_vm_mm (JV_MM_PROTECT, page, pages, perms));
+  if (e != JV_OK)
+    return e;
+  __jv_protect (t, page, pages, prot);
+  return JV_OK;
+}
+
+int
+__jv_vm_region (const struct jv_table *t, uint64_t *addr, uint64_t *size,
+		uint32_t *prot)
+{
+  struct jv_res r;
+  int e = __jv_region (t, *addr >> JV_PAGE_SHIFT, &r);
+  if (e != JV_OK)
+    return e;
+  *addr = r.page << JV_PAGE_SHIFT;
+  *size = r.pages << JV_PAGE_SHIFT;
+  *prot = r.prot;
+  return JV_OK;
+}

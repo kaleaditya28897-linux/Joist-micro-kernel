@@ -14,6 +14,13 @@
  * page and reservation by reservation; vm_region is checked from every
  * page.
  *
+ * The vm_* calls (__jv_allocate, __jv_deallocate, __jv_vm_protect,
+ * __jv_vm_region: bytes and Mach's protections) run on a fake mm that
+ * records each request and refuses some (each of mm's results): a call
+ * must ask mm just when the table's check said yes, with the pages and
+ * permissions predicted, give mm's refusal as its Mach result, and leave
+ * the table as it was on any refusal.
+ *
  * usage: test-vm [SEEDS] */
 #include "joist-vm.h"
 
@@ -280,6 +287,113 @@ static void directed(void)
     CHECK(agree() == 0);
 }
 
+/* The fake mm: the last request, how many, and what to answer. */
+static struct {
+    int req;
+    uint64_t page, pages;
+    uint32_t perms;
+    unsigned calls;
+    int answer;
+} mm;
+
+int __joist_vm_mm(int req, uint64_t page, uint64_t pages, uint32_t perms)
+{
+    mm.req = req;
+    mm.page = page;
+    mm.pages = pages;
+    mm.perms = perms;
+    mm.calls++;
+    return mm.answer;
+}
+
+#define PG(p) ((uint64_t)(p) << JV_PAGE_SHIFT)
+
+static void directed_calls(void)
+{
+    uint64_t at, size;
+    uint32_t pr;
+    model_init();
+    mm.answer = 0;
+    /* Anywhere, rounded up to pages; read-write is mm's W. */
+    at = 12345;
+    mm.calls = 0;
+    CHECK(__jv_allocate(&T, &at, 1, 0, 1, JV_PROT_READ | JV_PROT_WRITE) == JV_OK);
+    CHECK(at == PG(JV_LO) && mm.calls == 1 && mm.req == JV_MM_MAP_ANON && mm.page == JV_LO &&
+          mm.pages == 1 && mm.perms == JV_MM_W);
+    m_reserve(JV_LO, 1, 3);
+    /* Fixed, an address inside a page and a size past its end: two pages. */
+    at = PG(2) + 100;
+    CHECK(__jv_allocate(&T, &at, PG(1), 0, 0, JV_PROT_READ | JV_PROT_EXECUTE) == JV_OK);
+    CHECK(at == PG(2) && mm.page == 2 && mm.pages == 2 && mm.perms == JV_MM_X);
+    m_reserve(2, 2, 5);
+    /* vm_map's mask: 4 pages' alignment. */
+    at = 0;
+    CHECK(__jv_allocate(&T, &at, PG(1), PG(4) - 1, 1, JV_PROT_READ) == JV_OK);
+    CHECK(at == PG(JV_LO + 4) && mm.perms == 0);
+    m_reserve(JV_LO + 4, 1, 1);
+    CHECK(__jv_allocate(&T, &at, PG(1), PG(3) - 1, 1, JV_PROT_READ) == JV_INVALID_ARGUMENT);
+    /* No access is mm's NONE; write and execute together refused, mm not
+     * asked. */
+    at = PG(6);
+    CHECK(__jv_allocate(&T, &at, 1, 0, 0, 0) == JV_OK && mm.perms == JV_MM_NONE);
+    m_reserve(6, 1, 0);
+    mm.calls = 0;
+    at = PG(7);
+    CHECK(__jv_allocate(&T, &at, 1, 0, 0, 7) == JV_PROTECTION_FAILURE);
+    CHECK(__jv_allocate(&T, &at, 0, 0, 0, 3) == JV_INVALID_ARGUMENT);
+    CHECK(__jv_allocate(&T, &at, UINT64_MAX, 0, 0, 3) == JV_INVALID_ARGUMENT);
+    at = PG(3);
+    CHECK(__jv_allocate(&T, &at, 1, 0, 0, 3) == JV_NO_SPACE && at == PG(3));
+    CHECK(__jv_vm_protect(&T, PG(2), 1, 6) == JV_PROTECTION_FAILURE);
+    CHECK(__jv_vm_protect(&T, PG(4), 1, 1) == JV_INVALID_ADDRESS); /* a hole */
+    CHECK(__jv_deallocate(&T, PG(NP), 1) == JV_INVALID_ADDRESS);
+    CHECK(__jv_deallocate(&T, 5, UINT64_MAX) == JV_INVALID_ADDRESS);
+    CHECK(mm.calls == 0 && agree() == 0);
+    /* mm refuses: its result as Mach's, the table unchanged. */
+    static const int mach[5] = {JV_OK, JV_INVALID_ADDRESS, JV_RESOURCE_SHORTAGE, JV_NO_SPACE, JV_FAILURE};
+    for (int a = 1; a <= 5; a++) {
+        mm.answer = a;
+        at = PG(9);
+        CHECK(__jv_allocate(&T, &at, 1, 0, 0, 3) == mach[a < 5 ? a : 4] && at == PG(9));
+        CHECK(__jv_deallocate(&T, PG(2), PG(2)) == mach[a < 5 ? a : 4] && mm.req == JV_MM_UNMAP);
+        CHECK(__jv_vm_protect(&T, PG(2), 1, 1) == mach[a < 5 ? a : 4] && mm.req == JV_MM_PROTECT);
+        CHECK(agree() == 0);
+    }
+    mm.answer = 0;
+    /* Deallocate of a range partly reserved: mm unmaps it all; size 0 does
+     * nothing. */
+    mm.calls = 0;
+    CHECK(__jv_deallocate(&T, PG(3), 0) == JV_OK && mm.calls == 0);
+    CHECK(__jv_deallocate(&T, PG(3) + 1, PG(4)) == JV_OK && mm.page == 3 && mm.pages == 5);
+    m_release(3, 5);
+    CHECK(agree() == 0);
+    /* Protect, then vm_region from an address inside and below. */
+    CHECK(__jv_vm_protect(&T, PG(2) + 7, 1, JV_PROT_READ) == JV_OK && mm.page == 2 && mm.pages == 1 &&
+          mm.perms == 0);
+    m_protect(2, 1, 1);
+    at = PG(2) + 9;
+    CHECK(__jv_vm_region(&T, &at, &size, &pr) == JV_OK && at == PG(2) && size == PG(1) && pr == 1);
+    at = PG(3);
+    CHECK(__jv_vm_region(&T, &at, &size, &pr) == JV_OK && at == PG(JV_LO) && size == PG(1) && pr == 3);
+    at = PG(JV_LO + 5);
+    CHECK(__jv_vm_region(&T, &at, &size, &pr) == JV_NO_SPACE);
+    CHECK(agree() == 0);
+}
+
+/* mm's permissions for a protection, or -1 if refused. */
+static int predict_perms(uint32_t pr)
+{
+    if ((pr & 6u) == 6u) {
+        return -1;
+    }
+    if ((pr & 7u) == 0) {
+        return (int)JV_MM_NONE;
+    }
+    return (int)((pr & 2u ? JV_MM_W : 0) | (pr & 4u ? JV_MM_X : 0));
+}
+
+static unsigned calls_counts[4][8];
+
 static uint64_t rng;
 static uint64_t rnd(void)
 {
@@ -383,11 +497,153 @@ static void property(unsigned seeds)
     }
 }
 
+/* Mach's result for mm's. */
+static int mach_of(int a)
+{
+    static const int mach[6] = {JV_OK,       JV_INVALID_ADDRESS, JV_RESOURCE_SHORTAGE,
+                                JV_NO_SPACE, JV_FAILURE,         JV_FAILURE /* not one of mm's */};
+    return mach[a];
+}
+
+static uint64_t raddr(void)
+{
+    return PG(rpage()) + (rnd() % 4u == 0 ? rnd() % PG(1) : 0);
+}
+static uint64_t rsize(void)
+{
+    uint64_t n = rpages();
+    if (n > NP) {
+        return n; /* past the end in bytes too */
+    }
+    return rnd() % 4u == 0 && n > 0 ? PG(n) - rnd() % PG(1) : PG(n);
+}
+
+/* Seeded sequences of the vm_* calls, mm refusing one in five. */
+static void property_calls(unsigned seeds)
+{
+    static struct jv_table before;
+    for (unsigned seed = 1; seed <= seeds; seed++) {
+        model_init();
+        rng = seed * 0xd1b54a32d192ed03ull;
+        for (unsigned step = 0; step < 300; step++) {
+            uint64_t addr = raddr(), size = rsize(), mask = 0, at = addr;
+            uint32_t vp = (uint32_t)(rnd() % 8u);
+            int op = (int)(rnd() % 4u), e, w = JV_OK;
+            int perms = predict_perms(vp);
+            /* The pages of [addr, addr + size), or none if past the end. */
+            uint64_t off = addr & (PG(1) - 1), a = addr >> JV_PAGE_SHIFT, n = 0;
+            int fits = size <= UINT64_MAX - off - (PG(1) - 1);
+            if (fits) {
+                n = (off + size + PG(1) - 1) >> JV_PAGE_SHIFT;
+            }
+            mm.answer = rnd() % 5u == 0 ? 1 + (int)(rnd() % 5u) : 0;
+            mm.calls = 0;
+            before = T;
+            int mm_req = 0;
+            switch (op) {
+            case 0: /* anywhere, and vm_map's masks */
+                size = size > PG(16) ? 1 + size % PG(16) : size;
+                n = (size + PG(1) - 1) >> JV_PAGE_SHIFT;
+                switch (rnd() % 4u) {
+                case 0:
+                    mask = rnd() % PG(1);
+                    mask = (mask & (mask + 1)) == 0 ? mask : PG(1) - 1;
+                    break;
+                case 1:
+                    mask = PG(1ull << (rnd() % 5u)) - 1;
+                    break;
+                case 2:
+                    mask = PG(3) - 1;
+                    break;
+                default:
+                    mask = rnd() % 8u == 0 ? UINT64_MAX : 0;
+                }
+                e = __jv_allocate(&T, &at, size, mask, 1, vp);
+                if (size == 0) {
+                    w = JV_INVALID_ARGUMENT;
+                } else if (perms < 0) {
+                    w = JV_PROTECTION_FAILURE;
+                } else if ((mask & (mask + 1)) != 0) {
+                    w = JV_INVALID_ARGUMENT;
+                } else {
+                    uint64_t align = (mask >> JV_PAGE_SHIFT) + 1;
+                    w = predict_find(n, align, &a);
+                    if (w == JV_OK) {
+                        w = predict_reserve(a, n);
+                    }
+                    mm_req = w == JV_OK ? JV_MM_MAP_ANON : 0;
+                }
+                break;
+            case 1: /* fixed */
+                e = __jv_allocate(&T, &at, size, 0, 0, vp);
+                if (size == 0 || !fits) {
+                    w = JV_INVALID_ARGUMENT;
+                } else if (perms < 0) {
+                    w = JV_PROTECTION_FAILURE;
+                } else {
+                    w = predict_reserve(a, n);
+                    mm_req = w == JV_OK ? JV_MM_MAP_ANON : 0;
+                }
+                break;
+            case 2:
+                e = __jv_deallocate(&T, addr, size);
+                if (size != 0) {
+                    w = !fits ? JV_INVALID_ADDRESS : predict_release(a, n);
+                    mm_req = w == JV_OK ? JV_MM_UNMAP : 0;
+                }
+                break;
+            default:
+                e = __jv_vm_protect(&T, addr, size, vp);
+                if (size != 0) {
+                    w = !fits ? JV_INVALID_ADDRESS : perms < 0 ? JV_PROTECTION_FAILURE : predict_protect(a, n);
+                    mm_req = w == JV_OK ? JV_MM_PROTECT : 0;
+                }
+                break;
+            }
+            if (mm_req != 0) {
+                CHECK(mm.calls == 1 && mm.req == mm_req && mm.page == a && mm.pages == n &&
+                      (mm_req == JV_MM_UNMAP || mm.perms == (uint32_t)perms));
+                w = mach_of(mm.answer);
+            } else {
+                CHECK(mm.calls == 0);
+            }
+            CHECK(e == w);
+            if (e != JV_OK) {
+                CHECK(memcmp(&before, &T, sizeof T) == 0 && at == addr);
+            } else if (op <= 1) {
+                CHECK(at == PG(a));
+                m_reserve(a, n, (int)vp);
+            } else if (op == 2 && size != 0) {
+                m_release(a, n);
+            } else if (op == 3 && size != 0) {
+                m_protect(a, n, (int)vp);
+            }
+            calls_counts[op][e & 7]++;
+            /* vm_region from the address. */
+            uint64_t ra = addr, rs = 0;
+            uint32_t rp = 0;
+            struct jv_res r;
+            int re = __jv_region(&T, addr >> JV_PAGE_SHIFT, &r);
+            CHECK(__jv_vm_region(&T, &ra, &rs, &rp) == re &&
+                  (re != JV_OK || (ra == PG(r.page) && rs == PG(r.pages) && rp == r.prot)));
+            int line = agree();
+            if (line != 0) {
+                fprintf(stderr, "test-vm: calls, seed %u step %u: op %d (%d): disagrees (%d)\n", seed, step, op,
+                        e, line);
+                failed++;
+                return;
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     unsigned seeds = argc > 1 ? (unsigned)atoi(argv[1]) : 2000u;
     directed();
     property(seeds);
+    directed_calls();
+    property_calls(seeds);
     static const char *const names[5] = {"anywhere", "anywhere", "fixed", "release", "protect"};
     for (unsigned op = 1; op < 5; op++) {
         unsigned *c = counts[op];
@@ -403,6 +659,17 @@ int main(int argc, char **argv)
         CHECK(c[0] > 0 && c[6] > 0 && (op == 1 || op == 3 || c[1] > 0));
     }
     CHECK(counts[2][3] > 0 && counts[1][3] > 0);
+    static const char *const cnames[4] = {"allocate", "fixed", "dealloc", "vm_prot"};
+    for (unsigned op = 0; op < 4; op++) {
+        unsigned *c = calls_counts[op];
+        fprintf(stderr, "test-vm: %-8s OK=%u INVALID_ADDRESS=%u PROTECTION_FAILURE=%u NO_SPACE=%u "
+                        "INVALID_ARGUMENT=%u FAILURE=%u RESOURCE_SHORTAGE=%u\n",
+                cnames[op], c[0], c[1], c[2], c[3], c[4], c[5], c[6]);
+        /* Every result each call has, reached. */
+        CHECK(c[0] > 0 && c[1] > 0 && c[3] > 0 && c[5] > 0 && c[6] > 0);
+        CHECK(op == 2 || c[2] > 0);
+        CHECK(op >= 2 || c[4] > 0);
+    }
     if (failed != 0) {
         fprintf(stderr, "test-vm: %u failed\n", failed);
         return 1;

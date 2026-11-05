@@ -188,3 +188,64 @@
 	at = align_up (end_of (&t->r[i]), align);
 -- replace
 	at = end_of (&t->r[i]);
+
+# The vm_* calls (joist-vm.c, on the fake mm; test_vm.c)
+== vm-call-table-first sysdeps/joist/joist-vm.c
+-- find
+  e = mm_result (__joist_vm_mm (JV_MM_MAP_ANON, page, pages, perms));
+  if (e != JV_OK)
+    return e;
+  __jv_reserve (t, page, pages, prot);
+-- replace
+  __jv_reserve (t, page, pages, prot);
+  e = mm_result (__joist_vm_mm (JV_MM_MAP_ANON, page, pages, perms));
+  if (e != JV_OK)
+    return e;
+
+== vm-call-wx-allowed sysdeps/joist/joist-vm.c
+-- find
+  if ((prot & JV_PROT_WRITE) && (prot & JV_PROT_EXECUTE))
+    return 0;
+-- replace
+  if (0)
+    return 0;
+
+== vm-call-offset-ignored sysdeps/joist/joist-vm.c
+-- find
+  *pages = ((addr & mask) + size + mask) >> JV_PAGE_SHIFT;
+-- replace
+  *pages = (size + mask) >> JV_PAGE_SHIFT;
+
+== vm-call-nomem-as-no-space sysdeps/joist/joist-vm.c
+-- find
+    case 2:
+      return JV_RESOURCE_SHORTAGE;
+-- replace
+    case 2:
+      return JV_NO_SPACE;
+
+== vm-call-protect-unchecked sysdeps/joist/joist-vm.c
+-- find
+  int e = __jv_can_protect (t, page, pages);
+  if (e != JV_OK)
+    return e;
+-- replace
+  int e = JV_OK;
+
+== vm-call-region-pages sysdeps/joist/joist-vm.c
+-- find
+  *size = r.pages << JV_PAGE_SHIFT;
+-- replace
+  *size = r.pages;
+
+== vm-call-none-readable sysdeps/joist/joist-vm.c
+-- find
+    *perms = JV_MM_NONE;
+-- replace
+    *perms = 0;
+
+== vm-call-dealloc-unmap-skipped sysdeps/joist/joist-vm.c
+-- find
+  e = mm_result (__joist_vm_mm (JV_MM_UNMAP, page, pages, 0));
+-- replace
+  e = JV_OK;

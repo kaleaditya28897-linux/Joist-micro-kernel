@@ -99,6 +99,45 @@ extern void __jv_protect (struct jv_table *t, uint64_t page, uint64_t pages,
 extern int __jv_region (const struct jv_table *t, uint64_t page,
 			struct jv_res *r);
 
+/* The vm_* calls (bytes, and Mach's VM_PROT_* bits), on the table and mm.
+   Each checks, then asks mm, then changes the table: a refusal from
+   either changes nothing.  W and X together are refused
+   (KERN_PROTECTION_FAILURE): mm maps W^X.  */
+#define JV_PAGE_SHIFT 12
+#define JV_PROT_READ 1u
+#define JV_PROT_WRITE 2u
+#define JV_PROT_EXECUTE 4u
+#define JV_PROTECTION_FAILURE 2
+#define JV_FAILURE 5
+
+/* vm_allocate and anonymous vm_map: *ADDR where (rounded down to a page)
+   unless ANYWHERE, and where it went; SIZE rounded up to pages; MASK, the
+   alignment less one (vm_map's); PROT the protection.  */
+extern int __jv_allocate (struct jv_table *t, uint64_t *addr, uint64_t size,
+			  uint64_t mask, int anywhere, uint32_t prot);
+/* vm_deallocate: whatever is mapped in the pages of [ADDR, ADDR + SIZE).  */
+extern int __jv_deallocate (struct jv_table *t, uint64_t addr,
+			    uint64_t size);
+/* vm_protect (the current protection).  */
+extern int __jv_vm_protect (struct jv_table *t, uint64_t addr, uint64_t size,
+			    uint32_t prot);
+/* vm_region: the first reservation that ends past *ADDR: its address,
+   size and protection.  */
+extern int __jv_vm_region (const struct jv_table *t, uint64_t *addr,
+			   uint64_t *size, uint32_t *prot);
+
+/* The environment: mm's requests on this task (sysdeps/joist; a fake in
+   the host tests).  0, or mm's result (MM_E_*: 1 a bad range, 2 no room, 3
+   in the way of something mm holds, 4 the kernel refused).  */
+#define JV_MM_MAP_ANON 1
+#define JV_MM_UNMAP 2
+#define JV_MM_PROTECT 3
+#define JV_MM_W 1u
+#define JV_MM_X 2u
+#define JV_MM_NONE 4u
+extern int __joist_vm_mm (int req, uint64_t page, uint64_t pages,
+			  uint32_t perms);
+
 /* 0 if T is well formed (sorted, none empty or overlapping, all in the
    user half past page 0), else which rule it breaks.  */
 extern int __jv_check (const struct jv_table *t);
