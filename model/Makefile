@@ -38,10 +38,13 @@ CORE     := ../kernel/core
 CNODE    := -DJOIST_CNODE_ROOT=2u -DJOIST_CNODE_LEAF=64u -DJOIST_MAX_LEAVES=8u
 # mm's library (servers/mm, decision 0023) is tested against the model too.
 MM       := ../servers/mm
-CPPFLAGS := -I../kernel/include -I$(CORE) -I$(MM) $(CNODE) -D_POSIX_C_SOURCE=200809L
+CPPFLAGS := -I../kernel/include -I$(CORE) -I$(MM) -I../glibc/sysdeps/joist $(CNODE) -DJN_LEAF=64u -DJN_LEAVES=2u -D_POSIX_C_SOURCE=200809L
 OPT      ?= -O1 -g -fno-omit-frame-pointer
 
-SRC      := $(wildcard $(CORE)/*.c) $(MM)/mmlib.c
+# glibc's port names on Joist (Phase 5 step 7) are tested against the model
+# too, at the model's table size.
+JNAMES   := ../glibc/sysdeps/joist
+SRC      := $(wildcard $(CORE)/*.c) $(MM)/mmlib.c $(JNAMES)/joist-names.c
 TESTS    := $(wildcard test/test_*.c)
 RUNNER   := test/harness.c
 EXEC     := test/exec.c
@@ -69,7 +72,7 @@ all: test
 
 # $(1): variant name, $(2): extra flags
 define variant
-$(BUILD)/$(1)/run-tests: $(SRC) $(TESTS) $(RUNNER) $(EXEC) $(STAMP) $(wildcard ../kernel/include/joist/core.h $(CORE)/*.h test/*.h $(MM)/*.h)
+$(BUILD)/$(1)/run-tests: $(SRC) $(TESTS) $(RUNNER) $(EXEC) $(STAMP) $(wildcard ../kernel/include/joist/core.h $(CORE)/*.h test/*.h $(MM)/*.h $(JNAMES)/*.h)
 	@mkdir -p $$(@D)
 	$$(CC) $$(CSTD) $$(OPT) $$(WARN) $$(CPPFLAGS) $(2) $$(SRC) $$(TESTS) $$(RUNNER) $$(EXEC) -o $$@ -lpthread
 endef

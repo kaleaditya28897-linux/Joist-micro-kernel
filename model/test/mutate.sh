@@ -28,6 +28,8 @@ if [ "${1:-}" = "--one" ]; then
     cp -r "$MUT_HERE/../kernel/core" "$MUT_HERE/../kernel/include" "$w/kernel/"
     mkdir -p "$w/servers"
     cp -r "$MUT_HERE/../servers/mm" "$w/servers/" # mm's library (decision 0023)
+    mkdir -p "$w/glibc/sysdeps"
+    cp -r "$MUT_HERE/../glibc/sysdeps/joist" "$w/glibc/sysdeps/" # glibc's port names (Phase 5 step 7)
     if ! python3 - "$w/model/$file" "$from" "$to" <<'PY'
 import sys
 p, a, b = sys.argv[1:]

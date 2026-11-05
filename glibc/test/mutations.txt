@@ -1,0 +1,120 @@
+# Injected bugs in ../sysdeps/joist/joist-gsync.c that test_gsync.c must catch
+# (make mutate). Each block: '== name FILE' (FILE relative to glibc/), then
+# '-- find' and the text (found exactly once), then '-- replace' and its
+# replacement. A hang counts as caught only when the watchdog ends it.
+
+== no-recheck sysdeps/joist/joist-gsync.c
+-- find
+  if (word (addr, quad) != expect)
+-- replace
+  if (0)
+
+== quad-ignored sysdeps/joist/joist-gsync.c
+-- find
+  if (quad)
+    return load_relaxed ((const uint64_t *) addr);
+-- replace
+  if (0)
+    return load_relaxed ((const uint64_t *) addr);
+
+== wake-no-signal sysdeps/joist/joist-gsync.c
+-- find
+  store_release (&w->queued, 0);
+  __joist_gsync_signal (notif);
+-- replace
+  store_release (&w->queued, 0);
+
+== wake-stays-queued sysdeps/joist/joist-gsync.c
+-- find
+  store_release (&w->queued, 0);
+-- replace
+  (void) 0;
+
+== lifo sysdeps/joist/joist-gsync.c
+-- find
+  if (b->tail != NULL)
+    b->tail->next = self;
+  else
+    b->head = self;
+  b->tail = self;
+-- replace
+  self->next = b->head;
+  b->head = self;
+  if (b->tail == NULL)
+    b->tail = self;
+
+== wake-all-always sysdeps/joist/joist-gsync.c
+-- find
+	  if (!all)
+	    break;
+-- replace
+	  (void) all;
+
+== spurious-as-woken sysdeps/joist/joist-gsync.c
+-- find
+	continue;
+-- replace
+	return JG_WOKEN;
+
+== timeout-stays-queued sysdeps/joist/joist-gsync.c
+-- find
+      unlink_after (b, prev, self);
+      store_relaxed (&self->queued, 0);
+-- replace
+      (void) prev;
+
+== timeout-ignores-wake sysdeps/joist/joist-gsync.c
+-- find
+      if (load_relaxed (&self->queued) == 0)
+	{
+	  bucket_unlock (b);
+	  return JG_WOKEN;
+	}
+-- replace
+      if (0)
+	{
+	}
+
+== own-bucket-unchecked sysdeps/joist/joist-gsync.c
+-- find
+      if (load_relaxed (&self->key) == key)
+	return b;
+-- replace
+      return b;
+
+== requeue-key-kept sysdeps/joist/joist-gsync.c
+-- find
+	  db->tail = w;
+	  store_relaxed (&w->key, dkey);
+-- replace
+	  db->tail = w;
+
+== requeue-wakes-none sysdeps/joist/joist-gsync.c
+-- find
+      else if (wake_one_first && n == 0)
+-- replace
+      else if (0)
+
+== lock-unlock-silent sysdeps/joist/joist-gsync.c
+-- find
+    __joist_gsync_signal (b->notif);
+-- replace
+    (void) b;
+
+== lock-not-contended sysdeps/joist/joist-gsync.c
+-- find
+  while (__atomic_exchange_n (&b->lock, 2, __ATOMIC_ACQUIRE) != 0)
+-- replace
+  while (__atomic_exchange_n (&b->lock, 1, __ATOMIC_ACQUIRE) != 0)
+
+== mutate-ignored sysdeps/joist/joist-gsync.c
+-- find
+  if (mutate)
+-- replace
+  if (0)
+
+== timeout-never sysdeps/joist/joist-gsync.c
+-- find
+	  left = now < deadline ? deadline - now : 0;
+-- replace
+	  left = JG_FOREVER;

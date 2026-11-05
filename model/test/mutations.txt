@@ -359,3 +359,16 @@ mm-tree-reserve-kept-without-tasks @@ ../servers/mm/mmlib.c @@         g->reserv
 mm-tree-share-room-unchecked @@ ../servers/mm/mmlib.c @@         !tree_room(m, tk->tree, n - mapped + cow)) { @@         0) {
 mm-tree-set-limit-unchecked @@ ../servers/mm/mmlib.c @@     if (m->nfree < unused_all(m) - was + now) { @@     if (was > now + MM_PAGES) {
 mm-tree-lost-still-charged @@ ../servers/mm/mmlib.c @@                 page_uncharge(m, r->ext[x].page + k); @@                 (void)k;
+# glibc's port names on Joist (../glibc/sysdeps/joist/joist-names.c; Phase 5 step 7)
+names refs kept    @@ ../glibc/sysdeps/joist/joist-names.c @@ return set_send_refs (t, name, e->refs - 1u); @@ return set_send_refs (t, name, e->refs);
+names cap kept     @@ ../glibc/sysdeps/joist/joist-names.c @@   if (new == 0) @@   if (0)
+names member moved @@ ../glibc/sysdeps/joist/joist-names.c @@ JN_INVALID_RIGHT;	/* 0005: nothing moves once it has a badge */ @@ JN_OK;
+names no mint      @@ ../glibc/sysdeps/joist/joist-names.c @@   if (r == JN_OK && e->refs == 0) @@   if (r == JN_OK && e->refs == 0 && 0)
+names badge reused @@ ../glibc/sysdeps/joist/joist-names.c @@     e->badge = t->next_badge++; @@     e->badge = t->next_badge;
+names no undo      @@ ../glibc/sysdeps/joist/joist-names.c @@ undo_all (t, name, &u); @@ (void) u;
+names arrived refs @@ ../glibc/sysdeps/joist/joist-names.c @@       t->e[slot].refs = 1; @@       t->e[slot].refs = 2;
+names set kept     @@ ../glibc/sysdeps/joist/joist-names.c @@       t->e[i].set = 0; @@       (void) i;
+names ep kept      @@ ../glibc/sysdeps/joist/joist-names.c @@       (void) __joist_names_delete (e->ep);	/* its senders' calls fail */ @@       (void) 0;
+names no shrink    @@ ../glibc/sysdeps/joist/joist-names.c @@       (void) __joist_names_shrink ((uint32_t) grew); @@       (void) grew;
+names move kept    @@ ../glibc/sysdeps/joist/joist-names.c @@     (void) __jn_deallocate (t, name); @@     (void) name;
+names derive undo  @@ ../glibc/sysdeps/joist/joist-names.c @@       untake (t, name, g); @@       t->e[name].kind = JN_FREE;
