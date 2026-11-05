@@ -670,3 +670,111 @@ Implementation choices inside choice 3, 0001, 0005 and 0006, so
   lists, and their step fails in glibc's awk on llvm-objdump's output.
 - **Not yet run:** nothing here has run; the libraries are for a Hurd.
   Next: sysdeps/joist, step 7 proper.
+
+### Step 7: the design of `sysdeps/joist` (2026-11-05, accepted)
+
+What glibc's Mach layer becomes on Joist, for the 82 symbols the
+inventory found (step 5), so that the Hurd layer above it (kept, now
+clang-clean) and the reused servers run unchanged. Choices inside 0001,
+0005, 0010, 0014, 0023, 0030 and 0031; the two marked **(new)** touch
+the kernel's ABI or a decision.
+
+1. **Where it goes.** A directory `sysdeps/joist/` placed before
+   `sysdeps/mach/` in `x86_64-gnu`'s sysdeps list when glibc is configured
+   with `--enable-joist` (a small configure patch). The host stays
+   `x86_64-gnu`: the programs are the Hurd's, with its ABI. Each Mach-layer
+   file Joist replaces is a file of the same name there, so the list of
+   files in `sysdeps/joist/` is the interface, reviewable as a list; the
+   Hurd layer and the rest of glibc are not touched. The Mach RPC stubs
+   glibc generates from Mach's `.defs` (`vm_allocate`, `thread_create`,
+   ...) are not generated for Joist: each used one is a function there.
+2. **Port names are capability slots** (0001: names are slots). libc keeps
+   a **name table**, one entry per slot: what the name is (a send right, a
+   receive right, a port set, a dead name, the reply sentinel) and its user
+   references (Mach's urefs, counted in libc: the capability is deleted
+   when they reach 0). libc allocates names (free slots), growing a leaf
+   (`cspace_grow`) when one is full; the table is bounded by the space's
+   8 192 slots. Slots 0-15 are fixed by the startup protocol (item 8).
+3. **Receive rights and port sets (0005).** A port set is one endpoint; a
+   port in it, a badge. A receive right is made lazily:
+   `mach_port_allocate(RECEIVE)` takes a name and nothing else; moving it
+   into a set (`mach_port_move_member`) ties it to the set's endpoint; its
+   badge is its protected payload if one was set
+   (`mach_port_set_protected_payload`, how libports finds its port
+   record), or a counter's next value; its first send right is minted
+   then. A receive right never put in a set gets an endpoint of its own at
+   its first send right. As 0005 says, nothing moves once a send right
+   exists: `move_member` or a new payload then is refused
+   (`KERN_INVALID_RIGHT`), and a test counts that libports never asks.
+   No-senders and dead-name requests
+   (`mach_port_request_notification`) are 0001's lifetime notifications,
+   bound to a notification the libc owns, as `mm` does.
+4. **Messages.** The Hurd's RPCs go through Joist's MIG backend (step 6):
+   `joist_mig_call` is a `Call` on the name's slot with no timeout. The
+   reply port is the call's reply capability, so `mig_get_reply_port`
+   gives the reply sentinel and `mach_reply_port` a name that only stands
+   for it. **`mach_msg` itself is not provided** (it returns
+   `MACH_SEND_INVALID_HEADER`): of its users reached, `ioctl` gets
+   `ENOTTY` (its handler table still works), libports' loops are
+   rewritten in step 8, and the signal thread's message port is Phase 7.
+   Interrupting an RPC (Mach's `interrupt_operation`) is Phase 7 with
+   signals.
+5. **Locks: 0014 B, made precise.** Each thread has a notification of its
+   own, made with it. A fixed table of buckets (by lock address) holds, in
+   each, a spin-locked FIFO queue of waiting threads, linked through their
+   thread records. `gsync_wait`: lock the bucket, re-check the word (a
+   change means no wait), enqueue itself, unlock, `Wait` on its own
+   notification with the timeout; on a timeout, dequeue itself. `gsync_wake`
+   (one or all): dequeue the waiters on that address, `Signal` each.
+   `gsync_requeue`: move them to another address's queue. A signal before
+   the `Wait` is kept by the notification's sticky bit, so no wake-up is
+   lost; a stale bit only makes a spurious wake-up, which every caller
+   re-checks. No allocation after a thread is made, no table that fills.
+   **Built in the host model first:** property tests under every
+   sanitizer, CBMC on wait, wake, requeue and timeout, mutations.
+6. **Memory.** `vm_allocate`, `vm_map` of anonymous memory,
+   `vm_deallocate`, `vm_protect`, `munmap`, `mprotect` are `mm`'s
+   `MAP_ANON`, `UNMAP` and `PROTECT` (0023). `mm` takes the address, so
+   libc chooses it ("anywhere"): a bounded table of the task's reservations,
+   first fit in a fixed window, which also answers `vm_region`. `vm_map`
+   of a memory object is refused (0007, Phase 7). **`malloc`'s arenas in a
+   region** (0030): the main arena's heap (`MORECORE`) and each thread
+   arena's heap are ranges of one region the task asks `mm` for, grown with
+   `REGION_GROW` and mapped by the task itself; allocations above
+   `malloc`'s mmap threshold use `MAP_ANON`. `vm_page_size` is 4 096.
+7. **Tasks and threads** (0004, 0010). `mach_task_self` and the first
+   thread's `mach_thread_self` are fixed slots; a thread's own capability is
+   in its thread record. htl's sequence maps one to one:
+   `thread_create` is `thread_spawn` (a thread with no scheduling context
+   doesn't run), `thread_set_state` is `thread_write_regs` (its TLS base
+   with it, 0010), and `thread_resume` binds the thread a **scheduling
+   context of its own**, made with the parameters the root gave the task
+   (item 8); suspend, resume, abort and terminate are the kernel's calls.
+   `task_terminate` of itself is `exit`. `task_threads`, and
+   `thread_get_state` of another thread, are Phase 7 (signals, `fork`).
+8. **Start-up.** The root plays the exec server: it lays out the new
+   task's stack exactly as `_hurd_startup` reads it (argc, argv, envp and a
+   `struct hurd_startup_data`: its `portarray` and `dtable` of names, which
+   are slots), puts the capabilities there in fixed slots (the task, the
+   first thread, `MM_SLOT`, the bootstrap port, a context's parameters),
+   and starts the first thread. Joist's `_hurd_startup` reads that block
+   (the Hurd's would ask an exec server). Before `proc` and `auth` exist,
+   their ports are null, as the Hurd's boot filesystem sees them. The
+   signal thread is not started in Phase 5; `raise` and `abort` end the
+   task.
+9. **Time and CPUs (new).** One kernel call, **`clock`**: the monotonic
+   time in nanoseconds since boot, and the number of CPUs. Constant time,
+   no object. `CLOCK_MONOTONIC` is it; `CLOCK_REALTIME` is it plus an
+   offset of 0 until a time server exists (Phase 8). `host_info`'s CPU
+   count and `sched_yield` (0014's `Yield`) are the rest of "time, other".
+10. **Refused in Phase 5**, each returning its Mach error and listed in a
+    test: `mach_msg`, `exc_server` (0027), memory objects, `task_threads`,
+    another thread's state, `fork`, `exec`, signal delivery.
+11. **Order of work.** (a) the lock queues and the name table in the host
+    model, with their tests; (b) `clock` in the kernel, with its tests;
+    (c) `sysdeps/joist`: names, ports and messages, then memory, then
+    threads and `htl`, then start-up; (d) glibc's static tests that need
+    none of item 10, on Joist under QEMU and KVM; `htl`'s on 1, 2 and 4
+    CPUs; `malloc` stress in a region.
+
+Accepted by the owner as written, 2026-11-05 (the `clock` call with it).
