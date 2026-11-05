@@ -404,14 +404,97 @@ static int unchanged(void)
     return 1;
 }
 
+/* Two ports of one set with no payload: each its own badge from the
+ * counter (the property test seldom has two minted ports in one set). */
+JT_TEST(names_badges_distinct)
+{
+    setup();
+    uint32_t set, p1, p2, p3;
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_PORT_SET, &set) == JN_OK);
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &p1) == JN_OK);
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &p2) == JN_OK);
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &p3) == JN_OK);
+    JT_REQUIRE(__jn_move_member(&TA, p1, set) == JN_OK && __jn_move_member(&TA, p2, set) == JN_OK);
+    JT_REQUIRE(__jn_move_member(&TA, p3, set) == JN_OK);
+    JT_CHECK(__jn_insert_right(&TA, p1, p1, JN_MAKE_SEND) == JN_OK);
+    uint32_t slot;
+    int temp;
+    JT_CHECK(__jn_send_prepare(&TA, p2, JN_MAKE_SEND, &slot, &temp) == JN_OK);
+    __jn_send_done(&TA, p2, JN_MAKE_SEND, slot, temp, 0);
+    JT_CHECK(__jn_insert_right(&TA, p3, p3, JN_MAKE_SEND) == JN_OK);
+    uint64_t b1 = __jn_badge(&TA, p1), b2 = __jn_badge(&TA, p2), b3 = __jn_badge(&TA, p3);
+    JT_CHECK(b1 != 0 && b2 != 0 && b3 != 0);
+    JT_CHECK(b1 != b2 && b1 != b3 && b2 != b3);
+    JT_CHECK(agree());
+}
+
+/* A mint the kernel refuses (the model's no-senders accounts all taken,
+ * JOIST_MAX_BADGE_ACCTS) after the badge was fixed and, for a port in no
+ * set, its endpoint made: make_send and send_prepare put everything back. */
+JT_TEST(names_mint_refused_undone)
+{
+    setup();
+    uint32_t set, p, in_set, alone, slot;
+    int temp;
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_PORT_SET, &set) == JN_OK);
+    unsigned minted = 0;
+    for (;;) {
+        JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &p) == JN_OK);
+        JT_REQUIRE(__jn_move_member(&TA, p, set) == JN_OK);
+        int r = __jn_insert_right(&TA, p, p, JN_MAKE_SEND);
+        if (r != JN_OK) {
+            JT_CHECK(r == JN_RESOURCE_SHORTAGE);
+            break;
+        }
+        JT_REQUIRE(++minted <= JOIST_MAX_BADGE_ACCTS);
+    }
+    JT_CHECK(minted > 0);
+    in_set = p; /* refused: not minted */
+    JT_CHECK(__jn_badge(&TA, in_set) == 0 && TA.e[in_set].minted == 0);
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &alone) == JN_OK);
+    JT_CHECK(agree());
+    uint32_t which[2] = {in_set, alone};
+    for (unsigned i = 0; i < 2u; i++) {
+        snapshot();
+        JT_CHECK(__jn_insert_right(&TA, which[i], which[i], JN_MAKE_SEND) == JN_RESOURCE_SHORTAGE);
+        JT_CHECK(unchanged());
+        JT_CHECK(__jn_send_prepare(&TA, which[i], JN_MAKE_SEND, &slot, &temp) == JN_RESOURCE_SHORTAGE);
+        JT_CHECK(unchanged());
+        JT_CHECK(agree());
+    }
+    /* An account freed: the port in the set mints now, a badge of its own. */
+    uint32_t first = 0;
+    for (uint32_t n = A_FIXED; n < JN_NAMES && first == 0; n++) {
+        if (TA.e[n].kind == JN_RECEIVE && TA.e[n].refs > 0) {
+            first = n;
+        }
+    }
+    JT_REQUIRE(first != 0);
+    JT_CHECK(__jn_deallocate(&TA, first) == JN_OK); /* the account fires, unbound: freed */
+    JT_CHECK(__jn_insert_right(&TA, in_set, in_set, JN_MAKE_SEND) == JN_OK);
+    JT_CHECK(__jn_badge(&TA, in_set) != __jn_badge(&TA, first));
+    JT_CHECK(agree());
+}
+
 #define SEEDS 300u
 #define STEPS 400u
 
 JT_TEST(names_property)
 {
-    unsigned refused = 0, done = 0;
+    unsigned refused = 0, done = 0, shared = 0;
     for (unsigned seed = 1; seed <= SEEDS; seed++) {
         setup();
+        uint32_t sets[4] = {0, 0, 0, 0}; /* port sets made, for move_member */
+        uint32_t recent[8] = {0};        /* names allocated, to work on */
+        if (seed % 2u == 0) {
+            /* Half the seeds start with a set of four ports, as a server's
+             * bucket, so that two ports of one set get badges. */
+            JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_PORT_SET, &sets[0]) == JN_OK);
+            for (unsigned i = 0; i < 4u; i++) {
+                JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &recent[i]) == JN_OK);
+                JT_REQUIRE(__jn_move_member(&TA, recent[i], sets[0]) == JN_OK);
+            }
+        }
         rng = seed * 0x9e3779b97f4a7c15ull;
         for (unsigned step = 0; step < STEPS; step++) {
             uint32_t name = (uint32_t)(rnd() % (JN_NAMES + 2u));
@@ -422,8 +505,11 @@ JT_TEST(names_property)
             static const int disps[] = {JN_MAKE_SEND, JN_COPY_SEND, JN_MOVE_SEND, 3};
             int right = rights[rnd() % 5u];
             int disp = disps[rnd() % 4u];
-            /* Bias towards names in use. */
-            if (rnd() % 2u) {
+            /* Bias towards names in use: one allocated lately, or found. */
+            uint32_t lately = recent[rnd() % 8u];
+            if (rnd() % 3u == 0 && lately != 0) {
+                name = lately;
+            } else if (rnd() % 2u) {
                 for (uint32_t i = 0; i < 16u; i++) {
                     uint32_t c = A_FIXED + (uint32_t)(rnd() % (JN_NAMES - A_FIXED));
                     uint8_t kd = TA.e[c].kind;
@@ -442,6 +528,12 @@ JT_TEST(names_property)
             case 0:
             case 1:
                 r = __jn_allocate(&TA, right, &out);
+                if (r == JN_OK && right == JN_RIGHT_PORT_SET) {
+                    sets[rnd() % 4u] = out;
+                }
+                if (r == JN_OK) {
+                    recent[rnd() % 8u] = out;
+                }
                 break;
             case 2:
                 r = __jn_deallocate(&TA, name);
@@ -455,11 +547,18 @@ JT_TEST(names_property)
             case 5:
                 r = __jn_insert_right(&TA, rnd() % 2u ? name : other, name, disp);
                 break;
-            case 6:
-                r = __jn_move_member(&TA, name, rnd() % 3u ? other : 0);
+            case 6: {
+                /* Mostly into a set made earlier, so that ports share sets. */
+                uint32_t pick = sets[rnd() % 4u];
+                if (rnd() % 4u != 0 && pick != 0) {
+                    other = pick;
+                }
+                r = __jn_move_member(&TA, name, rnd() % 4u ? other : 0);
                 break;
+            }
             case 7:
-                r = __jn_set_payload(&TA, name, rnd() % 4u ? 0x1000u + rnd() % 64u : 0);
+                /* A payload is a port record's address: one per name. */
+                r = __jn_set_payload(&TA, name, rnd() % 4u ? 0x1000u + name * 16u : 0);
                 break;
             case 8:
             case 9:
@@ -489,6 +588,16 @@ JT_TEST(names_property)
             } else {
                 done++;
             }
+            /* Steps with two badged ports in one set (what the agreement's
+             * badge check needs to see). */
+            unsigned m[4] = {0, 0, 0, 0};
+            for (uint32_t n = A_FIXED; n < JN_NAMES; n++) {
+                const struct jn_entry *e = &TA.e[n];
+                for (unsigned i = 0; e->kind == JN_RECEIVE && e->minted && e->set != 0 && i < 4u; i++) {
+                    m[i] += e->set == sets[i];
+                }
+            }
+            shared += m[0] >= 2u || m[1] >= 2u || m[2] >= 2u || m[3] >= 2u;
             if (!agree()) {
                 fprintf(stderr, "  seed %u step %u: op %d (result %d)\n", seed, step, op, r);
                 jt_fail(__FILE__, __LINE__, "names agree with the space", 1);
@@ -496,6 +605,7 @@ JT_TEST(names_property)
             }
         }
     }
-    fprintf(stderr, "  names: %u operations done, %u refused\n", done, refused);
-    JT_CHECK(done > 1000u && refused > 1000u);
+    fprintf(stderr, "  names: %u operations done, %u refused; %u steps with two badged ports in a set\n", done,
+            refused, shared);
+    JT_CHECK(done > 1000u && refused > 1000u && shared > 0u);
 }
