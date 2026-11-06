@@ -197,6 +197,60 @@ static void test_clock(uint64_t ncpus)
     j_puts("\n");
 }
 
+/* 7. A thread sets its own TLS base (0010; glibc's TLS_INIT_TP on Joist):
+ * it reads its own register record, points the TLS base at a block of its
+ * memory and writes the record back, which resumes it after the read with
+ * the new base: %fs:0 then reads the block's first word. */
+static volatile uint64_t tls_block[2] = {0x6a6f697374u, 0};
+static volatile uint64_t tls_seen;
+static uint64_t tls_slot;
+static uint8_t tls_stack[4096] __attribute__((aligned(16)));
+
+static void tls_thread(void)
+{
+    struct j_thread_regs r;
+    /* The record holds the pc the read returns to: written back, the
+     * thread resumes there, every register as then. A flag in memory
+     * (which the write doesn't restore) tells the second arrival from the
+     * first. */
+    volatile int written = 0;
+    uint64_t v = 0, e1 = j_thread_read_regs(tls_slot, &r), e2 = 0;
+    if (e1 == J_OK && !written) {
+        written = 1;
+        r.tls = (uint64_t)(uintptr_t)tls_block;
+        e2 = j_thread_write_regs(tls_slot, &r); /* goes on after the read */
+    }
+    if (e1 == J_OK && e2 == J_OK) {
+        __asm__ volatile("mov %%fs:0, %0" : "=r"(v));
+    }
+    tls_seen = v != 0 ? v : 1000u + e1 * 100u + e2;
+    for (;;) {
+        sleep_ns(1000 * J_MS);
+    }
+}
+
+static void test_own_tls(void)
+{
+    tls_slot = slot_new();
+    uint64_t sc = slot_new();
+    must(j_thread_spawn(J_ROOT_SELF, tls_slot, (uint64_t)(uintptr_t)tls_thread,
+                        (uint64_t)(uintptr_t)(tls_stack + sizeof tls_stack - 8u)),
+         "thread_spawn (tls)");
+    must(j_sc_create(sc, 100, 10 * J_MS, 10 * J_MS), "sc_create (tls)");
+    must(j_sc_bind(sc, tls_slot), "sc_bind (tls)");
+    for (unsigned i = 0; i < 100u && tls_seen == 0; i++) {
+        sleep_ns(J_MS);
+    }
+    if (tls_seen != tls_block[0]) {
+        j_puts("sched: own tls: the thread saw ");
+        j_putu(tls_seen);
+        j_puts("\n");
+    }
+    check(tls_seen == tls_block[0], "a thread's own TLS base didn't take");
+    must(j_thread_kill(tls_slot), "thread_kill (tls)");
+    j_puts("sched: own tls ok\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free, uint64_t ncpus)
 {
@@ -212,6 +266,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_equals();
     test_donation();
     test_clock(ncpus);
+    test_own_tls();
     j_puts("sched: all ok\n");
     j_exit(0);
 }

@@ -340,6 +340,41 @@ JT_TEST(abi_thread_regs_read_and_write)
     JT_CHECK(clean());
 }
 
+/* A thread writing its own record (how glibc sets its TLS base, 0010):
+ * read it, change the TLS base, write it back. It resumes at the record's
+ * pc (the read's return, on a real CPU: user/schedroot's "own tls" test),
+ * every register as written but the call's outputs, which come after: RAX
+ * the result, RDX unchanged (no value returned). */
+JT_TEST(abi_thread_regs_own)
+{
+    setup();
+    uint8_t *mem = with_user_memory();
+    joist_thread a;
+    joist_thread b;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_THREAD_SPAWN, 2, 3, 0x401000, 0x7000) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    b = k.obj[k.cs[root].slot[3].obj - 1u].target - 1u;
+    /* b's own capability, in its task's slot 0. */
+    JT_REQUIRE(sys(a, ABI_CAP_GIVE, 2, 3, 0, JOIST_R_SEND | JOIST_R_GRANT) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    k.th[b].regs.r[ABI_R15] = 1234;
+    JT_REQUIRE(sys(b, ABI_THREAD_READ_REGS, 0, UPAGE + 8, 0, 0) == ABI_DONE &&
+               k.th[b].regs.r[ABI_RAX] == JOIST_OK);
+    struct joist_regs rec;
+    memcpy(&rec, mem + 8, sizeof rec);
+    JT_CHECK(rec.pc == 0x401000 && rec.r[ABI_R15] == 1234);
+    rec.tls = 0x6000;
+    memcpy(mem + 8, &rec, sizeof rec);
+    JT_CHECK(sys(b, ABI_THREAD_WRITE_REGS, 0, UPAGE + 8, 0, 0) == ABI_DONE &&
+             k.th[b].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(k.th[b].regs.tls == 0x6000 && k.th[b].regs.pc == 0x401000 && k.th[b].regs.sp == 0x7000);
+    JT_CHECK(k.th[b].regs.r[ABI_R15] == 1234 && k.th[b].regs.r[ABI_RDI] == 0);
+    JT_CHECK(clean());
+}
+
 JT_TEST(abi_thread_regs_refusals)
 {
     setup();

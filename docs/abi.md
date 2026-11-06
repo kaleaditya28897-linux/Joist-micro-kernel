@@ -392,6 +392,13 @@ thread, that the pc is in the user half, the flags are user flags and the
 TLS base is a user address. A thread blocked in a call still gets that
 call's outputs when it wakes, over what was written.
 
+**A thread writing its own record** (glibc sets its TLS base so, 0010)
+resumes at the record's pc with every register as written, the call's
+outputs (`RAX`) written after. A record it read of itself holds the pc that
+read returns to, so it goes back there: code that reads, changes and writes
+its own record keeps a flag in memory, which no register write restores, to
+tell the second arrival from the first (`user/schedroot`, "own tls").
+
 **Faults** (0009). A fault in a thread (an exception in user mode; the
 kernel's trap handlers raise it, the model's tests call `joist_fault`) is a
 `Call` to its handler: the thread's own, else its task's, provided the slot

@@ -164,7 +164,7 @@ run ubsan-pingpong 1 "ping: 1000 round trips ok" "root task exited with code 0"
 # mode and in system calls), equals taking turns, a passive server working on
 # its client's budget.
 run sched 1 "sched: priorities ok" "sched: budget ok" "sched: kernel time ok" "sched: equals ok" \
-    "sched: donation ok" "sched: clock ok" "sched: all ok" "root task exited with code 0"
+    "sched: donation ok" "sched: clock ok" "sched: own tls ok" "sched: all ok" "root task exited with code 0"
 run ubsan-sched 1 "sched: all ok" "root task exited with code 0"
 # Phase 3 step 6: fault IPC and thread control, seen from user mode
 # (user/faultroot): a fault is a message to the handler, who reads and writes
