@@ -189,6 +189,8 @@ extern int __jn_landing (struct jn_table *t, uint32_t *slot);
 /* The kernel put a capability in the landing slot SLOT: a send right,
    one reference.  */
 extern void __jn_arrived (struct jn_table *t, uint32_t slot);
+/* A landing slot nothing arrived in, given back.  */
+extern void __jn_unland (struct jn_table *t, uint32_t slot);
 /* The slot of the endpoint a receive right or port set receives on, or
    0 (a receive right not yet made).  */
 extern uint32_t __jn_recv_slot (const struct jn_table *t, uint32_t name);

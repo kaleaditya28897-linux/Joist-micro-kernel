@@ -61,6 +61,11 @@ rtld_hidden_def (__jn_move_member)
 rtld_hidden_def (__jn_reply_name)
 rtld_hidden_def (__jn_set_payload)
 rtld_hidden_def (__jn_type)
+rtld_hidden_def (__jn_send_prepare)
+rtld_hidden_def (__jn_send_done)
+rtld_hidden_def (__jn_landing)
+rtld_hidden_def (__jn_arrived)
+rtld_hidden_def (__jn_unland)
 
 /* The table's environment (joist-names.h): the kernel's calls on this
    task's own space, their codes as the kernel gives them.  */

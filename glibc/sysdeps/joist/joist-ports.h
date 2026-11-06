@@ -27,6 +27,7 @@
 #ifndef _JOIST_PORTS_H
 #define _JOIST_PORTS_H 1
 
+#include <stddef.h>
 #include <mach.h>
 #include "joist-names.h"
 
@@ -50,6 +51,20 @@ rtld_hidden_proto (__jn_move_member)
 rtld_hidden_proto (__jn_reply_name)
 rtld_hidden_proto (__jn_set_payload)
 rtld_hidden_proto (__jn_type)
+rtld_hidden_proto (__jn_send_prepare)
+rtld_hidden_proto (__jn_send_done)
+rtld_hidden_proto (__jn_landing)
+rtld_hidden_proto (__jn_arrived)
+rtld_hidden_proto (__jn_unland)
+/* MIG's runtime (joist-mig.c, joist_mig.h): one in a program, as the
+   table.  */
+struct joist_mig_msg;
+extern int __joist_mig_call (uint32_t port, struct joist_mig_msg *m);
+extern void *__joist_mig_allocate (size_t size);
+extern void __joist_mig_deallocate (void *p, size_t size);
+rtld_hidden_proto (__joist_mig_call)
+rtld_hidden_proto (__joist_mig_allocate)
+rtld_hidden_proto (__joist_mig_deallocate)
 
 /* Whether TASK is this task.  */
 #define JOIST_PORTS_SELF(task) ((task) == __mach_task_self ())

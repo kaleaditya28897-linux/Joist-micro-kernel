@@ -42,6 +42,10 @@ static const char *test_name; /* -test: the round-trip test's file */
 
 static FILE *out_open(const char *name)
 {
+    /* MIG's more_global makes a file named /dev/null NULL: not written. */
+    if (name == NULL) {
+        name = "/dev/null";
+    }
     FILE *f = fopen(name, "w");
     if (f == NULL) {
         fatal("can't write %s", name);
@@ -130,6 +134,8 @@ static void uval(FILE *f, const argument_t *a)
 
 /* ---- the user stubs ---- */
 
+static const char *elem(const argument_t *a);
+
 static void user_put(FILE *f, const argument_t *a)
 {
     const ipc_type_t *it = a->argType;
@@ -154,13 +160,10 @@ static void user_put(FILE *f, const argument_t *a)
         if (it->itNumber != 0 && !it->itIndefinite) {
             fprintf(f, "\t\tif (jm_n > %u)\n\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n", it->itNumber);
         }
-        fprintf(f, "\t\tif (jm_n > sizeof jm_b.w / (sizeof ");
+        fprintf(f, "\t\tif (jm_n > sizeof jm_b.w / (sizeof (%s)) || joist_mig_put(&jm_b, &jm_n, 8) != 0 ||\n"
+                   "\t\t    joist_mig_put(&jm_b, (const void *)(uintptr_t)(", elem(a));
         uval(f, a);
-        fprintf(f, "[0]) || joist_mig_put(&jm_b, &jm_n, 8) != 0 ||\n\t\t    joist_mig_put(&jm_b, ");
-        uval(f, a);
-        fprintf(f, ", jm_n * sizeof ");
-        uval(f, a);
-        fprintf(f, "[0]) != 0)\n\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n\t}\n");
+        fprintf(f, "), jm_n * sizeof (%s)) != 0)\n\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n\t}\n", elem(a));
         break;
     }
     case W_PORT: {
@@ -180,6 +183,34 @@ static void user_put(FILE *f, const argument_t *a)
     }
 }
 
+/* A variable array's element's C type: its size, whatever the array's own
+ * C type is (a pointer, or an address as an integer: pointer_t). Addresses
+ * pass through uintptr_t for the same reason. */
+static const char *elem(const argument_t *a)
+{
+    const ipc_type_t *e = a->argType->itElement;
+    const char *t = FetchUserType(e);
+    if (t != NULL) {
+        return t;
+    }
+    /* A bare MIG type (pointer_t's MACH_MSG_TYPE_BYTE): a C type of its
+     * size. */
+    static char buf[32];
+    switch (e->itTypeSize) {
+    case 1:
+        return "uint8_t";
+    case 2:
+        return "uint16_t";
+    case 4:
+        return "uint32_t";
+    case 8:
+        return "uint64_t";
+    default:
+        snprintf(buf, sizeof buf, "uint8_t[%u]", e->itTypeSize);
+        return buf;
+    }
+}
+
 /* After a successful call: the sender's in-line data MIG would have moved. */
 static void user_dealloc(FILE *f, const argument_t *a)
 {
@@ -192,13 +223,11 @@ static void user_dealloc(FILE *f, const argument_t *a)
     } else {
         fprintf(f, "1");
     }
-    fprintf(f, ")\n\t\tjoist_mig_deallocate((void *)");
+    fprintf(f, ")\n\t\tjoist_mig_deallocate((void *)(uintptr_t)(");
     uval(f, a);
-    fprintf(f, ", ");
+    fprintf(f, "), ");
     uval(f, a->argCount);
-    fprintf(f, " * sizeof ");
-    uval(f, a);
-    fprintf(f, "[0]);\n");
+    fprintf(f, " * sizeof (%s));\n", elem(a));
 }
 
 static void user_get(FILE *f, const argument_t *a, int *k)
@@ -219,16 +248,38 @@ static void user_get(FILE *f, const argument_t *a, int *k)
         break;
     case W_VAR: {
         const argument_t *c = a->argCount;
+        if (!a->argByReferenceUser) {
+            /* A bounded in-line array (MIG's itIndefinite false): the
+             * caller's own buffer, *count elements long. As MIG: what fits,
+             * the count set to all of them, and MIG_ARRAY_TOO_LARGE if they
+             * didn't fit. */
+            const char *cref = c->argByReferenceUser ? "*" : "";
+            fprintf(f, "\t{\n\t\tuint64_t jm_n;\n");
+            fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0 || jm_n > sizeof jm_b.w / (sizeof (%s)))\n",
+                    elem(a));
+            fprintf(f, "\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
+            fprintf(f, "\t\tif (jm_n > %s%s) {\n", cref, c->argVarName);
+            fprintf(f, "\t\t\tif (joist_mig_get(&jm_b, (void *)(uintptr_t)(%s), %s%s * sizeof (%s)) != 0)\n",
+                    a->argVarName, cref, c->argVarName, elem(a));
+            fprintf(f, "\t\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
+            fprintf(f, "\t\t\t%s%s = (mach_msg_type_number_t)jm_n;\n", cref, c->argVarName);
+            fprintf(f, "\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n\t\t}\n");
+            fprintf(f, "\t\tif (joist_mig_get(&jm_b, (void *)(uintptr_t)(%s), jm_n * sizeof (%s)) != 0)\n",
+                    a->argVarName, elem(a));
+            fprintf(f, "\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
+            fprintf(f, "\t\t%s%s = (mach_msg_type_number_t)jm_n;\n\t}\n", cref, c->argVarName);
+            break;
+        }
         fprintf(f, "\t{\n\t\tuint64_t jm_n;\n");
-        fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0 || jm_n > sizeof jm_b.w / (sizeof (*%s)[0]))\n",
-                a->argVarName);
+        fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0 || jm_n > sizeof jm_b.w / (sizeof (%s)))\n",
+                elem(a));
         fprintf(f, "\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
         fprintf(f, "\t\tif (jm_n > *%s) {\n", c->argVarName);
-        fprintf(f, "\t\t\tvoid *jm_p = joist_mig_allocate(jm_n * sizeof (*%s)[0]);\n", a->argVarName);
+        fprintf(f, "\t\t\tvoid *jm_p = joist_mig_allocate(jm_n * sizeof (%s));\n", elem(a));
         fprintf(f, "\t\t\tif (jm_p == NULL)\n\t\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n");
-        fprintf(f, "\t\t\t*%s = jm_p;\n\t\t}\n", a->argVarName);
-        fprintf(f, "\t\tif (joist_mig_get(&jm_b, *%s, jm_n * sizeof (*%s)[0]) != 0)\n", a->argVarName,
-                a->argVarName);
+        fprintf(f, "\t\t\t*%s = (__typeof__(*%s))(uintptr_t)jm_p;\n\t\t}\n", a->argVarName, a->argVarName);
+        fprintf(f, "\t\tif (joist_mig_get(&jm_b, (void *)(uintptr_t)(*%s), jm_n * sizeof (%s)) != 0)\n",
+                a->argVarName, elem(a));
         fprintf(f, "\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
         fprintf(f, "\t\t*%s = (mach_msg_type_number_t)jm_n;\n\t}\n", c->argVarName);
         break;
@@ -328,14 +379,14 @@ static void server_in(FILE *f, const argument_t *a, int *k)
             fprintf(f, "\t%s jm_%s;\n\tmach_msg_type_number_t jm_%sCnt;\n\t{\n\t\tuint64_t jm_n;\n", st,
                     svname(a), svname(a));
             fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0 || jm_n > sizeof jm_b.w ||\n");
-            fprintf(f, "\t\t    (jm_%s = (%s)joist_mig_ref(&jm_b, jm_n * sizeof jm_%s[0])) == NULL)\n", svname(a),
-                    st, svname(a));
+            fprintf(f, "\t\t    (jm_%s = (%s)(uintptr_t)joist_mig_ref(&jm_b, jm_n * sizeof (%s))) == 0)\n",
+                    svname(a), st, elem(a));
             fprintf(f, "\t\t\tgoto bad;\n\t\tjm_%sCnt = (mach_msg_type_number_t)jm_n;\n\t}\n", svname(a));
         } else {
             fprintf(f, "\tuint64_t jm_space_%s[JOIST_MIG_BUF_WORDS];\n", svname(a));
-            fprintf(f, "\t%s jm_%s = (%s)jm_space_%s;\n", st, svname(a), st, svname(a));
-            fprintf(f, "\tmach_msg_type_number_t jm_%sCnt = sizeof jm_space_%s / (sizeof jm_%s[0]);\n", svname(a),
-                    svname(a), svname(a));
+            fprintf(f, "\t%s jm_%s = (%s)(uintptr_t)jm_space_%s;\n", st, svname(a), st, svname(a));
+            fprintf(f, "\tmach_msg_type_number_t jm_%sCnt = sizeof jm_space_%s / (sizeof (%s));\n", svname(a),
+                    svname(a), elem(a));
         }
         break;
     case W_PORT:
@@ -422,13 +473,15 @@ static void server_out(FILE *f, const argument_t *a)
         break;
     case W_VAR:
         fprintf(f, "\t{\n\t\tuint64_t jm_n = jm_%sCnt;\n", svname(a));
-        fprintf(f, "\t\tint jm_big = jm_n > sizeof jm_o.w / (sizeof jm_%s[0]) || joist_mig_put(&jm_o, &jm_n, 8) != 0 ||\n",
-                svname(a));
-        fprintf(f, "\t\t    joist_mig_put(&jm_o, jm_%s, jm_n * sizeof jm_%s[0]) != 0;\n", svname(a), svname(a));
+        fprintf(f, "\t\tint jm_big = jm_n > sizeof jm_o.w / (sizeof (%s)) || joist_mig_put(&jm_o, &jm_n, 8) != 0 ||\n",
+                elem(a));
+        fprintf(f, "\t\t    joist_mig_put(&jm_o, (const void *)(uintptr_t)jm_%s, jm_n * sizeof (%s)) != 0;\n",
+                svname(a), elem(a));
         if (a->argDeallocate != d_NO) {
             /* The routine gave memory of its own: MIG would have moved it. */
-            fprintf(f, "\t\tif ((void *)jm_%s != (void *)jm_space_%s)\n", svname(a), svname(a));
-            fprintf(f, "\t\t\tjoist_mig_deallocate(jm_%s, jm_n * sizeof jm_%s[0]);\n", svname(a), svname(a));
+            fprintf(f, "\t\tif ((void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n", svname(a), svname(a));
+            fprintf(f, "\t\t\tjoist_mig_deallocate((void *)(uintptr_t)jm_%s, jm_n * sizeof (%s));\n", svname(a),
+                    elem(a));
         }
         fprintf(f, "\t\tif (jm_big)\n\t\t\tgoto big;\n\t}\n");
         break;
@@ -521,6 +574,33 @@ static void write_user(FILE *f, const statement_t *stats)
         if (s->stKind == skRoutine) {
             write_user_routine(f, s->stRoutine);
         }
+    }
+}
+
+/* -i BASE (glibc's Machrules): each routine's user stub in a file of its
+ * own, BASE<routine>.c, which includes no interface header (it may be
+ * /dev/null), as migcom's individual files don't: Mach's standard headers
+ * and the interface's imports give its types. */
+static void write_user_individual(const char *prefix, const statement_t *stats)
+{
+    for (const statement_t *s = stats; s != stNULL; s = s->stNext) {
+        if (s->stKind != skRoutine) {
+            continue;
+        }
+        char *name = strconcat(prefix, strconcat(s->stRoutine->rtName, ".c"));
+        FILE *f = out_open(name);
+        fprintf(f, "/* Generated by MIG's Joist mode (third_party/mig/joistmig.c) from %s. */\n",
+                SubsystemName);
+        fprintf(f, "#ifndef _GNU_SOURCE\n#define _GNU_SOURCE 1\n#endif\n");
+        fprintf(f, "#include <mach/boolean.h>\n#include <mach/kern_return.h>\n"
+                   "#include <mach/message.h>\n#include <mach/mach_types.h>\n"
+                   "#include <mach/mig_errors.h>\n#include <stdint.h>\n"
+                   "#include <joist_mig.h>\n#include <string.h>\n");
+        write_imports(f, stats, skUImport);
+        fprintf(f, "\n#ifndef mig_external\n#define mig_external\n#endif\n");
+        write_user_routine(f, s->stRoutine);
+        fclose(f);
+        strfree(name);
     }
 }
 
@@ -857,14 +937,22 @@ static void write_test(FILE *f, const statement_t *stats)
 
 static void usage(void)
 {
-    fatal("usage: joistmig [-prefix P] [-subrprefix S] -user U.c -header U.h -server S.c -sheader S.h");
+    fatal("usage: joistmig [-prefix P] [-subrprefix S] [-i BASE] -user U.c -header U.h -server S.c -sheader S.h");
 }
 
 int main(int argc, char **argv)
 {
     set_program_name("joistmig");
+    const char *individual = NULL;
     for (int i = 1; i < argc; i++) {
         const char *o = argv[i];
+        /* migcom's flags without a value (mig's driver passes them on):
+         * nothing here depends on them. */
+        if (strcmp(o, "-q") == 0 || strcmp(o, "-Q") == 0 || strcmp(o, "-v") == 0 ||
+            strcmp(o, "-V") == 0 || strcmp(o, "-s") == 0 || strcmp(o, "-S") == 0 ||
+            strcmp(o, "-n") == 0 || strcmp(o, "-r") == 0 || strcmp(o, "-R") == 0) {
+            continue;
+        }
         if (i + 1 >= argc) {
             usage();
         }
@@ -883,13 +971,20 @@ int main(int argc, char **argv)
             SubrPrefix = strmake(v);
         } else if (strcmp(o, "-test") == 0) {
             test_name = v;
+        } else if (strcmp(o, "-i") == 0) {
+            individual = v;
+        } else if (strcmp(o, "-list") == 0 || strcmp(o, "-iheader") == 0) {
+            /* A kernel server's files: not made here. */
         } else {
             usage();
         }
     }
-    if (UserFileName == strNULL || UserHeaderFileName == strNULL || ServerFileName == strNULL ||
-        ServerHeaderFileName == strNULL) {
+    if ((UserFileName == strNULL && individual == NULL) || UserHeaderFileName == strNULL ||
+        ServerFileName == strNULL) {
         usage();
+    }
+    if (ServerHeaderFileName == strNULL) {
+        ServerHeaderFileName = strmake("/dev/null");
     }
     init_global();
     LookNormal();
@@ -905,9 +1000,13 @@ int main(int argc, char **argv)
     f = out_open(ServerHeaderFileName);
     WriteServerHeader(f, StatementList);
     fclose(f);
-    f = out_open(UserFileName);
-    write_user(f, StatementList);
-    fclose(f);
+    if (individual != NULL) {
+        write_user_individual(individual, StatementList);
+    } else {
+        f = out_open(UserFileName);
+        write_user(f, StatementList);
+        fclose(f);
+    }
     f = out_open(ServerFileName);
     write_server(f, StatementList);
     fclose(f);

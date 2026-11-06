@@ -5,6 +5,9 @@ ld {
     __jn_allocate; __jn_deallocate; __jn_destroy; __jn_get_refs;
     __jn_insert_right; __jn_mod_refs; __jn_move_member; __jn_reply_name;
     __jn_set_payload; __jn_type;
+    __jn_send_prepare; __jn_send_done; __jn_landing; __jn_arrived; __jn_unland;
+    # MIG's runtime (joist-mig.c): RPCs from libc.so and libhurduser.
+    __joist_mig_call; __joist_mig_allocate; __joist_mig_deallocate;
     # The address reservations, the same way.
     __joist_vm_lock; __joist_vm_unlock;
     __jv_allocate; __jv_deallocate; __jv_vm_protect; __jv_vm_region;

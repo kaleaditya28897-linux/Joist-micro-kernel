@@ -85,9 +85,13 @@ exec clang --target=x86_64-unknown-linux-gnu -U__linux__ -U__linux -Ulinux -U__g
 EOF
 chmod +x bin/x86_64-gnu-clang
 
-# MIG: migcom from third_party/mig, and its driver from mig.in.
+# MIG: migcom from third_party/mig, and its driver from mig.in. For Joist
+# (JOIST=1), joistmig in migcom's place: the same driver, the same
+# options (-i for glibc's one file a routine), stubs that speak Joist's IPC
+# through glibc's sysdeps/joist/joist_mig.h.
+if [ "$JOIST" = 1 ]; then migmain=joistmig.c; else migmain=migcom.c; fi
 (cd "$repo/third_party/mig" && clang -O2 -w -I. -o "$W/mig/libexec/x86_64-gnu-migcom" error.c global.c \
-    header.c lexxer.c migcom.c parser.c routine.c server.c statement.c string.c type.c user.c utils.c)
+    header.c lexxer.c $migmain parser.c routine.c server.c statement.c string.c type.c user.c utils.c)
 sed -e "s#@prefix@#$W/mig#" -e 's#@exec_prefix@#${prefix}#' -e 's#@bindir@#${prefix}/bin#' \
     -e 's#@libexecdir@#${prefix}/libexec#' -e 's#@MIGCOM@#x86_64-gnu-migcom#' \
     -e "s#@CC@#$W/bin/x86_64-gnu-clang#" -e "s#@TARGET_CC@#$W/bin/x86_64-gnu-clang#" \

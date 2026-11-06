@@ -90,12 +90,27 @@ fuzz() { # DIR SECONDS
 }
 
 sysroot
+# A bounded in-line out array (bounded.c): thread_get_state from gnumach's
+# mach.defs, its user stub alone, against a fake transport.
+bounded() { # DIR OPT
+    mkdir -p "$1/b"
+    clang -E -x c -nostdinc -I"$R/x86_64-gnu" -I"$R" -D__x86_64__ "$R/x86_64-gnu/mach/mach.defs" -o "$1/b/mach.defsi"
+    (cd "$1/b" && ../joistmig -user machUser.c -header mach.h -server /dev/null -sheader /dev/null < mach.defsi) ||
+        return 1
+    cc_hurd "$2" -fsanitize=address,undefined "$1" "$1/b/machUser.c" "$1/b/machUser.o" || return 1
+    cc_hurd "$2" -fsanitize=address,undefined "$1" "$here/bounded.c" "$1/b/bounded.o" || return 1
+    clang -fsanitize=address,undefined -o "$1/b/bounded" "$1/b/machUser.o" "$1/b/bounded.o" || return 1
+    "$1/b/bounded"
+}
+
 case $mode in
 test)
     generate "$MIG" "$W/gen" "$repo/user/lib/joist_mig.h"
     for o in -O0 -O1 -O2; do
         printf '%s: ' "$o"
         roundtrip "$W/gen" "$o"
+        printf '%s: ' "$o"
+        bounded "$W/gen" "$o"
     done
     ;;
 fuzz)

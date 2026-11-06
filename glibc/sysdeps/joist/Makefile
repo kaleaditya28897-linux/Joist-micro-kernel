@@ -27,6 +27,14 @@ ifeq ($(subdir),elf)
 sysdep-rtld-routines += joist-ports
 endif
 
+# MIG's runtime (joist-mig.c): one in a program, as the name table.
+ifeq ($(subdir),mach)
+routines += joist-mig
+endif
+ifeq ($(subdir),elf)
+sysdep-rtld-routines += joist-mig
+endif
+
 # The task's address reservations (joist-mem.c, which includes joist-vm.c):
 # one table in a program, as the name table.
 ifeq ($(subdir),mach)

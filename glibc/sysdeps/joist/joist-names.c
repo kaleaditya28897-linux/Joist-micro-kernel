@@ -684,6 +684,13 @@ __jn_arrived (struct jn_table *t, uint32_t slot)
     }
 }
 
+void
+__jn_unland (struct jn_table *t, uint32_t slot)
+{
+  if (slot < JN_NAMES && t->e[slot].kind == JN_LANDING)
+    free_name (t, slot);
+}
+
 uint32_t
 __jn_recv_slot (const struct jn_table *t, uint32_t name)
 {
