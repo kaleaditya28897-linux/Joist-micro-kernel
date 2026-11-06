@@ -983,9 +983,6 @@ int main(int argc, char **argv)
         ServerFileName == strNULL) {
         usage();
     }
-    if (ServerHeaderFileName == strNULL) {
-        ServerHeaderFileName = strmake("/dev/null");
-    }
     init_global();
     LookNormal();
     (void)yyparse();
@@ -993,23 +990,51 @@ int main(int argc, char **argv)
         exit(1);
     }
     more_global();
+    /* /dev/null names a file not wanted, whichever more_global left. */
+    if (UserHeaderFileName != strNULL && strcmp(UserHeaderFileName, "/dev/null") == 0) {
+        UserHeaderFileName = strNULL;
+    }
+    if (ServerHeaderFileName != strNULL && strcmp(ServerHeaderFileName, "/dev/null") == 0) {
+        ServerHeaderFileName = strNULL;
+    }
+    if (UserFileName != strNULL && strcmp(UserFileName, "/dev/null") == 0) {
+        UserFileName = strNULL;
+    }
+    if (ServerFileName != strNULL && strcmp(ServerFileName, "/dev/null") == 0) {
+        ServerFileName = strNULL;
+    }
 
-    FILE *f = out_open(UserHeaderFileName);
-    WriteUserHeader(f, StatementList);
-    fclose(f);
-    f = out_open(ServerHeaderFileName);
-    WriteServerHeader(f, StatementList);
-    fclose(f);
+    /* Each file asked for (a name MIG's more_global hasn't made NULL: it
+     * does that to /dev/null). */
+    FILE *f;
+    if (UserHeaderFileName != strNULL) {
+        f = out_open(UserHeaderFileName);
+        WriteUserHeader(f, StatementList);
+        fclose(f);
+    }
+    if (ServerHeaderFileName != strNULL) {
+        f = out_open(ServerHeaderFileName);
+        WriteServerHeader(f, StatementList);
+        fclose(f);
+    }
     if (individual != NULL) {
         write_user_individual(individual, StatementList);
-    } else {
+    } else if (UserFileName != strNULL) {
+        if (UserHeaderFileName == strNULL) {
+            fatal("-user needs -header: the stubs include it");
+        }
         f = out_open(UserFileName);
         write_user(f, StatementList);
         fclose(f);
     }
-    f = out_open(ServerFileName);
-    write_server(f, StatementList);
-    fclose(f);
+    if (ServerFileName != strNULL) {
+        if (ServerHeaderFileName == strNULL) {
+            fatal("-server needs -sheader: the demuxer includes it");
+        }
+        f = out_open(ServerFileName);
+        write_server(f, StatementList);
+        fclose(f);
+    }
     if (test_name != NULL) {
         f = out_open(test_name);
         write_test(f, StatementList);

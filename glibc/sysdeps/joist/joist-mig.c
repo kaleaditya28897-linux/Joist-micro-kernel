@@ -127,7 +127,7 @@ __joist_mig_call (uint32_t port, struct joist_mig_msg *m)
   int err = KERN_SUCCESS;
 
   if (m->ncaps > JOIST_MIG_CAPS || m->len > JOIST_MIG_BUF_WORDS)
-    return MACH_SEND_MSG_TOO_LARGE;
+    return MACH_SEND_INVALID_HEADER;	/* more than a message holds */
   uint64_t *buf = ipc_buffer ();
   if (buf == NULL)
     return MACH_SEND_NO_BUFFER;
@@ -157,7 +157,7 @@ __joist_mig_call (uint32_t port, struct joist_mig_msg *m)
   if (err == KERN_SUCCESS)
     {
       (void) __joist_sys (JOIST_SYS_RECV_SLOTS, land[0], land[1],
-			  JOIST_MIG_CAPS, NULL);
+			  JOIST_MIG_CAPS, 0, NULL);
       r9 = n;
       for (uint32_t i = 0; i < n; i++)
 	r9 |= (uint64_t) slot[i] << (2 + 20 * i)
