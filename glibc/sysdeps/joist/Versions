@@ -6,8 +6,14 @@ ld {
     __jn_insert_right; __jn_mod_refs; __jn_move_member; __jn_reply_name;
     __jn_set_payload; __jn_type;
     __jn_send_prepare; __jn_send_done; __jn_landing; __jn_arrived; __jn_unland;
+    __jn_pinned; __jn_unpin;
     # MIG's runtime (joist-mig.c): RPCs from libc.so and libhurduser.
     __joist_mig_call; __joist_mig_allocate; __joist_mig_deallocate;
+    # Threads' notifications and the gsync calls (joist-sync.c).
+    __joist_thread0; __joist_thread_make; __joist_thread_free;
+    __joist_thread_wait; __joist_thread_signal; __joist_sync_init;
+    __joist_sc_reuse; __joist_sc_keep;
+    __joist_gsync_wait_call; __joist_gsync_wake_call; __joist_gsync_requeue_call;
     # The address reservations, the same way.
     __joist_vm_lock; __joist_vm_unlock;
     __jv_allocate; __jv_deallocate; __jv_vm_protect; __jv_vm_region;

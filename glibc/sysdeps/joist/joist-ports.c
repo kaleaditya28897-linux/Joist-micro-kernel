@@ -66,6 +66,8 @@ rtld_hidden_def (__jn_send_done)
 rtld_hidden_def (__jn_landing)
 rtld_hidden_def (__jn_arrived)
 rtld_hidden_def (__jn_unland)
+rtld_hidden_def (__jn_pinned)
+rtld_hidden_def (__jn_unpin)
 
 /* The table's environment (joist-names.h): the kernel's calls on this
    task's own space, their codes as the kernel gives them.  */

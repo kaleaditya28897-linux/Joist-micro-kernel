@@ -807,3 +807,47 @@ The owner's answers to its questions:
   `vm_protect` setting a maximum refused (`KERN_INVALID_ARGUMENT`); a
   `vm_map` mask not 2^k - 1 refused (so the Hurd's `MAP_32BIT` mmap fails);
   1024 reservations, the "anywhere" window 4 GiB to 64 TiB.
+
+### Step 7: messages, threads and htl (2026-11-06)
+
+Built in glibc's cross-build (`make` exits 0, P53), **not yet run**:
+running needs start-up (item 8), the next piece.
+
+- **Messages (item 4):** glibc's own MIG runtime header
+  (`glibc/sysdeps/joist/joist_mig.h`, LGPL, written afresh) and
+  `joist_mig_call` (`joist-mig.c`): one `Call`, rights made from the name
+  table, rights back landing in two kept names. joistmig now runs in
+  migcom's place in glibc's build (`-i`, migcom's options, only the files
+  asked for), and handles Mach's bounded in-line out arrays and
+  `pointer_t` arrays (`tools/mig-test/bounded.c`). Every Hurd RPC stub in
+  glibc is joistmig's. glibc's own direct calls of the msg, exc and
+  faultexc demuxers as Mach's (`msgportdemux.c`, `hurdfault.c`) are
+  replaced: signals are Phase 7. The MIG round trip and the 13 MIG
+  mutations pass.
+- **A thread sets its own TLS base** with today's calls: it reads its own
+  register record, changes the TLS base, writes it back, which resumes it
+  where the read returned (a flag in memory tells the second arrival
+  there from the first). Host test, and schedroot's "own tls" on 1 and 4
+  CPUs, KVM and UBSan; in `docs/abi.md`.
+- **Threads and htl (items 5, 7):** a record per thread at the end of the
+  TCB (`joist-thread.h`, `tls.h`: a copy of the Hurd's x86-64 one, the
+  record appended): its futex waiter, its own capability, its
+  notification (bit 0 the futex queues', bit 1 htl's, a bit the other
+  kind of wait took kept), its scheduling context, its IPC buffer. The
+  gsync calls on the futex queues (`joist-sync.c`, 16 buckets, made at the
+  first `pthread_create`; `requeue` moves one or all, as gnumach's: CBMC
+  22 of 22 with it). `thread_create` (a passive spawn), `thread_get_state`
+  and `thread_set_state` (i386_THREAD_STATE, i386_FSGS_BASE_STATE, the
+  calling thread's own record by the flag above), suspend, resume, abort,
+  terminate; `mach_task_self`, `mach_thread_self` and `mach_host_self` on
+  fixed slots (1 the task, 2 the first thread, 3 bootstrap, 4 the host's
+  name); htl's block, wake-up, alloc, setup, start and terminate on them.
+  A terminated thread's scheduling context is kept for the next thread (a
+  thread can't delete its own and go on); its stack is not freed, as htl
+  leaks it where the kernel can't (a fixed pool bounds it).
+- **Time, other (item 9):** `clock_gettime` (monotonic; realtime with an
+  offset of 0), `host_info` (CPU count; memory size 0), `sched_yield`.
+- **For start-up (item 8):** a new thread's context is priority 100 with
+  all of a 10 ms period until start-up gives the task its parameters; the
+  first thread's record (its notification) is made lazily, at its first
+  wait.

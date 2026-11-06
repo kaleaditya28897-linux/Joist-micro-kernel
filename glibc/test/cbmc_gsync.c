@@ -48,7 +48,7 @@ static unsigned signals;     /* to waiters' notifications */
 static unsigned signals0;    /* to waiter 0's */
 static unsigned woken;       /* bit i: waiter i was signalled */
 static const void *wake_addr; /* the other thread's step's choices */
-static int wake_all, requeue_first;
+static int wake_all, requeue_first, requeue_all;
 static int wake_mutate;      /* op mode only: in a wait, no step writes a word */
 static uint32_t wake_val;
 static uint64_t wait_timeout; /* waiter 0's */
@@ -91,7 +91,7 @@ static unsigned other_step(void)
         n = __jg_wake(&t, wake_addr, wake_all, wake_mutate, wake_val, 0);
         break;
     case 1:
-        n = __jg_requeue(&t, addr_of(HARNESS_SRC), addr_of(HARNESS_DST), requeue_first);
+        n = __jg_requeue(&t, addr_of(HARNESS_SRC), addr_of(HARNESS_DST), requeue_first, requeue_all);
         break;
     default:
         break;
@@ -142,6 +142,7 @@ static void build(void)
     wake_addr = addr_of(nondet_unsigned());
     wake_all = nondet_int() & 1;
     requeue_first = nondet_int() & 1;
+    requeue_all = nondet_int() & 1;
     __CPROVER_assert(__jg_check(&t, NW) == 0, "built well formed");
 }
 
@@ -194,11 +195,23 @@ int main(void)
     } else {
         __CPROVER_assert(woken == 0u, "nothing woken");
     }
+    /* A requeue moves the rest of SRC's waiters, or (not ALL) the first
+     * of them in queue order. */
+    unsigned rest = on & ~woken, moved = rest;
+    if (!requeue_all) {
+        unsigned m = NW;
+        for (unsigned i = 1; i < NW; i++) {
+            if (((rest >> i) & 1u) && (m == NW || seq[i] < seq[m])) {
+                m = i;
+            }
+        }
+        moved = m < NW ? 1u << m : 0u;
+    }
     for (unsigned i = 1; i < NW; i++) {
         if ((woken >> i) & 1u) {
             continue;
         }
-        if (HARNESS_STEP == 1 && ((on >> i) & 1u)) {
+        if (HARNESS_STEP == 1 && ((moved >> i) & 1u)) {
             __CPROVER_assert(w[i]->queued && w[i]->key == dkey, "requeued to the destination");
         } else {
             __CPROVER_assert(w[i]->queued == queued0[i] && w[i]->key == key0[i], "any other waiter as it was");

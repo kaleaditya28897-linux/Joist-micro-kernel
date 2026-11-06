@@ -684,6 +684,20 @@ __jn_arrived (struct jn_table *t, uint32_t slot)
     }
 }
 
+int
+__jn_pinned (struct jn_table *t, uint32_t *name)
+{
+  int g;
+  return take_name (t, JN_FIXED, name, &g);
+}
+
+void
+__jn_unpin (struct jn_table *t, uint32_t name)
+{
+  if (name >= t->fixed && name < JN_NAMES && t->e[name].kind == JN_FIXED)
+    free_name (t, name);
+}
+
 void
 __jn_unland (struct jn_table *t, uint32_t slot)
 {

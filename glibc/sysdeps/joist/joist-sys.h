@@ -78,6 +78,25 @@ __joist_sys (uint64_t nr, uint64_t a0, uint64_t a1, uint64_t a2,
   return rax;
 }
 
+/* The clock call (56): the monotonic time in nanoseconds since boot, and
+   the number of CPUs.  Always OK.  */
+static inline void
+__joist_clock (uint64_t *ns, uint64_t *cpus)
+{
+  register uint64_t r10 __asm__ ("r10") = 0;
+  register uint64_t r8 __asm__ ("r8") = 0;
+  register uint64_t r9 __asm__ ("r9") = 0;
+  uint64_t rax = 56, rdi = 0, rsi = 0, rdx = 0;
+  __asm__ volatile ("syscall"
+		    : "+a" (rax), "+D" (rdi), "+S" (rsi), "+d" (rdx),
+		      "+r" (r10), "+r" (r8), "+r" (r9)
+		    :
+		    : "rcx", "r11", "r12", "r13", "r14", "r15", "memory");
+  *ns = rdx;
+  if (cpus != NULL)
+    *cpus = r10;
+}
+
 /* A Call on SLOT carrying no capabilities: MSG's four words go, the
    reply's come back in it.  The kernel's result.  */
 static inline uint64_t

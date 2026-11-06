@@ -191,6 +191,11 @@ extern int __jn_landing (struct jn_table *t, uint32_t *slot);
 extern void __jn_arrived (struct jn_table *t, uint32_t slot);
 /* A landing slot nothing arrived in, given back.  */
 extern void __jn_unland (struct jn_table *t, uint32_t slot);
+/* A name for libc's own use (a thread, its notification, a scheduling
+   context): pinned, as the names start-up fixes are, so a caller's
+   deallocate or destroy never deletes it; and given back.  */
+extern int __jn_pinned (struct jn_table *t, uint32_t *name);
+extern void __jn_unpin (struct jn_table *t, uint32_t name);
 /* The slot of the endpoint a receive right or port set receives on, or
    0 (a receive right not yet made).  */
 extern uint32_t __jn_recv_slot (const struct jn_table *t, uint32_t name);

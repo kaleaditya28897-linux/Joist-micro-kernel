@@ -35,6 +35,15 @@ ifeq ($(subdir),elf)
 sysdep-rtld-routines += joist-mig
 endif
 
+# Threads' notifications and the futex queues (joist-sync.c, which
+# includes joist-gsync.c): one in a program, as the name table.
+ifeq ($(subdir),mach)
+routines += joist-sync
+endif
+ifeq ($(subdir),elf)
+sysdep-rtld-routines += joist-sync
+endif
+
 # The task's address reservations (joist-mem.c, which includes joist-vm.c):
 # one table in a program, as the name table.
 ifeq ($(subdir),mach)

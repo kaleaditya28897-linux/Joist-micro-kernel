@@ -104,10 +104,10 @@ extern int __jg_wait (struct jg_table *t, struct jg_waiter *self,
    woken.  */
 extern unsigned int __jg_wake (struct jg_table *t, const void *addr, int all,
 			     int mutate, uint64_t val, int quad);
-/* Wake one waiter on SRC if WAKE_ONE, and move the others to wait on DST.
-   The number woken (0 or 1).  */
+/* Wake one waiter on SRC if WAKE_ONE, and move the others (or, unless
+   ALL, the first of them) to wait on DST.  The number woken (0 or 1).  */
 extern unsigned int __jg_requeue (struct jg_table *t, const void *src,
-				const void *dst, int wake_one);
+				  const void *dst, int wake_one, int all);
 
 /* For the tests: 0 if T is well formed (every queue a list ending at its
    tail, each waiter in it queued and keyed to that bucket, at most MAX

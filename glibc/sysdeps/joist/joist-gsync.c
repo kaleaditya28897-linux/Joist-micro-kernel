@@ -240,8 +240,9 @@ __jg_wake (struct jg_table *t, const void *addr, int all, int mutate,
 
 unsigned int
 __jg_requeue (struct jg_table *t, const void *src, const void *dst,
-	    int wake_one_first)
+	    int wake_one_first, int all)
 {
+  unsigned int moved = 0;
   uintptr_t skey = (uintptr_t) src, dkey = (uintptr_t) dst;
   unsigned int si = __jg_bucket_of (skey), di = __jg_bucket_of (dkey);
   struct jg_bucket *sb = &t->b[si], *db = &t->b[di];
@@ -256,7 +257,7 @@ __jg_requeue (struct jg_table *t, const void *src, const void *dst,
   while (w != NULL)
     {
       struct jg_waiter *next = w->next;
-      if (w->key != skey)
+      if (w->key != skey || (!all && moved == 1))
 	prev = w;
       else if (wake_one_first && n == 0)
 	{
@@ -268,6 +269,7 @@ __jg_requeue (struct jg_table *t, const void *src, const void *dst,
 	  /* Same queue: it keeps its place, waiting on DST now.  */
 	  store_relaxed (&w->key, dkey);
 	  prev = w;
+	  moved++;
 	}
       else
 	{
@@ -279,6 +281,7 @@ __jg_requeue (struct jg_table *t, const void *src, const void *dst,
 	    db->head = w;
 	  db->tail = w;
 	  store_relaxed (&w->key, dkey);
+	  moved++;
 	}
       w = next;
     }

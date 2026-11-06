@@ -170,12 +170,12 @@ static void directed(void)
             pthread_create(&th[i], NULL, waiter, &a[i]);
             until_blocked(i);
         }
-        CHECK(__jg_requeue(&T, same_a, dst, 1) == 1);
+        CHECK(__jg_requeue(&T, same_a, dst, 1, 1) == 1);
         pthread_join(th[0], NULL);
         CHECK(a[0].result == JG_WOKEN);
         CHECK(__jg_check(&T, MAXT) == 0);
         CHECK(__jg_wake(&T, same_a, 1, 0, 0, 0) == 0); /* none left on the source */
-        CHECK(__jg_requeue(&T, same_a, dst, 0) == 0);
+        CHECK(__jg_requeue(&T, same_a, dst, 0, 1) == 0);
         CHECK(__jg_wake(&T, dst, 0, 0, 0, 0) == 1);     /* FIFO kept on the target */
         pthread_join(th[1], NULL);
         CHECK(a[1].result == JG_WOKEN);
@@ -187,11 +187,26 @@ static void directed(void)
         check_empty(same ? "requeue, one bucket" : "requeue, two buckets");
     }
 
+    /* Without ALL, one moves: the first; the rest stay. */
+    for (unsigned i = 0; i < 3; i++) {
+        a[i] = (struct waitarg){i, same_a, *same_a, JG_FOREVER, -1};
+        pthread_create(&th[i], NULL, waiter, &a[i]);
+        until_blocked(i);
+    }
+    CHECK(__jg_requeue(&T, same_a, other, 0, 0) == 0);
+    CHECK(__jg_wake(&T, other, 1, 0, 0, 0) == 1);
+    pthread_join(th[0], NULL);
+    CHECK(a[0].result == JG_WOKEN);
+    CHECK(__jg_wake(&T, same_a, 1, 0, 0, 0) == 2);
+    pthread_join(th[1], NULL);
+    pthread_join(th[2], NULL);
+    check_empty("requeue one");
+
     /* A requeued waiter times out from its new bucket. */
     a[0] = (struct waitarg){0, same_a, *same_a, 200000000u, -1};
     pthread_create(&th[0], NULL, waiter, &a[0]);
     until_blocked(0);
-    CHECK(__jg_requeue(&T, same_a, other, 0) == 0);
+    CHECK(__jg_requeue(&T, same_a, other, 0, 1) == 0);
     pthread_join(th[0], NULL);
     CHECK(a[0].result == JG_TIMEOUT);
     check_empty("requeued timeout");
@@ -379,10 +394,10 @@ static void *rq_mover(void *p)
         unsigned n;
         switch (rnd(&s) % 4u) {
         case 0:
-            n = __jg_requeue(&T, rq_x, rq_y, rnd(&s) % 4u == 0);
+            n = __jg_requeue(&T, rq_x, rq_y, rnd(&s) % 4u == 0, (int)(rnd(&s) % 2u));
             break;
         case 1:
-            n = __jg_requeue(&T, rq_y, rq_x, rnd(&s) % 4u == 0);
+            n = __jg_requeue(&T, rq_y, rq_x, rnd(&s) % 4u == 0, (int)(rnd(&s) % 2u));
             break;
         default:
             n = __jg_wake(&T, rnd(&s) % 2u ? rq_x : rq_y, (int)(rnd(&s) % 2u), 0, 0, 0);

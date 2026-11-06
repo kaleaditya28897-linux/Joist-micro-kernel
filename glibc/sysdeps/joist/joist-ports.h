@@ -56,6 +56,8 @@ rtld_hidden_proto (__jn_send_done)
 rtld_hidden_proto (__jn_landing)
 rtld_hidden_proto (__jn_arrived)
 rtld_hidden_proto (__jn_unland)
+rtld_hidden_proto (__jn_pinned)
+rtld_hidden_proto (__jn_unpin)
 /* MIG's runtime (joist-mig.c, joist_mig.h): one in a program, as the
    table.  */
 struct joist_mig_msg;
@@ -63,6 +65,44 @@ extern int __joist_mig_call (uint32_t port, struct joist_mig_msg *m);
 extern void *__joist_mig_allocate (size_t size);
 extern void __joist_mig_deallocate (void *p, size_t size);
 rtld_hidden_proto (__joist_mig_call)
+/* Threads' notifications and the gsync calls (joist-sync.c, joist-thread.h):
+   one in a program, as the table.  */
+struct joist_thread;
+extern struct joist_thread __joist_thread0;
+extern int __joist_thread_make (struct joist_thread *t, uint32_t self);
+extern void __joist_thread_free (struct joist_thread *t);
+extern int __joist_thread_wait (struct joist_thread *t, uint64_t bit,
+				uint64_t timeout);
+extern void __joist_thread_signal (const struct joist_thread *t,
+				   uint64_t bit);
+extern int __joist_sync_init (void);
+/* Scheduling contexts terminated threads left, for the next (joist-sync.c).  */
+extern uint32_t __joist_sc_reuse (void);
+extern void __joist_sc_keep (uint32_t sc);
+extern kern_return_t __joist_gsync_wait_call (mach_port_t task,
+					      vm_offset_t addr,
+					      unsigned int val1,
+					      unsigned int val2,
+					      natural_t msec, int flags);
+extern kern_return_t __joist_gsync_wake_call (mach_port_t task,
+					      vm_offset_t addr,
+					      unsigned int val, int flags);
+extern kern_return_t __joist_gsync_requeue_call (mach_port_t task,
+						 vm_offset_t src,
+						 vm_offset_t dst,
+						 boolean_t wake_one,
+						 int flags);
+rtld_hidden_proto (__joist_thread0)
+rtld_hidden_proto (__joist_thread_make)
+rtld_hidden_proto (__joist_thread_free)
+rtld_hidden_proto (__joist_thread_wait)
+rtld_hidden_proto (__joist_thread_signal)
+rtld_hidden_proto (__joist_sync_init)
+rtld_hidden_proto (__joist_sc_reuse)
+rtld_hidden_proto (__joist_sc_keep)
+rtld_hidden_proto (__joist_gsync_wait_call)
+rtld_hidden_proto (__joist_gsync_wake_call)
+rtld_hidden_proto (__joist_gsync_requeue_call)
 rtld_hidden_proto (__joist_mig_allocate)
 rtld_hidden_proto (__joist_mig_deallocate)
 
