@@ -38,7 +38,7 @@ static unsigned failed;
 static void setup(unsigned nthreads)
 {
     notif_reset();
-    uint32_t bn[JG_BUCKETS];
+    uint64_t bn[JG_BUCKETS];
     for (unsigned i = 0; i < JG_BUCKETS; i++) {
         bn[i] = notif_new();
     }
@@ -65,7 +65,7 @@ static void check_empty(const char *what)
 /* Wait until thread i is blocked in its Wait (so queued). */
 static void until_blocked(unsigned i)
 {
-    for (unsigned n = 0; notif_blocked(W[i].notif) == 0; n++) {
+    for (unsigned n = 0; notif_blocked((uint32_t)W[i].notif) == 0; n++) {
         if (n > 20000u) {
             fprintf(stderr, "test-gsync: thread %u never waited\n", i);
             abort();

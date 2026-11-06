@@ -66,7 +66,7 @@ static const void *addr_of(unsigned i)
     return i == 0u ? &word0 : i == 1u ? &word1 : &word2;
 }
 
-void __joist_gsync_signal(uint32_t n)
+void __joist_gsync_signal(uint64_t n)
 {
     if (n < NW) { /* a waiter's (notifications NW.. are the buckets') */
         __CPROVER_assert(w[n]->queued == 0, "a signalled waiter is off its queue");
@@ -100,7 +100,7 @@ static unsigned other_step(void)
     return n;
 }
 
-int __joist_gsync_wait(uint32_t n, uint64_t timeout)
+int __joist_gsync_wait(uint64_t n, uint64_t timeout)
 {
     /* Only waiter 0 blocks here: the buckets' locks are always free in a
      * single thread. */
@@ -121,7 +121,7 @@ int __joist_gsync_wait(uint32_t n, uint64_t timeout)
  * or not, on a chosen address. */
 static void build(void)
 {
-    uint32_t bn[JG_BUCKETS] = {NW, NW + 1u};
+    uint64_t bn[JG_BUCKETS] = {NW, NW + 1u};
     __jg_init(&t, bn);
     for (unsigned i = 0; i < NW; i++) {
         __jg_waiter_init(w[i], i);

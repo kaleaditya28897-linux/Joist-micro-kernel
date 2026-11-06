@@ -75,7 +75,7 @@ int notif_pending(uint32_t n)
     return b;
 }
 
-void __joist_gsync_signal(uint32_t n)
+void __joist_gsync_signal(uint64_t n)
 {
     struct notif *x = &notifs[n];
     pthread_mutex_lock(&x->m);
@@ -96,7 +96,7 @@ uint64_t __joist_gsync_now(void)
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 
-int __joist_gsync_wait(uint32_t n, uint64_t timeout)
+int __joist_gsync_wait(uint64_t n, uint64_t timeout)
 {
     struct notif *x = &notifs[n];
     struct timespec dl;

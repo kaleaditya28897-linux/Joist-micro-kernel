@@ -41,7 +41,7 @@ __jg_bucket_of (uintptr_t addr)
 }
 
 void
-__jg_init (struct jg_table *t, const uint32_t notifs[JG_BUCKETS])
+__jg_init (struct jg_table *t, const uint64_t notifs[JG_BUCKETS])
 {
   for (unsigned int i = 0; i < JG_BUCKETS; i++)
     {
@@ -52,7 +52,7 @@ __jg_init (struct jg_table *t, const uint32_t notifs[JG_BUCKETS])
 }
 
 void
-__jg_waiter_init (struct jg_waiter *self, uint32_t notif)
+__jg_waiter_init (struct jg_waiter *self, uint64_t notif)
 {
   self->next = NULL;
   self->key = 0;
@@ -124,7 +124,7 @@ unlink_after (struct jg_bucket *b, struct jg_waiter *prev,
 static void
 wake_one (struct jg_bucket *b, struct jg_waiter *prev, struct jg_waiter *w)
 {
-  uint32_t notif = w->notif;
+  uint64_t notif = w->notif;
   unlink_after (b, prev, w);
   store_release (&w->queued, 0);
   __joist_gsync_signal (notif);

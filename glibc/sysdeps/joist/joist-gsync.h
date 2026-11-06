@@ -47,14 +47,15 @@
 #endif
 
 /* What the library needs from its environment (sysdeps/joist: the
-   kernel's calls; the host tests: an emulation of them).  NOTIF is a
-   capability slot naming a notification the caller may signal and wait
-   on.  */
+   kernel's calls; the host tests: an emulation of them).  NOTIF names a
+   notification, as the environment chooses (sysdeps/joist: the slot of a
+   badged capability to signal it in the high half, the slot of one to wait
+   on in the low; a thread waits only on its own and the buckets').  */
 /* Signal: never blocks.  */
-extern void __joist_gsync_signal (uint32_t notif);
+extern void __joist_gsync_signal (uint64_t notif);
 /* Wait: 0 when signalled (or a bit was pending), 1 when TIMEOUT
    nanoseconds passed first; TIMEOUT JG_FOREVER waits for good.  */
-extern int __joist_gsync_wait (uint32_t notif, uint64_t timeout);
+extern int __joist_gsync_wait (uint64_t notif, uint64_t timeout);
 /* The monotonic time, in nanoseconds.  */
 extern uint64_t __joist_gsync_now (void);
 
@@ -65,14 +66,14 @@ struct jg_waiter
 {
   struct jg_waiter *next;	/* in its bucket's queue */
   uintptr_t key;		/* the address it waits on */
-  uint32_t notif;		/* its own notification */
+  uint64_t notif;		/* its own notification */
   uint32_t queued;		/* 1 while in a queue (atomic) */
 };
 
 struct jg_bucket
 {
   uint32_t lock;		/* 0 free, 1 held, 2 held and waited for */
-  uint32_t notif;		/* where the lock's waiters wait */
+  uint64_t notif;		/* where the lock's waiters wait */
   struct jg_waiter *head, *tail;
 };
 
@@ -82,9 +83,9 @@ struct jg_table
 };
 
 /* T empty, its buckets' locks on the notifications NOTIFS.  */
-extern void __jg_init (struct jg_table *t, const uint32_t notifs[JG_BUCKETS]);
+extern void __jg_init (struct jg_table *t, const uint64_t notifs[JG_BUCKETS]);
 /* SELF's notification: before its first wait.  */
-extern void __jg_waiter_init (struct jg_waiter *self, uint32_t notif);
+extern void __jg_waiter_init (struct jg_waiter *self, uint64_t notif);
 
 enum
 {
