@@ -778,3 +778,32 @@ the kernel's ABI or a decision.
     CPUs; `malloc` stress in a region.
 
 Accepted by the owner as written, 2026-11-05 (the `clock` call with it).
+
+### Step 7: the hand-off's results and the owner's answers (2026-11-06)
+
+The P53's session (`/srv/joist/handoff/p5-step7/findings.md`) added, on
+6b7415b: CBMC on the futex queues made to finish (22 of 22 runs, more
+checks, both buckets used); the name table's two surviving mutations
+caught (12 of 12); `sysdeps/joist` in glibc's tree (`--enable-joist`,
+patch 0011, the overlay copied in by `glibc-cross.sh`); the `mach_port_*`
+calls on the name table; reply names and `mach_msg` refused; the task's
+address reservations (`joist-vm`, host-tested in 5 builds, 35 of 35
+mutations) and the `vm_*` calls on `mm` (glibc builds, `make` 0).
+
+The owner's answers to its questions:
+- **The MIG runtime in glibc:** a header of glibc's own,
+  LGPL-2.1-or-later, written afresh (`user/lib/joist_mig.h` stays
+  GPL-3.0-only, for Joist's own programs), with the same interface, so
+  generated code works with either.
+- **joistmig's output:** a generated-code exception in `joistmig.c`: what
+  it writes out is under the licence of the `.defs` it came from, as GNU
+  MIG's and Bison's output are; joistmig stays GPL-3.0-only.
+- **htl and the futex queues:** one notification a thread, on two badges
+  (bit 0 the futex queues, bit 1 htl's block and wake-up); a bit seen
+  while waiting for the other is kept in the thread's record for its next
+  wait of that kind.
+- **Kept as built:** a `mach_port_*` or `vm_*` call naming another task
+  refused (`MACH_SEND_INVALID_DEST`); `vm_map` of a memory object and
+  `vm_protect` setting a maximum refused (`KERN_INVALID_ARGUMENT`); a
+  `vm_map` mask not 2^k - 1 refused (so the Hurd's `MAP_32BIT` mmap fails);
+  1024 reservations, the "anywhere" window 4 GiB to 64 TiB.

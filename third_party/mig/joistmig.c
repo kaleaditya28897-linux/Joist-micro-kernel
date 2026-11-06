@@ -12,7 +12,14 @@
  * A routine passing more than 2 rights, or an array of them, or pure
  * out-of-line data, isn't carried (the design: Phases 7-8): both of its
  * stubs answer MIG_BAD_ARGUMENTS. -test T.c also writes the host's
- * round-trip test server and client for the interface (tools/mig-test). */
+ * round-trip test server and client for the interface (tools/mig-test).
+ *
+ * Generated-code exception (the owner's decision, 2026-11-06): the code
+ * joistmig writes out, including the parts of it copied from this file,
+ * is not covered by this file's licence. It is under the licence of the
+ * .defs it was made from (the Hurd's: GPL-2.0-or-later; glibc's:
+ * LGPL-2.1-or-later), as GNU MIG's and Bison's output are. joistmig itself
+ * stays GPL-3.0-only. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
