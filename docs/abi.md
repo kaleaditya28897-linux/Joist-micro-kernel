@@ -399,6 +399,20 @@ read returns to, so it goes back there: code that reads, changes and writes
 its own record keeps a flag in memory, which no register write restores, to
 tell the second arrival from the first (`user/schedroot`, "own tls").
 
+**The FPU and SSE registers** (x86_64; the owner's choice, 2026-11-07:
+eager FXSAVE, SSE only; Phase 5 step 7, glibc's first run) are a thread's
+own, kept by the kernel beside its record but not in it: `thread_read_regs`
+and `thread_write_regs` neither show nor change them (Hurd's FPU flavour of
+`thread_get_state`, for signals, is Phase 8's). A spawned thread starts
+from the initial state (`FNINIT`'s: control word 0x37f; `MXCSR` 0x1f80,
+every exception masked); writing a thread's record leaves its FPU state as
+it was. The x87 registers and `XMM0`-`XMM15` work in user mode, their
+exceptions arriving as `MATH` faults (#MF, #XM); AVX doesn't
+(`CR4.OSXSAVE` is clear, so `CPUID` says there is none). The kernel saves a
+thread's state on every entry from user mode and loads it on the way out
+when the CPU last held another's (`kernel/arch/x86_64/run.c`, `fpu_*`;
+`user/schedroot`, "fpu").
+
 **Faults** (0009). A fault in a thread (an exception in user mode; the
 kernel's trap handlers raise it, the model's tests call `joist_fault`) is a
 `Call` to its handler: the thread's own, else its task's, provided the slot

@@ -11,12 +11,14 @@ get-not-marked @@ mem/frame.c @@ set_bit(fa->taken, i); @@ (void)0;
 put-not-cleared @@ mem/frame.c @@ clear_bit(fa->taken, i); @@ (void)i;
 put-range-off-by-one @@ mem/frame.c @@ if (f < fa->base_pfn || f - fa->base_pfn >= fa->nframes) { @@ if (f < fa->base_pfn || f - fa->base_pfn > fa->nframes) {
 elf-no-wx-check @@ elf/elf.c @@ if ((f & ELF_SEG_W) && (f & ELF_SEG_X)) { @@ if (0 && f) {
-elf-filesz-unbounded @@ elf/elf.c @@ !inside(offset, filesz, size) || @@ (offset > size) ||
+elf-filesz-unbounded @@ elf/elf.c @@ !inside(offset, filesz, size) || vaddr % PAGE @@ (offset > size) || vaddr % PAGE
 elf-phdrs-unbounded @@ elf/elf.c @@ !inside(phoff, (uint64_t)phnum * PHDR_SIZE, size)) { @@ phoff > size) {
 elf-overlap-allowed @@ elf/elf.c @@ if (out->nsegments != 0 && start < prev_end) { @@ if (out->nsegments != 0 && start < prev_end && 0) {
 elf-user-range-wrap @@ elf/elf.c @@ if (vaddr < user_lo || vaddr > user_hi || memsz > user_hi - vaddr) { @@ if (vaddr < user_lo || vaddr + memsz > user_hi) {
 elf-entry-anywhere @@ elf/elf.c @@ if (out->nsegments == 0 || !entry_ok) { @@ if (out->nsegments == 0 || !(entry_ok || 1)) {
-elf-dynamic-allowed @@ elf/elf.c @@ if (type == PT_DYNAMIC || type == PT_INTERP || type == PT_TLS) { @@ if (type == PT_TLS) {
+elf-dynamic-allowed @@ elf/elf.c @@ if (type == PT_DYNAMIC || type == PT_INTERP) { @@ if (type == PT_INTERP) {
+elf-tls-anywhere @@ elf/elf.c @@         if (!placed) { @@         if (0) {
+elf-tls-twice @@ elf/elf.c @@             if (tls || filesz > memsz || @@             if (filesz > memsz ||
 elf-congruence @@ elf/elf.c @@ vaddr % PAGE != offset % PAGE) { @@ 0) {
 vm-wx-allowed @@ mem/vm.c @@ (perms & VM_W && perms & VM_X) || @@ (perms & VM_W && perms & VM_X && 0) ||
 vm-remap-allowed @@ mem/vm.c @@ return KERR_STATE; /* already mapped, or a table where a large page would go */ @@ (void)0;
@@ -55,6 +57,8 @@ abi-handover-stale @@ sys/abi.c @@     env->handover = JOIST_MAX_THREADS; @@    
 abi-handover-wrong-thread @@ sys/abi.c @@ env->handover = joist_sched_handed(k, t, place, answered - 1u); @@ env->handover = joist_sched_handed(k, t, place, t);
 abi-handover-call-unreported @@ sys/abi.c @@ if (nr == ABI_CALL && k->th[t].sc_to != 0) { @@ if (nr == ABI_CALL && k->th[t].sc_to != 0 && nr == 0) {
 abi-spawn-not-exact @@ sys/abi.c @@             env->exact[nt] = 1; @@             (void)nt;
+abi-spawn-not-fresh @@ sys/abi.c @@             env->fresh[nt] = 1; @@             (void)nt;
+abi-write-regs-fresh @@ sys/abi.c @@ env->exact[k->obj[joist__slot_c(k, cs, slot_arg(a0))->obj - 1u].target - 1u] = 1; @@ env->exact[k->obj[joist__slot_c(k, cs, slot_arg(a0))->obj - 1u].target - 1u] = env->fresh[k->obj[joist__slot_c(k, cs, slot_arg(a0))->obj - 1u].target - 1u] = 1;
 abi-write-regs-not-exact @@ sys/abi.c @@ env->exact[k->obj[joist__slot_c(k, cs, slot_arg(a0))->obj - 1u].target - 1u] = 1; @@ (void)env->exact;
 # Phase 3's exit: the counters.
 abi-counters-anyone @@ sys/abi.c @@         if (k->root != cs + 1u) { @@         if (k->root != cs + 1u && cs > JOIST_MAX_CSPACES) {

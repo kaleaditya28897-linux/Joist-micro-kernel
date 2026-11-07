@@ -82,6 +82,12 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     cow3) kextra=""; root=cowstress; mods="mm cowworker"; uextra="-DCOW_ROUNDS=3u"; ubuild=build/cow3
         tmo=600 ;;
     cowstress) kextra=""; root=cowstress; mods="mm cowworker"; tmo=600 ;;
+    # Phase 5 step 7: the first glibc program (user/glibcroot starts it),
+    # built outside with the cross-built glibc: GLIBCTEST names its ELF.
+    # mm with 64 regions a task: a glibc program has more than the default
+    # 16 (its heap, TLS, each thread's stack and guard).
+    glibc) kextra=""; root=glibcroot; mods="mm glibctest"; uextra="-DMM_REGIONS=64u"; ubuild=build/glibc
+        [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -107,7 +113,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     [ "$st" -eq "$want" ] || ok=0
     for p in "$@"; do grep -a -q -- "$p" $log || ok=0; done
     if [ $ok -eq 1 ]; then
-        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|revoke: all ok|mm: (all ok|FAILED)|cow: (all ok|FAILED)|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
+        echo "selftest $n: ok ($(grep -a -m1 -E 'EXCEPTION|UBSAN|#BP|ping: [0-9]+ round|STACK SMASHED|sched: all ok|fault: all ok|cascade: (all ok|FAILED)|ipcbench: done|smp: (all ok|one CPU)|grow: all ok|faultinj: all ok|revoke: all ok|mm: (all ok|FAILED)|cow: (all ok|FAILED)|glibcroot: (all ok|FAILED)|root task (fault|exited|refused)|refused|sysfuzz: done' $log | tr -d '.' | sed 's/^joist: //'))"
     else
         echo "selftest $n: FAILED (QEMU status $st, wanted $want)"; cat $log; fail=1
     fi
@@ -164,7 +170,7 @@ run ubsan-pingpong 1 "ping: 1000 round trips ok" "root task exited with code 0"
 # mode and in system calls), equals taking turns, a passive server working on
 # its client's budget.
 run sched 1 "sched: priorities ok" "sched: budget ok" "sched: kernel time ok" "sched: equals ok" \
-    "sched: donation ok" "sched: clock ok" "sched: own tls ok" "sched: all ok" "root task exited with code 0"
+    "sched: donation ok" "sched: clock ok" "sched: own tls ok" "sched: fpu ok" "sched: all ok" "root task exited with code 0"
 run ubsan-sched 1 "sched: all ok" "root task exited with code 0"
 # Phase 3 step 6: fault IPC and thread control, seen from user mode
 # (user/faultroot): a fault is a message to the handler, who reads and writes
@@ -305,4 +311,13 @@ run kvm-smp1-cowstress 1 "cow: cpus 1" "cow: all ok" "root task exited with code
 run kvm-smp2-cowstress 1 "cow: cpus 2" "cow: all ok" "root task exited with code 0"
 run kvm-smp4-cowstress 1 "cow: cpus 4" "cow: all ok" "root task exited with code 0"
 run chk-kvm-smp2-cow3 1 "cow: all ok" "root task exited with code 0"
+# Phase 5 step 7: glibc on Joist (user/glibctest, started by
+# user/glibcroot as the Hurd's exec server would): start-up, malloc over
+# mm, stdio, the clock, TLS, pthreads (htl on Joist's threads and the
+# futex queues), and exit; mm forgets the task. 1, 2 and 4 real CPUs.
+run glibc 1 "glibc: main reached" "glibc: malloc ok" "glibc: pthread_join ok" "glibc: mutex ok" \
+    "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp1-glibc 1 "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp2-glibc 1 "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp4-glibc 1 "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
 exit $fail

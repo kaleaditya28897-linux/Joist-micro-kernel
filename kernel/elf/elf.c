@@ -66,6 +66,8 @@ kerr elf_validate(const uint8_t *file, size_t size, uint64_t user_lo, uint64_t u
     out->nsegments = 0;
     int entry_ok = 0;
     uint64_t prev_end = 0; /* page-rounded end of the previous loadable segment */
+    int tls = 0;          /* a TLS template seen, at (tls_off, tls_va, tls_mem) */
+    uint64_t tls_off = 0, tls_va = 0, tls_mem = 0;
     for (uint16_t i = 0; i < phnum; i++) {
         const uint8_t *ph = file + phoff + (uint64_t)i * PHDR_SIZE;
         uint32_t type = rd32(ph);
@@ -74,8 +76,19 @@ kerr elf_validate(const uint8_t *file, size_t size, uint64_t user_lo, uint64_t u
         uint64_t vaddr = rd64(ph + 16);
         uint64_t filesz = rd64(ph + 32);
         uint64_t memsz = rd64(ph + 40);
-        if (type == PT_DYNAMIC || type == PT_INTERP || type == PT_TLS) {
+        if (type == PT_DYNAMIC || type == PT_INTERP) {
             return KERR_INVAL; /* static executables only */
+        }
+        if (type == PT_TLS) {
+            /* One, well formed; placed in a segment: checked below. */
+            if (tls || filesz > memsz || !inside(offset, filesz, size) || vaddr > UINT64_MAX - memsz) {
+                return KERR_INVAL;
+            }
+            tls = 1;
+            tls_off = offset;
+            tls_va = vaddr;
+            tls_mem = memsz;
+            continue;
         }
         if (type != PT_LOAD) {
             continue;
@@ -114,6 +127,19 @@ kerr elf_validate(const uint8_t *file, size_t size, uint64_t user_lo, uint64_t u
     }
     if (out->nsegments == 0 || !entry_ok) {
         return KERR_INVAL;
+    }
+    if (tls) {
+        /* Wholly in one loadable segment, at that segment's own place in
+         * the file. */
+        int placed = 0;
+        for (uint32_t i = 0; i < out->nsegments && !placed; i++) {
+            const struct elf_segment *s = &out->seg[i];
+            placed = tls_va >= s->vaddr && tls_mem <= s->memsz && tls_va - s->vaddr <= s->memsz - tls_mem &&
+                     tls_off >= s->offset && tls_off - s->offset == tls_va - s->vaddr;
+        }
+        if (!placed) {
+            return KERR_INVAL;
+        }
     }
     return KERR_OK;
 }

@@ -851,3 +851,63 @@ running needs start-up (item 8), the next piece.
   all of a 10 ms period until start-up gives the task its parameters; the
   first thread's record (its notification) is made lazily, at its first
   wait.
+
+### Step 7: start-up and glibc's first run (2026-11-07, in progress)
+
+A static glibc program now starts on Joist the way the Hurd's exec server
+would start it, and runs to `main` and beyond under QEMU
+(`user/glibctest`, built by `tools/phase5/glibc-test.sh`; started by
+`user/glibcroot`; selftest `glibc`, with 1, 2 and 4 real CPUs).
+
+- **Start-up (item 8):** the root loads the image, hands the task to `mm`
+  (ADOPT), fills slots 1 (the task) and 2 (its first thread), and lays the
+  stack out as `_hurd_startup` reads it: argc, argv, envp, then a
+  `struct hurd_startup_data` whose arrays are in a page of their own; no
+  init ports, so no signal thread. glibc's side: `hurdstartup.c` (no exec
+  server to ask), `task_terminate` (the task's own `TASK_DESTROY`), the
+  bootstrap special port, and `vm_statistics` (the page size: glibc's
+  `__mach_init` asks for it before anything else).
+- **The ELF validator accepts one PT_TLS** lying wholly within a PT_LOAD at
+  that segment's file mapping (static glibc programs have one); host
+  tests and mutations.
+- **FPU and SSE in user mode** (the owner's choice, 2026-11-07: eager
+  FXSAVE, SSE only): glibc's first instructions use SSE, which the kernel
+  had never enabled. A 512-byte area a thread, saved on every entry from
+  user mode, loaded on the way out when the CPU last held another
+  thread's; a spawned thread starts from the initial state; no AVX
+  (`docs/abi.md`; schedroot's "fpu"; host checks and mutations of the
+  spawn flag).
+- **What the first runs found, and fixed:**
+  - static programs start with `crt0.o` (gcc's spec for the gnu target),
+    which runs `_hurd_stack_setup` before `__libc_start_main`;
+  - code that runs before a static program's IFUNCs are resolved may call
+    only `memcpy` and `strlen` (`static-start.S` sets those two):
+    `joist-vm.c` moves its entries by hand, built `-fno-builtin`;
+  - htl takes the main thread out of `__pthread_total` for the signal
+    thread; with none, the last other thread's exit ended the program
+    (`pt-sysdep.c`, a copy, keeps it counted until Phase 7);
+  - an aborted wait (`E_ABORTED`: `thread_abort`, or `thread_suspend`,
+    which aborts first) read as a wake-up: htl's plain blocks now wait
+    again, as Mach's `mach_msg` does, and the interruptible ones return
+    `EINTR`.
+- **Interim, recorded:**
+  - the test is linked `-z norelro`: glibc makes RELRO read-only with
+    `mprotect`, and the image is the root's mapping, which neither libc's
+    table nor `mm` knows; an image mapped through `mm` is the exec
+    server's (later);
+  - the unwinder static glibc needs is GCC's `libgcc_eh.a` where LLVM's
+    libunwind isn't installed (the P53);
+  - `mm` runs with 64 regions a task for this test (`MM_REGIONS`; the
+    default 16 is fewer than a glibc program with four threads uses);
+  - its pool is 512 pages, one of the root's frames, so the program's
+    tree may have 256 (1 MiB): the test's mallocs stay under that.
+- **Seen, not yet looked into:** in schedroot, threads newly made at a
+  priority beside a spinner left running at that priority by an earlier
+  test (test_donation's) sometimes got no time at all in 300 ms (the FPU
+  test runs above it).
+- **The FPU's cost** (same laptop, i7-8665U, KVM, bench-gate's medians,
+  with and without the save and load): about 290 cycles a round trip,
+  one address space 1144 to 1424 (+24%: over the gate's 25% of the P53's
+  baseline, 1092), two 1612 to 1904 (+18%); the null system call is
+  unchanged. Each switch saves one thread's area and loads another's,
+  whether either used the FPU or not. For the owner.

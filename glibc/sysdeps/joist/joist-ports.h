@@ -99,6 +99,9 @@ rtld_hidden_proto (__joist_thread_wait)
 rtld_hidden_proto (__joist_thread_signal)
 rtld_hidden_proto (__joist_sync_init)
 rtld_hidden_proto (__joist_sc_reuse)
+/* The bootstrap port (joist-special.c).  */
+extern mach_port_t __joist_bootstrap;
+rtld_hidden_proto (__joist_bootstrap)
 rtld_hidden_proto (__joist_sc_keep)
 rtld_hidden_proto (__joist_gsync_wait_call)
 rtld_hidden_proto (__joist_gsync_wake_call)

@@ -14,8 +14,11 @@ enum {
     WORK_SERVE,    /* on the endpoint in slot 0: arg counts per request, then the reply */
     WORK_CLIENT,   /* call the endpoint in slot 0 for ever; count is the calls answered */
     WORK_CALLS,    /* make the cheapest system call for ever: nearly all its time is the kernel's */
-    WORK_TICK      /* sleep arg ns again and again (a Recv on slot 0 that times out); count the
+    WORK_TICK,     /* sleep arg ns again and again (a Recv on slot 0 that times out); count the
                     * wake-ups, and keep in aux the longest time from one to the next (TSC) */
+    WORK_FPU       /* its x87 control word and MXCSR the initial ones (else aux 2); then arg in
+                    * xmm0 and xmm15 and a rounding mode of arg's in MXCSR, checked after each
+                    * spin for ever (aux 1 if one changed); count the spins */
 };
 
 /* The fault test's program (faulter; Phase 3 step 6). Each sets count to 1,

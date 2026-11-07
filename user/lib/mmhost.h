@@ -152,7 +152,7 @@ static uint64_t root_ep, rx0, rx1, root_tmp;
 
 /* After test_init: the root's endpoint, and where the capabilities of a
  * child arrive. */
-static void host_init(void)
+static __attribute__((unused)) void host_init(void)
 {
     root_ep = slot_new();
     must(j_obj_create(J_ENDPOINT, root_ep), "obj_create (the root's endpoint)");

@@ -19,7 +19,6 @@
 
 #include "joist-vm.h"
 
-#include <string.h>
 
 static uint64_t
 end_of (const struct jv_res *r)
@@ -53,11 +52,16 @@ inside (const struct jv_table *t, uint64_t page)
   return i < t->n && t->r[i].page < page ? i : t->n;
 }
 
-/* Room at I for one more, which is a copy of the one there.  */
+/* Room at I for one more, which is a copy of the one there.  By hand,
+   not memmove: a static program's first vm_allocate comes before its
+   IFUNCs are resolved, and only memcpy and strlen are set by then
+   (static-start.S); the build keeps the compiler from making these loops
+   calls (joist-mem.c's -fno-builtin, Makefile).  */
 static void
 open_at (struct jv_table *t, uint32_t i)
 {
-  memmove (&t->r[i + 1], &t->r[i], (t->n - i) * sizeof t->r[0]);
+  for (uint32_t k = t->n; k > i; k--)
+    t->r[k] = t->r[k - 1];
   t->n++;
 }
 
@@ -184,7 +188,8 @@ __jv_release (struct jv_table *t, uint64_t page, uint64_t pages)
       t->r[j].pages = end_of (&t->r[j]) - end;	/* its head goes */
       t->r[j].page = end;
     }
-  memmove (&t->r[i], &t->r[j], (t->n - j) * sizeof t->r[0]);
+  for (uint32_t k = j; k < t->n; k++)	/* by hand: open_at says why */
+    t->r[i + k - j] = t->r[k];
   t->n -= j - i;
 }
 

@@ -501,6 +501,18 @@ static void handle(const struct j_msg *in, struct j_msg *out)
                      mm_fault(&M, (uint32_t)(b - 1u), in->r[1] / J_PAGE,
                               (unsigned)J_FAULT_ACCESS(r0)) != 0;
         out->r[0] = resume ? J_FAULT_RESUME : 1u;
+#ifdef MM_REPORT_REFUSED
+        /* A build for a new program's first runs: each fault refused. */
+        if (!resume) {
+            j_puts("mm: refused fault: kind and access ");
+            j_putu(r0);
+            j_puts(", address ");
+            j_putu(in->r[1]);
+            j_puts(", pc ");
+            j_putu(in->r[3]);
+            j_puts("\n");
+        }
+#endif
         return;
     }
     if (!served) {

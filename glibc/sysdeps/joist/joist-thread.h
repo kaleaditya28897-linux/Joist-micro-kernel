@@ -73,7 +73,9 @@ extern int __joist_thread_make (struct joist_thread *t, uint32_t self);
 extern void __joist_thread_free (struct joist_thread *t);
 /* Wait for BIT on T's notification (T the calling thread's) for at most
    TIMEOUT nanoseconds (JG_FOREVER: no limit): 0 when it came, 1 when the
-   time ran out.  */
+   time ran out, 2 when the wait was aborted (thread_abort, or
+   thread_suspend, which aborts first: Mach's MACH_RCV_INTERRUPTED; the
+   caller waits again, or returns EINTR).  */
 extern int __joist_thread_wait (struct joist_thread *t, uint64_t bit,
 				uint64_t timeout);
 /* Signal BIT to T.  */

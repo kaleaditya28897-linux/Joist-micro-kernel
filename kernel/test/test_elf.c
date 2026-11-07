@@ -208,8 +208,22 @@ JT_TEST(elf_entry_and_types)
     n = build();
     w32(ph(2), 2); /* PT_DYNAMIC */
     JT_CHECK(check(n) == KERR_INVAL);
+    /* A TLS template: accepted in the data segment, at its place there
+     * (data is at 0x402800 from file offset 0x1800); refused anywhere else. */
     n = build();
-    w32(ph(2), 7); /* PT_TLS */
+    set_ph(2, 7, 4, 0x1810, 0x402810, 0x20, 0x40);
+    JT_CHECK(check(n) == KERR_OK);
+    set_ph(2, 7, 4, 0x1810, 0x404810, 0x20, 0x40); /* past every segment */
+    JT_CHECK(check(n) == KERR_INVAL);
+    set_ph(2, 7, 4, 0x1810, 0x404000, 0x20, 0x1000); /* runs off the data segment's end */
+    JT_CHECK(check(n) == KERR_INVAL);
+    set_ph(2, 7, 4, 0x1820, 0x402810, 0x20, 0x40); /* its bytes elsewhere in the file */
+    JT_CHECK(check(n) == KERR_INVAL);
+    set_ph(2, 7, 4, 0x1810, 0x402810, 0x40, 0x20); /* file size > memory size */
+    JT_CHECK(check(n) == KERR_INVAL);
+    set_ph(2, 7, 4, 0x1810, 0x402810, 0x20, 0x40);
+    w16(img + 56, 4);
+    set_ph(3, 7, 4, 0x1810, 0x402810, 0x20, 0x40); /* a second one */
     JT_CHECK(check(n) == KERR_INVAL);
     n = build();
     w32(ph(0), 4); /* text becomes a note: no executable segment left */

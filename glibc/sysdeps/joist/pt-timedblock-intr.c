@@ -18,4 +18,5 @@
    <https://www.gnu.org/licenses/>.  */
 
 #define __pthread_timedblock __pthread_timedblock_intr
+#define BLOCK_INTR 1
 #include "pt-timedblock.c"

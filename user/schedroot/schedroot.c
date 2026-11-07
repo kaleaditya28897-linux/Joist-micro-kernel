@@ -251,6 +251,37 @@ static void test_own_tls(void)
     j_puts("sched: own tls ok\n");
 }
 
+/* 8. Each thread's FPU and SSE state is its own (the owner's choice,
+ * 2026-11-07: eager FXSAVE, SSE only): two equals on one CPU, taking turns
+ * hundreds of times, each find their own xmm0, xmm15 and MXCSR after every
+ * spin, and each started from the initial state. */
+static void test_fpu(void)
+{
+    struct worker a = worker_new(WORK_FPU, 0x0123456789abcdefull);
+    struct worker b = worker_new(WORK_FPU, 0xfedcba9876543212ull);
+    /* Above what test_donation leaves running (60 and 50). */
+    worker_run(&a, 70, 10 * J_MS, 10 * J_MS);
+    worker_run(&b, 70, 10 * J_MS, 10 * J_MS);
+    sleep_ns(SLEEP_NS);
+    worker_stop(&a);
+    worker_stop(&b);
+    if (a.w->aux != 0 || b.w->aux != 0 || a.w->count == 0 || b.w->count == 0) {
+        j_puts("sched: fpu: counts ");
+        j_putu(a.w->count);
+        j_puts(" and ");
+        j_putu(b.w->count);
+        j_puts(", aux ");
+        j_putu(a.w->aux);
+        j_puts(" and ");
+        j_putu(b.w->aux);
+        j_puts("\n");
+    }
+    check(a.w->aux != 2 && b.w->aux != 2, "a new thread's FPU state wasn't the initial one");
+    check(a.w->aux == 0 && b.w->aux == 0, "a thread's FPU or SSE registers changed under it");
+    check(a.w->count > 0 && b.w->count > 0, "the FPU workers didn't both run");
+    j_puts("sched: fpu ok\n");
+}
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free, uint64_t ncpus)
 {
@@ -267,6 +298,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     test_donation();
     test_clock(ncpus);
     test_own_tls();
+    test_fpu();
     j_puts("sched: all ok\n");
     j_exit(0);
 }

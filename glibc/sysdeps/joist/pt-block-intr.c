@@ -21,4 +21,5 @@
 #define RETTYPE error_t
 #define RETURN(val) return val
 #define __pthread_block __pthread_block_intr
+#define BLOCK_INTR 1
 #include "pt-block.c"

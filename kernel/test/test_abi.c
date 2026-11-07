@@ -623,10 +623,14 @@ JT_TEST(abi_marks_threads_whose_registers_all_count)
     JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
     JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE);
     memset(env.exact, 0, sizeof env.exact);
+    memset(env.fresh, 0, sizeof env.fresh);
     JT_REQUIRE(sys(a, ABI_THREAD_SPAWN, 2, 3, 0x401000, 0x7000) == ABI_DONE &&
                k.th[a].regs.r[ABI_RAX] == JOIST_OK);
     uint32_t b = k.obj[k.cs[root].slot[3].obj - 1u].target - 1u;
     JT_CHECK(env.exact[b] == 1 && env.exact[a] == 0); /* a new thread starts exactly as set */
+    /* and from the machine's initial state of what its record doesn't hold */
+    JT_CHECK(env.fresh[b] == 1 && env.fresh[a] == 0);
+    env.fresh[b] = 0; /* as the kernel clears it, on its first way out */
     env.exact[b] = 0; /* as if it had made a system call since */
     memcpy(mem, &k.th[b].regs, sizeof k.th[b].regs);
     /* A refused write changes nothing; a write that happens marks it. */
@@ -635,6 +639,7 @@ JT_TEST(abi_marks_threads_whose_registers_all_count)
     JT_CHECK(sys(a, ABI_THREAD_READ_REGS, 3, UPAGE + 512, 0, 0) == ABI_DONE && env.exact[b] == 0);
     JT_CHECK(sys(a, ABI_THREAD_WRITE_REGS, 3, UPAGE, 0, 0) == ABI_DONE &&
              k.th[a].regs.r[ABI_RAX] == JOIST_OK && env.exact[b] == 1 && env.exact[a] == 0);
+    JT_CHECK(env.fresh[b] == 0); /* written registers aren't a new thread: its FPU state stays */
     JT_CHECK(clean());
 }
 

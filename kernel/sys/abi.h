@@ -167,6 +167,10 @@ struct abi_env {
      * kernel uses that for a quicker way out. It sets and clears this for
      * the ways in it sees: run.c.) */
     uint8_t exact[JOIST_MAX_THREADS];
+    /* A thread just spawned: the machine gives it its initial state of
+     * whatever the register record doesn't hold (x86_64: the FPU and SSE
+     * registers), and clears this. */
+    uint8_t fresh[JOIST_MAX_THREADS];
     /* A blocked call per thread, waiting for abi_complete. */
     uint8_t pending[JOIST_MAX_THREADS];
 };

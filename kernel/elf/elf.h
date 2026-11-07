@@ -12,10 +12,13 @@
  * little-endian), whose loadable segments lie in [user_lo, user_hi), are
  * sorted and don't overlap (page-granular), have offset and address congruent
  * modulo 4 KiB, file size <= memory size, and are never both writable and
- * executable (W^X); with its entry point in an executable segment. Refused:
- * dynamic linking (PT_DYNAMIC, PT_INTERP), TLS (PT_TLS; not before Phase 7),
- * and anything malformed. Other segment types (notes, GNU_STACK, ...) are
- * ignored. Compiles freestanding and on the host (§8.1). */
+ * executable (W^X); with its entry point in an executable segment; and at
+ * most one TLS template (PT_TLS: static glibc programs have one, Phase 5
+ * step 7, decision 0031), which must lie wholly in one loadable segment,
+ * its bytes where that segment's are (it is part of that segment's data:
+ * nothing more is loaded for it). Refused: dynamic linking (PT_DYNAMIC,
+ * PT_INTERP) and anything malformed. Other segment types (notes,
+ * GNU_STACK, ...) are ignored. Compiles freestanding and on the host (§8.1). */
 #ifndef JOIST_ELF_H
 #define JOIST_ELF_H
 

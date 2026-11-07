@@ -196,6 +196,7 @@ int abi_syscall(struct abi_env *env, uint32_t t)
             k->th[nt].regs.sp = a3;
             k->th[nt].regs.flags = 0x202u;
             env->exact[nt] = 1;
+            env->fresh[nt] = 1;
         }
         break;
     }

@@ -42,6 +42,7 @@
 #define JOIST_SYS_CLOCK		56
 #define JOIST_OBJ_NOTIFICATION	2
 #define JOIST_E_TIMEOUT		9
+#define JOIST_E_ABORTED		14
 
 struct joist_thread __joist_thread0 = { .self = JOIST_SLOT_THREAD };
 rtld_hidden_data_def (__joist_thread0)
@@ -157,6 +158,8 @@ __joist_thread_wait (struct joist_thread *t, uint64_t bit, uint64_t timeout)
 	}
       uint64_t bits = 0;
       uint64_t e = __joist_sys (JOIST_SYS_WAIT, t->recv, left, 0, 0, &bits);
+      if (e == JOIST_E_ABORTED)
+	return 2;		/* thread_abort or thread_suspend */
       if (e != JOIST_OK)
 	return 1;		/* E_TIMEOUT; anything else ends it too */
       t->kept |= bits & ~bit;

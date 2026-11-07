@@ -27,17 +27,27 @@ error_t
 __pthread_timedblock (struct __pthread *thread,
 		      const struct timespec *abstime, clockid_t clock_id)
 {
-  struct timespec now;
-  if (__clock_gettime (clock_id, &now) != 0)
-    return EINVAL;
-  if (now.tv_sec > abstime->tv_sec
-      || (now.tv_sec == abstime->tv_sec && now.tv_nsec >= abstime->tv_nsec))
-    return ETIMEDOUT;
-  uint64_t left = (uint64_t) (abstime->tv_sec - now.tv_sec) * 1000000000u
-		  + (uint64_t) abstime->tv_nsec - (uint64_t) now.tv_nsec;
   struct joist_thread *t = &thread->tcb->joist;
   if (t->recv == 0 && __joist_thread_make (t, t->self) != 0)
     __libc_fatal ("Joist: no notification for a thread to block on\n");
-  return __joist_thread_wait (t, JOIST_BIT_HTL, left) ? ETIMEDOUT : 0;
+  for (;;)
+    {
+      struct timespec now;
+      if (__clock_gettime (clock_id, &now) != 0)
+	return EINVAL;
+      if (now.tv_sec > abstime->tv_sec
+	  || (now.tv_sec == abstime->tv_sec
+	      && now.tv_nsec >= abstime->tv_nsec))
+	return ETIMEDOUT;
+      uint64_t left = (uint64_t) (abstime->tv_sec - now.tv_sec) * 1000000000u
+		      + (uint64_t) abstime->tv_nsec - (uint64_t) now.tv_nsec;
+      int r = __joist_thread_wait (t, JOIST_BIT_HTL, left);
+      if (r != 2)
+	return r == 0 ? 0 : ETIMEDOUT;
+#ifdef BLOCK_INTR
+      return EINTR;
+#endif
+      /* Aborted: again, for the time that is left (pt-block.c).  */
+    }
 }
 libc_hidden_def (__pthread_timedblock)

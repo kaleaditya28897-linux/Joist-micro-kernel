@@ -44,6 +44,14 @@ ifeq ($(subdir),elf)
 sysdep-rtld-routines += joist-sync
 endif
 
+# The bootstrap port (joist-special.c): one in a program, as the table.
+ifeq ($(subdir),mach)
+routines += joist-special
+endif
+ifeq ($(subdir),elf)
+sysdep-rtld-routines += joist-special
+endif
+
 # The task's address reservations (joist-mem.c, which includes joist-vm.c):
 # one table in a program, as the name table.
 ifeq ($(subdir),mach)
@@ -52,3 +60,6 @@ endif
 ifeq ($(subdir),elf)
 sysdep-rtld-routines += joist-mem
 endif
+# A static program's first vm_allocate comes before its IFUNCs are
+# resolved: no library calls the compiler makes up of its loops.
+CFLAGS-joist-mem.c += -fno-builtin

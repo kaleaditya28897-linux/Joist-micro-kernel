@@ -8,7 +8,8 @@
 # test: the exit; docs/phase3-plan.md; scaleroot, the lock study's scaling
 # test; revokeroot, decision 0022's calls; mm, the memory manager, with
 # mmroot and mmclient, its test: Phase 4 step 6; cowstress and cowworker,
-# Phase 4's exit test; mmbench, mm's costs measured),
+# Phase 4's exit test; mmbench, mm's costs measured; glibcroot, which
+# starts the first glibc program: Phase 5 step 7),
 # which use lib/joist.h. Plain Make.
 #   make        every program, into build/*.elf
 # LLVM_BIN: the verified LLVM's bin directory, or unset for clang and
@@ -45,7 +46,7 @@ ASMPROGS := sysfuzz sysrethole
 # freestanding build may call memset and memcpy) and, for the root task, its
 # ELF validator.
 LIBPROGS := ping pong root worker schedroot faulter faultroot cascaderoot ipcbench benchroot smproot scaleroot growroot fuzzchild \
-            fiworker faultinj revokeroot mmroot mmclient mm cowstress cowworker mmbench
+            fiworker faultinj revokeroot mmroot mmclient mm cowstress cowworker mmbench glibcroot
 
 all: $(patsubst %,$(BUILD)/%.elf,$(PROGS) $(ASMPROGS) $(LIBPROGS))
 
@@ -88,6 +89,16 @@ $(eval $(call libprog,mmclient,))
 $(eval $(call libprog,cowstress,$(BUILD)/elf.o))
 $(eval $(call libprog,cowworker,))
 $(eval $(call libprog,mmbench,$(BUILD)/elf.o))
+$(eval $(call libprog,glibcroot,$(BUILD)/elf.o))
+
+# glibctest, the first glibc program (Phase 5 step 7): built outside, with
+# the cross-built glibc (../tools/phase5/glibc-test.sh); GLIBCTEST names
+# that ELF, and it is copied here as a module.
+GLIBCTEST ?=
+$(BUILD)/glibctest.elf: $(GLIBCTEST)
+	@[ -n "$(GLIBCTEST)" ] || { echo "GLIBCTEST: the ELF tools/phase5/glibc-test.sh built"; exit 1; }
+	@mkdir -p $(@D)
+	cp $< $@
 
 # The memory manager: its loop and its library, from servers/mm.
 $(BUILD)/mmlib.o: $(MM)/mmlib.c $(MM)/mmlib.h

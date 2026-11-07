@@ -68,7 +68,12 @@ fi
 rm -rf src && mkdir -p src && tar -xJf glibc-2.43.tar.xz -C src
 for p in "$here"/glibc-patches/*.patch; do
     [ -f "$p" ] || continue
-    (cd src/glibc-2.43 && patch -p1 --quiet --no-backup-if-mismatch < "$p") ||
+    # patch(1), or git apply where patch isn't installed: the same result.
+    if command -v patch > /dev/null; then
+        (cd src/glibc-2.43 && patch -p1 --quiet --no-backup-if-mismatch < "$p")
+    else
+        (cd src/glibc-2.43 && git apply -p1 "$p")
+    fi ||
         { echo "patch failed: $p"; exit 1; }
 done
 joist_opt=

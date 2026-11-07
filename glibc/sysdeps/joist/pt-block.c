@@ -23,6 +23,7 @@
 #include <pt-internal.h>
 #include <tls.h>
 #include <stdio.h>
+#include <errno.h>
 
 #ifndef RETTYPE
 # define RETTYPE void
@@ -37,7 +38,14 @@ __pthread_block (struct __pthread *thread)
   struct joist_thread *t = &thread->tcb->joist;
   if (t->recv == 0 && __joist_thread_make (t, t->self) != 0)
     __libc_fatal ("Joist: no notification for a thread to block on\n");
-  (void) __joist_thread_wait (t, JOIST_BIT_HTL, JG_FOREVER);
+#ifdef BLOCK_INTR
+  if (__joist_thread_wait (t, JOIST_BIT_HTL, JG_FOREVER) == 2)
+    return EINTR;
+#else
+  /* Aborted (a suspend, say): again, as Mach's mach_msg does.  */
+  while (__joist_thread_wait (t, JOIST_BIT_HTL, JG_FOREVER) == 2)
+    ;
+#endif
   RETURN (0);
 }
 libc_hidden_def (__pthread_block)

@@ -144,6 +144,9 @@ struct cpu {
     /* Spaces whose translations this CPU may hold stale: the next switch
      * to one is a flushing one (PCID or not). */
     uint8_t stale[JOIST_MAX_CSPACES];
+    /* The thread whose FPU and SSE state this CPU's registers hold, or
+     * JOIST_MAX_THREADS (fpu_*, below). */
+    uint32_t fpu_loaded;
 };
 static struct cpu cpus[RUN_MAX_CPUS];
 static uint32_t ncpus = 1;
@@ -435,6 +438,59 @@ static __attribute__((noreturn)) void die(const char *why)
  * QEMU's default model) every switch flushes, as before. */
 static int pcid_on;
 _Static_assert(JOIST_MAX_CSPACES < 4095u, "a space's PCID is its number plus one, in 12 bits");
+
+/* ---- FPU and SSE state (the owner's choice, 2026-11-07: eager FXSAVE,
+ * SSE only) ----
+ *
+ * Each thread has an FXSAVE area here, beside its record. On every entry
+ * from user mode the CPU saves the running thread's state into it, before
+ * the lock and before it says it is in the kernel, so a CPU that takes the
+ * thread off it (hk_off_cpu) finds the area current. On the way out the
+ * area is loaded, unless this CPU's registers hold that thread's state
+ * already: it was the last loaded here and has been loaded nowhere else
+ * since. The kernel never touches these registers itself (it is built
+ * -mgeneral-regs-only). A thread just spawned (abi_env.fresh) starts from
+ * the state FNINIT and the default MXCSR give. No AVX: CR4.OSXSAVE stays
+ * clear, so CPUID tells a program there is none. */
+struct fpu_area {
+    uint8_t b[512];
+} __attribute__((aligned(16)));
+static struct fpu_area fpu_state[JOIST_MAX_THREADS];
+static struct fpu_area fpu_initial;
+static uint8_t fpu_cpu[JOIST_MAX_THREADS]; /* the CPU (plus one) it was last loaded on; 0 none */
+_Static_assert(RUN_MAX_CPUS < 255u, "fpu_cpu holds a CPU plus one");
+
+static void fpu_save(uint32_t t)
+{
+    __asm__ volatile("fxsave64 %0" : "=m"(fpu_state[t]));
+}
+
+static void fpu_load(uint32_t t)
+{
+    __asm__ volatile("fxrstor64 %0" : : "m"(fpu_state[t]));
+}
+
+/* Every CPU: x87 and SSE usable in user mode (CR0: MP and NE set, EM and
+ * TS clear; CR4: OSFXSR, OSXMMEXCPT), their exceptions as #MF and #XM.
+ * The first also records the initial state, and gives it to every
+ * thread. */
+static void fpu_init(int first)
+{
+    uint64_t cr0;
+    uint64_t cr4;
+    __asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
+    cr0 = (cr0 & ~((1ull << 2) | (1ull << 3))) | (1ull << 1) | (1ull << 5);
+    __asm__ volatile("mov %0, %%cr0" : : "r"(cr0) : "memory");
+    __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+    __asm__ volatile("mov %0, %%cr4" : : "r"(cr4 | (1ull << 9) | (1ull << 10)) : "memory");
+    if (first) {
+        uint32_t mxcsr = 0x1f80u; /* every exception masked, round to nearest */
+        __asm__ volatile("fninit\n\tldmxcsr %1\n\tfxsave64 %0" : "=m"(fpu_initial) : "m"(mxcsr));
+        for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+            fpu_state[t] = fpu_initial;
+        }
+    }
+}
 
 static void pcid_init(int report)
 {
@@ -855,6 +911,7 @@ static void cpu_setup(struct cpu *c, int first)
     wrmsr(MSR_GS_BASE, 0);
     wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)(uintptr_t)c);
     pcid_init(first);
+    fpu_init(first);
 }
 
 /* Move to a CPU's own kernel stack and go on there; never comes back.
@@ -969,6 +1026,7 @@ const char *run_start(struct frame_alloc *fa, uint64_t hhdm,
                           .cur = JOIST_MAX_THREADS,
                           .cur_space = JOIST_MAX_CSPACES,
                           .cur_tls = UINT64_MAX,
+                          .fpu_loaded = JOIST_MAX_THREADS,
                           .in_kernel = 1};
         *(struct cpu **)(uintptr_t)&cpu_stack[ncpus][CPU_STACK - 8u] = c;
         ncpus++;
@@ -1357,6 +1415,16 @@ static __attribute__((noreturn)) void enter(struct cpu *c, uint32_t t, int hande
     tf->r13 = r->r[ABI_R13];
     tf->r14 = r->r[ABI_R14];
     tf->r15 = r->r[ABI_R15];
+    if (env.fresh[t]) {
+        env.fresh[t] = 0;
+        fpu_state[t] = fpu_initial;
+        fpu_cpu[t] = 0;
+    }
+    if (c->fpu_loaded != t || fpu_cpu[t] != c->id + 1u) {
+        fpu_load(t);
+        c->fpu_loaded = t;
+        fpu_cpu[t] = (uint8_t)(c->id + 1u);
+    }
     c->cur = t;
 #ifdef RUN_CHECK_INVARIANTS
     /* A test build: the core's whole state checked before every exit to
@@ -1521,7 +1589,11 @@ void run_user_trap(struct trap_frame *tf)
 {
     struct cpu *c = this_cpu();
     /* In the kernel, with the user's registers where another CPU can find
-     * them: before anything else, and before the lock. */
+     * them: before anything else, and before the lock. (c->cur is this
+     * CPU's to change until in_kernel says so: hk_off_cpu waits for it.) */
+    if (c->cur < JOIST_MAX_THREADS) {
+        fpu_save(c->cur);
+    }
     c->frame = tf;
     __atomic_store_n(&c->in_kernel, 1, __ATOMIC_RELEASE);
     cpu_sync(c);
