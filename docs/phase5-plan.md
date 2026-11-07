@@ -910,4 +910,7 @@ would start it, and runs to `main` and beyond under QEMU
   one address space 1144 to 1424 (+24%: over the gate's 25% of the P53's
   baseline, 1092), two 1612 to 1904 (+18%); the null system call is
   unchanged. Each switch saves one thread's area and loads another's,
-  whether either used the FPU or not. For the owner.
+  whether either used the FPU or not. The owner accepted it (2026-11-07):
+  the gate's baseline is re-measured on the P53: the round trips' 1900 and 1424 (the system
+  call's stays at 496)
+  (`docs/phase5-data/step7-fpu-ipc`).

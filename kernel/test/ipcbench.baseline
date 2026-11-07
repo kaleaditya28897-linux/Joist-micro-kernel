@@ -1,8 +1,14 @@
 # The IPC benchmark's medians (user/ipcbench, CPU cycles by its ruler) as
-# measured on 2026-10-15 on the P53's Intel Core i7-9850H, through KVM in
+# measured on 2026-11-07 on the P53's Intel Core i7-9850H, through KVM in
 # QEMU 10.0.13 inside the build VM (8 vCPUs), with nothing else running there:
-# 10 runs of the bench-gate entry of test/selftest.sh, on the kernel with the
-# run queues (Phase 3 step 10). Their ranges: 492-496, 1548, 1088-1092.
+# 10 runs of the bench-gate entry of test/selftest.sh, on the kernel that keeps
+# each thread's FPU and SSE state (Phase 5 step 7; the owner accepted the
+# cost, about 290 cycles a round trip: docs/phase5-data/step7-fpu-ipc). Their
+# ranges: 444, 1896-1900, 1424. The system call's stays at 496, its figure
+# before: the FPU's cost is in the switches, and a tighter bound would fail
+# on the system call's usual spread elsewhere (380-696 on a busy laptop).
+# Before: 2026-10-15, the same machine and method, on the kernel with the run
+# queues (Phase 3 step 10): 492-496, 1548, 1088-1092.
 # Earlier: 2026-10-14, 384, 1344, 880 (the system call's figure from the old
 # clock-cost method, too low in most runs; the run queues not yet built);
 # 2026-10-13 on the Intel Core i5-14400: 376, 1356, 764.
@@ -11,9 +17,9 @@
 # cost 172 cycles a round trip and 24 a system call (choice 9).
 # The gate in test/selftest.sh fails a run whose median is more than 25% above
 # these (docs/phase3-plan.md, *Testing*). Change them only with a measurement
-# and a reason, recorded in docs/phase3-data.
+# and a reason, recorded in docs/phase3-data or docs/phase5-data.
 #
 # measurement (the start of the line ipcbench prints) | median
 a system call that does nothing|496
-two address spaces, passive server|1548
-one address space, passive server|1092
+two address spaces, passive server|1900
+one address space, passive server|1424
