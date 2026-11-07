@@ -426,6 +426,9 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     } else {
         j_puts("glibcroot: no exit status\n");
     }
+    /* Its threads gone without exit: the task is still there (mm holds a
+     * capability to it), so it is destroyed here, as exit would have. */
+    (void)j_task_destroy(k.task);
     (void)j_cap_delete(k.thread);
     (void)j_cap_delete(k.sc);
     (void)j_cap_delete(k.task);
