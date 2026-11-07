@@ -117,6 +117,11 @@ static void start_mm(void)
     must(j_sc_create(sc, 200, 2 * J_MS, 10 * J_MS), "sc_create (mm's fallback)");
     must(j_sc_bind_fallback(sc, mm_thread), "sc_bind_fallback (mm)");
     struct j_msg r = ask(MM_REQ_INIT, 0);
+    if (r.r[0] != MM_OK) {
+        j_puts(TEST_NAME ": mm's INIT gave ");
+        j_putu(r.r[0]);
+        j_puts("\n");
+    }
     check(r.r[0] == MM_OK, "mm's INIT failed");
     r = ask(MM_REQ_INIT, 0);
     check(r.r[0] == MM_E_STATE, "mm took a second INIT");

@@ -33,7 +33,16 @@
  * sees that mm forgot the task and has every page back. */
 #define TEST_NAME "glibcroot"
 #include "../lib/testroot.h"
-#define HOST_POOL_PAGES 512u /* one of the root's frames, its most; the program's tree may have half */
+/* mm's pool: at most one of the root's frames; the program's tree may have
+ * half. A build for glibc's tests (tools/phase5/glibc-tests-run.sh) sets a
+ * larger one, with larger frames, and more pages for mm's own tables. */
+#ifndef GT_POOL_PAGES
+#define GT_POOL_PAGES 512u
+#endif
+#define HOST_POOL_PAGES GT_POOL_PAGES
+#ifdef GT_MM_TABLES
+#define HOST_MM_TABLES GT_MM_TABLES
+#endif
 #include "../lib/mmhost.h"
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
