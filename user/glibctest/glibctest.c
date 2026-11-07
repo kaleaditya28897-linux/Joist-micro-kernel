@@ -6,13 +6,15 @@
  * It uses glibc as any program does and checks what it gets: argv and the
  * environment from start-up, malloc and friends (over mm), snprintf,
  * clock_gettime, nanosleep, sysconf's CPU count, thread-local variables,
- * and pthreads (htl over Joist threads): four threads contending on one
- * mutex and meeting at a condition variable; stdout, the root's console.
- * Its checks report through the kernel's debug write, which needs nothing
- * of glibc: each prints "glibc: <what> ok", and the last "glibc: all ok". Then it
- * returns from main, so exit gives the root its status and ends the task.
+ * fork's refusal, and pthreads (htl over Joist threads): four threads
+ * contending on one mutex and meeting at a condition variable; stdout, the
+ * root's console. Its checks report through the kernel's debug write,
+ * which needs nothing of glibc: each prints "glibc: <what> ok", and the
+ * last "glibc: all ok". Then it returns from main, so exit gives the root
+ * its status and ends the task.
  *
  * Built by tools/phase5/glibc-test.sh with the cross-built glibc. */
+#include <errno.h>
 #include <mach.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -134,6 +136,9 @@ int main(int argc, char **argv)
         say(line);
     }
     check(tr != KERN_SUCCESS, "rpc with no server");
+    /* fork is refused in Phase 5 (the design's item 10): an error, not a
+     * hang (glibc/sysdeps/joist/_Fork.c). */
+    check(fork() == -1 && errno == ENOSYS, "fork refused");
 
     /* stdout is the root's console: io_write through joistmig's stubs.
      * One write passes at most 4096 bytes (a short write: fd-write.c), and
