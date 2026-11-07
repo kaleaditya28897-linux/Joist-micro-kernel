@@ -3,7 +3,9 @@
 # glibc-tests-run.sh - glibc's own tests on Joist (Phase 5 step 7, the
 # design's item 11 d): each test glibc-tests-link.sh linked, booted under
 # QEMU with KVM as user/glibcroot's program, with --direct (no fork; the
-# driver's own timeout needs signals, so the root's 60 s is the limit).
+# driver's own timeout needs signals, so the root's 60 s is the limit)
+# unless TESTS/link.txt says it has its own main (no test driver, no
+# --direct: the libm tests reject it).
 # glibcroot passes its stdout through and prints its exit status.
 #
 # usage: tools/phase5/glibc-tests-run.sh TESTS CONSOLE OUT [JOBS] [CPUS]
@@ -56,7 +58,9 @@ one() { # SLOT SUBDIR/TEST: its result line
     rm -rf "$w" && mkdir -p "$w"
     cp -r "$K/$b/iso" "$w/iso"
     cp "$TESTS/$2" "$w/iso/boot/glibctest.elf"
-    printf '%s --direct\n' "$(basename "$2")" > "$w/iso/boot/glibcargs.txt"
+    direct=" --direct"
+    grep -q "^$2 linked, its own main\$" "$TESTS/link.txt" 2>/dev/null && direct=
+    printf '%s%s\n' "$(basename "$2")" "$direct" > "$w/iso/boot/glibcargs.txt"
     echo "    module_path: boot():/boot/glibcargs.txt" >> "$w/iso/boot/limine/limine.conf"
     # As kernel/Makefile's joist.iso.
     xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot \
