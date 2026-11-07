@@ -34,17 +34,30 @@ __pthread_thread_terminate (struct __pthread *thread)
 {
   thread_t kernel_thread = thread->kernel_thread;
   int self = kernel_thread == __mach_thread_self ();
-  struct joist_thread rec = thread->tcb->joist;
 
   /* The kernel thread won't be there any more.  */
   thread->kernel_thread = MACH_PORT_DEAD;
   __pthread_dealloc (thread);
+
+  /* After __pthread_dealloc_finish, pthread_create may reuse THREAD and
+     free its TCB: when THREAD is the caller, its own TLS, which a lock's
+     wait needs (its record).  So what takes a lock is done before, and
+     only the kernel's calls after.  pthread_create's failure path has
+     freed the TCB already (pt-thread-start.c the record's names).  */
+  if (thread->tcb != NULL)
+    {
+      struct joist_thread *rec = &thread->tcb->joist;
+      if (rec->sc != 0)
+	__joist_sc_keep (rec->sc);
+      rec->sc = 0;
+      __joist_thread_free (rec);
+    }
+  kern_return_t err = __joist_thread_forget (kernel_thread);
+
   __pthread_dealloc_finish (thread);
 
-  __joist_thread_free (&rec);
-  if (rec.sc != 0)
-    __joist_sc_keep (rec.sc);
-  kern_return_t err = __thread_terminate (kernel_thread);
+  if (err == KERN_SUCCESS)
+    err = __joist_thread_end (kernel_thread, self);
   /* Only another thread's ends here.  */
   assert (!self);
   assert_perror (err);

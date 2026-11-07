@@ -114,12 +114,20 @@ __joist_thread_make (struct joist_thread *t, uint32_t self)
 }
 rtld_hidden_def (__joist_thread_make)
 
+/* Its three names under one lock: a wait for the lock needs T whole when
+   T is the calling thread's own (pt-thread-terminate.c).  */
 void
 __joist_thread_free (struct joist_thread *t)
 {
-  unpin (t->sig_htl);
-  unpin (t->sig_gsync);
-  unpin (t->recv);
+  uint32_t names[3] = { t->sig_htl, t->sig_gsync, t->recv };
+  struct jn_table *tab = __joist_ports_lock ();
+  for (unsigned int i = 0; i < 3; i++)
+    if (names[i] != 0)
+      {
+	(void) __joist_sys (JOIST_SYS_CAP_DELETE, names[i], 0, 0, 0, NULL);
+	__jn_unpin (tab, names[i]);
+      }
+  __joist_ports_unlock ();
   t->recv = t->sig_gsync = t->sig_htl = 0;
 }
 rtld_hidden_def (__joist_thread_free)

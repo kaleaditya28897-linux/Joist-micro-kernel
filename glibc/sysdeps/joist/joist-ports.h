@@ -79,6 +79,10 @@ extern int __joist_sync_init (void);
 /* Scheduling contexts terminated threads left, for the next (joist-sync.c).  */
 extern uint32_t __joist_sc_reuse (void);
 extern void __joist_sc_keep (uint32_t sc);
+/* thread_terminate's two halves (RPC_thread_terminate.c): the name
+   forgotten, then the kernel's calls alone.  */
+extern kern_return_t __joist_thread_forget (thread_t thread);
+extern kern_return_t __joist_thread_end (thread_t thread, int self);
 extern kern_return_t __joist_gsync_wait_call (mach_port_t task,
 					      vm_offset_t addr,
 					      unsigned int val1,
@@ -108,6 +112,8 @@ rtld_hidden_proto (__joist_bootstrap)
 extern void __joist_report_exit (int status);
 rtld_hidden_proto (__joist_report_exit)
 rtld_hidden_proto (__joist_sc_keep)
+rtld_hidden_proto (__joist_thread_forget)
+rtld_hidden_proto (__joist_thread_end)
 rtld_hidden_proto (__joist_gsync_wait_call)
 rtld_hidden_proto (__joist_gsync_wake_call)
 rtld_hidden_proto (__joist_gsync_requeue_call)

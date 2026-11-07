@@ -30,18 +30,9 @@
 #define JOIST_SYS_SC_CREATE	50
 #define JOIST_SYS_SC_BIND	51
 
-int
-__pthread_thread_start (struct __pthread *thread)
+static int
+start (struct __pthread *thread)
 {
-  static int do_start;
-
-  if (!do_start)
-    {
-      /* The main thread is already running: do nothing.  */
-      assert (__pthread_total == 1);
-      do_start = 1;
-      return 0;
-    }
   /* A context a terminated thread left, if one is free by now (its
      thread may not have finished dying: then a new one).  */
   uint32_t sc = __joist_sc_reuse ();
@@ -80,5 +71,25 @@ __pthread_thread_start (struct __pthread *thread)
       return EAGAIN;
     }
   return 0;
+}
+
+int
+__pthread_thread_start (struct __pthread *thread)
+{
+  static int do_start;
+
+  if (!do_start)
+    {
+      /* The main thread is already running: do nothing.  */
+      assert (__pthread_total == 1);
+      do_start = 1;
+      return 0;
+    }
+  int err = start (thread);
+  if (err != 0)
+    /* pthread_create frees the TCB next, the record's names not
+       (pt-setup.c made them).  */
+    __joist_thread_free (&thread->tcb->joist);
+  return err;
 }
 libc_hidden_def (__pthread_thread_start)
