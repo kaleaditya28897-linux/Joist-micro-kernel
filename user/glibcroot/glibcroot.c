@@ -383,21 +383,34 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     j_puts("glibcroot: started\n");
     worker_run(&k, GT_PRIO, 10 * J_MS, 10 * J_MS);
 
-    /* It ends itself; its thread then is gone. Looked at by reading its
-     * registers, which leaves a wait it is in alone (a suspend would abort
-     * it: E_ABORTED, glibc's EINTR). */
+    /* It ends itself (exit: its task destroyed, its threads with it), or
+     * its last thread dies (a fault mm refused). Not its first thread's
+     * end: that one may pthread_exit while others go on. Watched by the
+     * kernel's count of live threads, above base's while one of the
+     * program's is; its first thread's registers read for a TIMEOUT
+     * (which leaves a wait it is in alone: a suspend would abort it,
+     * E_ABORTED, glibc's EINTR). */
     uint64_t t0, now, ncpu;
     must(j_clock(&t0, &ncpu), "clock");
     struct j_thread_regs regs;
-    while (j_thread_read_regs(k.thread, &regs) != J_E_GONE) {
+    struct j_counters live;
+    for (;;) {
+        must(j_debug_counters(&live), "debug_counters");
+        if (live.threads <= base.threads) {
+            break;
+        }
         must(j_clock(&now, &ncpu), "clock");
         if (now - t0 >= GT_WAIT_NS) {
             /* Where its first thread is, for llvm-addr2line. */
-            j_puts("glibcroot: TIMEOUT, its first thread at pc ");
-            j_putu(regs.pc);
-            j_puts(", sp ");
-            j_putu(regs.sp);
-            j_puts("\n");
+            if (j_thread_read_regs(k.thread, &regs) == J_OK) {
+                j_puts("glibcroot: TIMEOUT, its first thread at pc ");
+                j_putu(regs.pc);
+                j_puts(", sp ");
+                j_putu(regs.sp);
+                j_puts("\n");
+            } else {
+                j_puts("glibcroot: TIMEOUT, its first thread gone\n");
+            }
             j_exit(1);
         }
         serve_one(10u * J_MS); /* a message, or 10 ms */
