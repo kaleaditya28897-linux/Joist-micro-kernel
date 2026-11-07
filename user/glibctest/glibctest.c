@@ -5,11 +5,11 @@
  *
  * It uses glibc as any program does and checks what it gets: argv and the
  * environment from start-up, malloc and friends (over mm), snprintf,
- * clock_gettime, sysconf's CPU count, thread-local variables, and pthreads
- * (htl over Joist threads): four threads contending on one mutex and
- * meeting at a condition variable; stdout, the root's console. Its checks
- * report through the kernel's debug write, which needs nothing of glibc:
- * each prints "glibc: <what> ok", and the last "glibc: all ok". Then it
+ * clock_gettime, nanosleep, sysconf's CPU count, thread-local variables,
+ * and pthreads (htl over Joist threads): four threads contending on one
+ * mutex and meeting at a condition variable; stdout, the root's console.
+ * Its checks report through the kernel's debug write, which needs nothing
+ * of glibc: each prints "glibc: <what> ok", and the last "glibc: all ok". Then it
  * returns from main, so exit gives the root its status and ends the task.
  *
  * Built by tools/phase5/glibc-test.sh with the cross-built glibc. */
@@ -115,6 +115,13 @@ int main(int argc, char **argv)
     ck &= clock_gettime(CLOCK_MONOTONIC, &t1) == 0;
     ck &= t1.tv_sec > t0.tv_sec || (t1.tv_sec == t0.tv_sec && t1.tv_nsec >= t0.tv_nsec);
     check(ck, "clock_gettime");
+    /* A sleep waits its time (the Hurd's waits in mach_msg, which Joist
+     * doesn't provide: glibc/sysdeps/joist/clock_nanosleep.c). */
+    struct timespec nap = {0, 20000000}; /* 20 ms */
+    ck = clock_gettime(CLOCK_MONOTONIC, &t0) == 0 && nanosleep(&nap, NULL) == 0 &&
+         usleep(10000) == 0 && clock_gettime(CLOCK_MONOTONIC, &t1) == 0;
+    ck &= (t1.tv_sec - t0.tv_sec) * 1000000000LL + (t1.tv_nsec - t0.tv_nsec) >= 30000000LL;
+    check(ck, "nanosleep");
     check(sysconf(_SC_NPROCESSORS_ONLN) >= 1, "sysconf");
     check(tls_value == 7, "tls");
     /* An RPC with no server behind it (the task's own capability) fails. */

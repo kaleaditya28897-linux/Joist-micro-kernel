@@ -49,6 +49,9 @@
 
 #define JOIST_BIT_GSYNC		1u
 #define JOIST_BIT_HTL		2u
+/* A bit no one signals: a sleep's wait (clock_nanosleep.c), which only
+   its time running out or an abort ends.  */
+#define JOIST_BIT_SLEEP		4u
 
 struct joist_thread
 {
