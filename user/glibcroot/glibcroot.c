@@ -51,8 +51,14 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
 /* The program's stack: STACK_TOP down, the start-up block in the page at
  * STACK_TOP (sp points at its first word), the arrays in a page below the
  * stack, a guard gap between. All below the image (CHILD_LO) and below
- * 4 GiB: glibc's anywhere window starts there (joist-vm.h). */
+ * 4 GiB: glibc's anywhere window starts there (joist-vm.h). 128 KiB; a
+ * build for glibc's tests (tools/phase5/glibc-tests-run.sh) sets 3 MiB,
+ * the most there is room for below the image (some tests have megabytes
+ * on the stack). */
+#ifndef GT_STACK_PAGES
 #define GT_STACK_PAGES 32u
+#endif
+_Static_assert(GT_STACK_PAGES >= 1u && GT_STACK_PAGES <= 768u, "the stack must fit below the image");
 #define GT_BLOCK_VA    (CHILD_LO - 0x21000ull)                          /* 0x3df000 */
 #define GT_STACK_LO    (GT_BLOCK_VA - GT_STACK_PAGES * (uint64_t)J_PAGE) /* 0x3bf000 */
 #define GT_ARRAYS_VA   (GT_STACK_LO - 0x10000ull)                       /* 0x3af000 */

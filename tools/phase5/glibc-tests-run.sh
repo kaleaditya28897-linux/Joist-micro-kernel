@@ -36,11 +36,13 @@ first=$(find "$TESTS" -mindepth 2 -type f ! -name '*.log' | head -1)
 # program's tree may have 32; its four task records' page-table runs of 96
 # pages (2 + 2 per 2 MiB span the program touches), and 80 pages more for
 # mm's own tables over its pool.
+# The program's stack 3 MiB (glibcroot's default is 128 KiB): some of
+# glibc's tests have megabytes on it (test-memset, tst-widetext).
 b=build/glibc-tests
 # Afresh: make doesn't see flags change.
 rm -rf "$K/$b" "$K/../user/build/glibc-tests"
 (cd "$K" && make -s BUILD=$b ROOT_TASK=glibcroot MODULES="mm glibctest" \
-    UEXTRA="-DMM_REGIONS=64u -DGT_POOL_PAGES=16384u -DGT_MM_TABLES=80u ${GT_UEXTRA:-}" \
+    UEXTRA="-DMM_REGIONS=64u -DGT_POOL_PAGES=16384u -DGT_MM_TABLES=80u -DGT_STACK_PAGES=768u ${GT_UEXTRA:-}" \
     MMFLAGS="-DMM_MAX_TASKS=4u -DMM_TASK_PAGES=16384u -DMM_PAGES=16384u -DMM_TABLE_PAGES=96u" \
     KEXTRA="-DRUN_POOL_FRAMES=2u -DRUN_POOL_PAGES=20480u" \
     USER_BUILD=build/glibc-tests GLIBCTEST="$first" GLIBC_CONSOLE="$CONSOLE" $b/joist.iso > "$OUT/build.log" 2>&1) ||
