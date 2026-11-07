@@ -7,10 +7,10 @@
  * environment from start-up, malloc and friends (over mm), snprintf,
  * clock_gettime, nanosleep, sysconf's CPU count, thread-local variables,
  * fork's refusal, and pthreads (htl over Joist threads): four threads
- * contending on one mutex and meeting at a condition variable; stdout, the
- * root's console. Its checks report through the kernel's debug write,
- * which needs nothing of glibc: each prints "glibc: <what> ok", and the
- * last "glibc: all ok". Then it returns from main, so exit gives the root
+ * contending on one mutex and meeting at a condition variable, each
+ * writing to stdout; stdout, the root's console. Its checks report
+ * through the kernel's debug write, which needs nothing of glibc: each
+ * prints "glibc: <what> ok", and the last "glibc: all ok". Then it returns from main, so exit gives the root
  * its status and ends the task.
  *
  * Built by tools/phase5/glibc-test.sh with the cross-built glibc. */
@@ -52,12 +52,19 @@ static __thread int tls_value = 7;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t met = PTHREAD_COND_INITIALIZER;
 static long counter;
-static int arrived, tls_bad;
+static int arrived, tls_bad, write_bad;
 
 static void *worker(void *arg)
 {
     int me = (int)(intptr_t)arg;
     tls_value = 100 + me; /* each thread its own */
+    /* An RPC from a thread of its own: io_write through its own IPC
+     * buffer (each thread's, made on its first call). */
+    char line[64];
+    int n = snprintf(line, sizeof line, "glibc: thread %d writes to the console\n", me);
+    if (write(1, line, (size_t)n) != n) {
+        write_bad = 1;
+    }
     for (int i = 0; i < ROUNDS; i++) {
         pthread_mutex_lock(&lock);
         counter++;
@@ -165,6 +172,7 @@ int main(int argc, char **argv)
     check(joined, "pthread_join");
     check(counter == (long)THREADS * ROUNDS, "mutex");
     check(arrived == THREADS && !tls_bad && tls_value == 7, "condition and thread tls");
+    check(!write_bad, "a thread's write");
 
     say(failed ? "glibc: FAILED\n" : "glibc: all ok\n");
     return failed;

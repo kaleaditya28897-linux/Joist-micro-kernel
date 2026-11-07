@@ -61,9 +61,9 @@ struct joist_thread
   uint32_t sig_gsync;		/* capabilities to signal it, bits 0 and 1 */
   uint32_t sig_htl;
   uint32_t sc;			/* its scheduling context, 0 none of its own */
-  uint32_t pad;
+  uint32_t ipc_on;		/* 1 once it has registered ipc_buf itself */
   uint64_t kept;		/* bits a wait of the other kind took */
-  uint64_t *ipc_buf;		/* its IPC buffer, made on first use */
+  uint64_t *ipc_buf;		/* its IPC buffer (joist-mig.c) */
 };
 
 /* The first thread's record until its TLS is set up (tls.h).  */

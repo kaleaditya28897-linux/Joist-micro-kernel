@@ -1,5 +1,5 @@
 /* End a thread, htl on Joist (Phase 5 step 7, the design's item 7): its
-   notification given back, its scheduling context kept for the next
+   notification and IPC buffer given back, its scheduling context kept for the next
    thread (it can't delete its own and go on: joist-sync.c), then its
    thread capability deleted, which ends it.  Its stack isn't freed: Mach's
    thread_terminate_release would, after the thread is gone; htl leaks it
@@ -51,6 +51,8 @@ __pthread_thread_terminate (struct __pthread *thread)
 	__joist_sc_keep (rec->sc);
       rec->sc = 0;
       __joist_thread_free (rec);
+      /* Its IPC buffer: the calls left (the kernel's) carry no words.  */
+      __joist_ipc_free (rec);
     }
   kern_return_t err = __joist_thread_forget (kernel_thread);
 

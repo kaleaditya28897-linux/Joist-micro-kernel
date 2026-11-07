@@ -318,7 +318,7 @@ run chk-kvm-smp2-cow3 1 "cow: all ok" "root task exited with code 0"
 # exit with its status; mm forgets the task. 1, 2 and 4 real CPUs.
 run glibc 1 "glibc: main reached" "glibc: malloc ok" "glibc: nanosleep ok" "glibc: fork refused ok" \
     "glibc: printf through the console" "glibc: a long write ok" \
-    "glibc: pthread_join ok" "glibc: mutex ok" "glibc: all ok" "glibcroot: exit status 0, code 0" \
+    "glibc: pthread_join ok" "glibc: mutex ok" "glibc: a thread's write ok" "glibc: all ok" "glibcroot: exit status 0, code 0" \
     "glibcroot: all ok" "root task exited with code 0"
 run kvm-smp1-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
 run kvm-smp2-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"

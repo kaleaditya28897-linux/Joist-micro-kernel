@@ -87,9 +87,12 @@ __pthread_thread_start (struct __pthread *thread)
     }
   int err = start (thread);
   if (err != 0)
-    /* pthread_create frees the TCB next, the record's names not
-       (pt-setup.c made them).  */
-    __joist_thread_free (&thread->tcb->joist);
+    {
+      /* pthread_create frees the TCB next, not what the record holds
+	 (pt-setup.c made it).  */
+      __joist_thread_free (&thread->tcb->joist);
+      __joist_ipc_free (&thread->tcb->joist);
+    }
   return err;
 }
 libc_hidden_def (__pthread_thread_start)

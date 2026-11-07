@@ -26,9 +26,12 @@
 
 #include "joist-ports.h"
 #include "joist-sys.h"
+#include "joist-thread.h"
 #include <joist_mig.h>
 #include <mach.h>
 #include <mach/mig_errors.h>
+#include <tls.h>
+#include <libc-lock.h>
 
 /* One in a program, as the name table (joist-ports.h).  */
 #if !(defined SHARED && IS_IN (libc))
@@ -40,27 +43,77 @@
 #define JOIST_E_PEER		11
 #define JOIST_E_ABORTED		14
 
-/* The thread's IPC buffer.  For now the program's one, registered on
-   first use by the thread that makes it: threads (htl) come with their
-   own, kept in the TCB (the design's item 7).  */
-static uint64_t *ipc_page;
+/* A thread's IPC buffer, in its record (joist-thread.h, the design's item
+   7): made by pthread_create (pt-setup.c), so that a thread that runs has
+   one whatever memory is left by then; the first thread's on its first
+   call.  Only a thread can register its own: it does on its first call.
+   Given back when the thread ends (pt-thread-terminate.c).  The pages
+   come IPC_CHUNK at a time, one mm region for that many threads (a task
+   has few regions), and a page given back is kept for the next thread,
+   on a list through the pages' first words: never returned, so the most
+   threads alive at once bound them, as the stacks htl keeps.  */
+#define IPC_CHUNK 16u
+#define IPC_PAGE (JOIST_MIG_BUF_WORDS * 8)
+static uint64_t *ipc_free;
+__libc_lock_define_initialized (static, ipc_lock)
+
+int
+__joist_ipc_make (struct joist_thread *t)
+{
+  __libc_lock_lock (ipc_lock);
+  if (ipc_free == NULL)
+    {
+      vm_address_t a = 0;
+      if (__vm_allocate (__mach_task_self (), &a, IPC_CHUNK * IPC_PAGE, 1)
+	  != KERN_SUCCESS)
+	{
+	  __libc_lock_unlock (ipc_lock);
+	  return KERN_RESOURCE_SHORTAGE;
+	}
+      for (unsigned int i = IPC_CHUNK; i-- > 0;)
+	{
+	  uint64_t *p = (uint64_t *) (a + i * IPC_PAGE);
+	  *p = (uint64_t) (uintptr_t) ipc_free;
+	  ipc_free = p;
+	}
+    }
+  uint64_t *p = ipc_free;
+  ipc_free = (uint64_t *) (uintptr_t) *p;
+  __libc_lock_unlock (ipc_lock);
+  t->ipc_buf = p;
+  t->ipc_on = 0;
+  return 0;
+}
+rtld_hidden_def (__joist_ipc_make)
+
+void
+__joist_ipc_free (struct joist_thread *t)
+{
+  uint64_t *p = t->ipc_buf;
+  t->ipc_buf = NULL;
+  t->ipc_on = 0;
+  if (p == NULL)
+    return;
+  __libc_lock_lock (ipc_lock);
+  *p = (uint64_t) (uintptr_t) ipc_free;
+  ipc_free = p;
+  __libc_lock_unlock (ipc_lock);
+}
+rtld_hidden_def (__joist_ipc_free)
 
 static uint64_t *
 ipc_buffer (void)
 {
-  if (__glibc_likely (ipc_page != NULL))
-    return ipc_page;
-  vm_address_t a = 0;
-  if (__vm_allocate (__mach_task_self (), &a, JOIST_MIG_BUF_WORDS * 8, 1)
-      != KERN_SUCCESS)
+  struct joist_thread *self = __joist_thread_self ();
+  if (__glibc_likely (self->ipc_on))
+    return self->ipc_buf;
+  if (self->ipc_buf == NULL && __joist_ipc_make (self) != 0)
     return NULL;
-  if (__joist_sys (JOIST_SYS_IPC_BUFFER, a, 0, 0, 0, NULL) != JOIST_OK)
-    {
-      __vm_deallocate (__mach_task_self (), a, JOIST_MIG_BUF_WORDS * 8);
-      return NULL;
-    }
-  ipc_page = (uint64_t *) a;
-  return ipc_page;
+  if (__joist_sys (JOIST_SYS_IPC_BUFFER, (uintptr_t) self->ipc_buf, 0, 0, 0,
+		   NULL) != JOIST_OK)
+    return NULL;
+  self->ipc_on = 1;
+  return self->ipc_buf;
 }
 
 /* Call on SLOT: registers R and the capabilities and word count in *R9

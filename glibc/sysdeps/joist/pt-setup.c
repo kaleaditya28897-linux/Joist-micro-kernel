@@ -24,10 +24,11 @@
 #include <thread_state.h>
 #include <pt-internal.h>
 #include <tls.h>
+#include "joist-ports.h"
 
 /* Joist's copy of sysdeps/mach/hurd/x86_64/htl/pt-setup.c (Phase 5 step 7,
    the design's item 7), changed in one place: a new thread's Joist record
-   (its notification) is made here, in its TCB, which htl has allocated by
+   (its notification and IPC buffer) is made here, in its TCB, which htl has allocated by
    now, before its registers are set.  */
 
 /* Set up the stack for THREAD.  Return the stack pointer
@@ -71,9 +72,15 @@ __pthread_setup (struct __pthread *thread,
     return 0;
 
 
-  /* Joist: its notification, before anything can wake it.  */
+  /* Joist: its notification, before anything can wake it, and its IPC
+     buffer (joist-mig.c).  */
   if (__joist_thread_make (&thread->tcb->joist, thread->kernel_thread) != 0)
     return EAGAIN;
+  if (__joist_ipc_make (&thread->tcb->joist) != 0)
+    {
+      __joist_thread_free (&thread->tcb->joist);
+      return EAGAIN;
+    }
 
   thread->mcontext.pc = entry_point;
   thread->mcontext.sp = stack_setup (thread);
