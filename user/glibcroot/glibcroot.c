@@ -386,7 +386,12 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     while (j_thread_read_regs(k.thread, &regs) != J_E_GONE) {
         must(j_clock(&now, &ncpu), "clock");
         if (now - t0 >= GT_WAIT_NS) {
-            j_puts("glibcroot: TIMEOUT\n");
+            /* Where its first thread is, for llvm-addr2line. */
+            j_puts("glibcroot: TIMEOUT, its first thread at pc ");
+            j_putu(regs.pc);
+            j_puts(", sp ");
+            j_putu(regs.sp);
+            j_puts("\n");
             j_exit(1);
         }
         serve_one(10u * J_MS); /* a message, or 10 ms */
