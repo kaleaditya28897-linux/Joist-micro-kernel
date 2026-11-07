@@ -1,0 +1,24 @@
+/* console.defs - the console glibcroot serves (Phase 5 step 7, the
+   design's item 11 d; the owner's choice, 2026-11-07): io.defs' first
+   routine, io_write, alone, as the GNU Hurd's io.defs declares it. A
+   program's descriptors 0, 1 and 2 are send rights to it; every other io
+   routine, and any other message, is answered MIG_BAD_ID.
+
+   From hurd/io.defs, Copyright (C) 1991-2026 Free Software Foundation,
+   Inc., under the GNU General Public License, version 2 or later; this
+   file is GPL-3.0-only, as Joist. */
+
+subsystem io 21000;
+
+#include <hurd/hurd_types.defs>
+
+INTR_INTERFACE
+
+/* Write data to an IO object.  The amount successfully written is
+   returned in AMOUNT. */
+routine io_write (
+	io_object: io_t;
+	RPT
+	data: data_t SCP;
+	offset: loff_t;
+	out amount: vm_size_t);

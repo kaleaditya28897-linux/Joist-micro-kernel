@@ -89,7 +89,11 @@ $(eval $(call libprog,mmclient,))
 $(eval $(call libprog,cowstress,$(BUILD)/elf.o))
 $(eval $(call libprog,cowworker,))
 $(eval $(call libprog,mmbench,$(BUILD)/elf.o))
-$(eval $(call libprog,glibcroot,$(BUILD)/elf.o))
+# glibcroot's console (glibcroot.c): joistmig's server for console.defs,
+# built with glibc's headers by ../tools/phase5/glibc-test.sh beside the
+# test program; without it the root answers every message MIG_BAD_ID.
+GLIBC_CONSOLE ?= $(if $(GLIBCTEST),$(wildcard $(GLIBCTEST).console.o))
+$(eval $(call libprog,glibcroot,$(BUILD)/elf.o $(GLIBC_CONSOLE)))
 
 # glibctest, the first glibc program (Phase 5 step 7): built outside, with
 # the cross-built glibc (../tools/phase5/glibc-test.sh); GLIBCTEST names

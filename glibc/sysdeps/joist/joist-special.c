@@ -21,8 +21,29 @@
 
 #include <mach.h>
 #include "joist-thread.h"
+#include "joist-ports.h"
+#include "joist_mig.h"
 
 #if !(defined SHARED && IS_IN (libc))
 mach_port_t __joist_bootstrap = JOIST_SLOT_BOOTSTRAP;
 rtld_hidden_data_def (__joist_bootstrap)
+
+/* The exit status, to the bootstrap port, when no proc server takes it
+   (_exit.c): Joist's own message, JOIST_BOOT_EXIT with the status (as
+   _hurd_exit has it, W_EXITCODE's) in the body's first word; the reply
+   says nothing.  Phase 8's proc makes it unneeded.  */
+void
+__joist_report_exit (int status)
+{
+  if (__joist_bootstrap == MACH_PORT_NULL)
+    return;
+  uint64_t buf[JOIST_MIG_BUF_WORDS];
+  struct joist_mig_msg m;
+  memset (&m, 0, sizeof m);
+  m.buf = buf;
+  m.r[0] = JOIST_BOOT_EXIT | (uint64_t) 8 << 32;
+  m.r[1] = (uint32_t) status;
+  (void) __joist_mig_call (__joist_bootstrap, &m);
+}
+rtld_hidden_def (__joist_report_exit)
 #endif

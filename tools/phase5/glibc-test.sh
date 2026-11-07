@@ -7,7 +7,8 @@
 # usage: tools/phase5/glibc-test.sh WORKDIR OUT
 #   WORKDIR: glibc-cross.sh's (its build/ is installed into WORKDIR/sysroot
 #   first, if it isn't); OUT: the ELF, stripped (a boot module is at most
-#   2 MiB).
+#   2 MiB); beside it OUT.debug, unstripped, and OUT.console.o, glibcroot's
+#   console server.
 set -eu
 W=$(cd "$1" && pwd)
 OUT=$2
@@ -48,3 +49,15 @@ ld.lld -static -m elf_x86_64 -e _start --image-base=0x400000 -z max-page-size=0x
 cp "$obj/glibctest.elf" "$OUT.debug" # for symbols: the module is the stripped one
 llvm-objcopy --strip-all "$obj/glibctest.elf" "$OUT"
 ls -l "$OUT"
+# glibcroot's console (user/glibcroot/console.defs): joistmig's server,
+# compiled with glibc's headers into an object the root links in
+# (user/Makefile's GLIBC_CONSOLE: OUT.console.o).
+clang -E -x c -nostdinc -I"$W/headers/include" -I"$SR/usr/include" -D__x86_64__ \
+    "$repo/user/glibcroot/console.defs" -o "$obj/console.defsi"
+(cd "$obj" && "$W/mig/libexec/x86_64-gnu-migcom" -server consoleServer.c -sheader console_S.h \
+    -user /dev/null -header /dev/null < console.defsi)
+"$W/bin/x86_64-gnu-clang" -O2 -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter \
+    -fno-pic -fno-stack-protector -mgeneral-regs-only -ffreestanding \
+    -nostdinc -isystem "$RES/include" -isystem "$SR/usr/include" -isystem "$W/headers/include" \
+    -I"$repo/user/lib" -I"$obj" -c "$obj/consoleServer.c" -o "$OUT.console.o"
+ls -l "$OUT.console.o"

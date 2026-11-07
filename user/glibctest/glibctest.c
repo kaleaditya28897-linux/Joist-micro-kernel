@@ -7,10 +7,10 @@
  * environment from start-up, malloc and friends (over mm), snprintf,
  * clock_gettime, sysconf's CPU count, thread-local variables, and pthreads
  * (htl over Joist threads): four threads contending on one mutex and
- * meeting at a condition variable. There is no console server yet, so it
- * reports through the kernel's debug write; each check prints
- * "glibc: <what> ok", and the last "glibc: all ok". Then it returns from
- * main, so exit and _exit end the task (task_terminate).
+ * meeting at a condition variable; stdout, the root's console. Its checks
+ * report through the kernel's debug write, which needs nothing of glibc:
+ * each prints "glibc: <what> ok", and the last "glibc: all ok". Then it
+ * returns from main, so exit gives the root its status and ends the task.
  *
  * Built by tools/phase5/glibc-test.sh with the cross-built glibc. */
 #include <mach.h>
@@ -127,6 +127,17 @@ int main(int argc, char **argv)
         say(line);
     }
     check(tr != KERN_SUCCESS, "rpc with no server");
+
+    /* stdout is the root's console: io_write through joistmig's stubs.
+     * One write passes at most 4096 bytes (a short write: fd-write.c), and
+     * stdio goes on from it. */
+    check(printf("glibc: printf through the console\n") > 0 && fflush(stdout) == 0, "stdout");
+    static char line6k[6000];
+    memset(line6k, '=', sizeof line6k - 1);
+    line6k[sizeof line6k - 1] = '\n';
+    check(write(1, line6k, sizeof line6k) == 4096, "a short write");
+    check(fwrite(line6k, 1, sizeof line6k, stdout) == sizeof line6k && fflush(stdout) == 0, "a long write");
+    say("\n");
 
     pthread_t th[THREADS];
     int created = 1;

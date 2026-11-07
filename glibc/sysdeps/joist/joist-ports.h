@@ -102,6 +102,11 @@ rtld_hidden_proto (__joist_sc_reuse)
 /* The bootstrap port (joist-special.c).  */
 extern mach_port_t __joist_bootstrap;
 rtld_hidden_proto (__joist_bootstrap)
+/* The exit status to the bootstrap port (joist-special.c), when there is
+   no proc server: the message's id; and the call.  */
+#define JOIST_BOOT_EXIT 0x4a4f0001u
+extern void __joist_report_exit (int status);
+rtld_hidden_proto (__joist_report_exit)
 rtld_hidden_proto (__joist_sc_keep)
 rtld_hidden_proto (__joist_gsync_wait_call)
 rtld_hidden_proto (__joist_gsync_wake_call)
