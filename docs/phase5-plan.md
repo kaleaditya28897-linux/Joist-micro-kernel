@@ -914,3 +914,56 @@ would start it, and runs to `main` and beyond under QEMU
   the gate's baseline is re-measured on the P53: the round trips' 1900 and 1424 (the system
   call's stays at 496)
   (`docs/phase5-data/step7-fpu-ipc`).
+
+### Step 7: glibc's own tests on Joist (2026-11-07 to 2026-11-08, item 11 d)
+
+glibc's own test programs, linked static and each booted alone under
+`user/glibcroot` (`tools/phase5/glibc-tests-link.sh`, `glibc-tests-run.sh`;
+joist-dev2, KVM, mm's 32 MiB a program, 60 s, 64 regions a task): **3060
+of glibc's 3258 tests link** (every test directory, the libm tests with
+their `libm-test-support` objects; the 198 others need compiler-rt's
+missing soft-fp exception hook, compat symbols, or ld.so and audit
+modules). On 1 CPU: **1851 PASS, 40 UNSUPPORTED, 1099 FAIL, 15 TIMEOUT,
+55 NO-STATUS**. Each result that isn't a pass is sorted by its cause, a
+line a test with a line of its log (`docs/phase5-data/step7-glibc-tests`, with the
+results for 1, 2 and 4 CPUs): left out of
+Phase 5 on purpose 692 (no filesystem or pipes 399, dynamic loading and
+iconv modules 91, locales 63, signals 48, fork 46, another thread's
+registers 23, exec 9, W+X mappings 6, CPU-time clocks 4, entropy 3);
+limits of these runs 370 (a test's arguments, environment or expected
+output from its Makefile 212, stdin 91, memory or regions 32, linked
+static 16, a module over 2 MiB 15, the 60 s 4); clang and the Hurd's
+glibc 105 (compiler-rt's float128 without exceptions, tgmath, what htl
+doesn't do); unknown 2. The 340 tests that make threads, on 2 and 4 CPUs:
+no difference but timing (which of two refusals a thread meets first).
+
+- **Joist's own bugs found and fixed:**
+  - fork hung on the Hurd's locks before it could fail: `_Fork` refuses
+    at once (ENOSYS);
+  - sleeps returned at once (Mach's wait in `mach_msg`): a timed wait on
+    the thread's own notification;
+  - `pthread_exit` in main aborted (the first thread's capability had
+    another holder): thread_terminate kills, then deletes;
+    glibcroot ends the program with its last thread, not its first;
+  - a thread ending used its TLS after htl let another CPU reuse and free
+    it (the atexit races hung on 2 and 4 CPUs), and `pthread_create`'s
+    failure path dereferenced the TCB it had freed: what needs a lock
+    is done before `__pthread_dealloc_finish`, only the kernel's calls
+    after;
+  - **only the first thread had an IPC buffer**: every other thread's
+    RPC with a body was refused (a thread's write to stdout lost). Each
+    thread now gets one at `pthread_create` (16 pages a region, kept for
+    the next thread) and registers it on its first call; glibctest
+    writes from its threads;
+  - glibcroot left a program whose threads all died (mm holds the task).
+- **Changed for the runs:** the program's stack is 3 MiB; the libm tests
+  get no `--direct`.
+- **Open:** tst-memalign-3 and tst-tsearch (its walk trace's allocation
+  fails at pass 38) are not yet understood.
+- **For the owner** (the hand-off's questions, with its recommendations):
+  htl's `stack_setup` asserts when the guard page's `vm_protect` fails,
+  where `pthread_create` could return EAGAIN (Joist's copy could);
+  mm's 64 regions a task bound a program to about 20 threads (keep for
+  Phase 5; libports' pool in step 8); a stdin for the runs (later, with a
+  file server); the 212 tests that need their Makefile's arguments and
+  environment (the runner could read glibc's `*-ARGS`/`*-ENV`: cheap).

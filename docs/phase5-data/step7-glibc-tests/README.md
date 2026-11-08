@@ -1,0 +1,55 @@
+# glibc's own tests on Joist (Phase 5 step 7, the design's item 11 d)
+
+glibc 2.43's own test programs (`make check run-built-tests=no`), linked
+static by `tools/phase5/glibc-tests-link.sh` and each booted alone under
+`user/glibcroot` by `tools/phase5/glibc-tests-run.sh`, on joist-dev2 (the
+P53's build VM, KVM), at commit f763cf2. Each run: mm's 64 MiB pool, of
+which the program may have 32 MiB; 64 regions a task; a 3 MiB stack; 60 s;
+stdout on glibcroot's console; `--direct` (no fork) for support's driver.
+
+| file | what |
+|---|---|
+| `results-1cpu.txt` | every test that linked (3060 of 3258), 1 CPU: a line a test, `SUBDIR/TEST RESULT` |
+| `results-threaded-2cpu.txt`, `-4cpu.txt` | the 340 tests that make threads, on 2 and 4 CPUs |
+| `causes-1cpu.txt` | each 1-CPU result that isn't PASS or UNSUPPORTED: `TEST RESULT CAUSE \| a line of its log` |
+
+Results: PASS (exit 0), UNSUPPORTED (77), FAIL with the exit code (127 is
+glibc's `abort`, which ends the program with `_exit (127)` while there are
+no signals), TIMEOUT (the root's 60 s), NO-STATUS (the program's threads
+ended with no exit status: mm refused a fault).
+
+On 1 CPU: 1851 PASS, 40 UNSUPPORTED, 1099 FAIL, 15 TIMEOUT, 55 NO-STATUS.
+
+Causes (`a-` would be Joist's own: none is left; the eight found are fixed,
+`docs/phase5-plan.md`):
+
+| cause | tests | what |
+|---|---|---|
+| `b-fs` | 334 | no filesystem (EIEIO from a null root port) |
+| `b-dl` | 91 | dynamic loading, iconv modules |
+| `b-ipc` | 65 | pipes, sockets, ptys |
+| `b-locale` | 63 | locale files |
+| `b-signal` | 48 | signals (abort, pause) |
+| `b-fork`, `b-exec` | 46, 9 | fork and exec (refused) |
+| `b-state` | 23 | another thread's registers (htl's cancel) |
+| `b-wx`, `b-clock`, `b-entropy` | 6, 4, 3 | W+X mappings, CPU-time clocks, entropy |
+| `c-args` | 212 | the arguments, environment or expected output a test's Makefile gives it |
+| `c-stdin` | 91 | stdin: the console answers only `io_write` |
+| `c-mem` | 32 | mm's 32 MiB a program, or 64 regions |
+| `c-static` | 16 | linked static where glibc links it dynamic |
+| `c-module` | 15 | a module over 2 MiB, or too much bss |
+| `c-time` | 4 | the 60 s |
+| `d-clang` | 84 | compiler-rt's float128 without FP exceptions (libm) |
+| `d-hurd` | 21 | what htl doesn't do (process-shared objects, priority protocols) |
+| `e` | 2 | not understood: malloc/tst-memalign-3, misc/tst-tsearch |
+
+The causes come from the hand-off's classifier
+(`/srv/joist/handoff/p5-glibc-tests/scripts/classify.py` on the P53),
+whose rules and by-name cases are each traced in its `findings.md`, the
+whole record; the boot logs are `runs/RESULTS-f10-1cpu.tar.gz` and
+`runs/RESULTS-f10-smp.tar.gz` there.
+
+On 2 and 4 CPUs the threaded tests differ from 1 CPU only in timing: which
+of two refusals a thread meets first (FAIL 1 or 127), rt/tst-cputimer2 (a
+race with a missing /dev/null) and htl/tst-cancel32 (a TIMEOUT or an
+abort, by which cancel type the cancel meets).
