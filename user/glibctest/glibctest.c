@@ -156,6 +156,9 @@ int main(int argc, char **argv)
     line6k[sizeof line6k - 1] = '\n';
     check(write(1, line6k, sizeof line6k) == 4096, "a short write");
     check(fwrite(line6k, 1, sizeof line6k, stdout) == sizeof line6k && fflush(stdout) == 0, "a long write");
+    /* stdin is the console too: with no input given, at its end at once. */
+    char in_c;
+    check(read(0, &in_c, 1) == 0 && getchar() == EOF, "stdin at its end");
     say("\n");
 
     pthread_t th[THREADS];

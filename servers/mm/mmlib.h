@@ -23,7 +23,8 @@
 #define MM_MAX_TASKS 64u
 #endif
 #ifndef MM_REGIONS
-#define MM_REGIONS 16u /* per task */
+#define MM_REGIONS 256u /* per task: a glibc program's heap, TLS, each thread's stack and
+                          * guard (16 until 2026-11-08: about 5 threads; the owner's choice) */
 #endif
 #ifndef MM_TASK_PAGES
 #define MM_TASK_PAGES 1024u /* pages a task may have mapped at once */

@@ -27,14 +27,17 @@
 #include "joist-ports.h"
 
 /* Joist's copy of sysdeps/mach/hurd/x86_64/htl/pt-setup.c (Phase 5 step 7,
-   the design's item 7), changed in one place: a new thread's Joist record
-   (its notification and IPC buffer) is made here, in its TCB, which htl has allocated by
-   now, before its registers are set.  */
+   the design's item 7), changed in two places: a new thread's Joist
+   record (its notification and IPC buffer) is made here, in its TCB, which
+   htl has allocated by now, before its registers are set; and a guard page
+   that can't be made is EAGAIN, not an assertion (stack_setup).  */
 
-/* Set up the stack for THREAD.  Return the stack pointer
-   for the new thread.  */
-static void *
-stack_setup (struct __pthread *thread)
+/* Set up the stack for THREAD: its stack pointer in *SP.  Joist: 0, or
+   EAGAIN if the guard page can't be made (mm out of regions or memory),
+   which pthread_create returns, where the Hurd's asserts (the owner's
+   choice, 2026-11-08).  */
+static error_t
+stack_setup (struct __pthread *thread, void **sp)
 {
   error_t err;
   uintptr_t bottom, top;
@@ -47,10 +50,12 @@ stack_setup (struct __pthread *thread)
     {
       err = __vm_protect (__mach_task_self (), (vm_address_t) bottom,
 			  thread->guardsize, 0, 0);
-      assert_perror (err);
+      if (err)
+	return EAGAIN;
     }
 
-  return (void *) PTR_ALIGN_DOWN_8_16 (top);
+  *sp = (void *) PTR_ALIGN_DOWN_8_16 (top);
+  return 0;
 }
 
 int
@@ -83,7 +88,12 @@ __pthread_setup (struct __pthread *thread,
     }
 
   thread->mcontext.pc = entry_point;
-  thread->mcontext.sp = stack_setup (thread);
+  if (stack_setup (thread, &thread->mcontext.sp) != 0)
+    {
+      __joist_ipc_free (&thread->tcb->joist);
+      __joist_thread_free (&thread->tcb->joist);
+      return EAGAIN;
+    }
 
   /* Set up the state to call entry_point (thread, start_routine, arg) */
   memset (&state, 0, sizeof (state));

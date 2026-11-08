@@ -84,9 +84,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     cowstress) kextra=""; root=cowstress; mods="mm cowworker"; tmo=600 ;;
     # Phase 5 step 7: the first glibc program (user/glibcroot starts it),
     # built outside with the cross-built glibc: GLIBCTEST names its ELF.
-    # mm with 64 regions a task: a glibc program has more than the default
-    # 16 (its heap, TLS, each thread's stack and guard).
-    glibc) kextra=""; root=glibcroot; mods="mm glibctest"; uextra="-DMM_REGIONS=64u"; ubuild=build/glibc
+    glibc) kextra=""; root=glibcroot; mods="mm glibctest"; ubuild=build/glibc
         [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
@@ -317,7 +315,7 @@ run chk-kvm-smp2-cow3 1 "cow: all ok" "root task exited with code 0"
 # Joist's threads and the futex queues), stdout on the root's console, and
 # exit with its status; mm forgets the task. 1, 2 and 4 real CPUs.
 run glibc 1 "glibc: main reached" "glibc: malloc ok" "glibc: nanosleep ok" "glibc: fork refused ok" \
-    "glibc: printf through the console" "glibc: a long write ok" \
+    "glibc: printf through the console" "glibc: a long write ok" "glibc: stdin at its end ok" \
     "glibc: pthread_join ok" "glibc: mutex ok" "glibc: a thread's write ok" "glibc: all ok" "glibcroot: exit status 0, code 0" \
     "glibcroot: all ok" "root task exited with code 0"
 run kvm-smp1-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"

@@ -16,6 +16,9 @@
 #   status), and OUT/logs/SUBDIR/TEST.log, each run's serial output.
 #   JOBS: runs at once (default 4); CPUS: each machine's (default 1).
 #   GT_UEXTRA: more flags for the user programs (-DMM_REPORT_REFUSED).
+#   GT_SPECS: glibc-tests-spec.py's OUT: a test with SPECS/SUBDIR/TEST.args
+#   gets those arguments and environment, its .stdin as its stdin, and its
+#   .expect compared with its output (FAIL output if they differ).
 # Run from anywhere; it builds the kernel and glibcroot here first.
 set -eu
 TESTS=$(cd "$1" && pwd)
@@ -44,7 +47,7 @@ b=build/glibc-tests
 # Afresh: make doesn't see flags change.
 rm -rf "$K/$b" "$K/../user/build/glibc-tests"
 (cd "$K" && make -s BUILD=$b ROOT_TASK=glibcroot MODULES="mm glibctest" \
-    UEXTRA="-DMM_REGIONS=64u -DGT_POOL_PAGES=16384u -DGT_MM_TABLES=80u -DGT_STACK_PAGES=768u ${GT_UEXTRA:-}" \
+    UEXTRA="-DGT_POOL_PAGES=16384u -DGT_MM_TABLES=80u -DGT_STACK_PAGES=768u ${GT_UEXTRA:-}" \
     MMFLAGS="-DMM_MAX_TASKS=4u -DMM_TASK_PAGES=16384u -DMM_PAGES=16384u -DMM_TABLE_PAGES=96u" \
     KEXTRA="-DRUN_POOL_FRAMES=2u -DRUN_POOL_PAGES=20480u" \
     USER_BUILD=build/glibc-tests GLIBCTEST="$first" GLIBC_CONSOLE="$CONSOLE" $b/joist.iso > "$OUT/build.log" 2>&1) ||
@@ -58,10 +61,18 @@ one() { # SLOT SUBDIR/TEST: its result line
     rm -rf "$w" && mkdir -p "$w"
     cp -r "$K/$b/iso" "$w/iso"
     cp "$TESTS/$2" "$w/iso/boot/glibctest.elf"
-    direct=" --direct"
-    grep -q "^$2 linked, its own main\$" "$TESTS/link.txt" 2>/dev/null && direct=
-    printf '%s%s\n' "$(basename "$2")" "$direct" > "$w/iso/boot/glibcargs.txt"
+    a=$w/iso/boot/glibcargs.txt
+    printf 'a %s\n' "$(basename "$2")" > "$a"
+    grep -q "^$2 linked, its own main\$" "$TESTS/link.txt" 2>/dev/null || echo "a --direct" >> "$a"
+    spec=${GT_SPECS:+$GT_SPECS/$2}
+    [ -n "$spec" ] && [ -f "$spec.args" ] && cat "$spec.args" >> "$a"
     echo "    module_path: boot():/boot/glibcargs.txt" >> "$w/iso/boot/limine/limine.conf"
+    if [ -n "$spec" ] && [ -f "$spec.stdin" ]; then
+        echo "i $(wc -c < "$spec.stdin")" >> "$a"
+        cp "$spec.stdin" "$w/iso/boot/glibcstdin.txt"
+        echo "    module_path: boot():/boot/glibcstdin.txt" >> "$w/iso/boot/limine/limine.conf"
+    fi
+    [ "$(wc -c < "$a")" -le 4096 ] || { echo "$2 ARGS-TOO-LONG"; return; }
     # As kernel/Makefile's joist.iso.
     xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot \
         -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 \
@@ -76,6 +87,13 @@ one() { # SLOT SUBDIR/TEST: its result line
     code=$(sed -n 's/^glibcroot: exit status [0-9]*, code \([0-9]*\).*/\1/p' "$log" | tr -d '\r' | head -1)
     if [ -n "$code" ]; then
         case $code in 0) r=PASS ;; 77) r=UNSUPPORTED ;; *) r="FAIL $code" ;; esac
+        # Its output (what the console wrote between the root's lines) against
+        # what its Makefile's -cmp test expects.
+        if [ "$r" = PASS ] && [ -n "$spec" ] && [ -f "$spec.expect" ]; then
+            tr -d '\r' < "$log" | sed -n '/^glibcroot: started$/,/^glibcroot: the program ended$/p' |
+                sed '1d;$d' > "$log.out"
+            cmp -s "$log.out" "$spec.expect" || r="FAIL output"
+        fi
     elif grep -a -q 'glibcroot: TIMEOUT' "$log"; then
         r=TIMEOUT
     else
@@ -86,6 +104,7 @@ one() { # SLOT SUBDIR/TEST: its result line
 }
 
 list=$(cd "$TESTS" && find . -mindepth 2 -type f ! -name '*.log' | sed 's#^\./##' | sort)
+[ -z "${GT_SPECS:-}" ] || GT_SPECS=$(cd "$GT_SPECS" && pwd)
 : > "$OUT/results.txt"
 i=0
 for t in $list; do

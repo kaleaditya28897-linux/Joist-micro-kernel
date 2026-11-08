@@ -1,8 +1,9 @@
 /* console.defs - the console glibcroot serves (Phase 5 step 7, the
-   design's item 11 d; the owner's choice, 2026-11-07): io.defs' first
-   routine, io_write, alone, as the GNU Hurd's io.defs declares it. A
-   program's descriptors 0, 1 and 2 are send rights to it; every other io
-   routine, and any other message, is answered MIG_BAD_ID.
+   design's item 11 d; the owner's choices, 2026-11-07 and 2026-11-08):
+   io.defs' first two routines, io_write and io_read, alone, as the GNU
+   Hurd's io.defs declares them. A program's descriptors 0, 1 and 2 are
+   send rights to it; every other io routine, and any other message, is
+   answered MIG_BAD_ID.
 
    From hurd/io.defs, Copyright (C) 1991-2026 Free Software Foundation,
    Inc., under the GNU General Public License, version 2 or later; this
@@ -22,3 +23,13 @@ routine io_write (
 	data: data_t SCP;
 	offset: loff_t;
 	out amount: vm_size_t);
+
+/* Read data from an IO object.  If offset is -1, read from the object
+   maintained file pointer.  If the object is not seekable, offset is
+   ignored.  The amount desired to be read is in AMOUNT. */
+routine io_read (
+	io_object: io_t;
+	RPT
+	out data: data_t, dealloc;
+	offset: loff_t;
+	amount: vm_size_t);

@@ -25,8 +25,10 @@
  * exit status (glibc/sysdeps/joist/joist-special.c, JOIST_BOOT_EXIT).
  *
  * Module 2, if there is one, is the program's arguments and environment,
- * as text: the first line its argv (words between spaces), each line after
- * it one environment entry. Without it: "glibctest joist", JOIST=phase5.
+ * as text, a line a thing (put_args); without it, "glibctest joist" and
+ * JOIST=phase5. Module 3, if there is one, is its stdin, which io_read
+ * gives out from the start to its end (module 2 says how long it is),
+ * then end of file, on any of the three descriptors.
  *
  * Then it serves the program until it ends itself (exit: task_terminate,
  * the task's own TASK_DESTROY), prints the exit status it was given, and
@@ -156,9 +158,12 @@ static void find_phdr(uint64_t *phdr, uint64_t *phdrsz)
     die("the program's headers aren't in a loaded segment");
 }
 
+static uint64_t stdin_len; /* bytes of module 3, the program's stdin */
+
 /* The program's argv and environment: module 2's text, put in the block
  * from `s` on; their addresses in v (argv, a null pointer, envp, a null
- * pointer); argc. */
+ * pointer); argc. A line a thing: "a ARG" an argument, "e NAME=VALUE" an
+ * environment entry, "i BYTES" the length of the stdin in module 3. */
 static uint64_t put_args(uint64_t nmods, uint64_t *s, uint64_t *v)
 {
     if (nmods < 3) {
@@ -175,34 +180,46 @@ static uint64_t put_args(uint64_t nmods, uint64_t *s, uint64_t *v)
     }
     must(j_map_run(ld_mod_first + 2u, 0, 1, J_ROOT_SELF, GT_ARGS_VA / J_PAGE, 0), "map (arguments)");
     const char *t = (const char *)(uintptr_t)GT_ARGS_VA;
-    uint64_t n = 0, argc = 0;
-    int first_line = 1;
+    uint64_t env[GT_ARGS_WORDS];
+    uint64_t argc = 0, envc = 0;
     for (uint64_t i = 0; i < J_PAGE && t[i] != '\0';) {
-        if (t[i] == '\n' || (first_line && t[i] == ' ')) {
-            if (t[i] == '\n' && first_line) {
-                v[n++] = 0; /* argv's end */
-                first_line = 0;
+        char kind = t[i];
+        uint64_t j = i + 2u; /* past the kind and its space */
+        uint64_t e = i;
+        while (e < J_PAGE && t[e] != '\0' && t[e] != '\n') {
+            e++;
+        }
+        if (j > e || (kind != 'a' && kind != 'e' && kind != 'i')) {
+            die("module 2: a line isn't 'a', 'e' or 'i' and a space");
+        }
+        if (kind == 'i') {
+            stdin_len = 0;
+            for (; j < e && t[j] >= '0' && t[j] <= '9'; j++) {
+                stdin_len = stdin_len * 10u + (uint64_t)(t[j] - '0');
             }
-            i++;
-            continue;
-        }
-        if (n + 2u >= GT_ARGS_WORDS || *s + 256u > GT_ARGS_MAX + 512u) {
-            die("module 2 has too many arguments");
-        }
-        v[n++] = GT_BLOCK_VA + *s;
-        argc += (uint64_t)first_line;
-        while (i < J_PAGE && t[i] != '\0' && t[i] != '\n' && !(first_line && t[i] == ' ')) {
-            if (*s >= GT_ARGS_MAX + 512u) {
-                die("module 2's arguments are too long");
+        } else {
+            if (argc + envc + 3u >= GT_ARGS_WORDS || *s + (e - j) + 1u > GT_ARGS_MAX + 512u) {
+                die("module 2's arguments are too many or too long");
             }
-            page[(*s)++] = (uint8_t)t[i++];
+            uint64_t at = GT_BLOCK_VA + *s;
+            for (; j < e; j++) {
+                page[(*s)++] = (uint8_t)t[j];
+            }
+            page[(*s)++] = 0;
+            if (kind == 'a') {
+                v[argc++] = at;
+            } else {
+                env[envc++] = at;
+            }
         }
-        page[(*s)++] = 0;
+        i = e < J_PAGE && t[e] == '\n' ? e + 1u : e;
     }
-    if (first_line) {
-        v[n++] = 0;
+    uint64_t n = argc;
+    v[n++] = 0;
+    for (uint64_t k = 0; k < envc; k++) {
+        v[n++] = env[k];
     }
-    v[n++] = 0; /* envp's end */
+    v[n] = 0;
     return argc;
 }
 
@@ -279,6 +296,44 @@ int io_write(uint32_t io, char *data, uint32_t n, int64_t offset, uint64_t *amou
     (void)j_debug_write(data, n);
     *amount = n;
     return 0;
+}
+
+/* The stdin: module 3, mapped here; the next byte io_read gives. */
+#define GT_STDIN_VA (MOD_VA + 3u * 0x200000ull)
+static const uint8_t *stdin_bytes;
+static uint64_t stdin_at;
+
+int io_read(uint32_t io, char **data, uint32_t *n, int64_t offset, uint64_t amount);
+
+int io_read(uint32_t io, char **data, uint32_t *n, int64_t offset, uint64_t amount)
+{
+    (void)offset;
+    if (io != GT_BADGE_CON) {
+        return 1100;
+    }
+    uint64_t k = stdin_bytes == 0 || stdin_at >= stdin_len ? 0 : stdin_len - stdin_at;
+    k = k < amount ? k : amount;
+    k = k < *n ? k : *n; /* the reply's in-line room, which the server gives */
+    for (uint64_t i = 0; i < k; i++) {
+        (*data)[i] = (char)stdin_bytes[stdin_at + i];
+    }
+    stdin_at += k;
+    *n = (uint32_t)k;
+    return 0;
+}
+
+/* Module 3, if there is one: the stdin. */
+static void map_stdin(uint64_t nmods)
+{
+    if (nmods < 4) {
+        return;
+    }
+    uint64_t pages = j_frame_pages(ld_mod_first + 3u);
+    if (pages == 0 || pages > J_MAP_SPAN || stdin_len > pages * J_PAGE) {
+        die("module 3, the stdin, is empty, over 2 MiB, or shorter than module 2 says");
+    }
+    must(j_map_run(ld_mod_first + 3u, 0, pages, J_ROOT_SELF, GT_STDIN_VA / J_PAGE, 0), "map (stdin)");
+    stdin_bytes = (const uint8_t *)(uintptr_t)GT_STDIN_VA;
 }
 
 static uint64_t root_ep_c;
@@ -362,6 +417,7 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     k.sc = slot_new();
     uint64_t entry = ld_load_quota(1, k.task, GT_DONATION);
     uint64_t sp = lay_out(k.task, entry, nmods);
+    map_stdin(nmods);
     root_ep_c = slot_new();
     must(j_obj_create(J_ENDPOINT, root_ep_c), "obj_create (console)");
     must(j_ipc_buffer(ipc_buf), "ipc_buffer");
