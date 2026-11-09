@@ -15,7 +15,8 @@
 #   UNSUPPORTED (77), TIMEOUT, NO-STATUS (it ended, or the run did, with no
 #   status), and OUT/logs/SUBDIR/TEST.log, each run's serial output.
 #   JOBS: runs at once (default 4); CPUS: each machine's (default 1).
-#   GT_UEXTRA: more flags for the user programs (-DMM_REPORT_REFUSED).
+#   GT_UEXTRA: more flags for the user programs (-DMM_REPORT_REFUSED);
+#   GT_MMFLAGS: mm's sizes in place of the ones below.
 #   GT_SPECS: glibc-tests-spec.py's OUT: a test with SPECS/SUBDIR/TEST.args
 #   gets those arguments and environment, its .stdin as its stdin, and its
 #   .expect compared with its output (FAIL output if they differ).
@@ -38,8 +39,9 @@ first=$(find "$TESTS" -mindepth 2 -type f ! -name '*.log' | head -1)
 # More memory than the selftest's (glibc's string tests use buffers of
 # megabytes), as mm's large benchmark build (docs/phase4-data/step7-exit):
 # the root's memory two frames of 80 MiB; mm's pool 64 MiB, of which the
-# program's tree may have 32; its four task records' page-table runs of 96
-# pages (2 + 2 per 2 MiB span the program touches), and 80 pages more for
+# program's tree may have 32; its four task records' page-table runs of 384
+# pages (2 + 2 per 2 MiB span the program touches: with 256 regions a
+# program has scores of threads, each stack in spans of its own; 96 ran out), and 80 pages more for
 # mm's own tables over its pool.
 # The program's stack 3 MiB (glibcroot's default is 128 KiB): some of
 # glibc's tests have megabytes on it (test-memset, tst-widetext).
@@ -48,7 +50,7 @@ b=build/glibc-tests
 rm -rf "$K/$b" "$K/../user/build/glibc-tests"
 (cd "$K" && make -s BUILD=$b ROOT_TASK=glibcroot MODULES="mm glibctest" \
     UEXTRA="-DGT_POOL_PAGES=16384u -DGT_MM_TABLES=80u -DGT_STACK_PAGES=768u ${GT_UEXTRA:-}" \
-    MMFLAGS="-DMM_MAX_TASKS=4u -DMM_TASK_PAGES=16384u -DMM_PAGES=16384u -DMM_TABLE_PAGES=96u" \
+    MMFLAGS="${GT_MMFLAGS:--DMM_MAX_TASKS=4u -DMM_TASK_PAGES=16384u -DMM_PAGES=16384u -DMM_TABLE_PAGES=384u}" \
     KEXTRA="-DRUN_POOL_FRAMES=2u -DRUN_POOL_PAGES=20480u" \
     USER_BUILD=build/glibc-tests GLIBCTEST="$first" GLIBC_CONSOLE="$CONSOLE" $b/joist.iso > "$OUT/build.log" 2>&1) ||
     { echo "build failed: $OUT/build.log"; exit 1; }

@@ -510,6 +510,30 @@ static void handle(const struct j_msg *in, struct j_msg *out)
             j_putu(in->r[1]);
             j_puts(", pc ");
             j_putu(in->r[3]);
+            if (served) {
+                /* Which region holds it, how many are in use, the pool's free pages. */
+                const struct mm_task *tk = &M.task[b - 1u];
+                uint64_t page = in->r[1] / J_PAGE;
+                unsigned used = 0;
+                int at = -1;
+                for (unsigned i = 0; i < MM_REGIONS; i++) {
+                    const struct mm_region *r = &tk->reg[i];
+                    used += r->n != 0;
+                    if (r->n != 0 && page >= r->va && page - r->va < r->n && at < 0) {
+                        at = (int)i;
+                    }
+                }
+                j_puts(", region ");
+                j_putu(at < 0 ? 99999u : (uint64_t)at);
+                if (at >= 0) {
+                    j_puts(" perms ");
+                    j_putu(tk->reg[at].perms);
+                }
+                j_puts(", regions used ");
+                j_putu(used);
+                j_puts(", pool free ");
+                j_putu(M.nfree);
+            }
             j_puts("\n");
         }
 #endif
