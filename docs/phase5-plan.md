@@ -986,3 +986,55 @@ no difference but timing (which of two refusals a thread meets first).
 - **The run (b78f107, 1 CPU): 1937 PASS** (1851 before), 41
   UNSUPPORTED, 1010 FAIL, 16 TIMEOUT, 56 NO-STATUS; one result left
   unknown, malloc/tst-memalign-3 (`docs/phase5-data/step7-glibc-tests`).
+
+### Step 7: the design of page tables on demand (2026-11-10, proposed)
+
+The owner's choice (2026-11-10): the page-table pages `mm` lends a task
+grow as it needs them, where today each task has one run of
+`MM_TABLE_PAGES` (16) for good. Decision 0021 foresaw it: "a miscount is
+an `E_NOMEM` at `map`, which `mm` handles by donating and retrying". With
+256 regions a task the run is now the first limit a threaded program
+meets (each thread's stack is in 2 MiB spans of its own; glibc's tests
+needed 384 pages a task).
+
+1. **The first run stays** as it is: `MM_TABLE_PAGES` for every task
+   record, kept with the record (0028's guarantee that a fork bomb can't
+   take every task's tables).
+2. **More, in runs of `MM_TABLE_GROW` pages** (16), from what
+   `MM_S_TABLES` holds beyond the reserved runs: the root lends `mm` a
+   shared part besides them (`HOST_TABLE_PAGES`: the runs plus, by
+   default, 1024 pages). Lent frames must never be mapped (0021), so they
+   can't come from the pool `mm` maps for itself.
+3. **Where:** in `mmlib`, through one new kernel operation in `struct
+   mm_kops`, `donate (task_slot)`: lend that task one more run, 0 or
+   `MM_KE_NOMEM` (none left, or the task's limit). Every `map` `mmlib`
+   makes for a task (a fault's demand-zero page, a copy-on-write copy, the
+   re-map of a page `mm` has, a clone's and a share's maps) that returns
+   `MM_KE_NOMEM` donates once and tries once more; if the second fails, the
+   call fails as it does now (a fault is refused, a clone or share
+   undone).
+4. **Charged to the tree** (0028): a run counts as its pages against the
+   tree's ceiling and reservation, as anonymous pages do; a tree at its
+   ceiling gets no run. So no tree takes the shared part from the others.
+   A task holds at most `MM_TABLE_GROWS` runs (64: 1024 pages, a bounded
+   record per task).
+5. **Back** when the task's space is gone (0021: the kernel lets lent
+   frames go with the space): `mm` finds them at the collection it already
+   makes for a dead task, puts the runs on a free list for any task's
+   next growth, and takes their pages off the tree.
+6. **Model first:** the refinement test (`model/test/test_mm.c`) gets the
+   operation from the model kernel's `space_donate`, a donation table
+   small enough to run out, and properties: a fault that needs tables
+   succeeds exactly when a run is left and the tree's ceiling allows it;
+   a refused donation changes nothing (the tree's charge, the free list);
+   a dead task's runs are all back and uncharged. Mutations: a run not
+   charged, not returned, the retry left out, the per-task bound not
+   checked. Then `mm.c` (the operation: split a run off the shared part
+   or take one from the free list, `space_donate`), cowstress and the
+   glibc runs with the default 16.
+7. **Restart** (0029, Phase 9): the growth runs are more lent state for a
+   restarted `mm` to learn, as the first runs are; nothing new in kind.
+
+Open for the owner: the run size (16), the shared part's default (1024
+pages), charging runs to the tree (recommended) rather than a separate
+table ceiling.

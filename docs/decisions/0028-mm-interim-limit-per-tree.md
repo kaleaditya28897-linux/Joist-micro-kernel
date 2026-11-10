@@ -1,7 +1,7 @@
 # 0028 — `mm`: a limit per task tree now, set by the process server later
 
 Date: 2026-10-30
-Status: **accepted** (the owner, 2026-10-30)
+Status: **accepted** (the owner, 2026-10-30); amended 2026-11-10 (mappings past the ceiling: overcommit, accepted)
 Revises: 0023's amendment of 2026-10-30 ("no per-client limit until the
 process server, Phase 7"). That amendment's reasoning, that the policy
 belongs to the process server, is kept. What changes is that the gap is
@@ -124,3 +124,17 @@ process server.**
   from a fault, as on other systems at their limits.
 - **Reuse:** none affected.
 - **Performance:** two counter checks per allocation.
+
+## Amendment, 2026-11-10: mappings past the ceiling (accepted)
+
+`mm` accepts an anonymous mapping however much of it the tree could back
+(overcommit, as Linux's default): the ceiling is met at the fault that
+would take a page past it, which is refused, and the faulting thread
+ends. A program sees no error at the call (malloc/tst-trim1, with mm's
+256 regions a task, reserves more than its tree's 32 MiB and dies at the
+first touch past it: Phase 5 step 7). Refusing at the mapping instead
+would cost every thread stack its whole reservation (8 MiB a glibc
+thread, a few KiB of it used): about four threads in 32 MiB. The owner
+kept overcommit (2026-11-10); a fault refused for the ceiling becomes a
+signal the program can see (SIGSEGV, or SIGBUS) when signals come
+(Phase 7), which this decision's priority check already names.
