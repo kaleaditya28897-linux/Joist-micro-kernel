@@ -1037,3 +1037,23 @@ needed 384 pages a task).
 
 Accepted by the owner as written, 2026-11-10: runs of 16, a shared part
 of 1024 pages, charged to the tree, at most 64 runs a task.
+
+### Step 7: page tables on demand, built (2026-11-10)
+
+As accepted. `mmlib` asks for a run (`kops.donate`) when a map finds the
+task's table pages spent, within the tree's ceiling (a tree's `tables`
+count with its pages) and `MM_TABLE_GROWS`, and tries once more; the runs
+come back with the task (`kops.undonate`). `mm.c` lends them from
+`MM_S_TABLES` past the first runs still owed, in a fourth leaf of slots
+(`MM_S_GROW`). Model first: five tests and five mutations (all caught).
+
+- **Changed from the design:** the shared part is 1024 pages only where
+  the root's frames can hold it with the first runs (a large pool's
+  build, as the glibc runs); the default builds, whose root has 8 MiB in
+  frames of 512 pages, give 64 (`mmhost.h`, `HOST_TABLE_SHARED`).
+  mmroot's clone-full client maps 40 spans (was 8) so that its clone still
+  fails part way: growth now carries a child past 8.
+- **Tested:** model 289, under every sanitizer; the full kernel selftest
+  (92 runs, joist-dev2); glibc's 3060 tests with mm's default first run:
+  every result as with the fixed 384 pages
+  (`docs/phase5-data/step7-glibc-tests`).

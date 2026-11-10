@@ -85,3 +85,10 @@ it (`c-mem`). Most of the arguments a Makefile gives name files, so
 the classifier's rules don't know the new messages (pthread_create's
 EAGAIN, an output comparison, a refused fault past the ceiling), and
 each was read in its log. One is left unknown: malloc/tst-memalign-3.
+
+## With page tables on demand (2026-11-10)
+
+The same 3060 tests at 977adb2, mm lending each task its page tables as
+it needs them (the default first run of 16, then runs of 16 from 1024
+pages) instead of the fixed 384 of the second run: every result the same,
+test for test, as `results-specs-1cpu.txt`.
