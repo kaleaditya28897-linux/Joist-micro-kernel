@@ -987,7 +987,7 @@ no difference but timing (which of two refusals a thread meets first).
   UNSUPPORTED, 1010 FAIL, 16 TIMEOUT, 56 NO-STATUS; one result left
   unknown, malloc/tst-memalign-3 (`docs/phase5-data/step7-glibc-tests`).
 
-### Step 7: the design of page tables on demand (2026-11-10, proposed)
+### Step 7: the design of page tables on demand (2026-11-10, accepted)
 
 The owner's choice (2026-11-10): the page-table pages `mm` lends a task
 grow as it needs them, where today each task has one run of
@@ -1035,6 +1035,5 @@ needed 384 pages a task).
 7. **Restart** (0029, Phase 9): the growth runs are more lent state for a
    restarted `mm` to learn, as the first runs are; nothing new in kind.
 
-Open for the owner: the run size (16), the shared part's default (1024
-pages), charging runs to the tree (recommended) rather than a separate
-table ceiling.
+Accepted by the owner as written, 2026-11-10: runs of 16, a shared part
+of 1024 pages, charged to the tree, at most 64 runs a task.
