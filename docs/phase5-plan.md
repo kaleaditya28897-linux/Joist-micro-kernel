@@ -967,3 +967,22 @@ no difference but timing (which of two refusals a thread meets first).
   Phase 5; libports' pool in step 8); a stdin for the runs (later, with a
   file server); the 212 tests that need their Makefile's arguments and
   environment (the runner could read glibc's `*-ARGS`/`*-ENV`: cheap).
+
+### Step 7: the owner's answers, and glibc's tests again (2026-11-08 to 2026-11-10)
+
+- **The answers (2026-11-08):** `pthread_create` returns EAGAIN where
+  htl asserted on a guard page it couldn't make; mm's default is 256
+  regions a task (was 16); glibc's tests get their Makefiles' arguments,
+  environment and stdin (`tools/phase5/glibc-tests-spec.py`), an
+  expected output is compared, and glibcroot's console answers `io_read`
+  from a fourth module (`console.defs`). glibctest checks stdin's end.
+- **What the regions moved:** with 256 a program makes scores of
+  threads, and the next limit binds: the page-table pages lent to each
+  task (each thread's stack in 2 MiB spans of its own). The runs now lend
+  384 (they lent 96); mm's default build lends 16
+  (`MM_TABLE_PAGES`). And `malloc` can reserve more than a program's
+  tree may have: the first touch past it is refused and the thread dies,
+  where an `mmap` failing used to be the end (malloc/tst-trim1).
+- **The run (b78f107, 1 CPU): 1937 PASS** (1851 before), 41
+  UNSUPPORTED, 1010 FAIL, 16 TIMEOUT, 56 NO-STATUS; one result left
+  unknown, malloc/tst-memalign-3 (`docs/phase5-data/step7-glibc-tests`).

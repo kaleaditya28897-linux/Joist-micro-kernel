@@ -53,3 +53,35 @@ On 2 and 4 CPUs the threaded tests differ from 1 CPU only in timing: which
 of two refusals a thread meets first (FAIL 1 or 127), rt/tst-cputimer2 (a
 race with a missing /dev/null) and htl/tst-cancel32 (a TIMEOUT or an
 abort, by which cancel type the cancel meets).
+
+## The second run: arguments, environment, stdin (2026-11-09)
+
+After the owner's answers to the hand-off (2026-11-08): each test gets
+the arguments, environment and stdin its Makefile gives it
+(`tools/phase5/glibc-tests-spec.py`, from `make -n check
+run-built-tests=yes`: 3496 recipes, 103 with a stdin, 14 with an expected
+output, compared), glibcroot's console answers `io_read`, mm has 256
+regions a task, `pthread_create` returns EAGAIN where htl asserted, and
+the runs lend each task 384 page-table pages (96 ran out once a program
+could make scores of threads). Commit b78f107, joist-dev2, 1 CPU:
+
+| file | what |
+|---|---|
+| `results-specs-1cpu.txt` | the 3060 tests: **1937 PASS, 41 UNSUPPORTED, 1010 FAIL, 16 TIMEOUT, 56 NO-STATUS** |
+| `causes-specs-1cpu.txt` | the 1082 not passing, by cause, as above |
+
+Against the first run: 96 tests pass that didn't (86 for a stdin, 8 for
+mm's regions, among them misc/tst-tsearch, no longer unknown; 1 for its
+arguments; htl/tst-cond7). Worse: 5 elf tests whose expected output is
+a shared library's constructors' (`c-static`: linked static); 3 that
+"passed" with no arguments and now get theirs, files and locales
+(io/test-stat2, io/tst-statvfs, posix/tst-fnmatch: `b-fs`, `b-locale`);
+malloc/tst-trim1 and tst-trim1-threaded-main, which with 256 regions
+reserve more than the program's 32 MiB and die at the first touch past
+it (`c-mem`). Most of the arguments a Makefile gives name files, so
+`c-args` became `b-fs` more than a pass.
+
+14 lines of `causes-specs-1cpu.txt` are corrected by hand, marked `*`:
+the classifier's rules don't know the new messages (pthread_create's
+EAGAIN, an output comparison, a refused fault past the ceiling), and
+each was read in its log. One is left unknown: malloc/tst-memalign-3.

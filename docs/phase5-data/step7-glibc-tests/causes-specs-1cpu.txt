@@ -1,0 +1,1082 @@
+argp/tst-ldbl-argp FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+assert/test-assert FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+assert/test-assert-c99 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+assert/test-assert-gnu99 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+assert/test-assert-perr FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+assert/tst-assert-sa-2025-0001 FAIL 1 b-fs | error: tst-assert-sa-2025-0001.c:46: fprintf failed: Bad file descriptor
+catgets/test-gencat FAIL 1 b-fs | no catalog: Computer bought the farm
+catgets/tst-catgets FAIL 1 b-dl | cannot load catalog: Computer bought the farm
+ctype/tst-ctype-tls-dlmopen FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+ctype/tst-ctype-tls-dlopen-static FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: /home/user/joist-glibc/w/build/ctype/tst-ctype-tls-mod.so: cannot open shared object file: Computer bought the farm
+debug/test-stpcpy_chk FAIL 127 b-signal | simple_stpcpy_chk	normal_stpcpy	__stpcpy_chk
+debug/test-strcpy_chk FAIL 127 b-signal | simple_strcpy_chk	normal_strcpy	__strcpy_chk
+debug/tst-backtrace2 FAIL 1 c-static | Failure on line 60
+debug/tst-backtrace3 FAIL 1 c-static | Failure on line 66
+debug/tst-backtrace4 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+debug/tst-backtrace5 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+debug/tst-backtrace6 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+debug/tst-chk-cancel FAIL 1 b-ipc | error: tst-chk-cancel.c:198: socketpair: Computer bought the farm
+debug/tst-fortify FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.iFSVzo': Computer bought the farm
+debug/tst-fortify-c-default-1-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.4swhAo': Computer bought the farm
+debug/tst-fortify-c-default-2-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.omQ8zo': Computer bought the farm
+debug/tst-fortify-c-default-3-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.qTjfAo': Computer bought the farm
+debug/tst-fortify-c-lfs-1-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.s3OWzo': Computer bought the farm
+debug/tst-fortify-c-lfs-2-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.EdSeAo': Computer bought the farm
+debug/tst-fortify-c-lfs-3-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.QBcaAo': Computer bought the farm
+debug/tst-fortify-c-nongnu-1-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.Kq5eAo': Computer bought the farm
+debug/tst-fortify-c-nongnu-2-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.195Vzo': Computer bought the farm
+debug/tst-fortify-c-nongnu-3-def FAIL 1 b-fs | cannot open temporary file '/tmp/tst-chk1.FRCbAo': Computer bought the farm
+debug/tst-fortify-syslog FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+debug/tst-fortify-wide FAIL 127 b-signal | Hello, World!
+debug/tst-longjmp_chk FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+debug/tst-longjmp_chk2 NO-STATUS b-signal | not on alternate stack
+debug/tst-longjmp_chk3 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+debug/tst-sprintf-fortify-rdonly-static FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-sprintf-fortify-rdonly-dlopen.so: cannot open shared object file: Computer bought the farm
+debug/tst-ssp-1 FAIL 127 b-signal | *** stack smashing detected ***: terminated
+dirent/tst-closedir-leaks FAIL 1 b-fs | error: support_descriptors.c:68: opendir ("/proc/self/fd"): Computer bought the farm
+dirent/tst-fdopendir FAIL 1 b-fs | mkstemp failed
+dirent/tst-fdopendir2 FAIL 1 b-fs | cannot open temp file
+dirent/tst-readdir-long FAIL 1 b-fs | error: support_record_failure called without initialization
+dirent/tst-readdir-zero-inode FAIL 1 b-fs | error: support_record_failure called without initialization
+dirent/tst-rewinddir FAIL 1 b-fs | error: support_record_failure called without initialization
+dirent/tst-scandir FAIL 1 b-fs | cannot create temporary directory
+dirent/tst-scandir64 FAIL 1 b-fs | cannot create temporary directory
+dirent/tst-seekdir FAIL 1 b-fs | opendir failed: Computer bought the farm
+dlfcn/tst-dladdr FAIL 1 b-dl | tst-dladdr: cannot load: glreflib1.so
+dlfcn/tst-dlinfo FAIL 1 b-dl | tst-dlinfo: cannot load: glreflib1.so: glreflib3.so: cannot open shared object file: Computer bought the farm
+dlfcn/tst-dlinfo-phdr FAIL 1 c-static | error: xdlfcn.c:46: error: dlsym: tst-dlinfo-phdr: undefined symbol: _r_debug
+elf/tst-addr1 FAIL 1 c-static | not found
+elf/tst-align FAIL 1 b-dl | cannot open 'tst-alignmod.so': tst-alignmod.so: cannot open shared object file: Computer bought the farm
+elf/tst-array2 FAIL output c-static* | fini
+elf/tst-array4 FAIL output c-static* | fini
+elf/tst-array5 FAIL output c-static* | glibcroot: exit status 0, code 0
+elf/tst-audit-tlsdesc-dlopen FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-audit-tlsdesc-mod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-audit-tlsdesc-dlopen2 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tlsmod17a1.so: cannot open shared object file: Computer bought the farm
+elf/tst-audit1 FAIL 1 b-fs | getcwd: Computer bought the farm
+elf/tst-audit11 FAIL 1 b-dl | module not loaded: $ORIGIN/tst-audit11mod1.so: cannot open shared object file: No such file or directory
+elf/tst-audit12 FAIL 1 b-dl | module not loaded: $ORIGIN/tst-audit12mod1.so: cannot open shared object file: No such file or directory
+elf/tst-audit18 FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-audit19a FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-auditmod19a.so: cannot open shared object file: Computer bought the farm
+elf/tst-audit23 FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-audit28 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: mapped to libc: cannot open shared object file: Computer bought the farm
+elf/tst-audit8 FAIL 1 b-fs | getcwd: Computer bought the farm
+elf/tst-audit9 NO-STATUS c-static | glibcroot: no exit status
+elf/tst-auxobj-dlopen FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-filterobj-aux.so: cannot open shared object file: Computer bought the farm
+elf/tst-cpu-features-cpuinfo FAIL 1 b-fs | cannot open /proc/cpuinfo
+elf/tst-cpu-features-cpuinfo-static FAIL 1 b-fs | cannot open /proc/cpuinfo
+elf/tst-create_format1 FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+elf/tst-dl-printf-static FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-dl_find_object FAIL 1 c-static | error: xdlfcn.c:46: error: dlsym: tst-dl_find_object: undefined symbol: _r_debug
+elf/tst-dl_find_object-static FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-dl_find_object-mod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-dl_find_object-threads FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-dl_find_object-mod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-dlclose-lazy FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-dlclose-lazy-mod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-dlmodcount FAIL 1 b-dl | loading `firstobj.so'
+elf/tst-dlmopen-dlerror FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+elf/tst-dlmopen-gethostbyname FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+elf/tst-dlmopen-twice FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+elf/tst-dlmopen1 FAIL 1 b-dl | cannot get handle for libc.so.0.3: libc.so.0.3: cannot open shared object file: Computer bought the farm
+elf/tst-dlmopen3 FAIL 1 b-dl | cannot get handle for tst-dlmopen1mod.so: invalid namespace: Invalid argument
+elf/tst-dlopen-auditdup FAIL 1 b-dl | info: about to dlopen tst-dlopen-auditdupmod.so
+elf/tst-dlopen-pie FAIL 1 b-dl | error: tst-dlopen-pie.c:38: unexpected error message (mode 1): /home/user/joist-glibc/w/build/elf/tst-pie1: cannot open shared object file: Computer bought th
+elf/tst-dlopen-self FAIL 1 b-dl | error: tst-dlopen-self.c:39: invalid dlopen error message: "tst-dlopen-self: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-self-container FAIL 1 b-dl | error: ./tst-dlopen-self.c:39: invalid dlopen error message: "tst-dlopen-self-container: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-self-pie FAIL 1 b-dl | error: ./tst-dlopen-self.c:39: invalid dlopen error message: "tst-dlopen-self-pie: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-sgid FAIL 1 b-dl | error: mkdtemp ("/tmp/tst-dlopen-sgid-Nr58zo"): Computer bought the farm
+elf/tst-dlopen-tlsmodid FAIL 1 b-dl | error: ./tst-dlopen-tlsmodid.h:60: invalid dlopen error message: "tst-dlopen-self: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-tlsmodid-container FAIL 1 b-dl | error: ./tst-dlopen-tlsmodid.h:60: invalid dlopen error message: "/usr/bin/iconv: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-tlsmodid-pie FAIL 1 b-dl | error: ./tst-dlopen-tlsmodid.h:60: invalid dlopen error message: "tst-dlopen-self-pie: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-tlsreinit1 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-dlopen-tlsreinitmod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-dlopen-tlsreinit3 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-dlopen-tlsreinitmod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-dlopenfail FAIL 1 b-dl | info: attempting to load tst-dlopenfailmod1.so
+elf/tst-dlopenfail-2 FAIL 1 b-dl | info: attempting to load tst-dlopenfailmod1.so
+elf/tst-dlsym-error FAIL 127 c-static | error: dlsym: unexpected error message: RTLD_NEXT used in code not dynamically loaded
+elf/tst-filterobj-dlopen FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-filterobj-flt.so: cannot open shared object file: Computer bought the farm
+elf/tst-glibc-hwcaps-cache FAIL 1 c-static | glibcroot: exit status 256, code 1
+elf/tst-glibc-hwcaps-prepend-cache FAIL 1 b-fs | error: execv of tst-glibc-hwcaps-prepend-cache failed: Computer bought the farm
+elf/tst-global1 FAIL 1 b-fs | cannot open testobj6
+elf/tst-hwcap-tunables FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-ifunc-fault-bindnow NO-STATUS b-signal | glibcroot: no exit status
+elf/tst-ifunc-fault-lazy NO-STATUS b-signal | glibcroot: no exit status
+elf/tst-ifunc-isa-2-static FAIL 1 c-args | glibcroot: exit status 256, code 1
+elf/tst-initfinilazyfail FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-initorder FAIL output c-static* | main
+elf/tst-initorder2 FAIL output c-static* | main
+elf/tst-latepthread FAIL 1 b-dl | error: dlopen failed: tst-latepthreadmod.so: cannot open shared object file: Computer bought the farm
+elf/tst-ldconfig-bad-aux-cache FAIL 1 b-fs | error: xmkdirp.c:63: mkdir_p ("/var", 0777): (os/kern) invalid name
+elf/tst-ldconfig-ld_so_conf-update FAIL 1 b-fs | error: xmkdirp.c:63: mkdir_p ("/var", 0777): (os/kern) invalid name
+elf/tst-link-map-contiguous-ldso FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: ld-x86-64.so.1: cannot open shared object file: Computer bought the farm
+elf/tst-link-map-contiguous-libc FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: libc.so.0.3: cannot open shared object file: Computer bought the farm
+elf/tst-next-ver NO-STATUS c-static | glibcroot: no exit status
+elf/tst-nodelete-opened FAIL 1 b-dl | h1: failed to open DSO: $ORIGIN/tst-nodelete-opened-lib.so: cannot open shared object file: No such file or directory
+elf/tst-nodeps2 FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+elf/tst-noload FAIL 1 b-dl | h3: failed to open DSO: libm.so.6: cannot open shared object file: Computer bought the farm
+elf/tst-pathopt FAIL 1 b-dl | failed to load "renamed.so": renamed.so: cannot open shared object file: Computer bought the farm
+elf/tst-pie-bss NO-STATUS c-module | root: frame_split failed with 5
+elf/tst-pldd FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-preload-pthread-libc FAIL 1 b-fs | execve of /lib/libc.so.0.3 failed: Computer bought the farm
+elf/tst-ptrguard1 FAIL 1 b-ipc | couldn't create pipe: Computer bought the farm
+elf/tst-ptrguard1-static FAIL 1 c-args | missing --command or --child argument
+elf/tst-relsort1 FAIL 1 b-dl | $ORIGIN/tst-relsort1mod1.so: cannot open shared object file: No such file or directory
+elf/tst-rootdir FAIL 1 b-dl | error: tst-rootdir.c:28: not true: handle != NULL
+elf/tst-rtld-no-malloc FAIL 1 c-static | error: unexpected call to malloc
+elf/tst-rtld-no-malloc-audit FAIL 1 c-static | error: unexpected call to malloc
+elf/tst-rtld-no-malloc-preload FAIL 1 c-static | error: unexpected call to malloc
+elf/tst-rtld-run-static FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-single_threaded-static-dlopen FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-single_threaded-mod2.so: cannot open shared object file: Computer bought the farm
+elf/tst-sonamemove-dlopen FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-sonamemove-runmod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-stackguard1 FAIL 1 b-ipc | couldn't create pipe: Computer bought the farm
+elf/tst-stackguard1-static FAIL 1 c-args | missing --command or --child argument
+elf/tst-thrlock FAIL 1 b-dl | dlopen failed: libm.so.6: cannot open shared object file
+elf/tst-tls-dlinfo FAIL 1 b-dl | cannot open 'tst-tlsmod2.so': tst-tlsmod2.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls-ie FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tls-ie-mod0.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls-ie-dlmopen FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: tst-tls-ie-mod0.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls-manydynamic FAIL 1 b-dl | error: dlopen failed: tst-tls-manydynamic00mod.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls-surplus FAIL 1 c-static | error: xdlfcn.c:46: error: dlsym: tst-tls-surplus: undefined symbol: _rtld_global_ro
+elf/tst-tls13 FAIL 1 b-dl | cannot load: $ORIGIN/tst-tlsmod13a.so: cannot open shared object file: No such file or directory
+elf/tst-tls15 FAIL 1 b-dl | failed to open tst-tlsmod15b.so
+elf/tst-tls16 FAIL 1 b-dl | unexpectedly failed to open tst-tlsmod16a.so
+elf/tst-tls17 FAIL 1 b-dl | unexpectedly failed to open tst-tlsmod17b.so
+elf/tst-tls18 FAIL 1 b-dl | unexpectedly failed to open tst-tlsmod18a0.so
+elf/tst-tls19 FAIL 1 b-dl | Error loading tst-tls19mod1.so: tst-tls19mod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls20 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tls-manydynamic00mod.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls21 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tls21mod.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls4 FAIL 1 b-dl | cannot open 'tst-tlsmod2.so': tst-tlsmod2.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls5 FAIL 1 b-dl | cannot open 'tst-tlsmod2.so': tst-tlsmod2.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls6 FAIL 1 b-dl | cannot open 'tst-tlsmod2.so': tst-tlsmod2.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls7 FAIL 1 b-dl | cannot open 'tst-tlsmod3.so': tst-tlsmod3.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls8 FAIL 1 b-dl | cannot open '$ORIGIN/tst-tlsmod3.so': $ORIGIN/tst-tlsmod3.so: cannot open shared object file: No such file or directory
+elf/tst-tls9 FAIL 1 b-dl | cannot open 'tst-tlsmod5.so': tst-tlsmod5.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls9-static FAIL 1 b-dl | cannot open 'tst-tlsmod5.so': tst-tlsmod5.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls_tp_offset FAIL 1 c-static | error: 1 test failures
+elf/tst-tlsgap FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tlsgap-mod0.so: cannot open shared object file: Computer bought the farm
+elf/tst-tunables FAIL 1 c-args | error: tst-tunables.c:340: not true: argc == 2 || argc == 5
+elf/tst-tunables-enable_secure FAIL 1 c-args | error: tst-tunables-enable_secure.c:182: not true: argc == 2 || argc == 5
+elf/tst-tunables-enable_secure-env FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+elf/tst-unique1 FAIL 1 b-dl | cannot load tst-unique1mod1
+elf/tst-version-hash-zero FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-version-hash-zero-mod.so: cannot open shared object file: Computer bought the farm
+gmon/tst-sprofil NO-STATUS b-signal | glibcroot: no exit status
+htl/tst-atfork1 FAIL 1 b-fork | fork failed
+htl/tst-atfork2 FAIL 1 b-dl | dlopen failed: tst-atfork2mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-atfork3 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-atfork3mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-atfork4 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-atfork4mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-barrier2 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-basic3 FAIL 127 b-signal | final_test has been called
+htl/tst-basic4 FAIL 1 b-fork | fork failed
+htl/tst-basic6 FAIL 1 b-fs | getcwd failed
+htl/tst-basic7 FAIL 1 c-mem | pthread_create returns 6: FAIL
+htl/tst-cancel1 FAIL 127 b-state | tst-cancel1: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel11 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel13 FAIL 127 b-state | tst-cancel13: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel15 FAIL 127 b-state | tst-cancel15: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel16 FAIL 1 b-fs | mkstemp failed
+htl/tst-cancel18 FAIL 127 b-state | tst-cancel18: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel19 FAIL 1 b-ipc | tst-cancel19: couldn't create pipe: Computer bought the farm
+htl/tst-cancel2 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel20 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel21 FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-cancel21-static FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-cancel25 FAIL 127 b-state | tst-cancel25: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel28 TIMEOUT b-state | tst-cancel28: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel3 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel30 FAIL 127 b-state | tst-cancel30: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel32 FAIL 1 b-state | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+htl/tst-cancel4 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancel5 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancel6 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel9 FAIL 1 b-state | cannot open /dev/null
+htl/tst-cancelx11 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx13 FAIL 127 b-state | tst-cancelx13: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancelx15 FAIL 127 b-state | tst-cancelx15: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancelx16 FAIL 1 b-fs | mkstemp failed
+htl/tst-cancelx18 FAIL 127 b-state | tst-cancelx18: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancelx2 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx20 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx21 FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-cancelx3 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx4 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancelx5 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancelx6 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx9 FAIL 1 b-state | cannot open /dev/null
+htl/tst-cleanup0 FAIL 9 c-args | ch (1)
+htl/tst-cleanup2 NO-STATUS b-signal | Attempting to sprintf to null ptr
+htl/tst-cleanupx0 FAIL 9 c-args | ch (1)
+htl/tst-cleanupx2 NO-STATUS b-signal | Attempting to sprintf to null ptr
+htl/tst-cond10 FAIL 1 b-signal | create failed
+htl/tst-cond12 FAIL 1 b-fs | mkstemp failed: Computer bought the farm
+htl/tst-cond13 FAIL 1 b-fs | mkstemp failed: Computer bought the farm
+htl/tst-cond16 FAIL 1 b-fs | couldn't open /dev/null, Computer bought the farm
+htl/tst-cond17 FAIL 1 b-fs | couldn't open /dev/null, Computer bought the farm
+htl/tst-cond18 FAIL 1 b-fs | couldn't open /dev/null, Computer bought the farm
+htl/tst-cond23 FAIL 1 d-hurd | 1st condattr_setpshared failed
+htl/tst-cond24 FAIL 1 d-hurd | pthread_mutexattr_setprotocol: Not supported(1073741942)
+htl/tst-cond25 FAIL 118 d-hurd | mutexattr_setprotocol failed: Not supported
+htl/tst-cond4 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-cond6 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-create-detached FAIL 1 b-fs | FAIL: setrlimit (RLIMIT_AS) failed: Computer bought the farm
+htl/tst-create1 FAIL 1 b-dl | error: dlopen: tst-create1mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-eintr2 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-eintr5 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-exec1 FAIL 1 b-ipc | pipe failed
+htl/tst-exec2 FAIL 1 b-ipc | pipe failed
+htl/tst-exec3 FAIL 1 b-ipc | pipe failed
+htl/tst-flock1 FAIL 1 b-fs | mkstemp failed
+htl/tst-flock2 FAIL 1 b-fs | mkstemp failed
+htl/tst-fopen-threaded FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fopen.I83aAo': Computer bought the farm
+htl/tst-fork1 FAIL 1 b-fork | join 4 successful, but child failed
+htl/tst-fork2 FAIL 1 b-fork | initial fork failed
+htl/tst-fork3 FAIL 1 b-fork | initial fork failed
+htl/tst-fork4 FAIL 1 b-fork | fork: Function not implemented
+htl/tst-getpid3 FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-join15 FAIL 1 d-hurd | error: 8 test failures
+htl/tst-join7 FAIL 1 b-dl | glibcroot: exit status 256, code 1
+htl/tst-key3 FAIL 127 b-state | tst-key3: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-kill1 FAIL 1 b-signal | kill failed
+htl/tst-kill2 FAIL 1 b-signal | kill failed
+htl/tst-kill3 FAIL 1 b-signal | kill failed
+htl/tst-kill6 FAIL 1 b-signal | kill failed
+htl/tst-mutex4 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-mutex7 FAIL 1 c-mem | creating thread 95 failed
+htl/tst-mutex9 FAIL 1 b-fs | error: ../sysdeps/pthread/tst-mutex9.c:58: cannot open temporary file: Computer bought the farm
+htl/tst-once2 FAIL 1 c-mem | creation of thread 95 failed
+htl/tst-pt-popen1 FAIL 1 b-ipc | tst-pt-popen1: popen failed: Computer bought the farm
+htl/tst-pt-tls2 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-pt-tls4 FAIL 1 b-dl | dlopen failed tst-tls4moda.so: cannot open shared object file: Computer bought the farm
+htl/tst-pt-vfork1 FAIL 1 b-ipc | pipe failed
+htl/tst-pt-vfork2 FAIL 1 b-ipc | pipe failed
+htl/tst-pthread-exit-signal FAIL 1 b-signal | error: xpthread_check_return.c:32: pthread_kill: (ipc/send) invalid destination port
+htl/tst-pthread-exited FAIL 1 d-hurd | error: 48 test failures
+htl/tst-pthread-raise-blocked-self FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-pthread-setuid-loop FAIL 1 c-mem* | joist: finish code 0
+htl/tst-pthread_kill-exiting FAIL 1 c-mem | error: xpthread_check_return.c:32: pthread_create: (os/kern) resource shortage
+htl/tst-raise1 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-robust1 FAIL 1 b-state | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust10 FAIL 1 b-state | mutex_timedlock didn't fail
+htl/tst-robust2 FAIL 1 b-state | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust3 FAIL 1 b-state | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust4 FAIL 1 b-state | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust5 FAIL 1 b-state | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust6 FAIL 1 b-state | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust7 FAIL 1 b-state | thread 1: cond_wait did not return EOWNERDEAD
+htl/tst-robust8 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-robust8kp9bAo': Computer bought the farm
+htl/tst-rwlock12 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-rwlock4 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-sem16 FAIL 1 b-fs | glibcroot: exit status 256, code 1
+htl/tst-sem18 FAIL 1 b-fs | left: 1073741928 (0x40000068, EIEIO); from: errno
+htl/tst-sem3 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-sem4 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-sem6 TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4448189, sp 4058320
+htl/tst-sem7 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-sem8 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-sem9 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-setuid3 FAIL 1 b-fs | error: ../sysdeps/pthread/tst-setuid3.c:74: setuid (getuid ()): Computer bought the farm
+htl/tst-signal1 FAIL 1 b-fs | mkstemp failed
+htl/tst-signal2 FAIL 1 b-fs | mkstemp failed
+htl/tst-spin2 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-stack2 FAIL 127 b-wx* | joist: finish code 0
+htl/tst-thrd-detach TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4446508, sp 4058232
+htl/tst-tsd6 FAIL 1 b-fork | cannot create child process
+htl/tst-umask1 FAIL 1 b-fs | cannot creat /home/user/joist-glibc/w/build/htl/tst-umask1.temp: Computer bought the farm
+htl/tst-unload FAIL 1 b-dl | failed to load libpthread.so.0.3
+htl/tst-vfork1x FAIL 1 b-ipc | pipe failed
+htl/tst-vfork2x FAIL 1 b-ipc | pipe failed
+hurd/test-sig-rpc-interrupted FAIL 127 b-signal | test-sig-rpc-interrupted.c:82: numeric comparison failure
+hurd/test-sig-xstate FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+hurd/tst-sig-redzone FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+iconv/tst-iconv-opt FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "en_US.UTF-8")
+iconv/tst-iconv9 FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "C.UTF-8")
+iconv/tst-translit-mchar FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (0, "tst-translit")
+iconvdata/tst-e2big FAIL 1 b-dl | cannot convert from EUC-JISX0213
+iconvdata/tst-iconv-big5-hkscs-to-2ucs4 FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "zh_HK.BIG5-HKSCS")
+iconvdata/tst-iconv-iso-2022-cn-ext FAIL 1 b-dl | error: tst-iconv-iso-2022-cn-ext.c:44: not true: cd != (iconv_t) -1
+iconvdata/tst-iconv4 FAIL 1 b-dl | iconv_open failed: Invalid argument
+iconvdata/tst-iconv6 FAIL 1 b-dl | first iconv_open failed
+iconvdata/tst-iconv7 FAIL 1 b-dl | iconv_open failed
+iconvdata/tst-loading FAIL 1 b-dl | opening of UHC failed: Invalid argument
+iconvdata/tst-table-from FAIL 1 c-args | Usage: tst-table-from charset
+iconvdata/tst-table-to FAIL 1 c-args | Usage: tst-table-to charset
+inet/test-ifaddrs FAIL 1 b-fs | Couldn't get any interfaces: Computer bought the farm.
+inet/tst-getni2 FAIL 1 b-fs | did not fail with EAI_NONAME with NI_NAMEREQD set
+inet/tst-idna_name_classify FAIL 1 b-locale | info: C locale tests
+inet/tst-if_index-long FAIL 1 b-fs | error: support_descriptors.c:68: opendir ("/proc/self/fd"): Computer bought the farm
+inet/tst-if_nameindex NO-STATUS b-fs | error: tst-if_nameindex.c:61: not true: if_ni != NULL
+intl/tst-codeset FAIL 1 b-fs | error: 4 test failures
+intl/tst-gettext TIMEOUT b-locale | tst-gettext.c:88: setlocale (LC_CTYPE, "de_DE.UTF-8"): No such file or directory
+intl/tst-gettext-c-utf8 FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "")
+intl/tst-gettext3 FAIL 1 b-fs | call 2 returned: cheese
+intl/tst-gettext4 FAIL 1 b-fs | beauty
+intl/tst-gettext5 FAIL 1 b-fs | cheese
+intl/tst-gettext6 FAIL 1 b-fork | fork failed: Function not implemented
+intl/tst-translit FAIL 1 b-fs | test
+io/test-stat2 FAIL 1 b-fs | stat("Makefile",....) failed: Computer bought the farmstat(".",....) failed: Computer bought the farmstat("/home/user/joist-glibc/w/build/io/test-stat2",....)
+io/test-utime FAIL 1 b-fs | mkstemp: Computer bought the farm
+io/tst-close_range FAIL 1 b-fs | error: support_descriptors.c:68: opendir ("/proc/self/fd"): Computer bought the farm
+io/tst-closefrom FAIL 1 b-fs | error: support_descriptors.c:68: opendir ("/proc/self/fd"): Computer bought the farm
+io/tst-faccessat FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-faccessat.gAW5zo"): Computer bought the farm
+io/tst-fchmod-errors FAIL 1 b-fs | error: xopen.c:28: open64 ("/dev/null", 0x3, 00): Computer bought the farm
+io/tst-fchmod-fuse FAIL 1 b-fs | error: support_record_failure called without initialization
+io/tst-fchmodat FAIL 1 b-fs | cannot create temporary directory
+io/tst-fcntl FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+io/tst-fcntl-lock FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fcntl-lock.0bs3zo': Computer bought the farm
+io/tst-fcntl-lock-lfs FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fcntl-lock.m3T5zo': Computer bought the farm
+io/tst-file_change_detection FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-file_change_detection-UGQ4zo"): Computer bought the farm
+io/tst-fstatat FAIL 1 b-fs | cannot create temporary directory
+io/tst-fts FAIL 1 b-fs | cannot create temporary directory
+io/tst-fts-lfs FAIL 1 b-fs | cannot create temporary directory
+io/tst-ftw-bz26353 FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+io/tst-ftw-bz28126 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-bz28126ptvaAo"): Computer bought the farm
+io/tst-ftw-lnk FAIL 1 b-fs | error: tst-ftw-lnk.c:190: cannot chdir to objdir root
+io/tst-futimens FAIL 1 b-fs | cannot open temporary file '/tmp/utimeDYc7zo': Computer bought the farm
+io/tst-futimes FAIL 1 b-fs | cannot open temporary file '/tmp/utimeEYbSzo': Computer bought the farm
+io/tst-futimesat FAIL 1 b-fs | cannot create temporary directory
+io/tst-getcwd FAIL 1 b-fs | getcwd (thepath, sizeof thepath) failed
+io/tst-getcwd-abspath FAIL 1 b-fs | warning: could not become root outside namespace (Computer bought the farm)
+io/tst-lchmod FAIL 1 b-fs | error: support_descriptors.c:68: opendir ("/proc/self/fd"): Computer bought the farm
+io/tst-linkat FAIL 1 b-fs | cannot create temporary directory
+io/tst-lockf FAIL 1 b-fs | cannot open temporary file '/tmp/tst-lockfd.SZy5zo': Computer bought the farm
+io/tst-lstat-nofollow FAIL 1 b-fs | error: support_record_failure called without initialization
+io/tst-lutimes FAIL 1 b-fs | cannot open temporary file '/tmp/utimeIHzaAo': Computer bought the farm
+io/tst-mkdirat FAIL 1 b-fs | cannot create temporary directory
+io/tst-mkfifoat FAIL 1 b-fs | cannot create temporary directory
+io/tst-mknodat FAIL 1 b-fs | cannot create temporary directory
+io/tst-open-tmpfile FAIL 1 b-fs | chdir: Computer bought the farm
+io/tst-openat FAIL 1 b-fs | cannot create temporary directory
+io/tst-posix_fallocate FAIL 1 b-fs | cannot open temporary file '/tmp/tst-posix_fallocate.oD22zo': Computer bought the farm
+io/tst-posix_fallocate64 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-posix_fallocate.qu88zo': Computer bought the farm
+io/tst-readlinkat FAIL 1 b-fs | cannot create temporary directory
+io/tst-renameat FAIL 1 b-fs | cannot create temporary directory
+io/tst-stat FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-stat-hPeZzo"): Computer bought the farm
+io/tst-stat-lfs FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-stat-uVX4zo"): Computer bought the farm
+io/tst-statvfs FAIL 1 b-fs | error: 9 test failures
+io/tst-statx FAIL 1 b-fs | cannot open temporary file '/tmp/tst-statx-hsbcAo': Computer bought the farm
+io/tst-symlinkat FAIL 1 b-fs | cannot create temporary directory
+io/tst-ttyname_r FAIL 1 b-fs | cannot open temporary file '/tmp/tst-ttyname_r.T5S8zo': Computer bought the farm
+io/tst-unlinkat FAIL 1 b-fs | cannot create temporary directory
+io/tst-utime FAIL 1 b-fs | cannot open temporary file '/tmp/utimeULefAo': Computer bought the farm
+io/tst-utimensat FAIL 1 b-fs | cannot open temporary file '/tmp/utimeR6VbAo': Computer bought the farm
+io/tst-utimes FAIL 1 b-fs | cannot open temporary file '/tmp/utimeN6e8zo': Computer bought the farm
+libio/test-fputs-unbuffered-full FAIL 1 b-fs | error: test-fputs-unbuffered-full.c:46: not true: fp != NULL
+libio/test-fputws-unbuffered-full FAIL 1 b-fs | error: ././test-fputs-unbuffered-full.c:46: not true: fp != NULL
+libio/test-freopen FAIL 1 b-fs | glibcroot: exit status 256, code 1
+libio/tst-asprintf-null NO-STATUS c-mem | glibcroot: no exit status
+libio/tst-atime FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+libio/tst-bz22415 NO-STATUS b-fs | cannot open temporary file '/tmp/tst-bz22145.nGs4zo': Computer bought the farm
+libio/tst-bz24051 NO-STATUS b-fs | cannot open temporary file '/tmp/tst-bz24051BVCjAo': Computer bought the farm
+libio/tst-bz24153 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-bz24153-CCV7zo': Computer bought the farm
+libio/tst-bz28828 NO-STATUS c-stdin | glibcroot: no exit status
+libio/tst-closeall FAIL 1 b-fs | glibcroot: exit status 256, code 1
+libio/tst-eof FAIL 1 b-fs | cannot open temporary file '/tmp/tst-eof.8U31zo': Computer bought the farm
+libio/tst-ext NO-STATUS b-fs | glibcroot: no exit status
+libio/tst-ext2 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-ext2wfw0zo': Computer bought the farm
+libio/tst-fclose-unopened2 FAIL 1 c-stdin | error: 1 test failures
+libio/tst-fflush FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fflush87edAo': Computer bought the farm
+libio/tst-fflush-NULL FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fflushfwu3zo': Computer bought the farm
+libio/tst-fgetc-after-eof FAIL 1 b-ipc | error: support_openpty.c:64: posix_openpt: No such file or directory
+libio/tst-fgetwc FAIL 1 b-locale | setlocale failed
+libio/tst-fgetws FAIL 1 b-locale | Err: Cannot run on the de_DE.UTF-8 localeThis program runs on de_DE.UTF-8 locale.
+libio/tst-fopenloc FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "de_DE.UTF-8")
+libio/tst-fopenloc2 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fopenloc2HRp8zo': Computer bought the farm
+libio/tst-freopen FAIL 1 b-fs | cannot open temporary file '/tmp/tst-freopen.if38zo': Computer bought the farm
+libio/tst-fseek FAIL 1 b-locale | Cannot set ja_JP.UTF-8 locale.
+libio/tst-ftell-active-handler FAIL 1 b-fs | cannot open temporary file '/tmp/tst-active-handler-tmp.LeF2zo': Computer bought the farm
+libio/tst-ftell-append FAIL 1 b-fs | cannot open temporary file '/tmp/tst-ftell-append-tmp.8ES5zo': Computer bought the farm
+libio/tst-ftell-partial-wide FAIL 1 b-locale | Cannot set en_US.UTF-8 locale.
+libio/tst-fwrite-error FAIL 1 b-fs | mkstemp failed with errno 1073741928
+libio/tst-getdelim FAIL 1 b-fs | cannot open temporary file '/tmp/tst-getdelim.HVmfAo': Computer bought the farm
+libio/tst-mmap-eofsync FAIL 1 b-fs | cannot open temporary file '/tmp/tst-mmap-eofsync.gRc6zo': Computer bought the farm
+libio/tst-mmap-fflushsync FAIL 1 b-fs | cannot open temporary file '/tmp/tst-mmap-eofsync.j2w7zo': Computer bought the farm
+libio/tst-mmap-offend FAIL 1 b-fs | cannot open temporary file '/tmp/tst-mmap-offend.u1b6zo': Computer bought the farm
+libio/tst-mmap-setvbuf FAIL 1 b-fs | 39: cannot open temporary file: Computer bought the farm
+libio/tst-mmap2-eofsync FAIL 1 b-fs | cannot open temporary file '/tmp/tst-mmap2-eofsync.CH2Uzo': Computer bought the farm
+libio/tst-popen-fork FAIL 1 b-fork | error: xfork.c:30: error: tst-popen-fork.c:33: not true: f != NULL
+libio/tst-popen1 FAIL 1 b-ipc | first popen failed
+libio/tst-setvbuf1 FAIL 1 c-stdin | tst-setvbuf1: fdopen(,"a"): (ipc/mig) bad request message ID
+libio/tst-swscanf FAIL 1 b-locale | new locale: "C"
+libio/tst-ungetwc1 FAIL 1 b-locale | This program runs on de_DE.UTF-8 locale.
+libio/tst-ungetwc2 FAIL 1 b-locale | This program runs on de_DE.UTF-8 locale.
+libio/tst-vtables FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+libio/tst-vtables-interposed NO-STATUS c-static | glibcroot: no exit status
+libio/tst-wfile-sync FAIL 1 b-fs | cannot open temporary file '/tmp/tst-wfile-sync-in-EeT5zo': Computer bought the farm
+libio/tst-widetext FAIL 1 b-locale | locale used: C
+locale/tst-localedef-path-norm FAIL 1 b-fs | error: xmkdirp.c:63: mkdir_p ("/output", 0777): (os/kern) invalid name
+localedata/tst-fmon NO-STATUS b-locale | glibcroot: no exit status
+localedata/tst-localedef-hardlinks FAIL 1 b-locale | INFO: $complocaledir is /usr/lib/locale
+localedata/tst-numeric NO-STATUS b-locale | glibcroot: no exit status
+localedata/tst-rpmatch NO-STATUS b-locale | glibcroot: no exit status
+localedata/tst-trans FAIL 1 b-locale | locale data files probably not loaded
+login/tst-grantpt FAIL 1 b-ipc | error: tst-grantpt.c:39: posix_openpt(O_RDWR) failed
+login/tst-pututxline-cache FAIL 1 b-fs | cannot open temporary file '/tmp/tst-tumpx-cache-write-ZMuaAo': Computer bought the farm
+login/tst-pututxline-lockfail FAIL 1 b-fs | cannot open temporary file '/tmp/tst-pututxline-lockfail-0JzZzo': Computer bought the farm
+login/tst-updwtmpx FAIL 1 b-fs | cannot open temporary file '/tmp/tst-updwtmpx-43bWzo': Computer bought the farm
+login/tst-utmp FAIL 1 b-fs | tst-utmp: cannot open test file `/tmp/utmp35dlAo': Computer bought the farm
+login/tst-utmpx FAIL 1 b-fs | tst-utmpx: cannot open test file `/tmp/utmpWa84zo': Computer bought the farm
+malloc/tst-aligned-alloc-random-thread FAIL 1 c-mem | error: tst-aligned-alloc-random-thread.c:74: not true: allocations[id][i] != NULL
+malloc/tst-aligned-alloc-random-thread-cross FAIL 1 c-mem | error: ./tst-aligned-alloc-random-thread.c:74: not true: allocations[id][i] != NULL
+malloc/tst-dynarray-at-fail FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+malloc/tst-dynarray-fail FAIL 1 b-fs | error: tst-dynarray-fail.c:334: setrlimit (RLIMIT_AS, 1048576): Computer bought the farm
+malloc/tst-free-errno FAIL 1 b-fs | cannot open temporary file '/tmp/tst-free-errnoUpU4zo': Computer bought the farm
+malloc/tst-free-errno-threaded-main FAIL 1 b-fs | cannot open temporary file '/tmp/tst-free-errnow3uSzo': Computer bought the farm
+malloc/tst-free-errno-threaded-worker FAIL 1 b-fs | error: tst-free-errno.c:93: cannot create temporary file for mmap'ing
+malloc/tst-interpose-nothread FAIL 1 b-fs | cannot open temporary file '/tmp/tst-malloc-interposeURFdAo': Computer bought the farm
+malloc/tst-interpose-static-nothread FAIL 1 b-fs | cannot open temporary file '/tmp/tst-malloc-interposeXvDdAo': Computer bought the farm
+malloc/tst-interpose-static-thread FAIL 1 b-fs | cannot open temporary file '/tmp/tst-malloc-interposeHa01zo': Computer bought the farm
+malloc/tst-interpose-thread FAIL 1 b-fs | cannot open temporary file '/tmp/tst-malloc-interposesPGaAo': Computer bought the farm
+malloc/tst-malloc-alternate-path FAIL 1 d-hurd | error: tst-malloc-alternate-path.c:55: not true: ptr == (void *) -1
+malloc/tst-malloc-alternate-path-threaded-main FAIL 1 d-hurd | error: tst-malloc-alternate-path.c:55: not true: ptr == (void *) -1
+malloc/tst-malloc-alternate-path-threaded-worker FAIL 1 d-hurd | error: tst-malloc-alternate-path.c:55: not true: ptr == (void *) -1
+malloc/tst-malloc-backtrace FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+malloc/tst-malloc-fork-deadlock FAIL 127 b-fs | cannot open temporary file '/tmp/bug19431-large-lineSwUeAo': Computer bought the farm
+malloc/tst-malloc-stats-cancellation FAIL 2 c-stdin | fdopen: (ipc/mig) bad request message ID
+malloc/tst-malloc-tcache-leak FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+malloc/tst-malloc-thread-exit FAIL 1 c-mem | error: xpthread_check_return.c:32: error: xpthread_check_return.c:32: pthread_create: (os/kern) resource shortagepthread_create: (os/kern) resource shortage
+malloc/tst-malloc-thread-fail FAIL 1 b-fs | setrlimit (RLIMIT_AS) failed: Computer bought the farm
+malloc/tst-malloc-usable FAIL 1 c-args | error: 1 test failures
+malloc/tst-malloc-usable-threaded-main FAIL 1 c-args | error: 1 test failures
+malloc/tst-malloc-usable-threaded-worker FAIL 1 c-args | error: 1 test failures
+malloc/tst-malloc-usable-tunables FAIL 1 c-args | error: 1 test failures
+malloc/tst-malloc-usable-tunables-threaded-main FAIL 1 c-args | error: 1 test failures
+malloc/tst-malloc-usable-tunables-threaded-worker FAIL 1 c-args | error: 1 test failures
+malloc/tst-malloc_info FAIL 1 c-mem | malloc: unable to allocate 40 bytes: (os/kern) resource shortage
+malloc/tst-mallocfork2 FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+malloc/tst-mallocfork3 FAIL 1 b-fork | pthread_kill: (ipc/send) invalid destination portpthread_kill: (ipc/send) invalid destination portpthread_kill: (ipc/send) invalid destination portpthread_kill:
+malloc/tst-memalign-2 FAIL 1 c-args | error: 1 test failures
+malloc/tst-memalign-2-threaded-main FAIL 1 c-args | error: 1 test failures
+malloc/tst-memalign-2-threaded-worker FAIL 1 c-args | error: 1 test failures
+malloc/tst-memalign-3 FAIL 1 e | error: 1 test failures
+malloc/tst-mtrace FAIL 127 b-fs | glibcroot: exit status 32512, code 127
+malloc/tst-safe-linking FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+malloc/tst-safe-linking-threaded-main FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+malloc/tst-safe-linking-threaded-worker FAIL 1 b-fork | error: xpipe.c:27: pipe: Computer bought the farm
+malloc/tst-tcfree1 FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree1-threaded-main FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree1-threaded-worker FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree2 FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree2-threaded-main FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree2-threaded-worker FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree4 FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree4-threaded-main FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-tcfree4-threaded-worker FAIL 127 b-fork | free(): double free detected in tcache 2
+malloc/tst-trim1 NO-STATUS c-mem* | glibcroot: no exit status
+malloc/tst-trim1-threaded-main TIMEOUT c-mem* | glibcroot: TIMEOUT, its first thread gone
+math/test-double-fma FAIL 1 d-clang | 32 errors occurred.
+math/test-float-double-fma FAIL 1 d-clang | 32 errors occurred.
+math/test-float128-atan FAIL 1 d-clang | 32 errors occurred.
+math/test-float128-atan2 FAIL 1 d-clang | 328 errors occurred.
+math/test-float128-atan2pi FAIL 1 d-clang | 336 errors occurred.
+math/test-float128-atanh FAIL 1 d-clang | 64 errors occurred.
+math/test-float128-atanpi FAIL 1 d-clang | 40 errors occurred.
+math/test-float128-ccos FAIL 1 d-clang | 108 errors occurred.
+math/test-float128-ccosh FAIL 1 d-clang | 108 errors occurred.
+math/test-float128-cexp FAIL 1 d-clang | 246 errors occurred.
+math/test-float128-cos FAIL 1 d-clang | 8 errors occurred.
+math/test-float128-cosh FAIL 1 d-clang | 120 errors occurred.
+math/test-float128-cospi FAIL 1 d-clang | 8 errors occurred.
+math/test-float128-csin FAIL 1 d-clang | 236 errors occurred.
+math/test-float128-csinh FAIL 1 d-clang | 236 errors occurred.
+math/test-float128-ctan FAIL 1 d-clang | 96 errors occurred.
+math/test-float128-ctanh FAIL 1 d-clang | 96 errors occurred.
+math/test-float128-erf FAIL 1 d-clang | 72 errors occurred.
+math/test-float128-erfc FAIL 1 d-clang | 80 errors occurred.
+math/test-float128-exp FAIL 1 d-clang | 130 errors occurred.
+math/test-float128-exp10 FAIL 1 d-clang | 148 errors occurred.
+math/test-float128-exp10m1 FAIL 1 d-clang | 104 errors occurred.
+math/test-float128-exp2 FAIL 1 d-clang | 168 errors occurred.
+math/test-float128-exp2m1 FAIL 1 d-clang | 112 errors occurred.
+math/test-float128-expm1 FAIL 1 d-clang | 68 errors occurred.
+math/test-float128-fdim FAIL 1 d-clang | 10 errors occurred.
+math/test-float128-fma FAIL 1 d-clang | 7784 errors occurred.
+math/test-float128-fmod FAIL 1 d-clang | 128 errors occurred.
+math/test-float128-fromfp NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float128-fromfpx NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float128-lgamma FAIL 1 d-clang | 46 errors occurred.
+math/test-float128-llrint FAIL 1 d-clang | 56 errors occurred.
+math/test-float128-llround FAIL 1 d-clang | 28 errors occurred.
+math/test-float128-log FAIL 1 d-clang | 28 errors occurred.
+math/test-float128-log10 FAIL 1 d-clang | 28 errors occurred.
+math/test-float128-log10p1 FAIL 1 d-clang | 64 errors occurred.
+math/test-float128-log1p FAIL 1 d-clang | 96 errors occurred.
+math/test-float128-log2 FAIL 1 d-clang | 28 errors occurred.
+math/test-float128-log2p1 FAIL 1 d-clang | 48 errors occurred.
+math/test-float128-logb FAIL 1 d-clang | 8 errors occurred.
+math/test-float128-lrint FAIL 1 d-clang | 56 errors occurred.
+math/test-float128-lround FAIL 1 d-clang | 28 errors occurred.
+math/test-float128-nextafter FAIL 1 d-clang | 48 errors occurred.
+math/test-float128-remainder FAIL 1 d-clang | 88 errors occurred.
+math/test-float128-remquo FAIL 1 d-clang | 64 errors occurred.
+math/test-float128-scalbln FAIL 1 d-clang | 720 errors occurred.
+math/test-float128-scalbn FAIL 1 d-clang | 680 errors occurred.
+math/test-float128-sin FAIL 1 d-clang | 40 errors occurred.
+math/test-float128-sincos FAIL 1 d-clang | 40 errors occurred.
+math/test-float128-sinh FAIL 1 d-clang | 122 errors occurred.
+math/test-float128-sinpi FAIL 1 d-clang | 48 errors occurred.
+math/test-float128-tan FAIL 1 d-clang | 40 errors occurred.
+math/test-float128-tanh FAIL 1 d-clang | 32 errors occurred.
+math/test-float128-tanpi FAIL 1 d-clang | 152 errors occurred.
+math/test-float128-ufromfp NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float128-ufromfpx NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float32-float128-add FAIL 1 d-clang | 2479 errors occurred.
+math/test-float32-float128-div FAIL 1 d-clang | 7049 errors occurred.
+math/test-float32-float128-fma TIMEOUT c-time | joist: finish code 3
+math/test-float32-float128-mul FAIL 1 d-clang | 5028 errors occurred.
+math/test-float32-float128-sub FAIL 1 d-clang | 2468 errors occurred.
+math/test-float32-float32x-fma FAIL 1 d-clang | 32 errors occurred.
+math/test-float32-float64-fma FAIL 1 d-clang | 32 errors occurred.
+math/test-float32x-float128-add FAIL 1 d-clang | 1978 errors occurred.
+math/test-float32x-float128-div FAIL 1 d-clang | 6452 errors occurred.
+math/test-float32x-float128-fma TIMEOUT c-time | joist: finish code 3
+math/test-float32x-float128-mul FAIL 1 d-clang | 4300 errors occurred.
+math/test-float32x-float128-sub FAIL 1 d-clang | 1978 errors occurred.
+math/test-float32x-float64-fma FAIL 1 d-clang | 32 errors occurred.
+math/test-float32x-fma FAIL 1 d-clang | 32 errors occurred.
+math/test-float64-float128-add FAIL 1 d-clang | 1978 errors occurred.
+math/test-float64-float128-div FAIL 1 d-clang | 6452 errors occurred.
+math/test-float64-float128-fma TIMEOUT c-time | joist: finish code 3
+math/test-float64-float128-mul FAIL 1 d-clang | 4300 errors occurred.
+math/test-float64-float128-sub FAIL 1 d-clang | 1978 errors occurred.
+math/test-float64-fma FAIL 1 d-clang | 32 errors occurred.
+math/test-float64x-acos FAIL 1 d-hurd | 8 errors occurred.
+math/test-float64x-float128-add FAIL 1 d-clang | 1528 errors occurred.
+math/test-float64x-float128-div FAIL 1 d-clang | 4528 errors occurred.
+math/test-float64x-float128-fma TIMEOUT c-time | joist: finish code 3
+math/test-float64x-float128-mul FAIL 1 d-clang | 3177 errors occurred.
+math/test-float64x-float128-sub FAIL 1 d-clang | 1528 errors occurred.
+math/test-float64x-fpclassify FAIL 1 d-clang | 20 errors occurred.
+math/test-float64x-fromfp NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float64x-fromfpx NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float64x-isinf FAIL 1 d-clang | 12 errors occurred.
+math/test-float64x-log10 FAIL 1 d-hurd | 1 errors occurred.
+math/test-float64x-log2 FAIL 1 d-hurd | 1 errors occurred.
+math/test-float64x-setpayload FAIL 1 d-clang | 8 errors occurred.
+math/test-float64x-ufromfp NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float64x-ufromfpx NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-float64x-y0 FAIL 1 d-hurd | 16 errors occurred.
+math/test-float64x-y1 FAIL 1 d-hurd | 16 errors occurred.
+math/test-ldouble-acos FAIL 1 d-hurd | 8 errors occurred.
+math/test-ldouble-fpclassify FAIL 1 d-clang | 20 errors occurred.
+math/test-ldouble-fromfp NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-ldouble-fromfpx NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-ldouble-isinf FAIL 1 d-clang | 12 errors occurred.
+math/test-ldouble-log10 FAIL 1 d-hurd | 1 errors occurred.
+math/test-ldouble-log2 FAIL 1 d-hurd | 1 errors occurred.
+math/test-ldouble-scalb FAIL 1 d-clang | 8 errors occurred.
+math/test-ldouble-setpayload FAIL 1 d-clang | 8 errors occurred.
+math/test-ldouble-ufromfp NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-ldouble-ufromfpx NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+math/test-ldouble-y0 FAIL 1 d-hurd | 16 errors occurred.
+math/test-ldouble-y1 FAIL 1 d-hurd | 16 errors occurred.
+math/test-tgmath FAIL 1 d-clang | long double complex functions not called often enough (43)
+math/test-tgmath2 FAIL 1 d-clang | error: 10 test failures
+misc/tst-error1 FAIL 1 b-fs | error: xfreopen.c:29: could not open /home/user/joist-glibc/w/build/misc/tst-error1.out (mode "a"): Computer bought the farm
+misc/tst-gethostid FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+misc/tst-ioctl FAIL 1 b-ipc | left: -1 (0xffffffff); from: socketpair (AF_UNIX, SOCK_STREAM, 0, pair)
+misc/tst-ldbl-error FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+misc/tst-ldbl-errorfptr FAIL 1 c-static | error: xdlfcn.c:46: error: dlsym: tst-ldbl-errorfptr: undefined symbol: error
+misc/tst-mkstemp-fuse FAIL 1 b-fs | error: support_record_failure called without initialization
+misc/tst-mkstemp-fuse-parallel FAIL 1 b-fs | error: support_record_failure called without initialization
+misc/tst-mntent FAIL 1 b-fs | Cannot open temporary file: Computer bought the farm
+misc/tst-mntent-autofs FAIL 1 b-fs | cannot open temporary file '/tmp/tst-mntent-autofs-wgeZzo': Computer bought the farm
+misc/tst-mntent-blank-corrupt NO-STATUS b-fs | glibcroot: no exit status
+misc/tst-mntent-blank-passno NO-STATUS b-fs | glibcroot: no exit status
+misc/tst-preadvwritev FAIL 1 b-fs | cannot open temporary file '/tmp/tst-preadvwritev.u4z6zo': Computer bought the farm
+misc/tst-preadvwritev2 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-preadvwritev.IFA0zo': Computer bought the farm
+misc/tst-preadvwritev64 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-preadvwritev.nHTZzo': Computer bought the farm
+misc/tst-preadvwritev64v2 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-preadvwritev.Iyw7zo': Computer bought the farm
+misc/tst-pselect FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+misc/tst-select FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+misc/tst-syscalls FAIL 1 b-fs | error: xopen.c:28: open64 ("/dev/null", 0x3, 00): Computer bought the farm
+misc/tst-syslog FAIL 1 b-fs | error: xsocket.c:30: socket (1, 4194306, 0): Computer bought the farm
+misc/tst-writev FAIL 255 b-fs | Unable to open /dev/null for writing.
+nss/test-digits-dots FAIL 1 b-fs | glibcroot: exit status 256, code 1
+nss/tst-fgetsgent_r FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fgetsgent_r-hxzZzo': Computer bought the farm
+nss/tst-getaddrinfo4 FAIL 1 b-fs | SUCCESS getaddrinfo(service=NULL, family=0, flags=0): Name or service not known: Computer bought the farm
+nss/tst-getaddrinfo5 FAIL 2 b-fs | resolving "www.gnu.org." failed, skipping this hostname
+nss/tst-gethnm FAIL 1 b-fs | gethostbyname ("127.0.0.1") == NULL
+nss/tst-getpw FAIL 255 b-fs | FAIL: Did not find even one invalid uid.
+nss/tst-gshadow FAIL 1 b-fs | cannot open temporary file
+nss/tst-initgroups1 FAIL 1 b-fs | error: 1 test failures
+nss/tst-initgroups2 FAIL 1 b-fs | error: 1 test failures
+nss/tst-nss-action-parse FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "tr_TR.UTF-8")
+nss/tst-nss-compat1 FAIL 1 b-fs | error: tst-nss-compat1.c:60: getpwuid-compat-test1 p
+nss/tst-nss-db-endgrent FAIL 1 b-fs | error: tst-nss-db-endgrent.c:50: endgrent set errno to 1073741928
+nss/tst-nss-files-alias-leak FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-tQKaAo"): Computer bought the farm
+nss/tst-nss-files-alias-truncated FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: libnss_files.so.2: cannot open shared object file: Computer bought the farm
+nss/tst-nss-files-hosts-erange FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-2wL8zo"): Computer bought the farm
+nss/tst-nss-files-hosts-getent FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-ZQfkAo"): Computer bought the farm
+nss/tst-nss-files-hosts-long FAIL 1 b-fs | error: tst-nss-files-hosts-long.c:36: ahostsv4 failed
+nss/tst-nss-files-hosts-multi FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-ZLq8zo"): Computer bought the farm
+nss/tst-nss-files-hosts-v4mapped FAIL 1 b-fs | -11 System error
+nss/tst-nss-files-network FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-Z0GDAo"): Computer bought the farm
+nss/tst-nss-gai-actions FAIL 1 b-fs | error: Computer bought the farm
+nss/tst-nss-gai-hv2-canonname FAIL 1 b-fs | error: xfopen.c:29: could not open /etc/hosts (mode "w"): Computer bought the farm
+nss/tst-nss-test1 FAIL 1 b-fs | FAIL: init hook never called
+nss/tst-nss-test2 NO-STATUS b-fs | glibcroot: no exit status
+nss/tst-nss-test3 FAIL 1 b-fs | FAIL: Found 1 errors, expected 18
+nss/tst-nss-test4 FAIL 1 b-fs | FAIL: Found 765 errors, expected 0
+nss/tst-nss-test5 FAIL 1 b-fs | FAIL: Found 1 errors, expected 9
+nss/tst-nss-test_errno FAIL 1 b-fs | left: 1073741928 (0x40000068, EIEIO); from: errno
+nss/tst-reload1 FAIL 1 b-fs | left: 1073741928 (0x40000068); from: res
+nss/tst-reload2 FAIL 1 b-fs | error: xmkdirp.c:63: mkdir_p ("/subdir", 0777): (os/kern) invalid name
+nss/tst-shadow FAIL 1 b-fs | cannot open temporary file
+posix/test-errno NO-STATUS d-hurd | FAIL: readlink: errno is: 1073741928 (Computer bought the farm) expected: 1073741846 (Invalid argument)
+posix/test-vfork FAIL 1 b-fork | test-vfork: vfork: Function not implemented
+posix/tst-_Fork FAIL 1 b-fs | cannot open temporary file '/tmp/tst-_ForkpfkbAo': Computer bought the farm
+posix/tst-boost FAIL 1 b-fs | Couldn't open BOOST.tests
+posix/tst-chmod FAIL 1 b-fs | cannot get current directory: Computer bought the farm
+posix/tst-dir FAIL 1 c-args | not enough parameters
+posix/tst-exec FAIL 1 b-fs | cannot open temporary file '/tmp/execR4R4zo': Computer bought the farm
+posix/tst-exec-static FAIL 1 b-fs | cannot open temporary file '/tmp/exec5ApcAo': Computer bought the farm
+posix/tst-execl1 FAIL 1 b-fs | errno = 1073741928 (Computer bought the farm), expected ENOENT
+posix/tst-execl2 FAIL 1 b-exec | system  failed
+posix/tst-execle1 FAIL 1 b-fs | errno = 1073741928 (Computer bought the farm), expected ENOENT
+posix/tst-execle2 FAIL 1 b-exec | system  failed
+posix/tst-execlp1 FAIL 1 b-fs | get_current_dir_name failed
+posix/tst-execlp2 FAIL 1 b-exec | system  failed
+posix/tst-execv1 FAIL 1 b-fs | errno = 1073741928 (Computer bought the farm), expected ENOENT
+posix/tst-execv2 FAIL 1 b-exec | system  failed
+posix/tst-execve1 FAIL 1 b-fs | errno = 1073741928 (Computer bought the farm), expected ENOENT
+posix/tst-execve2 FAIL 1 b-exec | system  failed
+posix/tst-execveat FAIL 1 b-exec | error: tst-execveat.c:90: failed to open /bin
+posix/tst-execvp1 FAIL 1 b-fs | get_current_dir_name failed
+posix/tst-execvp2 FAIL 1 b-exec | system  failed
+posix/tst-execvp3 FAIL 1 c-args | chdir: Computer bought the farm
+posix/tst-execvpe1 FAIL 1 b-fs | get_current_dir_name failed
+posix/tst-execvpe2 FAIL 1 b-exec | system  failed
+posix/tst-execvpe3 NO-STATUS c-args | cannot open temporary file '/tmp/testscriptk1c3zo': Computer bought the farm
+posix/tst-execvpe5 FAIL 1 b-fork | Cannot fork
+posix/tst-execvpe6 FAIL 1 b-fs | cannot open temporary file '/tmp/logfilerAD2zo': Computer bought the farm
+posix/tst-fnmatch FAIL 1 b-locale | *** Cannot set locale
+posix/tst-fnmatch4 FAIL 1 b-locale | error: tst-fnmatch4.c:27: not true: setlocale (LC_ALL, locale) != NULL
+posix/tst-fnmatch5 NO-STATUS c-module | root: frame_split failed with 5
+posix/tst-fnmatch6 FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "en_US.UTF-8")
+posix/tst-fork FAIL 1 b-fs | tst-fork: cannot open test file `/tmp/forkDK66zo': Computer bought the farm
+posix/tst-getopt-cancel FAIL 1 b-fs | cannot open temporary file '/tmp/stderrRo8aAo': Computer bought the farm
+posix/tst-getopt_long1 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-getopt_long1AZg8zo': Computer bought the farm
+posix/tst-glob-bz30635 FAIL 1 b-fs | error: 2 test failures
+posix/tst-glob_symlinks NO-STATUS b-fs | cannot open temporary file '/tmp/tst-glob_symlinks.1ynbAo': Computer bought the farm
+posix/tst-libc-message FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+posix/tst-mmap FAIL 1 b-fs | Cannot create temporary file: Computer bought the farm
+posix/tst-mmap-offset FAIL 1 b-fs | error: tst-mmap-offset.c:40: mkstemp failed
+posix/tst-nice FAIL 1 b-fs | break: nice(0) return: -1, Computer bought the farm
+posix/tst-pathconf FAIL 1 b-fs | Cannot create temporary directory: Computer bought the farm
+posix/tst-pcre FAIL 1 b-fs | Couldn't open PCRE.tests
+posix/tst-posix_fadvise FAIL 1 b-fs | cannot open temporary file '/tmp/tst-posix_fadvise.T1I8zo': Computer bought the farm
+posix/tst-posix_fadvise64 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-posix_fadvise.M9NeAo': Computer bought the farm
+posix/tst-posix_spawn-setsid NO-STATUS b-fs | cannot open temporary file '/tmp/tst-posix_spawn-setsid-NU4Xzo': Computer bought the farm
+posix/tst-preadwrite FAIL 1 b-fs | cannot open temporary file '/tmp/tst-preadwrite.GHL6zo': Computer bought the farm
+posix/tst-preadwrite64 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-preadwrite.uOd1zo': Computer bought the farm
+posix/tst-regcomp-truncated FAIL 1 b-locale | error: setlocale ("C.UTF-8"): No such file or directoryerror: setlocale ("en_US.UTF-8"): No such file or directoryerror: setlocale ("de_DE.ISO-8859-1"): No such
+posix/tst-regex FAIL 1 b-fs | tst-regex: cannot open tst-regex.input: Computer bought the farm
+posix/tst-regex2 FAIL 1 b-fs | Couldn't open ChangeLog.14: Computer bought the farm
+posix/tst-regexloc FAIL 1 b-locale | cannot set locale
+posix/tst-rxspencer FAIL 1 b-fs | Couldn't open rxspencer/tests
+posix/tst-rxspencer-no-utf8 FAIL 1 b-fs | Couldn't open rxspencer/tests
+posix/tst-sched_getaffinity FAIL 1 d-hurd | error: 13 test failures
+posix/tst-spawn FAIL 1 b-fs | cannot open temporary file '/tmp/spawnGoM1zo': Computer bought the farm
+posix/tst-spawn-chdir FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-spawn-chdir-lP57zo"): Computer bought the farm
+posix/tst-spawn-static FAIL 1 b-fs | cannot open temporary file '/tmp/spawnvIQ5zo': Computer bought the farm
+posix/tst-spawn2 FAIL 1 b-fs | error: support_descriptors.c:68: opendir ("/proc/self/fd"): Computer bought the farm
+posix/tst-spawn3 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-spawn3.XU31zo': Computer bought the farm
+posix/tst-spawn4 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-spawn4.uCl3zo': Computer bought the farm
+posix/tst-spawn5 FAIL 1 b-fs | error: support-open-dev-null-range.c:48: open64 ("/dev/null", 0x1, 0600): Computer bought the farm
+posix/tst-spawn7 FAIL 1 b-exec | tst-spawn7.c:89: numeric comparison failure
+posix/tst-sysconf-empty-chroot FAIL 1 b-fs | error: tst-sysconf-empty-chroot.c:59: mkdtemp ("/tmp/tst-resolv-res_init-lx25zo"): Computer bought the farm
+posix/tst-truncate FAIL 1 b-fs | cannot open temporary file '/tmp/tst-truncate.oEn5zo': Computer bought the farm
+posix/tst-truncate64 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-truncate.eD02zo': Computer bought the farm
+posix/tst-vfork1 FAIL 1 b-ipc | pipe failed
+posix/tst-vfork2 FAIL 1 b-ipc | pipe failed
+posix/tst-vfork3 FAIL 1 b-fs | error: tst-vfork3.c:151: could not create temporary directory
+posix/tst-wait3 FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+posix/tst-wait4 FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+posix/tst-waitid FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+posix/tst-wordexp-nocmd FAIL 1 b-fs | warning: could not become root outside namespace (Computer bought the farm)
+resolv/tst-getaddrinfo-eai-again FAIL 1 b-fs | error: tst-getaddrinfo-eai-again.c:45: getaddrinfo (site.example, AF_INET) returned System error, expected EAI_AGAIN
+resolv/tst-leaks2 FAIL 1 b-fs | error: tst-leaks2.c:34: not true: res_init () == 0
+resolv/tst-resolv-res_init FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-BBLbAo"): Computer bought the farm
+resolv/tst-resolv-res_init-thread FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-cPhfAo"): Computer bought the farm
+resolv/tst-resolv-res_ninit NO-STATUS c-mem | glibcroot: no exit status
+rt/tst-aio FAIL 1 b-fs | tst-aio: cannot open test file `/tmp/aioQiPZzo': Computer bought the farm
+rt/tst-aio10 FAIL 1 b-ipc | pipe failed
+rt/tst-aio2 FAIL 1 b-fs | cannot open temp name: Computer bought the farm
+rt/tst-aio3 FAIL 1 b-fs | cannot open temp name: Computer bought the farm
+rt/tst-aio4 FAIL 1 b-fs | cannot open temp name: Computer bought the farm
+rt/tst-aio5 FAIL 1 b-fs | cannot open temp name: Computer bought the farm
+rt/tst-aio6 FAIL 1 b-ipc | cannot create pipe: Computer bought the farm
+rt/tst-aio64 FAIL 1 b-fs | tst-aio64: cannot open test file `/tmp/aioaSzYzo': Computer bought the farm
+rt/tst-aio7 FAIL 1 b-ipc | pipe: Computer bought the farm
+rt/tst-aio9 FAIL 1 b-ipc | pipe failed
+rt/tst-clock_nanosleep2 FAIL 1 b-clock | test clock CLOCK_PROCESS_CPUTIME_ID for 0.001000000 sec relative
+rt/tst-cputimer2 FAIL 1 b-fs | write of 4096 bytes failed after 0: Bad file descriptorerror: 1 test failures
+rt/tst-cputimer3 FAIL 1 b-ipc | pipe: Computer bought the farm
+rt/tst-mqueue1 FAIL 1 b-fs | Could not create temporary file /tmp/tst-mqueueN.eJg9zo: Computer bought the farm
+rt/tst-mqueue2 FAIL 1 b-fs | Could not create temporary file /tmp/tst-mqueueN.aeXaAo: Computer bought the farm
+rt/tst-mqueue3 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+rt/tst-mqueue4 FAIL 1 b-fs | Could not create temporary file /tmp/tst-mqueueN.s8zaAo: Computer bought the farm
+rt/tst-mqueue5 FAIL 1 b-fs | Could not create temporary file /tmp/tst-mqueueN.oC25zo: Computer bought the farm
+rt/tst-mqueue6 FAIL 1 b-fs | Could not create temporary file /tmp/tst-mqueueN.P3EaAo: Computer bought the farm
+rt/tst-mqueue9 FAIL 1 b-fs | Could not create temporary file /tmp/tst-mqueueN.0SpfAo: Computer bought the farm
+rt/tst-shm FAIL 1 b-fork | tst-shm: failed to create shared memory object: shm_open
+rt/tst-shm-cancel FAIL 1 b-state | glibcroot: exit status 256, code 1
+rt/tst-timer TIMEOUT b-signal | notify_func1
+rt/tst-timer4 TIMEOUT b-signal | clock_getres returned timespec = { 0, 1000 }
+signal/tst-minsigstksz-1 FAIL 1 b-wx | error: xmprotect.c:27: mprotect (0x100115000, 40960, 0x7): Permission denied
+signal/tst-minsigstksz-2 FAIL 1 b-wx | error: xmprotect.c:27: mprotect (0x100115000, 40960, 0x7): Permission denied
+signal/tst-minsigstksz-3 FAIL 1 b-wx | error: xmprotect.c:27: mprotect (0x100115000, 40960, 0x7): Permission denied
+signal/tst-minsigstksz-3a FAIL 1 b-wx | error: xmprotect.c:27: mprotect (0x100115000, 40960, 0x7): Permission denied
+signal/tst-minsigstksz-4 FAIL 1 b-wx | error: xmprotect.c:27: mprotect (0x100115000, 40960, 0x7): Permission denied
+signal/tst-minsigstksz-5 NO-STATUS c-mem | glibcroot: no exit status
+signal/tst-raise FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+signal/tst-signal FAIL 127 b-signal | Sending myself signal 15.
+signal/tst-sigset2 FAIL 1 b-fork | tst-sigset2: fork: Function not implemented
+signal/tst-sigwait-eintr FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+socket/tst-accept4 FAIL 1 b-fs | error: xsocket.c:30: socket (2, 1, 0): Computer bought the farm
+socket/tst-cmsg_cloexec FAIL 1 b-ipc | error: tst-cmsg_cloexec.c:103: socketpair: Computer bought the farm
+socket/tst-cmsghdr FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: libc.so.0.3: cannot open shared object file: Computer bought the farm
+socket/tst-connect FAIL 1 b-fs | error: tst-connect.c:41: socket (AF_INET, SOCK_STREAM, IPPROTO_TCP): Computer bought the farm
+socket/tst-shutdown FAIL 1 b-fs | error: xopen.c:28: open64 ("/dev/null", 0x3, 00): Computer bought the farm
+socket/tst-sockopt FAIL 1 b-fs | error: xsocket.c:30: socket (2, 1, 6): Computer bought the farm
+stdio-common/test-fseek FAIL 1 b-fs | /home/user/joist-glibc/w/build/stdio-common/test.dat: Computer bought the farm
+stdio-common/test-fwrite FAIL 1 b-fs | tmpfile: Computer bought the farm
+stdio-common/test-popen FAIL 1 b-ipc | popen: Computer bought the farm
+stdio-common/test-vfprintf FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+stdio-common/tst-bz11319 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-bz11319qlq9zo': Computer bought the farm
+stdio-common/tst-bz11319-fortify2 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-bz11319mUd8zo': Computer bought the farm
+stdio-common/tst-dprintf-length FAIL 1 b-ipc | error: tst-dprintf-length.c:31: not true: socketpair (AF_LOCAL, SOCK_DGRAM, 0, fds) == 0
+stdio-common/tst-fclose-devzero FAIL 1 b-fs | error: xfopen.c:29: could not open /dev/zero (mode "r"): Computer bought the farm
+stdio-common/tst-fclose-offset FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fclose-offsetbU8bAo': Computer bought the farm
+stdio-common/tst-fdopen FAIL 1 b-fs | mkstemp failed: Computer bought the farm
+stdio-common/tst-fdopen2 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-fdopen20SZ4zo"): Computer bought the farm
+stdio-common/tst-fflush-all-input FAIL 1 b-fs | error: tst-fflush-all-input.c:32: not true: temp != NULL
+stdio-common/tst-fflush-mmap FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fflush-mmapMXKaAo': Computer bought the farm
+stdio-common/tst-fgets2 NO-STATUS b-fs | testing closed fd stream...
+stdio-common/tst-fmemopen FAIL 1 b-fs | glibcroot: exit status 256, code 1
+stdio-common/tst-fopen FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fopen.HcB9zo': Computer bought the farm
+stdio-common/tst-fread FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freadRW0bAo"): Computer bought the farm
+stdio-common/tst-freopen2 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen2G37aAo"): Computer bought the farm
+stdio-common/tst-freopen3 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen3hAgcAo"): Computer bought the farm
+stdio-common/tst-freopen4 FAIL 1 b-fs | warning: could not become root outside namespace (Computer bought the farm)
+stdio-common/tst-freopen5 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen5ZokXzo"): Computer bought the farm
+stdio-common/tst-freopen6 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen6HkW4zo"): Computer bought the farm
+stdio-common/tst-freopen64-2 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen2BCBZzo"): Computer bought the farm
+stdio-common/tst-freopen64-3 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen3oZIaAo"): Computer bought the farm
+stdio-common/tst-freopen64-4 FAIL 1 b-fs | warning: could not become root outside namespace (Computer bought the farm)
+stdio-common/tst-freopen64-6 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen6VlwaAo"): Computer bought the farm
+stdio-common/tst-freopen64-7 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen-cancelCEUVzo"): Computer bought the farm
+stdio-common/tst-freopen7 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen-cancelkXx8zo"): Computer bought the farm
+stdio-common/tst-fseek FAIL 1 b-fs | tst-fseek: cannot open temporary file: Computer bought the farm
+stdio-common/tst-fseek-mmap FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fseek-mmapzy6aAo': Computer bought the farm
+stdio-common/tst-fwrite FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fwrite.MmI4zo': Computer bought the farm
+stdio-common/tst-fwrite-bz29459 TIMEOUT c-args | right: 0 (0x0); from: 0
+stdio-common/tst-fwrite-overflow FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fwrite-overflowwRxnAo': Computer bought the farm
+stdio-common/tst-fwrite-pipe FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+stdio-common/tst-fwrite-pos FAIL 1 b-fs | error: support_record_failure called without initialization
+stdio-common/tst-fwrite-ro FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fwrite-ro3JV7zo': Computer bought the farm
+stdio-common/tst-getline FAIL 1 b-fs | error: xfopen.c:29: could not open /dev/null (mode "r"): Computer bought the farm
+stdio-common/tst-getline-enomem FAIL 1 b-fs | error: tst-getline-enomem.c:66: not true: setrlimit (RLIMIT_AS, &limit) == 0
+stdio-common/tst-grouping FAIL 1 b-locale | glibcroot: exit status 256, code 1
+stdio-common/tst-grouping2 FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (1, "de_DE.UTF-8")
+stdio-common/tst-grouping3 FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (1, "de_DE.UTF-8")
+stdio-common/tst-grouping_iterator FAIL 1 b-locale | error: tst-grouping_iterator.c:174: not true: loc != 0
+stdio-common/tst-perror FAIL 1 b-fs | tst-perror: cannot create temporary file: Computer bought the farm
+stdio-common/tst-popen FAIL 1 b-ipc | popen failed Computer bought the farm
+stdio-common/tst-popen2 FAIL 1 c-stdin | fdopen failed: (ipc/mig) bad request message ID
+stdio-common/tst-popen3 FAIL 1 b-fs | error: xunlink.c:26: unlink ("/bin/sh"): Computer bought the farm
+stdio-common/tst-printf-format-as-c FAIL 1 c-args | Usage: tst-printf-format-as-c <specifier>
+stdio-common/tst-printf-format-as-char FAIL 1 c-args | Usage: tst-printf-format-as-char <specifier>
+stdio-common/tst-printf-format-as-double FAIL 1 c-args | Usage: tst-printf-format-as-double <specifier>
+stdio-common/tst-printf-format-as-int FAIL 1 c-args | Usage: tst-printf-format-as-int <specifier>
+stdio-common/tst-printf-format-as-ldouble FAIL 1 c-args | Usage: tst-printf-format-as-ldouble <specifier>
+stdio-common/tst-printf-format-as-llong FAIL 1 c-args | Usage: tst-printf-format-as-llong <specifier>
+stdio-common/tst-printf-format-as-long FAIL 1 c-args | Usage: tst-printf-format-as-long <specifier>
+stdio-common/tst-printf-format-as-s FAIL 1 c-args | Usage: tst-printf-format-as-s <specifier>
+stdio-common/tst-printf-format-as-short FAIL 1 c-args | Usage: tst-printf-format-as-short <specifier>
+stdio-common/tst-printf-format-as-uchar FAIL 1 c-args | Usage: tst-printf-format-as-uchar <specifier>
+stdio-common/tst-printf-format-as-uint FAIL 1 c-args | Usage: tst-printf-format-as-uint <specifier>
+stdio-common/tst-printf-format-as-ullong FAIL 1 c-args | Usage: tst-printf-format-as-ullong <specifier>
+stdio-common/tst-printf-format-as-ulong FAIL 1 c-args | Usage: tst-printf-format-as-ulong <specifier>
+stdio-common/tst-printf-format-as-ushort FAIL 1 c-args | Usage: tst-printf-format-as-ushort <specifier>
+stdio-common/tst-printf-format-d-c FAIL 1 c-args | Usage: tst-printf-format-d-c <specifier>
+stdio-common/tst-printf-format-d-char FAIL 1 c-args | Usage: tst-printf-format-d-char <specifier>
+stdio-common/tst-printf-format-d-double FAIL 1 c-args | Usage: tst-printf-format-d-double <specifier>
+stdio-common/tst-printf-format-d-int FAIL 1 c-args | Usage: tst-printf-format-d-int <specifier>
+stdio-common/tst-printf-format-d-ldouble FAIL 1 c-args | Usage: tst-printf-format-d-ldouble <specifier>
+stdio-common/tst-printf-format-d-llong FAIL 1 c-args | Usage: tst-printf-format-d-llong <specifier>
+stdio-common/tst-printf-format-d-long FAIL 1 c-args | Usage: tst-printf-format-d-long <specifier>
+stdio-common/tst-printf-format-d-s FAIL 1 c-args | Usage: tst-printf-format-d-s <specifier>
+stdio-common/tst-printf-format-d-short FAIL 1 c-args | Usage: tst-printf-format-d-short <specifier>
+stdio-common/tst-printf-format-d-uchar FAIL 1 c-args | Usage: tst-printf-format-d-uchar <specifier>
+stdio-common/tst-printf-format-d-uint FAIL 1 c-args | Usage: tst-printf-format-d-uint <specifier>
+stdio-common/tst-printf-format-d-ullong FAIL 1 c-args | Usage: tst-printf-format-d-ullong <specifier>
+stdio-common/tst-printf-format-d-ulong FAIL 1 c-args | Usage: tst-printf-format-d-ulong <specifier>
+stdio-common/tst-printf-format-d-ushort FAIL 1 c-args | Usage: tst-printf-format-d-ushort <specifier>
+stdio-common/tst-printf-format-f-c FAIL 1 c-args | Usage: tst-printf-format-f-c <specifier>
+stdio-common/tst-printf-format-f-char FAIL 1 c-args | Usage: tst-printf-format-f-char <specifier>
+stdio-common/tst-printf-format-f-double FAIL 1 c-args | Usage: tst-printf-format-f-double <specifier>
+stdio-common/tst-printf-format-f-int FAIL 1 c-args | Usage: tst-printf-format-f-int <specifier>
+stdio-common/tst-printf-format-f-ldouble FAIL 1 c-args | Usage: tst-printf-format-f-ldouble <specifier>
+stdio-common/tst-printf-format-f-llong FAIL 1 c-args | Usage: tst-printf-format-f-llong <specifier>
+stdio-common/tst-printf-format-f-long FAIL 1 c-args | Usage: tst-printf-format-f-long <specifier>
+stdio-common/tst-printf-format-f-s FAIL 1 c-args | Usage: tst-printf-format-f-s <specifier>
+stdio-common/tst-printf-format-f-short FAIL 1 c-args | Usage: tst-printf-format-f-short <specifier>
+stdio-common/tst-printf-format-f-uchar FAIL 1 c-args | Usage: tst-printf-format-f-uchar <specifier>
+stdio-common/tst-printf-format-f-uint FAIL 1 c-args | Usage: tst-printf-format-f-uint <specifier>
+stdio-common/tst-printf-format-f-ullong FAIL 1 c-args | Usage: tst-printf-format-f-ullong <specifier>
+stdio-common/tst-printf-format-f-ulong FAIL 1 c-args | Usage: tst-printf-format-f-ulong <specifier>
+stdio-common/tst-printf-format-f-ushort FAIL 1 c-args | Usage: tst-printf-format-f-ushort <specifier>
+stdio-common/tst-printf-format-p-c FAIL 1 c-args | Usage: tst-printf-format-p-c <specifier>
+stdio-common/tst-printf-format-p-char FAIL 1 c-args | Usage: tst-printf-format-p-char <specifier>
+stdio-common/tst-printf-format-p-double FAIL 1 c-args | Usage: tst-printf-format-p-double <specifier>
+stdio-common/tst-printf-format-p-int FAIL 1 c-args | Usage: tst-printf-format-p-int <specifier>
+stdio-common/tst-printf-format-p-ldouble FAIL 1 c-args | Usage: tst-printf-format-p-ldouble <specifier>
+stdio-common/tst-printf-format-p-llong FAIL 1 c-args | Usage: tst-printf-format-p-llong <specifier>
+stdio-common/tst-printf-format-p-long FAIL 1 c-args | Usage: tst-printf-format-p-long <specifier>
+stdio-common/tst-printf-format-p-s FAIL 1 c-args | Usage: tst-printf-format-p-s <specifier>
+stdio-common/tst-printf-format-p-short FAIL 1 c-args | Usage: tst-printf-format-p-short <specifier>
+stdio-common/tst-printf-format-p-uchar FAIL 1 c-args | Usage: tst-printf-format-p-uchar <specifier>
+stdio-common/tst-printf-format-p-uint FAIL 1 c-args | Usage: tst-printf-format-p-uint <specifier>
+stdio-common/tst-printf-format-p-ullong FAIL 1 c-args | Usage: tst-printf-format-p-ullong <specifier>
+stdio-common/tst-printf-format-p-ulong FAIL 1 c-args | Usage: tst-printf-format-p-ulong <specifier>
+stdio-common/tst-printf-format-p-ushort FAIL 1 c-args | Usage: tst-printf-format-p-ushort <specifier>
+stdio-common/tst-printf-format-s-c FAIL 1 c-args | Usage: tst-printf-format-s-c <specifier>
+stdio-common/tst-printf-format-s-char FAIL 1 c-args | Usage: tst-printf-format-s-char <specifier>
+stdio-common/tst-printf-format-s-double FAIL 1 c-args | Usage: tst-printf-format-s-double <specifier>
+stdio-common/tst-printf-format-s-int FAIL 1 c-args | Usage: tst-printf-format-s-int <specifier>
+stdio-common/tst-printf-format-s-ldouble FAIL 1 c-args | Usage: tst-printf-format-s-ldouble <specifier>
+stdio-common/tst-printf-format-s-llong FAIL 1 c-args | Usage: tst-printf-format-s-llong <specifier>
+stdio-common/tst-printf-format-s-long FAIL 1 c-args | Usage: tst-printf-format-s-long <specifier>
+stdio-common/tst-printf-format-s-s FAIL 1 c-args | Usage: tst-printf-format-s-s <specifier>
+stdio-common/tst-printf-format-s-short FAIL 1 c-args | Usage: tst-printf-format-s-short <specifier>
+stdio-common/tst-printf-format-s-uchar FAIL 1 c-args | Usage: tst-printf-format-s-uchar <specifier>
+stdio-common/tst-printf-format-s-uint FAIL 1 c-args | Usage: tst-printf-format-s-uint <specifier>
+stdio-common/tst-printf-format-s-ullong FAIL 1 c-args | Usage: tst-printf-format-s-ullong <specifier>
+stdio-common/tst-printf-format-s-ulong FAIL 1 c-args | Usage: tst-printf-format-s-ulong <specifier>
+stdio-common/tst-printf-format-s-ushort FAIL 1 c-args | Usage: tst-printf-format-s-ushort <specifier>
+stdio-common/tst-printf-format-sn-c FAIL 1 c-args | Usage: tst-printf-format-sn-c <specifier>
+stdio-common/tst-printf-format-sn-char FAIL 1 c-args | Usage: tst-printf-format-sn-char <specifier>
+stdio-common/tst-printf-format-sn-double FAIL 1 c-args | Usage: tst-printf-format-sn-double <specifier>
+stdio-common/tst-printf-format-sn-int FAIL 1 c-args | Usage: tst-printf-format-sn-int <specifier>
+stdio-common/tst-printf-format-sn-ldouble FAIL 1 c-args | Usage: tst-printf-format-sn-ldouble <specifier>
+stdio-common/tst-printf-format-sn-llong FAIL 1 c-args | Usage: tst-printf-format-sn-llong <specifier>
+stdio-common/tst-printf-format-sn-long FAIL 1 c-args | Usage: tst-printf-format-sn-long <specifier>
+stdio-common/tst-printf-format-sn-s FAIL 1 c-args | Usage: tst-printf-format-sn-s <specifier>
+stdio-common/tst-printf-format-sn-short FAIL 1 c-args | Usage: tst-printf-format-sn-short <specifier>
+stdio-common/tst-printf-format-sn-uchar FAIL 1 c-args | Usage: tst-printf-format-sn-uchar <specifier>
+stdio-common/tst-printf-format-sn-uint FAIL 1 c-args | Usage: tst-printf-format-sn-uint <specifier>
+stdio-common/tst-printf-format-sn-ullong FAIL 1 c-args | Usage: tst-printf-format-sn-ullong <specifier>
+stdio-common/tst-printf-format-sn-ulong FAIL 1 c-args | Usage: tst-printf-format-sn-ulong <specifier>
+stdio-common/tst-printf-format-sn-ushort FAIL 1 c-args | Usage: tst-printf-format-sn-ushort <specifier>
+stdio-common/tst-printf-format-v-c FAIL 1 c-args | Usage: tst-printf-format-v-c <specifier>
+stdio-common/tst-printf-format-v-char FAIL 1 c-args | Usage: tst-printf-format-v-char <specifier>
+stdio-common/tst-printf-format-v-double FAIL 1 c-args | Usage: tst-printf-format-v-double <specifier>
+stdio-common/tst-printf-format-v-int FAIL 1 c-args | Usage: tst-printf-format-v-int <specifier>
+stdio-common/tst-printf-format-v-ldouble FAIL 1 c-args | Usage: tst-printf-format-v-ldouble <specifier>
+stdio-common/tst-printf-format-v-llong FAIL 1 c-args | Usage: tst-printf-format-v-llong <specifier>
+stdio-common/tst-printf-format-v-long FAIL 1 c-args | Usage: tst-printf-format-v-long <specifier>
+stdio-common/tst-printf-format-v-s FAIL 1 c-args | Usage: tst-printf-format-v-s <specifier>
+stdio-common/tst-printf-format-v-short FAIL 1 c-args | Usage: tst-printf-format-v-short <specifier>
+stdio-common/tst-printf-format-v-uchar FAIL 1 c-args | Usage: tst-printf-format-v-uchar <specifier>
+stdio-common/tst-printf-format-v-uint FAIL 1 c-args | Usage: tst-printf-format-v-uint <specifier>
+stdio-common/tst-printf-format-v-ullong FAIL 1 c-args | Usage: tst-printf-format-v-ullong <specifier>
+stdio-common/tst-printf-format-v-ulong FAIL 1 c-args | Usage: tst-printf-format-v-ulong <specifier>
+stdio-common/tst-printf-format-v-ushort FAIL 1 c-args | Usage: tst-printf-format-v-ushort <specifier>
+stdio-common/tst-printf-format-vas-c FAIL 1 c-args | Usage: tst-printf-format-vas-c <specifier>
+stdio-common/tst-printf-format-vas-char FAIL 1 c-args | Usage: tst-printf-format-vas-char <specifier>
+stdio-common/tst-printf-format-vas-double FAIL 1 c-args | Usage: tst-printf-format-vas-double <specifier>
+stdio-common/tst-printf-format-vas-int FAIL 1 c-args | Usage: tst-printf-format-vas-int <specifier>
+stdio-common/tst-printf-format-vas-ldouble FAIL 1 c-args | Usage: tst-printf-format-vas-ldouble <specifier>
+stdio-common/tst-printf-format-vas-llong FAIL 1 c-args | Usage: tst-printf-format-vas-llong <specifier>
+stdio-common/tst-printf-format-vas-long FAIL 1 c-args | Usage: tst-printf-format-vas-long <specifier>
+stdio-common/tst-printf-format-vas-s FAIL 1 c-args | Usage: tst-printf-format-vas-s <specifier>
+stdio-common/tst-printf-format-vas-short FAIL 1 c-args | Usage: tst-printf-format-vas-short <specifier>
+stdio-common/tst-printf-format-vas-uchar FAIL 1 c-args | Usage: tst-printf-format-vas-uchar <specifier>
+stdio-common/tst-printf-format-vas-uint FAIL 1 c-args | Usage: tst-printf-format-vas-uint <specifier>
+stdio-common/tst-printf-format-vas-ullong FAIL 1 c-args | Usage: tst-printf-format-vas-ullong <specifier>
+stdio-common/tst-printf-format-vas-ulong FAIL 1 c-args | Usage: tst-printf-format-vas-ulong <specifier>
+stdio-common/tst-printf-format-vas-ushort FAIL 1 c-args | Usage: tst-printf-format-vas-ushort <specifier>
+stdio-common/tst-printf-format-vd-c FAIL 1 c-args | Usage: tst-printf-format-vd-c <specifier>
+stdio-common/tst-printf-format-vd-char FAIL 1 c-args | Usage: tst-printf-format-vd-char <specifier>
+stdio-common/tst-printf-format-vd-double FAIL 1 c-args | Usage: tst-printf-format-vd-double <specifier>
+stdio-common/tst-printf-format-vd-int FAIL 1 c-args | Usage: tst-printf-format-vd-int <specifier>
+stdio-common/tst-printf-format-vd-ldouble FAIL 1 c-args | Usage: tst-printf-format-vd-ldouble <specifier>
+stdio-common/tst-printf-format-vd-llong FAIL 1 c-args | Usage: tst-printf-format-vd-llong <specifier>
+stdio-common/tst-printf-format-vd-long FAIL 1 c-args | Usage: tst-printf-format-vd-long <specifier>
+stdio-common/tst-printf-format-vd-s FAIL 1 c-args | Usage: tst-printf-format-vd-s <specifier>
+stdio-common/tst-printf-format-vd-short FAIL 1 c-args | Usage: tst-printf-format-vd-short <specifier>
+stdio-common/tst-printf-format-vd-uchar FAIL 1 c-args | Usage: tst-printf-format-vd-uchar <specifier>
+stdio-common/tst-printf-format-vd-uint FAIL 1 c-args | Usage: tst-printf-format-vd-uint <specifier>
+stdio-common/tst-printf-format-vd-ullong FAIL 1 c-args | Usage: tst-printf-format-vd-ullong <specifier>
+stdio-common/tst-printf-format-vd-ulong FAIL 1 c-args | Usage: tst-printf-format-vd-ulong <specifier>
+stdio-common/tst-printf-format-vd-ushort FAIL 1 c-args | Usage: tst-printf-format-vd-ushort <specifier>
+stdio-common/tst-printf-format-vf-c FAIL 1 c-args | Usage: tst-printf-format-vf-c <specifier>
+stdio-common/tst-printf-format-vf-char FAIL 1 c-args | Usage: tst-printf-format-vf-char <specifier>
+stdio-common/tst-printf-format-vf-double FAIL 1 c-args | Usage: tst-printf-format-vf-double <specifier>
+stdio-common/tst-printf-format-vf-int FAIL 1 c-args | Usage: tst-printf-format-vf-int <specifier>
+stdio-common/tst-printf-format-vf-ldouble FAIL 1 c-args | Usage: tst-printf-format-vf-ldouble <specifier>
+stdio-common/tst-printf-format-vf-llong FAIL 1 c-args | Usage: tst-printf-format-vf-llong <specifier>
+stdio-common/tst-printf-format-vf-long FAIL 1 c-args | Usage: tst-printf-format-vf-long <specifier>
+stdio-common/tst-printf-format-vf-s FAIL 1 c-args | Usage: tst-printf-format-vf-s <specifier>
+stdio-common/tst-printf-format-vf-short FAIL 1 c-args | Usage: tst-printf-format-vf-short <specifier>
+stdio-common/tst-printf-format-vf-uchar FAIL 1 c-args | Usage: tst-printf-format-vf-uchar <specifier>
+stdio-common/tst-printf-format-vf-uint FAIL 1 c-args | Usage: tst-printf-format-vf-uint <specifier>
+stdio-common/tst-printf-format-vf-ullong FAIL 1 c-args | Usage: tst-printf-format-vf-ullong <specifier>
+stdio-common/tst-printf-format-vf-ulong FAIL 1 c-args | Usage: tst-printf-format-vf-ulong <specifier>
+stdio-common/tst-printf-format-vf-ushort FAIL 1 c-args | Usage: tst-printf-format-vf-ushort <specifier>
+stdio-common/tst-printf-format-vs-c FAIL 1 c-args | Usage: tst-printf-format-vs-c <specifier>
+stdio-common/tst-printf-format-vs-char FAIL 1 c-args | Usage: tst-printf-format-vs-char <specifier>
+stdio-common/tst-printf-format-vs-double FAIL 1 c-args | Usage: tst-printf-format-vs-double <specifier>
+stdio-common/tst-printf-format-vs-int FAIL 1 c-args | Usage: tst-printf-format-vs-int <specifier>
+stdio-common/tst-printf-format-vs-ldouble FAIL 1 c-args | Usage: tst-printf-format-vs-ldouble <specifier>
+stdio-common/tst-printf-format-vs-llong FAIL 1 c-args | Usage: tst-printf-format-vs-llong <specifier>
+stdio-common/tst-printf-format-vs-long FAIL 1 c-args | Usage: tst-printf-format-vs-long <specifier>
+stdio-common/tst-printf-format-vs-s FAIL 1 c-args | Usage: tst-printf-format-vs-s <specifier>
+stdio-common/tst-printf-format-vs-short FAIL 1 c-args | Usage: tst-printf-format-vs-short <specifier>
+stdio-common/tst-printf-format-vs-uchar FAIL 1 c-args | Usage: tst-printf-format-vs-uchar <specifier>
+stdio-common/tst-printf-format-vs-uint FAIL 1 c-args | Usage: tst-printf-format-vs-uint <specifier>
+stdio-common/tst-printf-format-vs-ullong FAIL 1 c-args | Usage: tst-printf-format-vs-ullong <specifier>
+stdio-common/tst-printf-format-vs-ulong FAIL 1 c-args | Usage: tst-printf-format-vs-ulong <specifier>
+stdio-common/tst-printf-format-vs-ushort FAIL 1 c-args | Usage: tst-printf-format-vs-ushort <specifier>
+stdio-common/tst-printf-format-vsn-c FAIL 1 c-args | Usage: tst-printf-format-vsn-c <specifier>
+stdio-common/tst-printf-format-vsn-char FAIL 1 c-args | Usage: tst-printf-format-vsn-char <specifier>
+stdio-common/tst-printf-format-vsn-double FAIL 1 c-args | Usage: tst-printf-format-vsn-double <specifier>
+stdio-common/tst-printf-format-vsn-int FAIL 1 c-args | Usage: tst-printf-format-vsn-int <specifier>
+stdio-common/tst-printf-format-vsn-ldouble FAIL 1 c-args | Usage: tst-printf-format-vsn-ldouble <specifier>
+stdio-common/tst-printf-format-vsn-llong FAIL 1 c-args | Usage: tst-printf-format-vsn-llong <specifier>
+stdio-common/tst-printf-format-vsn-long FAIL 1 c-args | Usage: tst-printf-format-vsn-long <specifier>
+stdio-common/tst-printf-format-vsn-s FAIL 1 c-args | Usage: tst-printf-format-vsn-s <specifier>
+stdio-common/tst-printf-format-vsn-short FAIL 1 c-args | Usage: tst-printf-format-vsn-short <specifier>
+stdio-common/tst-printf-format-vsn-uchar FAIL 1 c-args | Usage: tst-printf-format-vsn-uchar <specifier>
+stdio-common/tst-printf-format-vsn-uint FAIL 1 c-args | Usage: tst-printf-format-vsn-uint <specifier>
+stdio-common/tst-printf-format-vsn-ullong FAIL 1 c-args | Usage: tst-printf-format-vsn-ullong <specifier>
+stdio-common/tst-printf-format-vsn-ulong FAIL 1 c-args | Usage: tst-printf-format-vsn-ulong <specifier>
+stdio-common/tst-printf-format-vsn-ushort FAIL 1 c-args | Usage: tst-printf-format-vsn-ushort <specifier>
+stdio-common/tst-put-error FAIL 1 b-fs | tst-put-error: cannot create temporary file: Computer bought the farm
+stdio-common/tst-renameat2 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-renameat2-8L04zo"): Computer bought the farm
+stdio-common/tst-rndseek FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+stdio-common/tst-scanf-binary-c11 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/stdio-common//tst-scanf-binary-c11-in (mode "w"): Computer bought the farm
+stdio-common/tst-scanf-binary-c23 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/stdio-common//tst-scanf-binary-c23-in (mode "w"): Computer bought the farm
+stdio-common/tst-scanf-binary-gnu11 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/stdio-common//tst-scanf-binary-gnu11-in (mode "w"): Computer bought the farm
+stdio-common/tst-scanf-binary-gnu89 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/stdio-common//tst-scanf-binary-gnu89-in (mode "w"): Computer bought the farm
+stdio-common/tst-scanf-to_inpunct FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "fa_IR.UTF-8")
+stdio-common/tst-setvbuf2 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-setvbuf2XSz9zo': Computer bought the farm
+stdio-common/tst-sprintf NO-STATUS c-mem | glibcroot: no exit status
+stdio-common/tst-swprintf FAIL 1 b-locale | cannot set locale
+stdio-common/tst-tmpnam NO-STATUS b-fs | name = (null)
+stdio-common/tst-ungetc FAIL 1 b-fs | cannot open temporary file '/tmp/tst-ungetc.E5q2zo': Computer bought the farm
+stdio-common/tst-ungetc-fflush FAIL 1 b-fs | cannot open temporary file '/tmp/tst-ungetc-fflushZEA5zo': Computer bought the farm
+stdio-common/tst-unlockedio FAIL 1 b-fs | cannot open temporary file '/tmp/tst-unlockedio.qGpFAo': Computer bought the farm
+stdio-common/tst-vfprintf-mbs-prec TIMEOUT b-locale | error: tst-vfprintf-mbs-prec.c:522: not true: setlocale (LC_CTYPE, "de_DE.UTF-8") != NULL
+stdio-common/tst-vfprintf-width-i18n FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "hi_IN.UTF-8")
+stdio-common/tst-vfprintf-width-prec-alloc FAIL 1 b-fs | error: tst-vfprintf-width-prec-alloc.c:31: not true: setrlimit (RLIMIT_AS, &limit) == 0
+stdlib/test-at_quick_exit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+stdlib/test-atexit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+stdlib/test-atexit-recursive FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+stdlib/test-bz22786 FAIL 1 b-fs | error: mkdtemp ("/tmp/bz22786.LUw1zo"): Computer bought the farm
+stdlib/test-canon FAIL 1 b-fs | chdir: Computer bought the farm
+stdlib/test-cxa_atexit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+stdlib/test-cxa_atexit-race2 FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+stdlib/test-dlclose-exit-race FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: $ORIGIN/test-dlclose-exit-race-helper.so: cannot open shared object file: No such file or directory
+stdlib/test-on_exit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+stdlib/tst-arc4random-fork FAIL 1 d-hurd | error: xpthread_check_return.c:32: pthread_barrierattr_setpshared: Not supported
+stdlib/tst-arc4random-stats FAIL 127 b-entropy | Fatal glibc error: cannot get entropy for arc4random
+stdlib/tst-arc4random-thread FAIL 1 b-fork | Fatal glibc error: cannot get entropy for arc4random
+stdlib/tst-at_quick_exit FAIL 3 b-fork | fork: Function not implemented
+stdlib/tst-atexit FAIL 3 b-fork | fork: Function not implemented
+stdlib/tst-bz20544 FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+stdlib/tst-canon-bz26341 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-canon-bz26341gQhFAo': Computer bought the farm
+stdlib/tst-concurrent-quick_exit FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+stdlib/tst-cxa_atexit FAIL 3 b-fork | fork: Function not implemented
+stdlib/tst-environ-change-1 NO-STATUS c-args | glibcroot: no exit status
+stdlib/tst-environ-change-2 NO-STATUS c-args | glibcroot: no exit status
+stdlib/tst-getenv-signal FAIL 1 b-signal | error: xraise.c:26: raise (30): (ipc/send) invalid destination port
+stdlib/tst-getrandom FAIL 1 b-entropy | error: getrandom (0, 0x0): Computer bought the farm
+stdlib/tst-getrandom2 FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+stdlib/tst-makecontext-align FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+stdlib/tst-on_exit FAIL 3 b-fork | fork: Function not implemented
+stdlib/tst-putenv FAIL 1 c-args | envvar not defined
+stdlib/tst-qsort3 FAIL 127 b-entropy | Fatal glibc error: cannot get entropy for arc4random
+stdlib/tst-qsort7 TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4447676, sp 4058248
+stdlib/tst-qsortx7 TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4447868, sp 4058248
+stdlib/tst-secure-getenv FAIL 1 c-args | PATH not set
+stdlib/tst-setcontext2 FAIL 127 b-signal | after getcontext
+stdlib/tst-setcontext3 FAIL 1 c-args | FAIL: Test missing filename argument.
+stdlib/tst-setcontext4 FAIL 127 b-signal | after getcontext
+stdlib/tst-strfmon_l FAIL 127 b-locale | error: newlocale (de_DE.UTF-8): No such file or directory
+stdlib/tst-strfrom-locale FAIL 93 b-locale | Testing in locale: de_DE.UTF-8
+stdlib/tst-strtod-nan-locale FAIL 1 b-locale | setlocale (LC_ALL, "tr_TR.UTF-8") failed
+stdlib/tst-strtod-overflow FAIL 1 b-fs | error: blob_repeat.c:169: mkstemp ("/tmp/support_blob_repeat-kdvVzo"): Computer bought the farm
+stdlib/tst-strtod-round FAIL 1 d-clang | strtof128 (0x0.70000000000000000000000000002p-16382) underflow 0 not 1
+stdlib/tst-strtod-underflow FAIL 1 d-clang | strtof64x (-0x1.ffffffffffffffffffffp-16383) (FE_UPWARD) returned -0x7.fffffffffffffffp-16385, errno = 1073741858, underflow exception
+stdlib/tst-strtod1i FAIL 1 b-locale | Locale tests
+stdlib/tst-strtod3 FAIL 1 b-locale | could not set locale
+stdlib/tst-strtod4 FAIL 1 b-locale | could not set locale
+stdlib/tst-strtod5 FAIL 1 b-locale | could not set locale
+stdlib/tst-strtod5i FAIL 1 b-locale | could not set locale
+stdlib/tst-strtol-locale FAIL 1 b-locale | setlocale (LC_ALL, "tr_TR.UTF-8") failed
+stdlib/tst-system FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-system-fOWbAo"): Computer bought the farm
+stdlib/tst-tls-atexit FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: $ORIGIN/tst-tls-atexit-lib.so: cannot open shared object file: No such file or directory
+stdlib/tst-tls-atexit-nodelete FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: $ORIGIN/tst-tls-atexit-lib.so: cannot open shared object file: No such file or directory
+string/test-bcopy NO-STATUS c-mem | bcopy
+string/test-memcpy NO-STATUS c-mem | __memcpy_erms	__memcpy_ssse3	__memcpy_sse2_unaligned	__memcpy_sse2_unaligned_erms
+string/test-memcpy-large NO-STATUS c-mem | __memcpy_erms	__memcpy_ssse3	__memcpy_sse2_unaligned	__memcpy_sse2_unaligned_erms
+string/test-memmove NO-STATUS c-mem | __memmove_erms	__memmove_ssse3	__memmove_sse2_unaligned	__memmove_sse2_unaligned_erms
+string/test-mempcpy NO-STATUS c-mem | __mempcpy_erms	__mempcpy_ssse3	__mempcpy_sse2_unaligned	__mempcpy_sse2_unaligned_erms
+string/test-strcasecmp FAIL 1 b-locale | test-strcasecmp: cannot set locale "en_US.ISO-8859-1"
+string/test-strncasecmp FAIL 1 b-locale | test-strncasecmp: cannot set locale "en_US.ISO-8859-1"
+string/tst-memmove-overflow FAIL 1 b-fs | error: blob_repeat.c:169: mkstemp ("/tmp/support_blob_repeat-8eBfAo"): Computer bought the farm
+string/tst-strcoll-overflow NO-STATUS c-mem | glibcroot: no exit status
+string/tst-strerror FAIL 1 b-locale | error: xnewlocale.c:29: error: newlocale (8127, "pt_BR.UTF-8", (nil))
+string/tst-strsignal FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "pt_BR.UTF-8")
+string/tst-strxfrm NO-STATUS b-locale | glibcroot: no exit status
+string/tst-strxfrm2 FAIL 1 b-locale | cannot set locale "de_DE.UTF-8"
+support/test-container FAIL 1 b-fs | error: test-container.c:833: Cannot create testroot lock.
+support/test-run-command NO-STATUS b-exec | glibcroot: no exit status
+support/tst-support-open-dev-null-range FAIL 1 b-fs | error: support-open-dev-null-range.c:48: open64 ("/dev/null", 0x1, 0600): Computer bought the farm
+support/tst-support-openpty FAIL 1 b-ipc | error: support_openpty.c:64: posix_openpt: No such file or directory
+support/tst-support-openpty-c FAIL 1 b-ipc | error: support_openpty.c:64: posix_openpt: No such file or directory
+support/tst-support-process_state FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+support/tst-support_blob_repeat FAIL 1 b-fs | error: blob_repeat.c:169: mkstemp ("/tmp/support_blob_repeat-KDq8zo"): Computer bought the farm
+support/tst-support_capture_subprocess FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+support/tst-support_descriptors FAIL 1 b-fs | error: support_descriptors.c:68: opendir ("/proc/self/fd"): Computer bought the farm
+support/tst-support_fuse FAIL 1 b-fs | error: support_record_failure called without initialization
+support/tst-support_readdir FAIL 1 b-fs | error: xopendir.c:28: opendir ("."): Computer bought the farm
+support/tst-support_record_failure FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+support/tst-test_compare FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+support/tst-test_compare_blob FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+support/tst-test_compare_string FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+support/tst-test_compare_string_wide FAIL 1 b-ipc | error: xpipe.c:27: pipe: Computer bought the farm
+support/tst-xdirent FAIL 1 b-fs | error: xopendir.c:28: opendir ("."): Computer bought the farm
+support/tst-xreadlink FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-xreadlink-q4i4zo"): Computer bought the farm
+support/tst-xsigstack FAIL 1 b-wx | error: xmprotect.c:27: mprotect (0x100115000, 40960, 0x7): Permission denied
+sysvipc/test-sysvmsg FAIL 1 b-fs | cannot open temporary file '/tmp/tst-sysvmsg.Ikz1zo': Computer bought the farm
+sysvipc/test-sysvsem FAIL 1 b-fs | cannot open temporary file '/tmp/tst-sysvsem.TPh5zo': Computer bought the farm
+sysvipc/test-sysvshm FAIL 1 b-fs | cannot open temporary file '/tmp/tst-sysvshm.1bZ7zo': Computer bought the farm
+time/tst-adjtime FAIL 1 b-clock | error: tst-adjtime.c:38: adjtime (NULL, ...) failed: Operation not permitted
+time/tst-clock_gettime FAIL 1 b-clock | error: tst-clock_gettime.c:119: not true: ret == 0
+time/tst-clock_nanosleep TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4452380, sp 4058328
+time/tst-cpuclock1 FAIL 1 b-fork | fork: Function not implemented
+time/tst-ftime_l FAIL 1 b-locale | newlocale failed
+time/tst-getdate FAIL 1 b-fs | cannot open temporary file '/tmp/tst-getdate.L8J8zo': Computer bought the farm
+time/tst-itimer FAIL 1 b-signal | error: 38 test failures
+time/tst-strftime3 FAIL 1 b-locale | error: 168 test failures
+time/tst-strptime FAIL 1 b-locale | cannot set locale ja_JP.EUC-JP: No such file or directory
+time/tst-timespec_get FAIL 1 b-clock | error: 2 test failures
+timezone/test-tz FAIL 1 b-fs | 1 errors.
+timezone/tst-bz28707 FAIL 1 b-fs | warning: tzset set errno to 1073741928 (Computer bought the farm)tst-bz28707.c:47: error: string comparison failed
+timezone/tst-bz29951 FAIL 1 b-fs | left: 1073741928 (0x40000068, EIEIO); from: errno
+timezone/tst-timezone FAIL 1 b-fs | TZ=GMT 892166400 0 0 0 10 3 98 5 99 0
+timezone/tst-tzset FAIL 1 b-fs | setrlimit (RLIMIT_AS) failed: Computer bought the farm
+wcsmbs/test-c8rtomb FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "de_DE.UTF-8")
+wcsmbs/test-mbrtoc8 FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "de_DE.UTF-8")
+wcsmbs/tst-btowc FAIL 1 b-locale | cannot set locale "en_US.ANSI_X3.4-1968"
+wcsmbs/tst-c16-surrogate FAIL 1 b-locale | error: tst-c16-surrogate.c:31: not true: setlocale (LC_ALL, "de_DE.UTF-8") != NULL
+wcsmbs/tst-c16c32-1 FAIL 1 b-locale | cannot set locale
+wcsmbs/tst-c32-state FAIL 1 b-locale | error: tst-c32-state.c:27: not true: setlocale (LC_ALL, "de_DE.UTF-8") != NULL
+wcsmbs/tst-fgetwc-after-eof FAIL 1 b-ipc | error: support_openpty.c:64: posix_openpt: No such file or directory
+wcsmbs/tst-mbrtowc FAIL 1 b-locale | Testing locale "C":
+wcsmbs/tst-mbrtowc2 FAIL 1 b-locale | FAIL
+wcsmbs/tst-wcstod-nan-locale FAIL 1 b-locale | setlocale (LC_ALL, "tr_TR.UTF-8") failed
+wcsmbs/tst-wcstod-round NO-STATUS c-module | root: a module isn't a frame of at most 512 pages
+wcsmbs/tst-wcstol-locale FAIL 1 b-locale | setlocale (LC_ALL, "tr_TR.UTF-8") failed
+wcsmbs/tst-wscanf-binary-c11 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/wcsmbs//tst-scanf-binary-c11-in (mode "w"): Computer bought the farm
+wcsmbs/tst-wscanf-binary-c23 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/wcsmbs//tst-scanf-binary-c23-in (mode "w"): Computer bought the farm
+wcsmbs/tst-wscanf-binary-gnu11 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/wcsmbs//tst-scanf-binary-gnu11-in (mode "w"): Computer bought the farm
+wcsmbs/tst-wscanf-binary-gnu89 FAIL 1 b-fs | error: xfopen.c:29: could not open /home/user/joist-glibc/w/build/wcsmbs//tst-scanf-binary-gnu89-in (mode "w"): Computer bought the farm
+wcsmbs/tst-wscanf-to_inpunct FAIL 1 b-locale | error: xsetlocale.c:28: error: setlocale (6, "fa_IR.UTF-8")
