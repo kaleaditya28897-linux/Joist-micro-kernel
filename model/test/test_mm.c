@@ -23,12 +23,16 @@ static uint32_t t, c, d; /* mm's indices for T, C and D */
 /* Root's slots: T, the task mm serves; C and D, two more (a clone's child,
  * a task to share with); a frame lent to each for its tables; the pool, and
  * its second part when a test splits it. */
-enum { TK = 0, MEM = 1, SELF = 2, POOL = 3, TC = 4, TD = 5, MEMC = 6, MEMD = 7, POOL2 = 8 };
+enum { TK = 0, MEM = 1, SELF = 2, POOL = 3, TC = 4, TD = 5, MEMC = 6, MEMD = 7, POOL2 = 8,
+       TE = 9, MEME = 10, GROWF = 11, GROW0 = 20 /* to 39: table runs lent on demand */ };
 
 /* Memory for the tasks' page tables (lent pages), as test_map.c: 32 pages
  * each, from MEM_BASE. */
 #define MEM_BASE 0x4000u
-#define MEM_PAGES 96u
+/* And, for the tests of page tables on demand, E's 6 (MEME, at MEM_BASE +
+ * 96) and GROWF_PAGES for the runs lent on demand (at MEM_BASE + 102). */
+#define GROWF_PAGES (6u * MM_TABLE_GROW + 1u)
+#define MEM_PAGES (102u + GROWF_PAGES)
 static uint64_t mem[MEM_PAGES][JOIST_PAGE_SIZE / 8u];
 
 /* The pool's frame: POOL_PAGES pages at POOL_BASE, its bytes simulated. */
@@ -160,11 +164,64 @@ static int k_finish(void *ctx)
     return 0;
 }
 
+/* Page tables on demand (0021): runs of MM_TABLE_GROW pages split off the
+ * end of GROWF, one more slot from GROW0 each, while grow_left lasts; runs
+ * given back (undonate) are lent again first, once the kernel has let them
+ * go. Off unless a test turns it on (grow_on), so mm's other tests see a
+ * task's first lent frame alone, as before. */
+static int grow_on;
+static unsigned donates, undonates;
+static uint64_t grow_left;
+static uint32_t grow_next;
+static uint32_t grow_back[8];
+static unsigned nback;
+
+static int k_donate(void *ctx, uint32_t ts, uint32_t *run)
+{
+    (void)ctx;
+    donates++;
+    if (!grow_on) {
+        return JOIST_E_NOMEM;
+    }
+    for (unsigned i = 0; i < nback; i++) {
+        if (joist_space_donate(&k, root, ts, grow_back[i]) == JOIST_OK) {
+            *run = grow_back[i];
+            grow_back[i] = grow_back[--nback];
+            return 0;
+        }
+    }
+    if (grow_left <= MM_TABLE_GROW) {
+        return JOIST_E_NOMEM;
+    }
+    uint32_t r = grow_next;
+    if (joist_frame_split(&k, root, GROWF, grow_left - MM_TABLE_GROW, r) != JOIST_OK) {
+        return JOIST_E_NOMEM;
+    }
+    grow_next++;
+    grow_left -= MM_TABLE_GROW;
+    int e = (int)joist_space_donate(&k, root, ts, r);
+    if (e != JOIST_OK) {
+        grow_back[nback++] = r;
+        return e;
+    }
+    *run = r;
+    return 0;
+}
+
+static void k_undonate(void *ctx, uint32_t run)
+{
+    (void)ctx;
+    undonates++;
+    if (nback < sizeof grow_back / sizeof grow_back[0]) {
+        grow_back[nback++] = run;
+    }
+}
+
 static const struct mm_kops kops = {
     .ctx = NULL, .map = k_map, .map_replace = k_map_replace, .unmap = k_unmap,
     .protect = k_protect, .page = k_page, .region_create = k_region_create,
     .region_add = k_region_add, .region_map = k_region_map, .query = k_query, .give = k_give,
-    .kill = k_kill, .del = k_del, .finish = k_finish};
+    .kill = k_kill, .del = k_del, .finish = k_finish, .donate = k_donate, .undonate = k_undonate};
 
 /* ---- the world ---- */
 
@@ -188,6 +245,11 @@ static void setup(void)
     maps = 0;
     map_fail = 0;
     pool_split = POOL_PAGES;
+    grow_on = 0;
+    donates = undonates = 0;
+    grow_left = 0;
+    grow_next = GROW0;
+    nback = 0;
     finish_steps = 1000u;
     memset(mem, 0, sizeof mem);
     memset(pool, 0xa5, sizeof pool); /* a page mm hands out must be zeroed */
@@ -1142,4 +1204,120 @@ JT_TEST(mm_tree_keeps_pages_it_shared_after_its_tasks_go)
     JT_REQUIRE(mm_unmap(&m, d, 0x900, 2) == MM_OK);
     JT_CHECK(!m.tree[r].live && m.nfree == POOL_PAGES);
     JT_CHECK(clean());
+}
+
+/* ---- page tables on demand (0021; the owner's design of 2026-11-10) ---- */
+
+/* E, served by mm in a tree of its own, its page tables paid for with 6
+ * lent pages (MEME): the first page it maps takes them all (a table and
+ * its shadow at each level below the top), each new 2 MiB span after it
+ * two more. GROWF holds `runs` runs to lend on demand. */
+static uint32_t e;
+static joist_cspace E;
+
+static void grow_world(unsigned runs)
+{
+    grow_on = 1;
+    grow_left = (uint64_t)runs * MM_TABLE_GROW + 1u;
+    if (joist_boot_frame(&k, root, MEME, MEM_BASE + 96u, 6) != JOIST_OK ||
+        joist_boot_frame(&k, root, GROWF, MEM_BASE + 102u, grow_left) != JOIST_OK ||
+        joist_task_create(&k, root, 20, TE) != JOIST_OK ||
+        joist_space_donate(&k, root, TE, MEME) != JOIST_OK || mm_task_add(&m, TE, &e) != MM_OK ||
+        mm_set_limit(&m, e, 0, POOL_PAGES + 4u * MM_TABLE_GROWS * MM_TABLE_GROW, MM_MAX_TASKS) != MM_OK ||
+        mm_map_anon(&m, e, 0x400, 48u * JOIST_PT_ENTRIES, MM_W) != MM_OK) {
+        jt_fail(__FILE__, __LINE__, "the test's world could not be set up as written", 0);
+        return;
+    }
+    E = k.obj[k.cs[root].slot[TE].obj - 1u].target - 1u;
+}
+
+/* A write fault in E's span i (one page): mm's answer. */
+static int span_fault(unsigned i)
+{
+    return mm_fault(&m, e, 0x400 + (uint64_t)i * JOIST_PT_ENTRIES, MM_ACCESS_WRITE);
+}
+
+JT_TEST(mm_tables_grow_on_demand)
+{
+    setup();
+    grow_world(3);
+    JT_CHECK(span_fault(0) == 1 && m.task[e].ngrow == 0 && donates == 0); /* the 6 lent pages */
+    /* Each new span takes two pages: a run of 16 lasts eight spans. */
+    for (unsigned i = 1; i <= 8; i++) {
+        JT_CHECK(span_fault(i) == 1);
+    }
+    JT_CHECK(m.task[e].ngrow == 1 && donates == 1 &&
+             m.tree[m.task[e].tree].tables == MM_TABLE_GROW);
+    JT_CHECK(span_fault(9) == 1 && m.task[e].ngrow == 2 &&
+             m.tree[m.task[e].tree].tables == 2u * MM_TABLE_GROW);
+    for (unsigned i = 0; i <= 9; i++) {
+        JT_CHECK(pte_in(E, 0x400 + (uint64_t)i * JOIST_PT_ENTRIES) != 0);
+    }
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tables_refused_when_none_is_left_changes_nothing)
+{
+    setup();
+    grow_world(1);
+    for (unsigned i = 0; i <= 8; i++) {
+        JT_REQUIRE(span_fault(i) == 1);
+    }
+    JT_REQUIRE(m.task[e].ngrow == 1);
+    uint32_t nmap = m.task[e].nmap, nfree = m.nfree;
+    /* No run left: the fault is refused, and nothing has changed. */
+    JT_CHECK(span_fault(9) == 0 && donates == 2);
+    JT_CHECK(m.task[e].ngrow == 1 && m.tree[m.task[e].tree].tables == MM_TABLE_GROW &&
+             m.task[e].nmap == nmap && m.nfree == nfree &&
+             pte_in(E, 0x400 + 9u * JOIST_PT_ENTRIES) == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tables_held_to_the_tree_ceiling)
+{
+    setup();
+    grow_world(3);
+    JT_REQUIRE(span_fault(0) == 1);
+    /* Room for one more page but not a run: no run is asked for. */
+    const struct mm_tree *g = &m.tree[m.task[e].tree];
+    JT_REQUIRE(mm_set_limit(&m, e, 0, g->pages + g->tables + MM_TABLE_GROW - 1u, MM_MAX_TASKS) == MM_OK);
+    JT_CHECK(span_fault(1) == 0 && donates == 0 && m.task[e].ngrow == 0 && g->tables == 0);
+    /* With room for it, it is lent. */
+    JT_REQUIRE(mm_set_limit(&m, e, 0, g->pages + g->tables + MM_TABLE_GROW + 1u, MM_MAX_TASKS) == MM_OK);
+    JT_CHECK(span_fault(1) == 1 && m.task[e].ngrow == 1 && g->tables == MM_TABLE_GROW);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tables_at_most_MM_TABLE_GROWS_a_task)
+{
+    setup();
+    grow_world(MM_TABLE_GROWS + 1u);
+    unsigned i = 0;
+    while (i < 1u + 8u * MM_TABLE_GROWS) {
+        JT_REQUIRE(span_fault(i) == 1);
+        i++;
+    }
+    JT_CHECK(m.task[e].ngrow == MM_TABLE_GROWS && donates == MM_TABLE_GROWS);
+    /* A run is left, but the task has its most. */
+    JT_CHECK(span_fault(i) == 0 && donates == MM_TABLE_GROWS && m.task[e].ngrow == MM_TABLE_GROWS);
+    JT_CHECK(clean());
+}
+
+JT_TEST(mm_tables_come_back_when_the_task_goes)
+{
+    setup();
+    grow_world(3);
+    for (unsigned i = 0; i <= 9; i++) {
+        JT_REQUIRE(span_fault(i) == 1);
+    }
+    JT_REQUIRE(m.task[e].ngrow == 2);
+    uint32_t r = m.task[e].tree;
+    JT_REQUIRE(joist_task_destroy(&k, root, TE) == JOIST_OK);
+    mm_task_gone(&m, e);
+    JT_CHECK(undonates == 2 && nback == 2 && !m.tree[r].live && m.tree[r].tables == 0);
+    JT_CHECK(m.nfree == POOL_PAGES && clean());
+    /* Lent again: the kernel let them go with E's space. */
+    JT_REQUIRE(joist_cap_delete(&k, root, TE) == JOIST_OK && joist_task_create(&k, root, 20, TE) == JOIST_OK);
+    uint32_t run = 0;
+    JT_CHECK(k_donate(NULL, TE, &run) == 0 && (run == GROW0 || run == GROW0 + 1u) && nback == 1);
 }

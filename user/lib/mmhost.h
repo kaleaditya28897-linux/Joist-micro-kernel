@@ -27,7 +27,14 @@
 #ifndef HOST_PRIO
 #define HOST_PRIO 100u /* the children's threads' */
 #endif
-#define HOST_TABLE_PAGES (HOST_TABLE_RUNS * MM_TABLE_PAGES + 1u)
+/* What mm may lend on demand past the first runs (mmlib.h, MM_TABLE_GROW;
+ * the owner's design of 2026-11-10: 1024 pages): 1024 where the root's
+ * frames hold it (a large pool's build), 64 where they are 512 pages and
+ * the first runs take half of one. */
+#ifndef HOST_TABLE_SHARED
+#define HOST_TABLE_SHARED (HOST_POOL_PAGES >= 4096u ? 1024u : 64u)
+#endif
+#define HOST_TABLE_PAGES (HOST_TABLE_RUNS * MM_TABLE_PAGES + 1u + HOST_TABLE_SHARED)
 /* mm's quota: its leaf for the tasks it makes, its table runs, and each
  * task it makes (MM_CHILD_QUOTA and the task object), with room over. */
 #define HOST_MM_DONATION (64u + MM_MAX_TASKS * (MM_CHILD_QUOTA + 1u))

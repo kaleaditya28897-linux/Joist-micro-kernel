@@ -38,7 +38,8 @@ CORE     := ../kernel/core
 CNODE    := -DJOIST_CNODE_ROOT=2u -DJOIST_CNODE_LEAF=64u -DJOIST_MAX_LEAVES=8u
 # mm's library (servers/mm, decision 0023) is tested against the model too.
 MM       := ../servers/mm
-CPPFLAGS := -I../kernel/include -I$(CORE) -I$(MM) -I../glibc/sysdeps/joist $(CNODE) -DJN_LEAF=64u -DJN_LEAVES=2u -D_POSIX_C_SOURCE=200809L
+CPPFLAGS := -I../kernel/include -I$(CORE) -I$(MM) -I../glibc/sysdeps/joist $(CNODE) -DJN_LEAF=64u -DJN_LEAVES=2u -D_POSIX_C_SOURCE=200809L \
+            -DMM_TABLE_GROWS=4u
 OPT      ?= -O1 -g -fno-omit-frame-pointer
 
 # glibc's port names on Joist (Phase 5 step 7) are tested against the model

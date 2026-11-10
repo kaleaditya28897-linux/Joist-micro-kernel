@@ -40,6 +40,13 @@ static uint64_t tables_left;              /* pages left to lend in MM_S_TABLES *
 _Static_assert(MM_S_ROOT - MM_S_FREE >= MM_MAX_TASKS, "a slot for each task record's table run");
 static uint64_t next_slot = MM_S_FREE;    /* mm's own slots, up to MM_S_ROOT */
 static uint64_t table_run[MM_MAX_TASKS];  /* the run lent to the task with that index */
+/* Table runs lent on demand (mmlib's kops.donate): their slots from
+ * MM_S_GROW, split off MM_S_TABLES past the first runs still owed; a run
+ * given back (its task's space gone) is lent again first. */
+#define GROW_SLOTS 128u
+static uint64_t grow_next = MM_S_GROW;
+static uint32_t grow_back[GROW_SLOTS];
+static uint32_t nback;
 static uint64_t gen[MM_MAX_TASKS];        /* each index's generation: its id's (MM_ID) */
 /* Each task's pending acceptance of a share (MM_REQ_SHARE_ACCEPT): from
  * the task with id `from`, n pages at va; n == 0: none. */
@@ -158,6 +165,54 @@ static int k_finish(void *ctx)
     return !more;
 }
 
+/* The pages of MM_S_TABLES that the first runs not yet made need. */
+static uint64_t first_runs_owed(void)
+{
+    uint64_t n = 0;
+    for (uint32_t t = 0; t < MM_MAX_TASKS; t++) {
+        n += table_run[t] == 0 ? MM_TABLE_PAGES : 0u;
+    }
+    return n;
+}
+
+static int k_donate(void *ctx, uint32_t task, uint32_t *run)
+{
+    (void)ctx;
+    for (uint32_t i = 0; i < nback; i++) {
+        if (j_space_donate(task, grow_back[i]) == J_OK) {
+            *run = grow_back[i];
+            grow_back[i] = grow_back[--nback];
+            return 0;
+        }
+    }
+    /* A new run, leaving the first runs owed and the page table_run_new
+     * keeps (it splits only what is past it). */
+    if (tables_left <= first_runs_owed() + MM_TABLE_GROW || grow_next >= MM_S_GROW + GROW_SLOTS) {
+        return MM_KE_NOMEM;
+    }
+    uint64_t r = grow_next;
+    if (j_frame_split(MM_S_TABLES, tables_left - MM_TABLE_GROW, r) != J_OK) {
+        return MM_KE_NOMEM;
+    }
+    grow_next++;
+    tables_left -= MM_TABLE_GROW;
+    uint64_t e = j_space_donate(task, r);
+    if (e != J_OK) {
+        grow_back[nback++] = (uint32_t)r; /* kept for the next */
+        return (int)e;
+    }
+    *run = (uint32_t)r;
+    return 0;
+}
+
+static void k_undonate(void *ctx, uint32_t run)
+{
+    (void)ctx;
+    if (nback < GROW_SLOTS) {
+        grow_back[nback++] = run;
+    }
+}
+
 static const struct mm_kops kops = {
     .ctx = 0,
     .map = k_map,
@@ -173,6 +228,8 @@ static const struct mm_kops kops = {
     .kill = k_kill,
     .del = k_del,
     .finish = k_finish,
+    .donate = k_donate,
+    .undonate = k_undonate,
 };
 
 /* ---- the root's requests ---- */
@@ -206,7 +263,8 @@ static uint64_t init(void)
     }
     /* The second leaf, for the tasks mm makes (MM_S_CHILD on), and the
      * third, for its region capabilities (MM_S_REGION on). */
-    if (j_cspace_grow(MM_S_CHILD / 128u) != J_OK || j_cspace_grow(MM_S_REGION / 128u) != J_OK) {
+    if (j_cspace_grow(MM_S_CHILD / 128u) != J_OK || j_cspace_grow(MM_S_REGION / 128u) != J_OK ||
+        j_cspace_grow(MM_S_GROW / 128u) != J_OK) {
         return MM_E_NOMEM;
     }
     M.kreg_slot = MM_S_REGION;

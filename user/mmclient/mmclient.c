@@ -459,7 +459,7 @@ static uint64_t full_test(struct work *w)
     if (clone_only() != MM_E_KERNEL) {
         return 8;
     }
-    pause_for_root(w, 3); /* one task, 4 + 8 pages */
+    pause_for_root(w, 3); /* one task, 4 + MMC_FULL_REGIONS pages */
     for (uint64_t i = 1; i <= MMC_FULL_REGIONS; i++) {
         if (page(i * MM_SPAN)[0] != i) {
             return 9;

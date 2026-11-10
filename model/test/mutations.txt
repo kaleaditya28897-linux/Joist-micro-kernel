@@ -286,8 +286,8 @@ mm-run-past-a-frame @@ ../servers/mm/mmlib.c @@ p == r->p + r->n && m->pg[p].fra
 mm-run-across-perms @@ ../servers/mm/mmlib.c @@ p == r->p + r->n && m->pg[p].frame == m->pg[r->p].frame && perms == r->perms) { @@ p == r->p + r->n && m->pg[p].frame == m->pg[r->p].frame) {
 mm-run-across-a-span @@ ../servers/mm/mmlib.c @@ va == r->va + r->n && va / MM_SPAN == r->va / MM_SPAN && @@ va == r->va + r->n &&
 mm-run-across-a-gap @@ ../servers/mm/mmlib.c @@ va == r->va + r->n && va / MM_SPAN == r->va / MM_SPAN && @@ va / MM_SPAN == r->va / MM_SPAN &&
-mm-run-one-too-long @@ ../servers/mm/mmlib.c @@ g->off, r->n, m->task[r->t].slot, r->va, @@ g->off, r->n + 1u, m->task[r->t].slot, r->va,
-mm-run-one-too-short @@ ../servers/mm/mmlib.c @@ g->off, r->n, m->task[r->t].slot, r->va, @@ g->off, r->n - 1u, m->task[r->t].slot, r->va,
+mm-run-one-too-long @@ ../servers/mm/mmlib.c @@ g->off, r->n, r->va, r->perms) == 0 @@ g->off, r->n + 1u, r->va, r->perms) == 0
+mm-run-one-too-short @@ ../servers/mm/mmlib.c @@ g->off, r->n, r->va, r->perms) == 0 @@ g->off, r->n - 1u, r->va, r->perms) == 0
 mm-run-failed-kept @@ ../servers/mm/mmlib.c @@         run_undo(m, r); @@         (void)0;
 mm-run-fault-no-flush @@ ../servers/mm/mmlib.c @@     (void)run_flush(m, &run); @@     (void)0;
 mm-run-clone-no-flush @@ ../servers/mm/mmlib.c @@     return run_flush(m, &run); @@     return MM_OK;
@@ -348,7 +348,7 @@ mm-kreg-clone-not-copied @@ ../servers/mm/mmlib.c @@                 memcpy(byte
 mm-kreg-clone-maps-shared @@ ../servers/mm/mmlib.c @@     int e = m->k.region_map(m->k.ctx, m->kreg_slot + j, r->ext, r->page, r->n, r->va, r->perms); @@     int e = m->k.region_map(m->k.ctx, m->kreg_slot + j, r->ext, r->page, r->n, r->va, 0);
 mm-kreg-clone-run-ignores-extent @@ ../servers/mm/mmlib.c @@                 if (run.n != 0 && run.ext == y && run.page + run.n == page && @@                 if (run.n != 0 && run.page + run.n == page &&
 # Phase 5 step 4: mm's trees (0028).
-mm-tree-ceiling-ignored @@ ../servers/mm/mmlib.c @@     if (n > m->nfree || n > g->ceil || g->pages > g->ceil - n) { @@     if (n > m->nfree) {
+mm-tree-ceiling-ignored @@ ../servers/mm/mmlib.c @@     if (n > m->nfree || n > g->ceil || g->pages + g->tables > g->ceil - n) { @@     if (n > m->nfree) {
 mm-tree-reserve-ignored @@ ../servers/mm/mmlib.c @@     return m->nfree - n >= unused_all(m) - own; @@     return own <= n;
 mm-tree-admission-unchecked @@ ../servers/mm/mmlib.c @@     if (r == MM_MAX_TASKS || m->nfree < unused_all(m) + MM_TREE_RESERVE) { @@     if (r == MM_MAX_TASKS) {
 mm-tree-child-own-tree @@ ../servers/mm/mmlib.c @@     return task_in(m, slot, r, t); @@     return mm_task_add(m, slot, t);
@@ -375,3 +375,8 @@ names derive undo  @@ ../glibc/sysdeps/joist/joist-names.c @@       untake (t, n
 names reply type   @@ ../glibc/sysdeps/joist/joist-names.c @@   if (e->kind == JN_RECEIVE || e->kind == JN_REPLY) @@   if (e->kind == JN_RECEIVE)
 names reply stays  @@ ../glibc/sysdeps/joist/joist-names.c @@       if (e->kind != JN_RECEIVE && e->kind != JN_REPLY) @@       if (e->kind != JN_RECEIVE)
 names reply refs   @@ ../glibc/sysdeps/joist/joist-names.c @@ *refs = e->kind == JN_RECEIVE || e->kind == JN_REPLY; @@ *refs = e->kind == JN_RECEIVE;
+mm-grow-no-retry          @@ ../servers/mm/mmlib.c @@ if (e == MM_KE_NOMEM && grow_tables(m, t)) { @@ if (e == MM_KE_NOMEM && 0) {
+mm-grow-not-charged       @@ ../servers/mm/mmlib.c @@ g->tables += MM_TABLE_GROW; @@ (void)g;
+mm-grow-not-returned      @@ ../servers/mm/mmlib.c @@ m->tree[r].tables -= (uint64_t)tk->ngrow * MM_TABLE_GROW; @@ (void)r;
+mm-grow-unbounded         @@ ../servers/mm/mmlib.c @@ tk->ngrow >= MM_TABLE_GROWS || @@ 0 ||
+mm-grow-past-the-ceiling  @@ ../servers/mm/mmlib.c @@ g->pages + g->tables > g->ceil - MM_TABLE_GROW @@ 0

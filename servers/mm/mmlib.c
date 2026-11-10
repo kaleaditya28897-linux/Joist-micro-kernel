@@ -47,7 +47,7 @@ static uint64_t unused_all(const struct mm *m)
 static int tree_room(const struct mm *m, uint32_t r, uint64_t n)
 {
     const struct mm_tree *g = &m->tree[r];
-    if (n > m->nfree || n > g->ceil || g->pages > g->ceil - n) {
+    if (n > m->nfree || n > g->ceil || g->pages + g->tables > g->ceil - n) {
         return 0;
     }
     uint64_t below = g->reserve > g->pages ? g->reserve - g->pages : 0;
@@ -62,10 +62,59 @@ static void tree_drop(struct mm *m, uint32_t r)
     struct mm_tree *g = &m->tree[r];
     if (g->tasks == 0) {
         g->reserve = 0;
-        if (g->pages == 0) {
+        if (g->pages == 0 && g->tables == 0) {
             memset(g, 0, sizeof *g);
         }
     }
+}
+
+/* ---- page tables on demand (0021; the owner's design of 2026-11-10) ----
+ *
+ * A map that finds its task's lent table pages spent fails with
+ * MM_KE_NOMEM and changes nothing (0021). mm then lends the task one more
+ * run (kops.donate), if it may have one: fewer than MM_TABLE_GROWS so far,
+ * and room for MM_TABLE_GROW more pages within its tree's ceiling, where
+ * they count (table pages come from a frame of their own, not the pool, so
+ * only the ceiling holds them); and tries the map once more. The runs come
+ * back when the task is gone (mm_task_gone). */
+static int grow_tables(struct mm *m, uint32_t t)
+{
+    struct mm_task *tk = &m->task[t];
+    struct mm_tree *g = &m->tree[tk->tree];
+    if (m->k.donate == NULL || tk->ngrow >= MM_TABLE_GROWS ||
+        MM_TABLE_GROW > g->ceil || g->pages + g->tables > g->ceil - MM_TABLE_GROW) {
+        return 0;
+    }
+    uint32_t run = 0;
+    if (m->k.donate(m->k.ctx, tk->slot, &run) != 0) {
+        return 0;
+    }
+    tk->grow[tk->ngrow++] = run;
+    g->tables += MM_TABLE_GROW;
+    return 1;
+}
+
+/* The kernel's map for task t, its tables grown once if they ran out. */
+static int task_map(struct mm *m, uint32_t t, uint32_t frame_slot, uint64_t off, uint64_t n,
+                    uint64_t va, unsigned perms)
+{
+    int e = m->k.map(m->k.ctx, frame_slot, off, n, m->task[t].slot, va, perms);
+    if (e == MM_KE_NOMEM && grow_tables(m, t)) {
+        e = m->k.map(m->k.ctx, frame_slot, off, n, m->task[t].slot, va, perms);
+    }
+    return e;
+}
+
+static int task_map_replace(struct mm *m, uint32_t t, uint32_t frame_slot, uint64_t off,
+                            uint64_t va, unsigned perms, uint32_t old_slot, uint64_t old_off)
+{
+    int e = m->k.map_replace(m->k.ctx, frame_slot, off, m->task[t].slot, va, perms, old_slot,
+                             old_off);
+    if (e == MM_KE_NOMEM && grow_tables(m, t)) {
+        e = m->k.map_replace(m->k.ctx, frame_slot, off, m->task[t].slot, va, perms, old_slot,
+                             old_off);
+    }
+    return e;
 }
 
 /* Page p no longer charged to its tree. */
@@ -305,8 +354,7 @@ static int run_flush(struct mm *m, struct run *r)
         return MM_OK;
     }
     const struct mm_page *g = &m->pg[r->p];
-    int e = m->k.map(m->k.ctx, m->frame[g->frame].slot, g->off, r->n, m->task[r->t].slot, r->va,
-                     r->perms) == 0
+    int e = task_map(m, r->t, m->frame[g->frame].slot, g->off, r->n, r->va, r->perms) == 0
                 ? MM_OK
                 : MM_E_KERNEL;
     if (e != MM_OK) {
@@ -447,6 +495,13 @@ void mm_task_gone(struct mm *m, uint32_t t)
         }
     }
     uint32_t r = tk->tree;
+    /* Its table runs past the first went with its space: lent again later. */
+    for (uint32_t i = 0; i < tk->ngrow; i++) {
+        if (m->k.undonate != NULL) {
+            m->k.undonate(m->k.ctx, tk->grow[i]);
+        }
+    }
+    m->tree[r].tables -= (uint64_t)tk->ngrow * MM_TABLE_GROW;
     memset(tk, 0, sizeof *tk);
     m->tree[r].tasks--;
     tree_drop(m, r);
@@ -682,12 +737,11 @@ static int cow_break(struct mm *m, uint32_t t, uint32_t mi, unsigned perms)
     memcpy(bytes(m, (uint32_t)q), bytes(m, p), PAGE_BYTES);
     const struct mm_page *gq = &m->pg[q];
     const struct mm_page *gp = &m->pg[p];
-    int e = m->k.map_replace(m->k.ctx, m->frame[gq->frame].slot, gq->off, tk->slot,
-                             tk->map[mi].va, perms, m->frame[gp->frame].slot, gp->off);
+    int e = task_map_replace(m, t, m->frame[gq->frame].slot, gq->off, tk->map[mi].va, perms,
+                             m->frame[gp->frame].slot, gp->off);
     if (e == MM_KE_STATE) {
         /* Not mapped (its range was of no access since): map the copy. */
-        e = m->k.map(m->k.ctx, m->frame[gq->frame].slot, gq->off, 1, tk->slot, tk->map[mi].va,
-                     perms);
+        e = task_map(m, t, m->frame[gq->frame].slot, gq->off, 1, tk->map[mi].va, perms);
     }
     if (e != 0) {
         page_unref(m, (uint32_t)q);
@@ -760,7 +814,7 @@ int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
          * fault got there first (the map finds it there), or its range was
          * of no access since. A COW page goes back read-only; a write then
          * faults again, and copies. */
-        int e = m->k.map(m->k.ctx, m->frame[m->pg[p].frame].slot, m->pg[p].off, 1, tk->slot, va,
+        int e = task_map(m, t, m->frame[m->pg[p].frame].slot, m->pg[p].off, 1, va,
                          page_perms(m, p, r->perms, r->shared));
         return e == 0 || e == MM_KE_OCCUPIED;
     }
@@ -1355,9 +1409,11 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
      * reservation kept free. */
     static uint64_t tpages[MM_MAX_TASKS];
     static uint32_t ttasks[MM_MAX_TASKS];
+    static uint64_t ttables[MM_MAX_TASKS]; /* table runs on demand, in pages */
     for (uint32_t r = 0; r < MM_MAX_TASKS; r++) {
         tpages[r] = 0;
         ttasks[r] = 0;
+        ttables[r] = 0;
     }
     uint64_t charged = 0;
     for (uint32_t p = 0; p < m->npages; p++) {
@@ -1382,15 +1438,26 @@ unsigned mm_check(const struct mm *m, char *msg, unsigned msglen)
                 continue;
             }
             ttasks[tk->tree]++;
+            if (tk->ngrow > MM_TABLE_GROWS) {
+                FAULT("mm: task %u has %u table runs, past MM_TABLE_GROWS", t, tk->ngrow);
+            } else {
+                ttables[tk->tree] += (uint64_t)tk->ngrow * MM_TABLE_GROW;
+            }
+        } else if (tk->ngrow != 0) {
+            FAULT("mm: task %u gone but holds %u table runs", t, tk->ngrow);
         }
     }
     for (uint32_t r = 0; r < MM_MAX_TASKS; r++) {
         const struct mm_tree *g = &m->tree[r];
         if (!g->live) {
-            if (g->tasks != 0 || g->pages != 0 || g->reserve != 0) {
+            if (g->tasks != 0 || g->pages != 0 || g->reserve != 0 || g->tables != 0) {
                 FAULT("mm: free tree record %u carries state", r);
             }
             continue;
+        }
+        if (g->tables != ttables[r]) {
+            FAULT("mm: tree %u counts %llu table pages; its tasks hold %llu", r,
+                  (unsigned long long)g->tables, (unsigned long long)ttables[r]);
         }
         if (g->tasks != ttasks[r] || g->pages != tpages[r]) {
             FAULT("mm: tree %u counts %u tasks, %llu pages; has %u, %llu", r, g->tasks,

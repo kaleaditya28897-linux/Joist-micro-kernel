@@ -39,10 +39,11 @@ first=$(find "$TESTS" -mindepth 2 -type f ! -name '*.log' | head -1)
 # More memory than the selftest's (glibc's string tests use buffers of
 # megabytes), as mm's large benchmark build (docs/phase4-data/step7-exit):
 # the root's memory two frames of 80 MiB; mm's pool 64 MiB, of which the
-# program's tree may have 32; its four task records' page-table runs of 384
-# pages (2 + 2 per 2 MiB span the program touches: with 256 regions a
-# program has scores of threads, each stack in spans of its own; 96 ran out), and 80 pages more for
-# mm's own tables over its pool.
+# program's tree may have 32; each task's page tables lent as it needs them,
+# mm's default first run and then runs of 16 from 1024 pages (mmlib.h's
+# MM_TABLE_GROW: a program with scores of threads has each stack in 2 MiB
+# spans of its own; a fixed 96 a task ran out), and 80 pages more for mm's
+# own tables over its pool.
 # The program's stack 3 MiB (glibcroot's default is 128 KiB): some of
 # glibc's tests have megabytes on it (test-memset, tst-widetext).
 b=build/glibc-tests
@@ -50,7 +51,7 @@ b=build/glibc-tests
 rm -rf "$K/$b" "$K/../user/build/glibc-tests"
 (cd "$K" && make -s BUILD=$b ROOT_TASK=glibcroot MODULES="mm glibctest" \
     UEXTRA="-DGT_POOL_PAGES=16384u -DGT_MM_TABLES=80u -DGT_STACK_PAGES=768u ${GT_UEXTRA:-}" \
-    MMFLAGS="${GT_MMFLAGS:--DMM_MAX_TASKS=4u -DMM_TASK_PAGES=16384u -DMM_PAGES=16384u -DMM_TABLE_PAGES=384u}" \
+    MMFLAGS="${GT_MMFLAGS:--DMM_MAX_TASKS=4u -DMM_TASK_PAGES=16384u -DMM_PAGES=16384u}" \
     KEXTRA="-DRUN_POOL_FRAMES=2u -DRUN_POOL_PAGES=20480u" \
     USER_BUILD=build/glibc-tests GLIBCTEST="$first" GLIBC_CONSOLE="$CONSOLE" $b/joist.iso > "$OUT/build.log" 2>&1) ||
     { echo "build failed: $OUT/build.log"; exit 1; }

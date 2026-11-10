@@ -29,6 +29,16 @@
 #ifndef MM_TASK_PAGES
 #define MM_TASK_PAGES 1024u /* pages a task may have mapped at once */
 #endif
+/* Page tables on demand (0021; Phase 5 step 7, the owner's design of
+ * 2026-11-10): past the run it gets when it is made, a task is lent runs
+ * of MM_TABLE_GROW pages for its page tables as a map needs them, at most
+ * MM_TABLE_GROWS, each charged to its tree against the tree's ceiling. */
+#ifndef MM_TABLE_GROW
+#define MM_TABLE_GROW 16u
+#endif
+#ifndef MM_TABLE_GROWS
+#define MM_TABLE_GROWS 64u
+#endif
 #ifndef MM_PAGES
 #define MM_PAGES 4096u /* pages mm manages, in all */
 #endif
@@ -108,6 +118,13 @@ struct mm_kops {
     int (*del)(void *ctx, uint32_t slot);
     /* The kernel's pending destruction run to its end: 1 if it got there. */
     int (*finish)(void *ctx);
+    /* Page tables on demand: lend the task in task_slot one more run of
+     * MM_TABLE_GROW pages, 0 with the run's slot (mm's) in *run, or
+     * MM_KE_NOMEM if there is none to lend; and a run given back, its
+     * task's space gone (0021: the kernel lets it go with the space), to
+     * lend again. NULL: a task has its first run only. */
+    int (*donate)(void *ctx, uint32_t task_slot, uint32_t *run);
+    void (*undonate)(void *ctx, uint32_t run);
 };
 
 struct mm_region {
@@ -130,6 +147,7 @@ struct mm_tree {
     uint8_t live;
     uint32_t tasks;
     uint64_t pages;     /* charged to it */
+    uint64_t tables;    /* pages of its tasks' table runs past their first (on demand) */
     uint64_t reserve;   /* pages kept for it */
     uint64_t ceil;      /* pages it may have */
     uint32_t ceil_tasks;
@@ -144,6 +162,8 @@ struct mm_task {
     uint32_t nmap;
     uint32_t rpages; /* pages of its region capabilities' extents: with nmap, at
                       * most MM_TASK_PAGES */
+    uint32_t ngrow;  /* table runs lent on demand, their slots (mm's) in grow */
+    uint32_t grow[MM_TABLE_GROWS];
 };
 
 /* One of mm's pages: which frame holds it, and who maps it. */

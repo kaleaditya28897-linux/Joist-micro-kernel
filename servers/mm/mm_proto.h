@@ -64,7 +64,8 @@ enum {
     MM_REQ_INIT = MM_REQ_BASE + 0x100u, /* pool pages, table pages: what it was given.
                                          * MM_E_NOMEM unless MM_S_TABLES holds a run of
                                          * MM_TABLE_PAGES for every task record, plus one
-                                         * page (0028) */
+                                         * page (0028); what it holds past those is lent
+                                         * on demand (mmlib.h, MM_TABLE_GROW) */
     MM_REQ_ADOPT,                       /* the slot of mm's space the root put a task
                                          * capability (CONTROL) in -> r[1] its badge. It
                                          * starts a tree (0028); MM_E_NOMEM if the tree's
@@ -80,8 +81,8 @@ enum {
 
 /* The slots of mm's own space. The root fills the first four before
  * starting it, and slots from MM_S_ROOT to MM_S_CHILD as it hands mm
- * tasks; the rest are mm's. mm adds the second leaf (MM_S_CHILD on) and the
- * third (MM_S_REGION on) at MM_REQ_INIT: a task it makes itself (MM_REQ_CLONE) is in MM_S_CHILD plus
+ * tasks; the rest are mm's. mm adds the second leaf (MM_S_CHILD on), the
+ * third (MM_S_REGION on) and the fourth (MM_S_GROW on) at MM_REQ_INIT: a task it makes itself (MM_REQ_CLONE) is in MM_S_CHILD plus
  * its index. Collection deletes a task's slot, whichever range it is in. */
 enum {
     MM_S_EP = 0,      /* its endpoint: RECV, SEND, GRANT */
@@ -92,8 +93,10 @@ enum {
     MM_S_FREE = 16,   /* mm's own from here (the table runs it lends) ... */
     MM_S_ROOT = 64,   /* ... to here; from here, the root's (task capabilities) ... */
     MM_S_CHILD = 128, /* ... to here; from here, the tasks mm made (MM_MAX_TASKS) */
-    MM_S_REGION = 256 /* the third leaf: mm's region capabilities (MM_KREGIONS), each with
-                       * every right */
+    MM_S_REGION = 256, /* the third leaf: mm's region capabilities (MM_KREGIONS), each with
+                        * every right */
+    MM_S_GROW = 384    /* the fourth leaf: table runs lent on demand (mmlib.h's
+                        * MM_TABLE_GROW pages each; Phase 5 step 7) */
 };
 
 #define MM_POOL_VA 0x10000000ull  /* where mm maps its pool in its own space (its first

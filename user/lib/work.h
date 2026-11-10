@@ -103,8 +103,11 @@ enum {
 #define MMC_STACK     0x400000ull /* a child's stack top: loader.h's CHILD_LO, as ld_image
                                    * gives it */
 #define MMC_KID_VA(n) (WORK_VA + ((uint64_t)(n) + 1u) * 0x1000ull)
-#define MMC_FULL_REGIONS 8u /* MMC_CLONE_FULL's pages, a table's span apart: more tables
-                             * than a child is lent */
+#define MMC_FULL_REGIONS 40u /* MMC_CLONE_FULL's pages, a table's span apart: more tables
+                              * than a child can be lent. Each span takes 2 table pages. The
+                              * parent has the root's 32 and mm's first 16, and takes most of
+                              * mm's 64 lent on demand (mmhost.h's HOST_TABLE_SHARED); the
+                              * child has its first 16 and what is left: too few for 40 */
 enum { MMC_RQ_START = 1 }; /* to the root: r[1] the child's role, r[2] n; caps its task, thread */
 
 /* A child's commands: its parent writes the arguments and the command,
