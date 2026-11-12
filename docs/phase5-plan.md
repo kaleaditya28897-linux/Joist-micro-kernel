@@ -1149,3 +1149,84 @@ unexplained.
 
 The Hurd's `hurdlock.c` race (above) is written up for bug-hurd and
 libc-alpha, with the two-line patch, by the owner.
+
+### Step 8: the design of libports on Joist (2026-11-12, proposed)
+
+The plan's choice 6, made concrete against the Hurd's libports (Debian's
+`hurd_0.9.git20261028`, 3539 lines in 66 files, checked by its SHA-256).
+What libtrivfs and `trans/hello` use of it: buckets, classes and ports
+made (`ports_create_*`), send rights (`ports_get_right`,
+`ports_get_send_right`), references, the notify and interrupt demuxers,
+and `ports_manage_port_operations_one_thread`; the plan adds the
+multithreaded loop with a fixed pool. What in libports stands on Mach
+beyond the port calls glibc on Joist already has (`mach_port_allocate`,
+`mod_refs`, `move_member`, `insert_right`, `set_protected_payload`):
+the request loops (`mach_msg_server_timeout`), no-senders and dead-name
+requests (`mach_port_request_notification`, `get_receive_status`), and
+interrupting RPCs (`hurd_thread_cancel`, another thread's state).
+
+1. **The source:** fetched at build time, checked by its SHA-256, as
+   glibc's is (`tools/phase5/`), not copied into the repository; Joist's
+   files in `hurd/joist/libports/` replace the Hurd's of the same name,
+   as `glibc/sysdeps/joist` does glibc's. The rest of libports compiles
+   unchanged, with joistmig in MIG's place (its `notify` and `interrupt`
+   servers).
+2. **A demuxer takes Joist messages:** libports' `ports_demuxer_type`
+   becomes `int (*) (struct joist_mig_msg *in, struct joist_mig_msg
+   *out)`, the shape of every joistmig server, so libtrivfs's demuxer
+   and `hello`'s use of it compile unchanged; a server that writes its own
+   demuxer on Mach headers changes (none in Phase 5).
+3. **A bucket is one endpoint; a port, one badge on it (0005):** not
+   the `port_info`'s address, which the Hurd sets as the port's protected
+   payload and dereferences on arrival (`ports_lookup_payload`): safe on
+   Mach, where no message carries a payload once it is cleared, but on
+   Joist a badge stays on every send capability already handed out, so a
+   request could arrive for a port already freed. A port's badge is a
+   serial number (glibc's names table's own, with no payload set: Joist's
+   copy of `create-internal.c` doesn't set one), and the request loop
+   finds the port in a table of live ports by badge (libihash, as
+   libports' other tables), taking a reference under its lock; a badge it
+   doesn't find (a port gone, its send capabilities still held) is
+   answered `EOPNOTSUPP`, as the Hurd's demuxer answers a port it doesn't
+   serve.
+4. **The request loops, rewritten** (`manage-one-thread.c`,
+   `manage-multithread.c`): `ReplyRecv` on the bucket's endpoint, the
+   demuxer between. `begin_rpc`/`end_rpc` as the Hurd's. The
+   multithreaded one has **a fixed pool**, its size the caller's
+   (`thread_timeout` and `global_timeout` keep their meaning: an idle pool
+   thread ends after its timeout, the loop returns after the global one;
+   none is made past the pool's size), each thread with a scheduling
+   context of its own; a request that finds no thread free waits in the
+   endpoint's queue, in priority order (the kernel's). A dying client:
+   its reply fails with `E_PEER` and is dropped; the request's work stays
+   done (Phase 4's rule).
+5. **No-senders, by a notifier thread a bucket:** the bucket's endpoint is
+   bound to a notification (`bind_nosenders`); one thread a bucket waits
+   on it and collects badges (`nosenders_next`), and for each calls
+   `ports_no_senders` for its port, unless the port's name has send
+   references again (a send right made after the last went: the firing is
+   stale; Mach's make-send count does this check). So no-senders comes
+   while the server is idle, not at its next request, and exactly once a
+   firing. glibc's names table gives the make-send count, for
+   `mach_port_get_receive_status`'s `mscount`.
+6. **Interrupting RPCs, a flag only:** another thread's state is refused
+   in Phase 5 (item 10 of step 7), so `hurd_thread_cancel` of a server
+   thread sets its cancel flag (`ports_self_interrupted`, `hurd_check_cancel`
+   see it) and doesn't abort a call it is blocked in; inhibiting RPCs waits
+   for those in progress to end on their own. `interrupt_operation` from a
+   client marks its RPC so. Dead-name requests on a client's reply port
+   (`ports_interrupt_rpcs_on_notification`) are refused: a client's death
+   is its reply's `E_PEER`. Phase 7 brings the abort, with Joist's own
+   locks made critical sections first (the threaded tests' finding).
+7. **Moving receive rights** (`ports_import_port`, `reallocate_*`,
+   `transfer_right`, `claim_right`): glibc's names table refuses a set
+   change once send rights exist (0005), so these work for a port with no
+   send rights and are refused otherwise (`KERN_INVALID_RIGHT`), recorded
+   as Phase 5's gap; libtrivfs and `hello` don't use them.
+8. **Tests, model first:** the request loop, the notifier and the
+   stale-firing check on the host against the kernel model and glibc's
+   names table (as mm's library is): no-senders exactly once a firing, a
+   stale one ignored, a request to a dead port refused, the pool never
+   past its size. Then on Joist a test server built on libports, under
+   fault injection: clients killed mid-call, no-senders exactly once, the
+   pool never exceeded (the plan's *Testing* row), on 1, 2 and 4 CPUs.
