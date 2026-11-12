@@ -45,6 +45,7 @@ const_string_t MsgOption = strNULL;
 const_string_t WaitTime = strNULL;
 const_string_t ServerPrefix = "";
 const_string_t UserPrefix = "";
+bool JoistServerHeader = false;
 const_string_t ServerDemux = strNULL;
 const_string_t SubrPrefix = "";
 const_string_t RoutinePrefix = "";

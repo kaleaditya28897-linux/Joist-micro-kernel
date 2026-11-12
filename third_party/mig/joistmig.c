@@ -627,6 +627,18 @@ static void write_server(FILE *f, const statement_t *stats)
     }
     fprintf(f, "\tdefault:\n\t\tout->r[0] = (uint32_t)JOIST_MIG_BAD_ID;\n");
     fprintf(f, "\t\tout->ncaps = 0;\n\t\tout->len = 0;\n\t\treturn 0;\n\t}\n}\n");
+    /* MIG's other entry, which the Hurd's demuxers chain (libtrivfs's):
+     * the routine for the message's id, or none. */
+    fprintf(f, "\n/* The routine for the message's id, NULL if it isn't this interface's. */\n");
+    fprintf(f, "joist_mig_routine_t %s_routine(const struct joist_mig_msg *in)\n{\n", ServerDemux);
+    fprintf(f, "\tswitch (joist_mig_code(in)) {\n");
+    for (const statement_t *s = stats; s != stNULL; s = s->stNext) {
+        if (s->stKind == skRoutine) {
+            fprintf(f, "\tcase %u:\n\t\treturn _X%s;\n", SubsystemBase + s->stRoutine->rtNumber,
+                    s->stRoutine->rtName);
+        }
+    }
+    fprintf(f, "\tdefault:\n\t\treturn NULL;\n\t}\n}\n");
 }
 
 /* ---- the host's round-trip test (-test) ----
@@ -1013,6 +1025,7 @@ int main(int argc, char **argv)
         fclose(f);
     }
     if (ServerHeaderFileName != strNULL) {
+        JoistServerHeader = true;
         f = out_open(ServerHeaderFileName);
         WriteServerHeader(f, StatementList);
         fclose(f);

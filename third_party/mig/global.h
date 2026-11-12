@@ -50,6 +50,8 @@ extern const_string_t WaitTime;
 extern const_string_t ServerPrefix;
 extern const_string_t UserPrefix;
 extern const_string_t ServerDemux;
+/* MIG's Joist mode (joistmig.c): the server header declares Joist's demuxer. */
+extern bool JoistServerHeader;
 extern const_string_t SubrPrefix;
 extern const_string_t RoutinePrefix;
 extern const_string_t OOLPostfix;

@@ -32,6 +32,15 @@ int jt_fsys(uint64_t seed, unsigned *calls);
 
 static int (*const demux[])(struct joist_mig_msg *, struct joist_mig_msg *) = {io_server, fs_server,
                                                                                fsys_server};
+joist_mig_routine_t io_server_routine(const struct joist_mig_msg *in);
+joist_mig_routine_t fs_server_routine(const struct joist_mig_msg *in);
+joist_mig_routine_t fsys_server_routine(const struct joist_mig_msg *in);
+/* MIG's other entry (<demuxer>_routine: the routine for an id, or none),
+ * taken on every other call that isn't spoilt, so both are checked by the
+ * same calls. */
+static joist_mig_routine_t (*const lookup[])(const struct joist_mig_msg *) = {
+    io_server_routine, fs_server_routine, fsys_server_routine};
+static unsigned long jt_calls;
 
 int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
 {
@@ -74,9 +83,23 @@ int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
     struct joist_mig_msg out;
     memset(&out, 0, sizeof out);
     out.buf = outbuf;
-    for (size_t d = 0; d < sizeof demux / sizeof demux[0]; d++) {
-        if (demux[d](&in, &out)) {
-            break;
+    /* A spoilt message always through the demuxer: its refusals are the
+     * generated code's to check (the lookup's are the transport's). */
+    if (jt_calls++ % 2u == 0 || reply_tamper != T_NONE) {
+        for (size_t d = 0; d < sizeof demux / sizeof demux[0]; d++) {
+            if (demux[d](&in, &out)) {
+                break;
+            }
+        }
+    } else {
+        joist_mig_routine_t r = NULL;
+        for (size_t d = 0; r == NULL && d < sizeof lookup / sizeof lookup[0]; d++) {
+            r = lookup[d](&in);
+        }
+        if (r != NULL) {
+            r(&in, &out);
+        } else {
+            out.r[0] = (uint32_t)JOIST_MIG_BAD_ID; /* as a demuxer answers */
         }
     }
     if (out.len > JOIST_MIG_BUF_WORDS || out.ncaps > JOIST_MIG_CAPS) {

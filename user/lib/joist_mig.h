@@ -48,6 +48,10 @@ struct joist_mig_msg {
     uint64_t badge;                /* received: the caller's badge */
 };
 
+/* A server's routine (what <demuxer>_routine returns for a message's id;
+ * MIG's mig_routine_t, on Joist messages). */
+typedef void (*joist_mig_routine_t)(struct joist_mig_msg *in, struct joist_mig_msg *out);
+
 /* The runtime's: a Call on the capability in slot `port`, the reply in
  * *m. 0, or the transport's error (as a kern_return_t). */
 int joist_mig_call(uint32_t port, struct joist_mig_msg *m);

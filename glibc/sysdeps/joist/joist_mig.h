@@ -65,6 +65,11 @@ struct joist_mig_msg
   uint64_t badge;		/* received: the sender's badge */
 };
 
+/* A server's routine (what <demuxer>_routine returns for a message's id;
+   MIG's mig_routine_t, on Joist messages).  */
+typedef void (*joist_mig_routine_t) (struct joist_mig_msg *in,
+				     struct joist_mig_msg *out);
+
 /* The runtime's (joist-mig.c), under glibc's reserved names: generated
    code says joist_mig_*, which a program may use for itself.  */
 #define joist_mig_call __joist_mig_call

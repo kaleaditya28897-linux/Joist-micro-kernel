@@ -174,11 +174,19 @@ WriteServerHeader(FILE *file, const statement_t *stats)
 	}
     fprintf(file, "\n");
 
+    if (JoistServerHeader) {
+	/* Joist: the demuxer and its routine lookup, on Joist messages
+	   (joistmig.c writes them).  */
+	fprintf(file, "#include <joist_mig.h>\n");
+	fprintf(file, "int %s(struct joist_mig_msg *in, struct joist_mig_msg *out);\n", ServerDemux);
+	fprintf(file, "joist_mig_routine_t %s_routine(const struct joist_mig_msg *in);\n", ServerDemux);
+    } else {
     /*
      * Include the x_server_routine function so it can be inlined.
      */
     fprintf(file, "extern mig_routine_t %s_routines[];\n", ServerDemux);
     WriteSubsystemServerRoutine(file, "static __inline");
+    }
 
     WriteEpilog(file, protect);
 }
