@@ -65,6 +65,30 @@ extern int __joist_mig_call (uint32_t port, struct joist_mig_msg *m);
 extern void *__joist_mig_allocate (size_t size);
 extern void __joist_mig_deallocate (void *p, size_t size);
 rtld_hidden_proto (__joist_mig_call)
+/* The server's side (joist-mig.c; libports on Joist): receive a request on
+   the port or port set NAME for at most TIMEOUT nanoseconds (JOIST_FOREVER:
+   no limit); answer the request received last and receive the next; or
+   only answer.  0, or a Mach error (MACH_RCV_TIMED_OUT, ...).  */
+extern int __joist_mig_receive (mach_port_t name, struct joist_mig_msg *in,
+				uint64_t timeout);
+extern int __joist_mig_reply_receive (struct joist_mig_msg *out,
+				      mach_port_t name,
+				      struct joist_mig_msg *in,
+				      uint64_t timeout);
+extern int __joist_mig_reply (struct joist_mig_msg *out);
+rtld_hidden_proto (__joist_mig_receive)
+rtld_hidden_proto (__joist_mig_reply_receive)
+rtld_hidden_proto (__joist_mig_reply)
+/* No-senders for a port set (joist-mig.c; libports' notifier): a
+   notification bound to its endpoint, in a pinned name *NOTIF; a wait on
+   it (0, or EINTR); the next badge that lost its last sender, 0 if none.
+   0, or a Mach error.  */
+extern int __joist_nosenders_bind (mach_port_t set, mach_port_t *notif);
+extern int __joist_nosenders_wait (mach_port_t notif);
+extern int __joist_nosenders_next (mach_port_t set, uint64_t *badge);
+rtld_hidden_proto (__joist_nosenders_bind)
+rtld_hidden_proto (__joist_nosenders_wait)
+rtld_hidden_proto (__joist_nosenders_next)
 /* Threads' notifications and the gsync calls (joist-sync.c, joist-thread.h):
    one in a program, as the table.  */
 struct joist_thread;

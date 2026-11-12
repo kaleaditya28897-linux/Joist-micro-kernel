@@ -9,6 +9,8 @@ ld {
     __jn_pinned; __jn_unpin;
     # MIG's runtime (joist-mig.c): RPCs from libc.so and libhurduser.
     __joist_mig_call; __joist_mig_allocate; __joist_mig_deallocate;
+    __joist_mig_receive; __joist_mig_reply_receive; __joist_mig_reply;
+    __joist_nosenders_bind; __joist_nosenders_wait; __joist_nosenders_next;
     __joist_ipc_make; __joist_ipc_free;
     # Threads' notifications and the gsync calls (joist-sync.c).
     __joist_thread0; __joist_thread_make; __joist_thread_free;
