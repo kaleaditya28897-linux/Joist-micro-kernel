@@ -1150,7 +1150,7 @@ unexplained.
 The Hurd's `hurdlock.c` race (above) is written up for bug-hurd and
 libc-alpha, with the two-line patch, by the owner.
 
-### Step 8: the design of libports on Joist (2026-11-12, proposed)
+### Step 8: the design of libports on Joist (2026-11-12, accepted)
 
 The plan's choice 6, made concrete against the Hurd's libports (Debian's
 `hurd_0.9.git20261028`, 3539 lines in 66 files, checked by its SHA-256).
@@ -1230,3 +1230,7 @@ interrupting RPCs (`hurd_thread_cancel`, another thread's state).
    past its size. Then on Joist a test server built on libports, under
    fault injection: clients killed mid-call, no-senders exactly once, the
    pool never exceeded (the plan's *Testing* row), on 1, 2 and 4 CPUs.
+
+Accepted by the owner as written, 2026-11-12: demuxers on Joist messages,
+a notifier thread a bucket, a cancel flag only, the source fetched with
+an overlay.
