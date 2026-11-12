@@ -63,3 +63,5 @@ endif
 # A static program's first vm_allocate comes before its IFUNCs are
 # resolved: no library calls the compiler makes up of its loops.
 CFLAGS-joist-mem.c += -fno-builtin
+# And the pid asked for at start-up (joist-special.c), the same way.
+CFLAGS-joist-special.c += -fno-builtin

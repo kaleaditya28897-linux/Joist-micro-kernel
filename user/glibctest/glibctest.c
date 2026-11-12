@@ -54,6 +54,16 @@ static pthread_cond_t met = PTHREAD_COND_INITIALIZER;
 static long counter;
 static int arrived, tls_bad, write_bad;
 
+/* A robust mutex main holds: another thread's trylock must find it taken
+ * (htl writes the owner's pid in the lock word: 0 let it through). */
+static pthread_mutex_t robust;
+
+static void *try_robust(void *arg)
+{
+    (void)arg;
+    return (void *)(intptr_t)pthread_mutex_trylock(&robust);
+}
+
 static void *worker(void *arg)
 {
     int me = (int)(intptr_t)arg;
@@ -175,6 +185,16 @@ int main(int argc, char **argv)
     check(joined, "pthread_join");
     check(counter == (long)THREADS * ROUNDS, "mutex");
     check(arrived == THREADS && !tls_bad && tls_value == 7, "condition and thread tls");
+    /* The pid its starter gave it (no proc server: the bootstrap port). */
+    check(getpid() == 2, "pid");
+    pthread_mutexattr_t ra;
+    pthread_t rt;
+    void *rr = NULL;
+    int rok = pthread_mutexattr_init(&ra) == 0 &&
+              pthread_mutexattr_setrobust(&ra, PTHREAD_MUTEX_ROBUST) == 0 &&
+              pthread_mutex_init(&robust, &ra) == 0 && pthread_mutex_lock(&robust) == 0 &&
+              pthread_create(&rt, NULL, try_robust, NULL) == 0 && pthread_join(rt, &rr) == 0;
+    check(rok && (intptr_t)rr == EBUSY && pthread_mutex_unlock(&robust) == 0, "robust mutex excludes");
     check(!write_bad, "a thread's write");
 
     say(failed ? "glibc: FAILED\n" : "glibc: all ok\n");

@@ -22,7 +22,8 @@
  * bytes out through the kernel's debug write; any other message is
  * answered MIG_BAD_ID. Its bootstrap port (slot 3) is the same endpoint
  * with another badge, where glibc's _exit, with no proc server, sends the
- * exit status (glibc/sysdeps/joist/joist-special.c, JOIST_BOOT_EXIT).
+ * exit status (glibc/sysdeps/joist/joist-special.c, JOIST_BOOT_EXIT), and
+ * from where it asks for its pid at start-up (JOIST_BOOT_PID).
  *
  * Module 2, if there is one, is the program's arguments and environment,
  * as text, a line a thing (put_args); without it, "glibctest joist" and
@@ -76,6 +77,7 @@ _Static_assert(GT_STACK_PAGES >= 1u && GT_STACK_PAGES <= 768u, "the stack must f
 #define GT_BADGE_CON   1u
 #define GT_BADGE_BOOT  2u
 #define GT_BOOT_EXIT   0x4a4f0001u /* joist-ports.h's JOIST_BOOT_EXIT */
+#define GT_BOOT_PID    0x4a4f0002u /* and JOIST_BOOT_PID */
 #define GT_ARGS_VA     (MOD_VA + 2u * 0x200000ull)
 #define GT_ARGS_MAX    3000u      /* bytes of strings: they share the block's page */
 #define GT_ARGS_WORDS  56u        /* argv and envp pointers, at most */
@@ -339,6 +341,7 @@ static void map_stdin(uint64_t nmods)
 static uint64_t root_ep_c;
 static __attribute__((aligned(J_PAGE))) uint64_t ipc_buf[J_MSG_WORDS];
 static uint64_t out_buf[J_MSG_WORDS];
+static uint64_t next_pid = 2; /* the pids the root gives (1 would be init's) */
 static int exited;
 static uint64_t exit_status;
 
@@ -350,7 +353,11 @@ static void serve_one(uint64_t ns)
         return;
     }
     struct j_msg rep = {0};
-    if (m.badge == GT_BADGE_BOOT && (uint32_t)m.r[0] == GT_BOOT_EXIT) {
+    if (m.badge == GT_BADGE_BOOT && (uint32_t)m.r[0] == GT_BOOT_PID) {
+        /* The program's pid (no proc server yet): one word of body. */
+        rep.r[0] = (uint64_t)8u << 32;
+        rep.r[1] = next_pid++;
+    } else if (m.badge == GT_BADGE_BOOT && (uint32_t)m.r[0] == GT_BOOT_EXIT) {
         exited = 1;
         exit_status = m.r[1];
     } else if (m.badge == GT_BADGE_CON && io_server != 0) {

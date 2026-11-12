@@ -114,6 +114,11 @@ rtld_hidden_proto (__joist_bootstrap)
 #define JOIST_BOOT_EXIT 0x4a4f0001u
 extern void __joist_report_exit (int status);
 rtld_hidden_proto (__joist_report_exit)
+/* The program's pid from the bootstrap port, when there is no proc server
+   (joist-special.c): the message's id; the call, 0 if none came.  */
+#define JOIST_BOOT_PID 0x4a4f0002u
+extern int __joist_ask_pid (void);
+rtld_hidden_proto (__joist_ask_pid)
 rtld_hidden_proto (__joist_sc_keep)
 rtld_hidden_proto (__joist_ipc_make)
 rtld_hidden_proto (__joist_ipc_free)

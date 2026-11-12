@@ -13,7 +13,7 @@ ld {
     # Threads' notifications and the gsync calls (joist-sync.c).
     __joist_thread0; __joist_thread_make; __joist_thread_free;
     __joist_thread_wait; __joist_thread_signal; __joist_sync_init;
-    __joist_sc_reuse; __joist_sc_keep; __joist_bootstrap; __joist_report_exit;
+    __joist_sc_reuse; __joist_sc_keep; __joist_bootstrap; __joist_report_exit; __joist_ask_pid;
     __joist_gsync_wait_call; __joist_gsync_wake_call; __joist_gsync_requeue_call;
     # The address reservations, the same way.
     __joist_vm_lock; __joist_vm_unlock;

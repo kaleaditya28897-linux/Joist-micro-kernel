@@ -28,6 +28,9 @@
 #include <stdint.h>
 #include <hurd.h>
 #include "hurdstartup.h"
+#ifndef SHARED
+# include "joist-ports.h"	/* __joist_ask_pid: below */
+#endif
 
 mach_port_t *_hurd_init_dtable;
 mach_msg_type_number_t _hurd_init_dtablesize;
@@ -49,6 +52,18 @@ _hurd_startup (void **argptr, void (*main) (intptr_t *data, void *ctx),
   struct hurd_startup_data *d = (void *) &envp[envc + 1];
   _hurd_init_dtable = d->dtable;
   _hurd_init_dtablesize = d->dtablesize;
+
+#ifndef SHARED
+  /* No proc server to give the program its pid: its starter does, through
+     the bootstrap port (joist-special.c); without one it stays 0.  A
+     static program's start-up only: ld.so takes this file from libc_pic.a,
+     where _hurd_pid would pull libc's pid code into it; a dynamic
+     program's libc will ask from its own initialisation when dynamic
+     programs run on Joist.  */
+  if (d->portarraysize <= INIT_PORT_PROC
+      || d->portarray[INIT_PORT_PROC] == MACH_PORT_NULL)
+    _hurd_pid = __joist_ask_pid ();
+#endif
 
   (*main) (argcptr, ctx);
 

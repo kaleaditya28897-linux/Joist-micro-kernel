@@ -1095,3 +1095,34 @@ for temporary names and line order; the futex queues and htl's other
 locks, conditions, barriers and semaphores show no SMP difference
 (`docs/phase5-data/step7-glibc-tests`: `results-specs-thr2.txt`,
 `-thr4.txt`, with their causes).
+
+### Step 7: a program's pid, and robust mutexes (2026-11-12)
+
+The owner's answers (2026-11-12): with no proc server a program asks its
+starter for its pid at start-up, on the bootstrap port (Joist's own
+`JOIST_BOOT_PID`, as `JOIST_BOOT_EXIT`; `glibcroot` hands out pids from
+2), and `__pid2task` answers the program's own pid with its own task
+(Joist's copy of `hurd/pid2task.c`); and htl's stack allocation returns
+EAGAIN for a resource shortage (Joist's copy of `pt-stack-alloc.c`). A
+static program's start-up only: `ld.so` takes `hurdstartup.c` from
+`libc_pic.a`, and the pid code would come with it. Two of the start-up
+path's own rules held: `memset` is an IFUNC there (the request's message
+is written field by field), and `joist-ports.h` can't follow `hurd.h` in
+`ld.so`'s build.
+
+- **Robust mutexes exclude now:** glibctest's robust mutex, held by main,
+  refuses another thread's trylock (EBUSY), and its pid is 2; the
+  selftest's glibc runs pass (1, 2, 4 CPUs). Of glibc's 11
+  `htl/tst-robust*`: tst-robust10 passes (it failed); tst-robust11 passes
+  on 1 and 2 CPUs, and on 4 CPUs 3 times of 5.
+- **tst-robust11 on 4 CPUs, the Hurd's own race:** `__lll_robust_lock`
+  (`hurd/hurdlock.c`) marks a held word as having waiters with a
+  compare-and-swap against the value it read; if the owner unlocks in
+  between and the value read was 0, the word becomes "waiters, owner 0",
+  and the next look finds owner 0 dead and takes the lock with
+  EOWNERDEAD ("thread 31: failed to get the lock"). For the owner.
+- **tst-robust1, 4, 7, 9 now wait for ever (TIMEOUT), where they failed:**
+  they need a thread that died holding the lock to be noticed; the
+  Hurd's robust locks check only that the owner's process is alive
+  (`valid_pid`), so within one process nothing is noticed. They had
+  failed at once because the lock didn't exclude.
