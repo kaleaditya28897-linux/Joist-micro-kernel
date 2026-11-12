@@ -1129,3 +1129,23 @@ is written field by field), and `joist-ports.h` can't follow `hurd.h` in
   Hurd's robust locks check only that the owner's process is alive
   (`valid_pid`), so within one process nothing is noticed. They had
   failed at once because the lock didn't exclude.
+
+### Step 7: malloc/tst-memalign-3, the last failure not understood (2026-11-12)
+
+A clang matter, not Joist's or the allocator's: the test frees ten 256-
+byte chunks (one 64-aligned) and checks that the next `memalign (64,
+256)` returns one of them, comparing the freed pointers with the new
+one. Clang treats `malloc`, `memalign` and `free` as built-ins and folds
+an equality between two allocations' results to false (a pointer to
+freed memory is indeterminate in C), so the count is 0 although the
+allocator returned a freed chunk; under gdb, the two pointers it never
+let escape are "optimized out". The same source passes with printing
+added (the pointers escape) or built with `-fno-builtin-malloc
+-fno-builtin-memalign -fno-builtin-free`, as glibc already builds
+tst-tcfree3. That is glibc patch 0012 (`tools/phase5/glibc-patches`):
+tst-memalign-3 passes 5 of 5 and in the malloc directory's run (78 PASS);
+the selftest's glibc runs pass. No result of glibc's tests is left
+unexplained.
+
+The Hurd's `hurdlock.c` race (above) is written up for bug-hurd and
+libc-alpha, with the two-line patch, by the owner.

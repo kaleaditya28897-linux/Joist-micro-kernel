@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 13:41:08 +0530
+Subject: [PATCH] malloc: tst-memalign-3 without malloc built-ins (clang folds
+ its comparisons)
+
+tst-memalign-3 frees ten chunks and checks that the next memalign
+returns one of them, comparing the freed pointers with the new one.
+Clang treats malloc, memalign and free as built-ins and folds an
+equality between two allocations' results to false, so the count is 0
+and the test fails though the allocator returned a freed chunk. Built
+without those built-ins, as tst-tcfree3 already is.  Joist, Phase 5
+step 7: glibc's tests on Joist, the one failure left unexplained.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ malloc/Makefile | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/malloc/Makefile b/malloc/Makefile
+index bd7383d..15e705c 100644
+--- a/malloc/Makefile
++++ b/malloc/Makefile
+@@ -452,6 +452,11 @@ CPPFLAGS-malloc.c += -DUSE_TCACHE=1
+ #CPPFLAGS-malloc.o += -DMALLOC_DEBUG=1
+ 
+ CFLAGS-tst-tcfree3.c += -fno-builtin-malloc -fno-builtin-free
++# tst-memalign-3 compares pointers it has freed with what memalign returns
++# next; clang folds those comparisons to false (a fresh allocation never
++# equals another), so the test fails where the allocator is right.
++CFLAGS-tst-memalign-3.c += -fno-builtin-malloc -fno-builtin-memalign \
++			   -fno-builtin-free
+ 
+ sLIBdir := $(shell echo $(slibdir) | sed 's,lib\(\|64\)$$,\\\\$$LIB,')
+ 

@@ -104,3 +104,11 @@ The 340 tests that make threads at 163db30, each with its spec, on 2 CPUs
 showed that robust mutexes don't exclude on Joist (`getpid ()` is 0:
 `docs/phase5-plan.md`). The hand-off's record, with its reruns and gdb
 logs: `/srv/joist/handoff/p5-threaded` on the P53.
+
+## malloc/tst-memalign-3 (2026-11-12)
+
+The one result left unknown (`e`) is a clang matter: the test compares
+pointers it has freed with memalign's next result, and clang folds those
+comparisons to false. Built without malloc's built-ins (glibc patch 0012)
+it passes, 5 runs of 5 (`docs/phase5-plan.md`). Its cause in the files
+above stays `e`, as they were when run; read it as `d-clang`.
