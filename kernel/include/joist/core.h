@@ -291,8 +291,9 @@ typedef enum {
  * (endpoint, badge), allocated when mint creates the first one. When the
  * count reaches 0 the account is freed, or, if a notification is bound to
  * the endpoint, it is marked fired and queued on the endpoint until the owner
- * collects the badge (joist_nosenders_next). Deriving and deleting never
- * allocate. */
+ * collects the badge (joist_nosenders_next). A mint of that badge before then
+ * takes the firing back and the account goes on (amended 2026-11-12).
+ * Deriving and deleting never allocate. */
 struct joist_badge_acct {
     uint32_t obj; /* endpoint object index + 1; 0 = free entry */
     joist_badge badge;

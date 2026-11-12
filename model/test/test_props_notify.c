@@ -65,7 +65,7 @@ static uint64_t sh_now;
 
 #define N_WAKE 16u
 static unsigned long wake_cov[N_WAKE];
-static unsigned long fired_nosenders, fired_deadname, endpoint_deaths, notes_freed, collected;
+static unsigned long fired_nosenders, fired_deadname, endpoint_deaths, notes_freed, collected, withdrawn;
 
 static void sh_wake(uint32_t t, joist_err r)
 {
@@ -148,6 +148,25 @@ static uint32_t count_send(uint32_t o, joist_badge b)
                         (c->rights & JOIST_R_SEND) != 0);
     }
     return n;
+}
+
+/* A capability just minted: a sender with a badge whose firing is still
+ * queued takes that firing back (I4, amended 2026-11-12: a queued firing
+ * means no senders now). */
+static void sh_after_mint(const struct joist_cap *c)
+{
+    if (c->type != JOIST_OBJ_ENDPOINT || (c->rights & JOIST_R_SEND) == 0 || c->badge == 0) {
+        return;
+    }
+    uint32_t o = c->obj - 1u;
+    for (uint32_t i = 0; i < sh_nfired[o]; i++) {
+        if (sh_fired[o][i] == c->badge) {
+            memmove(&sh_fired[o][i], &sh_fired[o][i + 1u], (sh_nfired[o] - i - 1u) * sizeof sh_fired[o][0]);
+            sh_nfired[o]--;
+            withdrawn++;
+            return;
+        }
+    }
 }
 
 /* The consequences of deleting capability `gone` (already removed from the
@@ -561,8 +580,12 @@ static int run_seed(uint64_t seed, unsigned long steps)
         } else if (roll < 22) {
             op = OP_MINT;
             joist_rights mask = (joist_rights)(pick(16) | (pick(2) ? JOIST_R_SEND : 0));
-            got = want = joist_cap_mint(&k, cs, a, pick(N_SLOTS), mask,
+            uint32_t dst = pick(N_SLOTS);
+            got = want = joist_cap_mint(&k, cs, a, dst, mask,
                                         (joist_badge)1u << pick(8)); /* bit badges */
+            if (got == JOIST_OK) {
+                sh_after_mint(&k.cs[cs].slot[dst]);
+            }
         } else if (roll < 32) {
             op = OP_DERIVE;
             got = want = joist_cap_derive(&k, cs, a, pick(N_SLOTS), (joist_rights)pick(16));
@@ -649,7 +672,7 @@ JT_TEST(props_notify_model_matches_shadow)
     const char *one = getenv("JOIST_PROP_SEED");
     memset(coverage, 0, sizeof coverage);
     memset(wake_cov, 0, sizeof wake_cov);
-    fired_nosenders = fired_deadname = endpoint_deaths = notes_freed = collected = 0;
+    fired_nosenders = fired_deadname = endpoint_deaths = notes_freed = collected = withdrawn = 0;
     if (one != NULL && *one != '\0') {
         JT_CHECK(run_seed(strtoull(one, NULL, 0), steps));
     } else {
@@ -678,6 +701,7 @@ JT_TEST(props_notify_model_matches_shadow)
     }
     fprintf(stderr,
             "\n  coverage events     no-senders fired=%lu dead-names fired=%lu "
-            "endpoint deaths=%lu notifications freed=%lu no-senders collected=%lu\n",
-            fired_nosenders, fired_deadname, endpoint_deaths, notes_freed, collected);
+            "endpoint deaths=%lu notifications freed=%lu no-senders collected=%lu "
+            "withdrawn by a mint=%lu\n",
+            fired_nosenders, fired_deadname, endpoint_deaths, notes_freed, collected, withdrawn);
 }

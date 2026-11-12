@@ -12,9 +12,9 @@
 
 /* ---- accounting (no-senders) ---- */
 
-/* The live (not fired) account for (obj, b). A fired account for the same
- * pair may also exist, waiting to be collected; a new mint of that badge
- * then starts a fresh account. */
+/* The live (not fired) account for (obj, b). (A fired one for the same pair,
+ * waiting to be collected, is taken back by the next mint of that badge:
+ * joist__acct_reserve.) */
 static struct joist_badge_acct *acct_find(struct joist_kernel *k, uint32_t obj, joist_badge b)
 {
     for (uint32_t i = 0; i < JOIST_MAX_BADGE_ACCTS; i++) {
@@ -26,9 +26,41 @@ static struct joist_badge_acct *acct_find(struct joist_kernel *k, uint32_t obj, 
     return NULL;
 }
 
+/* I4, amended 2026-11-12 (the owner; libports on Joist): a badge minted
+ * again while its firing waits to be collected has senders again, so the
+ * firing is taken off the endpoint's queue and its account goes on; a
+ * queued firing then always means no senders now (Mach's make-send count
+ * makes the same sure). The queue is singly linked: found by a walk from
+ * its head, bounded by the account table. 1 if one was taken back. */
+static int acct_withdraw(struct joist_kernel *k, uint32_t obj, joist_badge b)
+{
+    struct joist_object *e = &k->obj[obj];
+    uint32_t prev = 0;
+    for (uint32_t cur = e->ns_first; cur != 0; cur = k->acct[cur - 1u].next) {
+        JOIST_WORK(k);
+        struct joist_badge_acct *a = &k->acct[cur - 1u];
+        if (a->badge == b) {
+            if (prev == 0) {
+                e->ns_first = a->next;
+            } else {
+                k->acct[prev - 1u].next = a->next;
+            }
+            if (e->ns_last == cur) {
+                e->ns_last = prev;
+            }
+            a->fired = 0;
+            a->next = 0;
+            a->send_caps = 0;
+            return 1;
+        }
+        prev = cur;
+    }
+    return 0;
+}
+
 joist_err joist__acct_reserve(struct joist_kernel *k, uint32_t obj, joist_badge badge)
 {
-    if (acct_find(k, obj, badge) != NULL) {
+    if (acct_find(k, obj, badge) != NULL || acct_withdraw(k, obj, badge)) {
         return JOIST_OK;
     }
     for (uint32_t i = 0; i < JOIST_MAX_BADGE_ACCTS; i++) {

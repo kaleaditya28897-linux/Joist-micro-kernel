@@ -244,8 +244,12 @@ a notification is bound, the badge is **queued on the endpoint**, linked
 through its account (no memory of its own), and the notification is signalled
 with the binding capability's badge, a summary bit the server chose. The
 server collects badges with `nosenders_next`. Each firing is collected
-exactly once; a badge minted again while its last firing is still queued
-counts afresh. Unbound endpoints free the account at once. A dead endpoint's
+exactly once. A badge minted again while its firing is still queued has
+senders again: the firing is taken off the queue and its account goes on,
+so a queued firing always means no senders now (amended 2026-11-12, the
+owner, for libports: Mach's make-send count makes the same sure; the
+summary bit already signalled stays, and `nosenders_next` may then find
+nothing). Unbound endpoints free the account at once. A dead endpoint's
 queue is dropped: nobody can collect it.
 
 **Dead names (I5).** When an endpoint dies, every registration on it signals

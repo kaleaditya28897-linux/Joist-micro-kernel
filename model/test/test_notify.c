@@ -10,7 +10,7 @@ static joist_thread a, b;
 
 /* Slots: an endpoint and its derivations, a notification and badged signal
  * capabilities to it. */
-enum { EP = 0, EP_C1 = 1, EP_C2 = 2, EP_RECV = 3, NOTE = 10, NOTE_SIG1 = 11, NOTE_SIG2 = 12 };
+enum { EP = 0, EP_C1 = 1, EP_C2 = 2, EP_RECV = 3, EP_C3 = 4, NOTE = 10, NOTE_SIG1 = 11, NOTE_SIG2 = 12 };
 
 static int clean(void)
 {
@@ -162,20 +162,50 @@ JT_TEST(nosenders_next_errors)
     JT_CHECK(clean());
 }
 
-JT_TEST(nosenders_refired_badge_is_a_new_account)
+JT_TEST(nosenders_mint_withdraws_a_queued_firing)
 {
     setup();
     joist_badge got = 0;
     JT_REQUIRE(joist_bind_nosenders(&k, cs, EP, NOTE_SIG1) == JOIST_OK);
     JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
     JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK); /* fired, not collected */
-    /* The same badge minted again counts from zero, separately... */
+    /* The same badge minted again before the owner collected: there are
+     * senders again, so the firing is taken back (I4, amended 2026-11-12:
+     * a queued firing always means no senders now, as Mach's make-send
+     * count makes sure)... */
     JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
     JT_CHECK(clean());
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0);
+    /* ...and the account goes on: the last sender's going fires it once. */
     JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);
-    /* ...and fires again: two separate events, each collected once. */
     JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x10);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0);
+    JT_CHECK(clean());
+}
+
+JT_TEST(nosenders_withdrawn_from_the_middle_of_the_queue)
+{
+    setup();
+    joist_badge got = 0;
+    JT_REQUIRE(joist_bind_nosenders(&k, cs, EP, NOTE_SIG1) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C1, JOIST_R_SEND, 0x10) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C2, JOIST_R_SEND, 0x20) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C3, JOIST_R_SEND, 0x30) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C1) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C2) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C3) == JOIST_OK); /* queued: 0x10, 0x20, 0x30 */
+    /* 0x20 minted again (from the middle), then 0x30 (the tail). */
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C2, JOIST_R_SEND, 0x20) == JOIST_OK);
+    JT_CHECK(clean());
+    JT_REQUIRE(joist_cap_mint(&k, cs, EP, EP_C3, JOIST_R_SEND, 0x30) == JOIST_OK);
+    JT_CHECK(clean());
     JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x10);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0);
+    /* The queue's tail was mended: a new firing still queues and is found. */
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C3) == JOIST_OK);
+    JT_CHECK(joist_cap_delete(&k, cs, EP_C2) == JOIST_OK);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x30);
+    JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0x20);
     JT_CHECK(joist_nosenders_next(&k, cs, EP, &got) == JOIST_OK && got == 0);
     JT_CHECK(clean());
 }

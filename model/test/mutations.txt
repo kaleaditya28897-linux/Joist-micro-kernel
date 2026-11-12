@@ -380,3 +380,5 @@ mm-grow-not-charged       @@ ../servers/mm/mmlib.c @@ g->tables += MM_TABLE_GROW
 mm-grow-not-returned      @@ ../servers/mm/mmlib.c @@ m->tree[r].tables -= (uint64_t)tk->ngrow * MM_TABLE_GROW; @@ (void)r;
 mm-grow-unbounded         @@ ../servers/mm/mmlib.c @@ tk->ngrow >= MM_TABLE_GROWS || @@ 0 ||
 mm-grow-past-the-ceiling  @@ ../servers/mm/mmlib.c @@ g->pages + g->tables > g->ceil - MM_TABLE_GROW @@ 0
+ns-mint-withdraws-nothing  @@ ../kernel/core/notify.c @@         if (a->badge == b) { @@         if (0 && a->badge == b) {
+ns-withdraw-tail-stale     @@ ../kernel/core/notify.c @@ e->ns_last = prev; @@ (void)prev;
