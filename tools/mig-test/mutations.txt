@@ -17,3 +17,4 @@ server-moved-memory-kept @@ joistmig.c @@ "\t\t\tjoist_mig_deallocate((void *)(u
 server-string-unterminated @@ joistmig.c @@             fprintf(f, "\t\t    (jm_%s = joist_mig_ref(&jm_b, jm_n)) == NULL || jm_%s[jm_n - 1] != 0)\n", svname(a), @@             fprintf(f, "\t\t    (jm_%s = joist_mig_ref(&jm_b, jm_n)) == NULL || 0 * jm_%s[0])\n", svname(a),
 demux-unknown-served @@ joistmig.c @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = (uint32_t)JOIST_MIG_BAD_ID;\n"); @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = 0;\n");
 routine-lookup-finds-none @@ joistmig.c @@ "\tcase %u:\n\t\treturn _X%s;\n" @@ "\tcase %u:\n\t\treturn NULL;\n"
+server-destructor-dropped @@ joistmig.c @@         fprintf(f, "\t%s(jm_t_%s);\n", dt[ndt]->argType->itDestructor, svname(dt[ndt])); @@         (void)dt;

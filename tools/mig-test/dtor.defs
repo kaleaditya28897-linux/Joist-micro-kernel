@@ -1,0 +1,31 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* dtor.defs - MIG's translations and destructors through joistmig (the
+   host test dtor.c): a request port translated by its badge (intranpayload,
+   as libports' ports are), and a port argument translated by name (intran),
+   each with a destructor, which a server must call once a request whatever
+   its routine returned. */
+subsystem dtor 7000;
+
+#include <mach/std_types.defs>
+
+import "dtor_types.h";
+
+type dtor_req_t = mach_port_t
+	ctype: mach_port_t
+	intran: dtor_obj_t dtor_in(mach_port_t)
+	intranpayload: dtor_obj_t dtor_in_payload
+	destructor: dtor_done(dtor_obj_t);
+
+type dtor_arg_t = mach_port_t
+	ctype: mach_port_t
+	intran: dtor_obj_t dtor_in(mach_port_t)
+	destructor: dtor_done(dtor_obj_t);
+
+routine dtor_ok(
+	target: dtor_req_t;
+	other: dtor_arg_t;
+	x: int);
+
+routine dtor_fail(
+	target: dtor_req_t;
+	other: dtor_arg_t);

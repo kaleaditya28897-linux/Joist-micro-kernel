@@ -103,6 +103,20 @@ bounded() { # DIR OPT
     "$1/b/bounded"
 }
 
+# MIG's translations and destructors (dtor.c, dtor.defs): a server calls
+# each destructor once, after the routine, whatever it returned.
+dtor() { # DIR OPT
+    mkdir -p "$1/d"
+    cp "$here/dtor_types.h" "$1/d/"
+    clang -E -x c -nostdinc -I"$R/x86_64-gnu" -I"$R" -I"$here" -D__x86_64__ "$here/dtor.defs" -o "$1/d/dtor.defsi"
+    (cd "$1/d" && ../joistmig -user /dev/null -header /dev/null -server dtorServer.c -sheader dtor_S.h \
+        < dtor.defsi) || return 1
+    cc_hurd "$2" -fsanitize=address,undefined "$1" "$1/d/dtorServer.c" "$1/d/dtorServer.o" || return 1
+    cc_hurd "$2" -fsanitize=address,undefined "$1" "$here/dtor.c" "$1/d/dtor.o" || return 1
+    clang -fsanitize=address,undefined -o "$1/d/dtor" "$1/d/dtorServer.o" "$1/d/dtor.o" || return 1
+    "$1/d/dtor"
+}
+
 case $mode in
 test)
     generate "$MIG" "$W/gen" "$repo/user/lib/joist_mig.h"
@@ -111,6 +125,8 @@ test)
         roundtrip "$W/gen" "$o"
         printf '%s: ' "$o"
         bounded "$W/gen" "$o"
+        printf '%s: ' "$o"
+        dtor "$W/gen" "$o"
     done
     ;;
 fuzz)
@@ -145,6 +161,8 @@ EOF
         fi
         if ! SEEDS=200 roundtrip "$m/gen" -O1 > "$m/rt.log" 2>&1; then
             echo "caught   $name: $(grep -m1 'mig-test:\|ERROR\|error' "$m/rt.log" | cut -c1-90)"
+        elif ! dtor "$m/gen" -O1 > "$m/dtor.log" 2>&1; then
+            echo "caught   $name: $(grep -m1 'dtor:\|ERROR\|error' "$m/dtor.log" | cut -c1-90)"
         elif ! fuzz "$m/gen" "${FUZZ_TIME:-20}"; then
             echo "caught   $name: (the fuzzer)"
         else

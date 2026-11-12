@@ -405,11 +405,46 @@ static void server_in(FILE *f, const argument_t *a, int *k)
     }
 }
 
+/* An argument MIG translates in (intran, intranpayload) and destroys after
+ * the routine (its destructor, akbDestroy): its translation is kept in
+ * jm_t_NAME, so the destructor gets what the routine got. */
+static int has_dtor(const argument_t *a)
+{
+    const ipc_type_t *it = a->argType;
+    if (!akCheck(a->argKind, akbDestroy) || akCheck(a->argKind, akbIndefinite) ||
+        it->itDestructor == strNULL) {
+        return 0;
+    }
+    if (akIdent(a->argKind) == akeRequestPort) {
+        return it->itInTransPayload != strNULL || it->itInTrans != strNULL;
+    }
+    return it->itInTrans != strNULL && is_in(a);
+}
+
+/* Its translation, as the routine would get it inline. */
+static void server_trans(FILE *f, const argument_t *a)
+{
+    const ipc_type_t *it = a->argType;
+    if (akIdent(a->argKind) == akeRequestPort) {
+        if (it->itInTransPayload != strNULL) {
+            fprintf(f, "%s(in->badge)", it->itInTransPayload);
+        } else {
+            fprintf(f, "%s((mach_port_t)in->badge)", it->itInTrans);
+        }
+    } else {
+        fprintf(f, "%s(jm_%s)", it->itInTrans, svname(a));
+    }
+}
+
 /* The server routine's argument for a. */
 static void server_arg(FILE *f, const argument_t *a)
 {
     const ipc_type_t *it = a->argType;
     const argument_t *p = a->argParent;
+    if (has_dtor(a)) {
+        fprintf(f, "%sjm_t_%s", a->argByReferenceServer ? "&" : "", svname(a));
+        return;
+    }
     switch (akIdent(a->argKind)) {
     case akeRequestPort:
         if (it->itInTransPayload != strNULL) {
@@ -521,6 +556,13 @@ static void write_server_routine(FILE *f, const routine_t *rt)
         }
     }
     fprintf(f, "\tif (jm_b.at != jm_b.end)\n\t\tgoto bad; /* more than it takes */\n");
+    for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
+        if (akCheck(a->argKind, akbServerArg) && has_dtor(a)) {
+            fprintf(f, "\t%s jm_t_%s = ", a->argType->itTransType, svname(a));
+            server_trans(f, a);
+            fprintf(f, ";\n");
+        }
+    }
     fprintf(f, "\tjm_r = %s(", rt->rtServerName);
     int first = 1;
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
@@ -531,6 +573,18 @@ static void write_server_routine(FILE *f, const routine_t *rt)
         }
     }
     fprintf(f, ");\n");
+    /* MIG's destructors, after the routine whatever it returned, last
+     * argument first (server.c's WriteDestroyArg). */
+    const argument_t *dt[64];
+    int ndt = 0;
+    for (const argument_t *a = rt->rtArgs; a != argNULL && ndt < 64; a = a->argNext) {
+        if (akCheck(a->argKind, akbServerArg) && has_dtor(a)) {
+            dt[ndt++] = a;
+        }
+    }
+    while (ndt-- > 0) {
+        fprintf(f, "\t%s(jm_t_%s);\n", dt[ndt]->argType->itDestructor, svname(dt[ndt]));
+    }
     fprintf(f, "\tout->r[0] = (uint32_t)jm_r;\n\tout->ncaps = 0;\n");
     fprintf(f, "\tif (jm_r != KERN_SUCCESS) {\n\t\tout->len = 0;\n\t\tout->r[1] = out->r[2] = out->r[3] = 0;\n\t\treturn;\n\t}\n");
     int outs = 0;
