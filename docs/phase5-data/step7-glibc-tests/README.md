@@ -92,3 +92,15 @@ The same 3060 tests at 977adb2, mm lending each task its page tables as
 it needs them (the default first run of 16, then runs of 16 from 1024
 pages) instead of the fixed 384 of the second run: every result the same,
 test for test, as `results-specs-1cpu.txt`.
+
+## The threaded tests on 2 and 4 CPUs (2026-11-10)
+
+The 340 tests that make threads at 163db30, each with its spec, on 2 CPUs
+(4 boots at once) and 4 (2 at once): `results-specs-thr2.txt`,
+`results-specs-thr4.txt`, with `causes-specs-thr2.txt`, `-thr4.txt` (the
+1-CPU causes where the result is the same; `*` where read by hand).
+152 PASS, 2 UNSUPPORTED, 179 FAIL, 5 TIMEOUT, 2 NO-STATUS on each, as on
+1 CPU; four tests differ from 1 CPU, among them htl/tst-robust11, which
+showed that robust mutexes don't exclude on Joist (`getpid ()` is 0:
+`docs/phase5-plan.md`). The hand-off's record, with its reruns and gdb
+logs: `/srv/joist/handoff/p5-threaded` on the P53.

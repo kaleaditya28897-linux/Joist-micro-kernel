@@ -1,0 +1,186 @@
+ctype/tst-ctype-tls-dlmopen FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+ctype/tst-ctype-tls-dlopen-static FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: /home/user/joist-glibc/w/build/ctype/tst-ctype-tls-mod.so: cannot open shared object file: Computer bought the farm
+debug/tst-chk-cancel FAIL 1 b-ipc | error: tst-chk-cancel.c:198: socketpair: Computer bought the farm
+elf/tst-audit-tlsdesc-dlopen FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-audit-tlsdesc-mod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-dl_find_object-threads FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-dl_find_object-mod1.so: cannot open shared object file: Computer bought the farm
+elf/tst-dlopen-tlsmodid FAIL 1 b-dl | error: ./tst-dlopen-tlsmodid.h:60: invalid dlopen error message: "tst-dlopen-self: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-tlsmodid-container FAIL 1 b-dl | error: ./tst-dlopen-tlsmodid.h:60: invalid dlopen error message: "/usr/bin/iconv: cannot open shared object file: Computer bought the farm"
+elf/tst-dlopen-tlsmodid-pie FAIL 1 b-dl | error: ./tst-dlopen-tlsmodid.h:60: invalid dlopen error message: "tst-dlopen-self-pie: cannot open shared object file: Computer bought the farm"
+elf/tst-thrlock FAIL 1 b-dl | dlopen failed: libm.so.6: cannot open shared object file
+elf/tst-tls-ie FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tls-ie-mod0.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls-ie-dlmopen FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: tst-tls-ie-mod0.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls-manydynamic FAIL 1 b-dl | error: dlopen failed: tst-tls-manydynamic00mod.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls20 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tls-manydynamic00mod.so: cannot open shared object file: Computer bought the farm
+elf/tst-tls21 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tls21mod.so: cannot open shared object file: Computer bought the farm
+elf/tst-tlsgap FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-tlsgap-mod0.so: cannot open shared object file: Computer bought the farm
+htl/tst-atfork1 FAIL 1 b-fork | fork failed
+htl/tst-atfork2 FAIL 1 b-dl | dlopen failed: tst-atfork2mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-atfork3 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-atfork3mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-atfork4 FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: tst-atfork4mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-barrier2 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-basic3 FAIL 127 b-signal | final_test has been called
+htl/tst-basic4 FAIL 1 b-fork | fork failed
+htl/tst-basic6 FAIL 1 b-fs | getcwd failed
+htl/tst-basic7 FAIL 1 c-mem | pthread_create returns 6: FAIL
+htl/tst-cancel1 FAIL 127 b-state | tst-cancel1: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel11 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel13 FAIL 127 b-state | tst-cancel13: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel15 FAIL 127 b-state | tst-cancel15: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel16 FAIL 1 b-fs | mkstemp failed
+htl/tst-cancel18 FAIL 127 b-state | tst-cancel18: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel19 FAIL 1 b-ipc | tst-cancel19: couldn't create pipe: Computer bought the farm
+htl/tst-cancel2 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel20 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel21 FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-cancel21-static FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-cancel25 FAIL 127 b-state | tst-cancel25: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel28 TIMEOUT b-state | tst-cancel28: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel3 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel30 FAIL 127 b-state | tst-cancel30: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel32 FAIL 127 b-state* | tst-cancel32: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancel4 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancel5 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancel6 FAIL 1 b-ipc | pipe failed
+htl/tst-cancel9 FAIL 1 b-state | cannot open /dev/null
+htl/tst-cancelx11 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx13 FAIL 127 b-state | tst-cancelx13: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancelx15 FAIL 127 b-state | tst-cancelx15: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancelx16 FAIL 1 b-fs | mkstemp failed
+htl/tst-cancelx18 FAIL 127 b-state | tst-cancelx18: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-cancelx2 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx20 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx21 FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-cancelx3 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx4 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancelx5 FAIL 1 b-ipc | socketpair: Computer bought the farm
+htl/tst-cancelx6 FAIL 1 b-ipc | pipe failed
+htl/tst-cancelx9 FAIL 1 b-state | cannot open /dev/null
+htl/tst-cleanup0 FAIL 9 c-args | ch (1)
+htl/tst-cleanup2 NO-STATUS b-signal | Attempting to sprintf to null ptr
+htl/tst-cleanupx0 FAIL 9 c-args | ch (1)
+htl/tst-cleanupx2 NO-STATUS b-signal | Attempting to sprintf to null ptr
+htl/tst-cond10 FAIL 1 b-signal | create failed
+htl/tst-cond12 FAIL 1 b-fs | mkstemp failed: Computer bought the farm
+htl/tst-cond13 FAIL 1 b-fs | mkstemp failed: Computer bought the farm
+htl/tst-cond16 FAIL 1 b-fs | couldn't open /dev/null, Computer bought the farm
+htl/tst-cond17 FAIL 1 b-fs | couldn't open /dev/null, Computer bought the farm
+htl/tst-cond18 FAIL 1 b-fs | couldn't open /dev/null, Computer bought the farm
+htl/tst-cond23 FAIL 1 d-hurd | 1st condattr_setpshared failed
+htl/tst-cond24 FAIL 1 d-hurd | pthread_mutexattr_setprotocol: Not supported(1073741942)
+htl/tst-cond25 FAIL 118 d-hurd | mutexattr_setprotocol failed: Not supported
+htl/tst-cond4 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-cond6 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-create-detached FAIL 1 b-fs | FAIL: setrlimit (RLIMIT_AS) failed: Computer bought the farm
+htl/tst-create1 FAIL 1 b-dl | error: dlopen: tst-create1mod.so: cannot open shared object file: Computer bought the farm
+htl/tst-eintr2 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-eintr5 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-exec1 FAIL 1 b-ipc | pipe failed
+htl/tst-exec2 FAIL 1 b-ipc | pipe failed
+htl/tst-exec3 FAIL 1 b-ipc | pipe failed
+htl/tst-flock1 FAIL 1 b-fs | mkstemp failed
+htl/tst-flock2 FAIL 1 b-fs | mkstemp failed
+htl/tst-fopen-threaded FAIL 1 b-fs | cannot open temporary file '/tmp/tst-fopen.lHUsAo': Computer bought the farm
+htl/tst-fork1 FAIL 1 b-fork | join 4 successful, but child failed
+htl/tst-fork2 FAIL 1 b-fork | initial fork failed
+htl/tst-fork3 FAIL 1 b-fork | initial fork failed
+htl/tst-fork4 FAIL 1 b-fork | fork: Function not implemented
+htl/tst-getpid3 FAIL 1 b-fork | fork failed: Function not implemented
+htl/tst-join15 FAIL 1 d-hurd | error: 8 test failures
+htl/tst-join7 FAIL 1 b-dl | glibcroot: exit status 256, code 1
+htl/tst-key3 FAIL 127 b-state | tst-key3: ../sysdeps/mach/hurd/htl/pt-docancel.c:66: int __pthread_do_cancel(struct __pthread *): Unexpected error: (os/kern) invalid argument.
+htl/tst-kill1 FAIL 1 b-signal | kill failed
+htl/tst-kill2 FAIL 1 b-signal | kill failed
+htl/tst-kill3 FAIL 1 b-signal | kill failed
+htl/tst-kill6 FAIL 1 b-signal | kill failed
+htl/tst-mutex4 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-mutex7 FAIL 1 c-mem | creating thread 95 failed
+htl/tst-mutex9 FAIL 1 b-fs | error: ../sysdeps/pthread/tst-mutex9.c:58: cannot open temporary file: Computer bought the farm
+htl/tst-once2 FAIL 1 c-mem | creation of thread 95 failed
+htl/tst-pt-popen1 FAIL 1 b-ipc | tst-pt-popen1: popen failed: Computer bought the farm
+htl/tst-pt-tls2 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-pt-tls4 FAIL 1 b-dl | dlopen failed tst-tls4moda.so: cannot open shared object file: Computer bought the farm
+htl/tst-pt-vfork1 FAIL 1 b-ipc | pipe failed
+htl/tst-pt-vfork2 FAIL 1 b-ipc | pipe failed
+htl/tst-pthread-exit-signal FAIL 1 b-signal | error: xpthread_check_return.c:32: pthread_kill: (ipc/send) invalid destination port
+htl/tst-pthread-exited FAIL 1 d-hurd | error: 48 test failures
+htl/tst-pthread-raise-blocked-self FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-pthread-setuid-loop FAIL 1 c-mem* | joist: finish code 0
+htl/tst-pthread_kill-exiting FAIL 1 c-mem | error: xpthread_check_return.c:32: pthread_create: (os/kern) resource shortage
+htl/tst-raise1 FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+htl/tst-robust1 FAIL 1 d-hurd* | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust10 FAIL 1 a-pid* | mutex_timedlock didn't fail
+htl/tst-robust11 FAIL 1 a-pid* | thread 28: failed to release the lock
+htl/tst-robust2 FAIL 1 d-hurd* | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust3 FAIL 1 d-hurd* | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust4 FAIL 1 d-hurd* | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust5 FAIL 1 d-hurd* | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust6 FAIL 1 d-hurd* | 1: parent: mutex_lock m1 succeeded
+htl/tst-robust7 FAIL 1 d-hurd* | thread 5: cond_wait did not return EOWNERDEAD
+htl/tst-robust8 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-robust8xKhlAo': Computer bought the farm
+htl/tst-rwlock12 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-rwlock4 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-sem16 FAIL 1 b-fs | glibcroot: exit status 256, code 1
+htl/tst-sem18 FAIL 1 b-fs | left: 1073741928 (0x40000068, EIEIO); from: errno
+htl/tst-sem3 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-sem4 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-sem6 TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4676499, sp 4058400
+htl/tst-sem7 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-sem8 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-sem9 FAIL 1 b-fs | sem_open: Computer bought the farm
+htl/tst-setuid3 FAIL 1 b-fs | error: ../sysdeps/pthread/tst-setuid3.c:74: setuid (getuid ()): Computer bought the farm
+htl/tst-signal1 FAIL 1 b-fs | mkstemp failed
+htl/tst-signal2 FAIL 1 b-fs | mkstemp failed
+htl/tst-spin2 FAIL 1 b-fs | cannot open temporary file: Computer bought the farm
+htl/tst-stack2 FAIL 127 b-wx* | joist: finish code 0
+htl/tst-thrd-detach TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4446508, sp 4058232
+htl/tst-tsd6 FAIL 1 b-fork | cannot create child process
+htl/tst-umask1 FAIL 1 b-fs | cannot creat /home/user/joist-glibc/w/build/htl/tst-umask1.temp: Computer bought the farm
+htl/tst-unload FAIL 1 b-dl | failed to load libpthread.so.0.3
+htl/tst-vfork1x FAIL 1 b-ipc | pipe failed
+htl/tst-vfork2x FAIL 1 b-ipc | pipe failed
+hurd/test-sig-rpc-interrupted FAIL 127 b-signal | right: 0 (0x0); from: MACH_MSG_SUCCESS
+hurd/test-sig-xstate FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+hurd/tst-sig-redzone FAIL 127 b-signal | glibcroot: exit status 32512, code 127
+intl/tst-gettext4 FAIL 1 b-fs | beauty
+intl/tst-gettext5 FAIL 1 b-fs | cheese
+intl/tst-gettext6 FAIL 1 b-fork | fork failed: Function not implemented
+libio/tst-popen-fork FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+locale/tst-localedef-path-norm FAIL 1 b-fs | error: xmkdirp.c:63: mkdir_p ("/output", 0777): (os/kern) invalid name
+malloc/tst-aligned-alloc-random-thread FAIL 1 c-mem | error: tst-aligned-alloc-random-thread.c:74: not true: allocations[id][i] != NULL
+malloc/tst-aligned-alloc-random-thread-cross FAIL 1 c-mem | error: ./tst-aligned-alloc-random-thread.c:74: not true: allocations[id][i] != NULL
+malloc/tst-interpose-thread FAIL 1 b-fs | cannot open temporary file '/tmp/tst-malloc-interposeZyGAAo': Computer bought the farm
+malloc/tst-malloc-fork-deadlock FAIL 127 b-fs | cannot open temporary file '/tmp/bug19431-large-linesZi5zo': Computer bought the farm
+malloc/tst-malloc-stats-cancellation FAIL 2 c-stdin | fdopen: (ipc/mig) bad request message ID
+malloc/tst-malloc-tcache-leak FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+malloc/tst-malloc-thread-exit FAIL 1 c-mem | error: xpthread_check_return.c:32: error: xpthread_check_return.c:32: pthread_create: (os/kern) resource shortagepthread_create: (os/kern) resource shortage
+malloc/tst-malloc-thread-fail FAIL 1 b-fs | setrlimit (RLIMIT_AS) failed: Computer bought the farm
+malloc/tst-malloc_info FAIL 1 c-mem | malloc: unable to allocate 40 bytes: Cannot allocate memory
+malloc/tst-mallocfork3 FAIL 1 b-fork | pthread_kill: (ipc/send) invalid destination portpthread_kill: (ipc/send) invalid destination portpthread_kill: (ipc/send) invalid destination port
+malloc/tst-memalign-3 FAIL 1 e | error: 1 test failures
+posix/tst-_Fork FAIL 1 b-fs | cannot open temporary file '/tmp/tst-_ForkrrjBAo': Computer bought the farm
+posix/tst-getopt-cancel FAIL 1 b-fs | cannot open temporary file '/tmp/stderrUJ8JBo': Computer bought the farm
+resolv/tst-resolv-res_init-thread FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-resolv-res_init-spaiAo"): Computer bought the farm
+rt/tst-aio10 FAIL 1 b-ipc | pipe failed
+rt/tst-aio9 FAIL 1 b-ipc | pipe failed
+rt/tst-clock_nanosleep2 FAIL 1 b-clock | tst-clock_nanosleep2.c:102: numeric comparison failure
+rt/tst-mqueue5 FAIL 1 b-fs | Could not create temporary file /tmp/tst-mqueueN.JPijAo: Computer bought the farm
+rt/tst-shm-cancel FAIL 1 b-state | glibcroot: exit status 256, code 1
+stdio-common/tst-freopen64-7 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen-cancelLGVgAo"): Computer bought the farm
+stdio-common/tst-freopen7 FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-freopen-cancelZCphAo"): Computer bought the farm
+stdio-common/tst-setvbuf2 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-setvbuf2uYwhAo': Computer bought the farm
+stdlib/test-at_quick_exit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: (os/kern) resource shortage
+stdlib/test-atexit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: (os/kern) resource shortage
+stdlib/test-cxa_atexit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: (os/kern) resource shortage
+stdlib/test-cxa_atexit-race2 FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+stdlib/test-dlclose-exit-race FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: $ORIGIN/test-dlclose-exit-race-helper.so: cannot open shared object file: No such file or directory
+stdlib/test-on_exit-race FAIL 1 c-mem* | error: xpthread_check_return.c:32: pthread_create: Resource temporarily unavailable
+stdlib/tst-arc4random-thread FAIL 127 b-fork* | Fatal glibc error: cannot get entropy for arc4random
+stdlib/tst-canon-bz26341 FAIL 1 b-fs | cannot open temporary file '/tmp/tst-canon-bz263419FjrAo': Computer bought the farm
+stdlib/tst-concurrent-quick_exit FAIL 1 b-fork | error: xfork.c:30: fork: Function not implemented
+stdlib/tst-getenv-signal FAIL 1 b-signal | error: xraise.c:26: raise (30): (ipc/send) invalid destination port
+stdlib/tst-getrandom2 FAIL 1 b-dl | error: xdlmopen.c:28: error: dlmopen: invalid namespace: Invalid argument
+stdlib/tst-qsort7 TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4447676, sp 4058248
+stdlib/tst-qsortx7 TIMEOUT b-signal | glibcroot: TIMEOUT, its first thread at pc 4447868, sp 4058248
+stdlib/tst-system FAIL 1 b-fs | error: mkdtemp ("/tmp/tst-system-qYkhAo"): Computer bought the farm
+stdlib/tst-tls-atexit FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: $ORIGIN/tst-tls-atexit-lib.so: cannot open shared object file: No such file or directory
+stdlib/tst-tls-atexit-nodelete FAIL 1 b-dl | error: xdlfcn.c:29: error: dlopen: $ORIGIN/tst-tls-atexit-lib.so: cannot open shared object file: No such file or directory

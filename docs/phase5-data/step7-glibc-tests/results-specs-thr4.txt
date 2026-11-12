@@ -1,0 +1,340 @@
+ctype/tst-ctype-tls-dlmopen FAIL 1
+ctype/tst-ctype-tls-dlopen-static FAIL 1
+debug/tst-backtrace1 PASS
+debug/tst-chk-cancel FAIL 1
+elf/tst-audit-tlsdesc-dlopen FAIL 1
+elf/tst-audit21 PASS
+elf/tst-decorate-maps UNSUPPORTED
+elf/tst-dl_find_object-threads FAIL 1
+elf/tst-dlopen-tlsmodid FAIL 1
+elf/tst-dlopen-tlsmodid-container FAIL 1
+elf/tst-dlopen-tlsmodid-pie FAIL 1
+elf/tst-single_threaded-pthread-static PASS
+elf/tst-thrlock FAIL 1
+elf/tst-tls-ie FAIL 1
+elf/tst-tls-ie-dlmopen FAIL 1
+elf/tst-tls-manydynamic FAIL 1
+elf/tst-tls20 FAIL 1
+elf/tst-tls21 FAIL 1
+elf/tst-tlsgap FAIL 1
+htl/tst-_res1 PASS
+htl/tst-abstime PASS
+htl/tst-atfork1 FAIL 1
+htl/tst-atfork2 FAIL 1
+htl/tst-atfork3 FAIL 1
+htl/tst-atfork4 FAIL 1
+htl/tst-attr1 PASS
+htl/tst-bad-schedattr PASS
+htl/tst-barrier1 PASS
+htl/tst-barrier2 FAIL 1
+htl/tst-barrier3 PASS
+htl/tst-barrier4 PASS
+htl/tst-basic1 PASS
+htl/tst-basic2 PASS
+htl/tst-basic3 FAIL 127
+htl/tst-basic4 FAIL 1
+htl/tst-basic5 PASS
+htl/tst-basic6 FAIL 1
+htl/tst-basic7 FAIL 1
+htl/tst-call-once PASS
+htl/tst-cancel-self PASS
+htl/tst-cancel-self-cancelstate PASS
+htl/tst-cancel-self-canceltype PASS
+htl/tst-cancel-self-testcancel PASS
+htl/tst-cancel1 FAIL 127
+htl/tst-cancel10 PASS
+htl/tst-cancel11 FAIL 1
+htl/tst-cancel12 PASS
+htl/tst-cancel13 FAIL 127
+htl/tst-cancel14 PASS
+htl/tst-cancel15 FAIL 127
+htl/tst-cancel16 FAIL 1
+htl/tst-cancel18 FAIL 127
+htl/tst-cancel19 FAIL 1
+htl/tst-cancel2 FAIL 1
+htl/tst-cancel20 FAIL 1
+htl/tst-cancel21 FAIL 1
+htl/tst-cancel21-static FAIL 1
+htl/tst-cancel22 PASS
+htl/tst-cancel23 PASS
+htl/tst-cancel25 FAIL 127
+htl/tst-cancel26 PASS
+htl/tst-cancel27 PASS
+htl/tst-cancel28 TIMEOUT
+htl/tst-cancel29 PASS
+htl/tst-cancel3 FAIL 1
+htl/tst-cancel30 FAIL 127
+htl/tst-cancel32 FAIL 127
+htl/tst-cancel4 FAIL 1
+htl/tst-cancel5 FAIL 1
+htl/tst-cancel6 FAIL 1
+htl/tst-cancel8 PASS
+htl/tst-cancel9 FAIL 1
+htl/tst-cancelx10 PASS
+htl/tst-cancelx11 FAIL 1
+htl/tst-cancelx12 PASS
+htl/tst-cancelx13 FAIL 127
+htl/tst-cancelx14 PASS
+htl/tst-cancelx15 FAIL 127
+htl/tst-cancelx16 FAIL 1
+htl/tst-cancelx18 FAIL 127
+htl/tst-cancelx2 FAIL 1
+htl/tst-cancelx20 FAIL 1
+htl/tst-cancelx21 FAIL 1
+htl/tst-cancelx3 FAIL 1
+htl/tst-cancelx4 FAIL 1
+htl/tst-cancelx5 FAIL 1
+htl/tst-cancelx6 FAIL 1
+htl/tst-cancelx8 PASS
+htl/tst-cancelx9 FAIL 1
+htl/tst-cleanup0 FAIL 9
+htl/tst-cleanup1 PASS
+htl/tst-cleanup2 NO-STATUS
+htl/tst-cleanup3 PASS
+htl/tst-cleanupx0 FAIL 9
+htl/tst-cleanupx1 PASS
+htl/tst-cleanupx2 NO-STATUS
+htl/tst-cleanupx3 PASS
+htl/tst-clock1 PASS
+htl/tst-cnd-basic PASS
+htl/tst-cnd-broadcast PASS
+htl/tst-cnd-timedwait PASS
+htl/tst-cond-except PASS
+htl/tst-cond1 PASS
+htl/tst-cond10 FAIL 1
+htl/tst-cond11 PASS
+htl/tst-cond11-static PASS
+htl/tst-cond12 FAIL 1
+htl/tst-cond13 FAIL 1
+htl/tst-cond14 PASS
+htl/tst-cond15 PASS
+htl/tst-cond16 FAIL 1
+htl/tst-cond17 FAIL 1
+htl/tst-cond18 FAIL 1
+htl/tst-cond19 PASS
+htl/tst-cond2 PASS
+htl/tst-cond20 PASS
+htl/tst-cond21 PASS
+htl/tst-cond23 FAIL 1
+htl/tst-cond24 FAIL 1
+htl/tst-cond25 FAIL 118
+htl/tst-cond27 PASS
+htl/tst-cond3 PASS
+htl/tst-cond4 FAIL 1
+htl/tst-cond5 PASS
+htl/tst-cond6 FAIL 1
+htl/tst-cond7 PASS
+htl/tst-cond8 PASS
+htl/tst-cond8-static PASS
+htl/tst-cond9 PASS
+htl/tst-create-detached FAIL 1
+htl/tst-create1 FAIL 1
+htl/tst-detach1 PASS
+htl/tst-eintr2 FAIL 127
+htl/tst-eintr3 PASS
+htl/tst-eintr4 PASS
+htl/tst-eintr5 FAIL 127
+htl/tst-exec1 FAIL 1
+htl/tst-exec2 FAIL 1
+htl/tst-exec3 FAIL 1
+htl/tst-exit1 PASS
+htl/tst-exit2 PASS
+htl/tst-exit3 PASS
+htl/tst-flock1 FAIL 1
+htl/tst-flock2 FAIL 1
+htl/tst-fopen-threaded FAIL 1
+htl/tst-fork1 FAIL 1
+htl/tst-fork2 FAIL 1
+htl/tst-fork3 FAIL 1
+htl/tst-fork4 FAIL 1
+htl/tst-getpid3 FAIL 1
+htl/tst-join1 PASS
+htl/tst-join10 PASS
+htl/tst-join11 PASS
+htl/tst-join12 PASS
+htl/tst-join13 PASS
+htl/tst-join14 PASS
+htl/tst-join15 FAIL 1
+htl/tst-join16 PASS
+htl/tst-join2 PASS
+htl/tst-join3 PASS
+htl/tst-join4 PASS
+htl/tst-join5 PASS
+htl/tst-join6 PASS
+htl/tst-join7 FAIL 1
+htl/tst-join8 PASS
+htl/tst-join9 PASS
+htl/tst-key1 PASS
+htl/tst-key2 PASS
+htl/tst-key3 FAIL 127
+htl/tst-key4 PASS
+htl/tst-kill1 FAIL 1
+htl/tst-kill2 FAIL 1
+htl/tst-kill3 FAIL 1
+htl/tst-kill5 PASS
+htl/tst-kill6 FAIL 1
+htl/tst-locale1 PASS
+htl/tst-locale2 PASS
+htl/tst-memstream PASS
+htl/tst-mtx-basic PASS
+htl/tst-mtx-recursive PASS
+htl/tst-mtx-timedlock PASS
+htl/tst-mtx-trylock PASS
+htl/tst-mutex-errorcheck PASS
+htl/tst-mutex1 PASS
+htl/tst-mutex11 PASS
+htl/tst-mutex2 PASS
+htl/tst-mutex3 PASS
+htl/tst-mutex4 FAIL 1
+htl/tst-mutex5 PASS
+htl/tst-mutex6 PASS
+htl/tst-mutex7 FAIL 1
+htl/tst-mutex9 FAIL 1
+htl/tst-once1 PASS
+htl/tst-once2 FAIL 1
+htl/tst-once3 PASS
+htl/tst-once4 PASS
+htl/tst-oncex3 PASS
+htl/tst-oncex4 PASS
+htl/tst-oncey3 PASS
+htl/tst-oncey4 PASS
+htl/tst-pt-align PASS
+htl/tst-pt-align3 PASS
+htl/tst-pt-popen1 FAIL 1
+htl/tst-pt-sysconf PASS
+htl/tst-pt-tls1 PASS
+htl/tst-pt-tls2 FAIL 127
+htl/tst-pt-tls4 FAIL 1
+htl/tst-pt-vfork1 FAIL 1
+htl/tst-pt-vfork2 FAIL 1
+htl/tst-pthread-exit-signal FAIL 1
+htl/tst-pthread-exited FAIL 1
+htl/tst-pthread-mutexattr PASS
+htl/tst-pthread-mutexattr-2 PASS
+htl/tst-pthread-raise-blocked-self FAIL 127
+htl/tst-pthread-setuid-loop FAIL 1
+htl/tst-pthread_cancel-exited PASS
+htl/tst-pthread_kill-exited PASS
+htl/tst-pthread_kill-exiting FAIL 1
+htl/tst-raise1 FAIL 127
+htl/tst-robust1 FAIL 1
+htl/tst-robust10 FAIL 1
+htl/tst-robust11 FAIL 1
+htl/tst-robust2 FAIL 1
+htl/tst-robust3 FAIL 1
+htl/tst-robust4 FAIL 1
+htl/tst-robust5 FAIL 1
+htl/tst-robust6 FAIL 1
+htl/tst-robust7 FAIL 1
+htl/tst-robust8 FAIL 1
+htl/tst-robust9 PASS
+htl/tst-rwlock-tryrdlock-stall PASS
+htl/tst-rwlock-trywrlock-stall PASS
+htl/tst-rwlock1 PASS
+htl/tst-rwlock12 FAIL 1
+htl/tst-rwlock13 PASS
+htl/tst-rwlock14 PASS
+htl/tst-rwlock16 PASS
+htl/tst-rwlock4 FAIL 1
+htl/tst-rwlock5 PASS
+htl/tst-sem1 PASS
+htl/tst-sem10 PASS
+htl/tst-sem14 PASS
+htl/tst-sem15 PASS
+htl/tst-sem16 FAIL 1
+htl/tst-sem18 FAIL 1
+htl/tst-sem19 PASS
+htl/tst-sem2 PASS
+htl/tst-sem3 FAIL 1
+htl/tst-sem4 FAIL 1
+htl/tst-sem5 PASS
+htl/tst-sem6 TIMEOUT
+htl/tst-sem7 FAIL 1
+htl/tst-sem8 FAIL 1
+htl/tst-sem9 FAIL 1
+htl/tst-setuid3 FAIL 1
+htl/tst-signal1 FAIL 1
+htl/tst-signal2 FAIL 1
+htl/tst-signal4 PASS
+htl/tst-signal5 PASS
+htl/tst-signal6 PASS
+htl/tst-signal8 PASS
+htl/tst-spin1 PASS
+htl/tst-spin2 FAIL 1
+htl/tst-spin3 PASS
+htl/tst-spin4 PASS
+htl/tst-spin5 PASS
+htl/tst-stack1 PASS
+htl/tst-stack2 FAIL 127
+htl/tst-stdio1 PASS
+htl/tst-stdio2 PASS
+htl/tst-thrd-detach TIMEOUT
+htl/tst-thrd-sleep PASS
+htl/tst-tsd1 PASS
+htl/tst-tsd2 PASS
+htl/tst-tsd5 PASS
+htl/tst-tsd6 FAIL 1
+htl/tst-tss-basic PASS
+htl/tst-umask1 FAIL 1
+htl/tst-unload FAIL 1
+htl/tst-unwind-thread PASS
+htl/tst-vfork1x FAIL 1
+htl/tst-vfork2x FAIL 1
+hurd/test-sig-rpc-interrupted FAIL 127
+hurd/test-sig-xstate FAIL 127
+hurd/tst-sig-redzone FAIL 127
+iconv/tst-iconv-mt PASS
+intl/tst-gettext4 FAIL 1
+intl/tst-gettext5 FAIL 1
+intl/tst-gettext6 FAIL 1
+libio/tst-popen-fork FAIL 1
+locale/tst-localedef-path-norm FAIL 1
+malloc/tst-aligned-alloc-random-thread FAIL 1
+malloc/tst-aligned-alloc-random-thread-cross FAIL 1
+malloc/tst-interpose-thread FAIL 1
+malloc/tst-malloc-fork-deadlock FAIL 127
+malloc/tst-malloc-stats-cancellation FAIL 2
+malloc/tst-malloc-tcache-leak FAIL 1
+malloc/tst-malloc-thread-exit FAIL 1
+malloc/tst-malloc-thread-fail FAIL 1
+malloc/tst-malloc_info FAIL 1
+malloc/tst-mallocfork3 FAIL 1
+malloc/tst-memalign-3 FAIL 1
+math/test-fenv-tls PASS
+nss/tst-cancel-getpwuid_r PASS
+posix/tst-_Fork FAIL 1
+posix/tst-getopt-cancel FAIL 1
+resolv/tst-resolv-res_init-multi PASS
+resolv/tst-resolv-res_init-thread FAIL 1
+rt/tst-aio10 FAIL 1
+rt/tst-aio9 FAIL 1
+rt/tst-clock_nanosleep2 FAIL 1
+rt/tst-cpuclock2 PASS
+rt/tst-cputimer1 PASS
+rt/tst-cputimer2 PASS
+rt/tst-mqueue5 FAIL 1
+rt/tst-mqueue8 UNSUPPORTED
+rt/tst-shm-cancel FAIL 1
+rt/tst-timer3 PASS
+stdio-common/tst-freopen64-7 FAIL 1
+stdio-common/tst-freopen7 FAIL 1
+stdio-common/tst-setvbuf2 FAIL 1
+stdlib/test-at_quick_exit-race FAIL 1
+stdlib/test-atexit-race FAIL 1
+stdlib/test-cxa_atexit-race FAIL 1
+stdlib/test-cxa_atexit-race2 FAIL 1
+stdlib/test-dlclose-exit-race FAIL 1
+stdlib/test-on_exit-race FAIL 1
+stdlib/tst-arc4random-thread FAIL 1
+stdlib/tst-canon-bz26341 FAIL 1
+stdlib/tst-concurrent-exit PASS
+stdlib/tst-concurrent-quick_exit FAIL 1
+stdlib/tst-getenv-signal FAIL 1
+stdlib/tst-getenv-thread PASS
+stdlib/tst-getenv-unsetenv PASS
+stdlib/tst-getrandom2 FAIL 1
+stdlib/tst-qsort7 TIMEOUT
+stdlib/tst-qsortx7 TIMEOUT
+stdlib/tst-system FAIL 1
+stdlib/tst-tls-atexit FAIL 1
+stdlib/tst-tls-atexit-nodelete FAIL 1

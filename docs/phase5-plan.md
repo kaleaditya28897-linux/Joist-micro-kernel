@@ -1057,3 +1057,41 @@ come back with the task (`kops.undonate`). `mm.c` lends them from
   (92 runs, joist-dev2); glibc's 3060 tests with mm's default first run:
   every result as with the fixed 384 pages
   (`docs/phase5-data/step7-glibc-tests`).
+
+### Step 7: the threaded tests on 2 and 4 CPUs, with page tables on demand (2026-11-10)
+
+The 340 tests that make threads, each with its Makefile's spec, at
+163db30 on joist-dev2 (KVM): **on 2 and on 4 CPUs 152 PASS, 2
+UNSUPPORTED, 179 FAIL, 5 TIMEOUT, 2 NO-STATUS**, the same counts as on
+1 CPU (the previous SMP runs: 145 PASS). A second 4-CPU pass is the
+same test for test. Four tests differ from 1 CPU, each run again 5 times
+on 1, 2 and 4 CPUs: rt/tst-cputimer2 passes on SMP (its race with a
+missing /dev/null), stdlib/tst-arc4random-thread ends by one of its two
+known failures or the other, and:
+
+- **Joist's own, found (not yet fixed): robust mutexes don't exclude.**
+  htl's robust locks (the Hurd's `hurdlock.c`) put the owner's pid in
+  the lock word; Joist never sets `_hurd_pid` (no proc server), so
+  `getpid ()` is 0 and a robust mutex's word stays 0 when taken: every
+  lock succeeds at once. htl/tst-robust11 passes on 1 CPU (no overlap)
+  and fails 10 of 10 on 2 and 4; tst-robust10 failed on 1 CPU for the
+  same reason (it was put under another thread's state). The answer
+  proposed: a pid from the root at start-up, and `__pid2task` answering
+  for the program's own.
+- **htl/tst-cancel32 hangs on 4 CPUs** (4 of 5): htl's asynchronous
+  cancel suspends the thread, here inside Joist's ports lock (exiting
+  on its own); the refused state call's assertion then waits for that
+  lock. Another thread's state is refused in Phase 5 (item 10), so it
+  stays a refusal; but Joist's own lock sections must be critical
+  sections (as the Hurd's port cells) before Phase 7 allows it, for
+  cancels and signals alike.
+- **Seen on the way:** a program can make about 120 threads in its
+  life, not at once (each leaves its stack and guard, 2 of mm's 256
+  regions: tst-malloc-tcache-leak stops at its 123rd with 2 alive); and
+  `pthread_create` can return a raw "(os/kern) resource shortage".
+
+Every other threaded test's output is the same on 1, 2 and 4 CPUs but
+for temporary names and line order; the futex queues and htl's other
+locks, conditions, barriers and semaphores show no SMP difference
+(`docs/phase5-data/step7-glibc-tests`: `results-specs-thr2.txt`,
+`-thr4.txt`, with their causes).
