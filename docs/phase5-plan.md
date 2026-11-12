@@ -1120,7 +1120,10 @@ is written field by field), and `joist-ports.h` can't follow `hurd.h` in
   compare-and-swap against the value it read; if the owner unlocks in
   between and the value read was 0, the word becomes "waiters, owner 0",
   and the next look finds owner 0 dead and takes the lock with
-  EOWNERDEAD ("thread 31: failed to get the lock"). For the owner.
+  EOWNERDEAD ("thread 31: failed to get the lock"). Fixed in a Joist
+  copy of `hurdlock.c` (the owner's choice, 2026-11-12: only a held word
+  is marked; an upstream bug, to be reported): tst-robust11 then passed
+  10 times of 10 on 4 CPUs.
 - **tst-robust1, 4, 7, 9 now wait for ever (TIMEOUT), where they failed:**
   they need a thread that died holding the lock to be noticed; the
   Hurd's robust locks check only that the owner's process is alive
