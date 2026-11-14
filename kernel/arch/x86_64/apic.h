@@ -31,6 +31,9 @@ void apic_timer_interrupt(void);
 /* Nanoseconds since the timer was calibrated: the TSC, measured against the
  * PIT in the same 10 ms as the LAPIC timer (Phase 3 step 5). Monotonic. */
 uint64_t apic_clock_ns(void);
+/* 1 if CPUID says the TSC is invariant (one rate, in every power state:
+ * the clock above can be trusted to keep going); 0 if not, or not said. */
+int apic_tsc_invariant(void);
 
 /* From the periodic boot tick to one-shot use: after this the timer fires
  * only when armed. */

@@ -1302,15 +1302,21 @@ its record `findings.md`).
   host test `abi_spawn_into_a_killed_callers_slot`, mutation
   `abi-spawn-keeps-pending`. Any thread made after a client was killed in
   a call could meet it, in any task.
-- **Seen, not fixed: the kernel's clock under nested KVM.** With two 2-CPU
-  guests side by side on joist-dev2 (KVM in KVM), at times the timer
-  interrupts come but `K.now`, read from the TSC, stops, and every timed
-  wait hangs (15 of 42 boots of a stress loop, whole rounds of both guests
-  at once; not in the main runs after the glibc fixes). The hand-off's
-  proposal: a timer interrupt advances the clock to at least the time it
-  was armed for, and the invariant-TSC bit is checked at boot; first, a
-  probe on the P53 of whether the nested guest's TSC stands while idle.
-  The owner's to decide.
+- **Found and fixed in the kernel: its clock under KVM in KVM** (the
+  owner's choice, 2026-11-14: the hand-off's proposal). With two 2-CPU
+  guests side by side on joist-dev2, at times the timer's interrupts came
+  but `K.now`, read from the TSC, stood still, and every timed wait hung
+  (15 of 42 boots of a stress loop; joist-dev2's guests don't claim an
+  invariant TSC). Each CPU now keeps the moment its one-shot timer was set
+  for (`timer_due`); when it fires, in user mode or idle, the clock moves
+  to at least that moment (`run.c`'s `timer_fired`), and the timer is set
+  from the later of the TSC's clock and the kernel's (`timer_set`). The
+  boot says whether CPUID calls the TSC invariant. A test build stops the
+  TSC's clock (`-DAPIC_CLOCK_STOP_NS`, `glibc-tests-run.sh`'s
+  `GT_KEXTRA`): with it, at 1 s, the libports test passes seeds 1-3 on 2
+  CPUs, where the old kernel hangs all three; the selftests
+  `kvm-smp1-glibc-clockstop` and `kvm-smp2-glibc-clockstop` (stopped at
+  300 ms) pass, and time out on the old kernel.
 
 Gaps, as built:
 

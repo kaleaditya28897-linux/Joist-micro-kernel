@@ -124,6 +124,13 @@ struct cpu {
     /* The moment the one-shot timer is set for (JOIST_FOREVER: off); 0 once
      * it has fired or idle has used it, so the next exit sets it again. */
     uint64_t armed_for;
+    /* The moment the one-shot timer was last set for, by an exit or by
+     * idle (JOIST_FOREVER: off, or it has fired): when it fires, at least
+     * that much time has passed (timer_fired). */
+    uint64_t timer_due;
+    /* Set by the interrupt that ends idle's sleep when it is the timer's;
+     * idle reads it under the lock. */
+    uint32_t timer_hit;
     /* The user registers of the entry in progress, where another CPU can
      * take them (hk_off_cpu). */
     struct trap_frame *frame;
@@ -1252,6 +1259,34 @@ static void clock_now(void)
     }
 }
 
+/* This CPU's timer fired: it was set for timer_due, so at least that much
+ * time has passed, whatever the TSC says. Under KVM in KVM the TSC was
+ * seen to stand still while the timer's interrupts went on (Phase 5 step
+ * 8), and every timed wait then waited for ever; this keeps the clock
+ * reaching each deadline the timer was set for. (A timer that fires a
+ * little early moves the clock as little ahead.) */
+static void timer_fired(struct cpu *c)
+{
+    uint64_t due = c->timer_due;
+    c->timer_due = JOIST_FOREVER;
+    if (due != JOIST_FOREVER && due > K.now) {
+        K.now = due;
+    }
+}
+
+/* The timer set for `next` (not JOIST_FOREVER), from the later of the
+ * TSC's clock and the kernel's: with the TSC behind (timer_fired moved
+ * the clock on), from the TSC it would be set too far ahead. */
+static void timer_set(struct cpu *c, uint64_t next)
+{
+    uint64_t now = apic_clock_ns();
+    if (now < K.now) {
+        now = K.now;
+    }
+    apic_timer_arm(next > now ? next - now : 1);
+    c->timer_due = next;
+}
+
 /* After anything that may have changed who should run where (the core
  * says so: K.resched), or a choice made while other CPUs' interrupts were
  * still on their way (this CPU may have taken a thread one of them was
@@ -1289,6 +1324,9 @@ static uint32_t idle(struct cpu *c)
     for (;;) {
         joist_thread t;
         clock_now();
+        if (__atomic_exchange_n(&c->timer_hit, 0, __ATOMIC_ACQ_REL)) {
+            timer_fired(c);
+        }
         LS_TIME_V(c, LS_TICK, joist_tick(&K, 0)); /* deadlines that have passed */
         K.resched = 1;     /* and periods that have begun */
         if (LS_TIME(c, LS_PICK, joist_sched_pick_on(&K, c->id, &t)) == JOIST_OK) {
@@ -1310,8 +1348,9 @@ static uint32_t idle(struct cpu *c)
                 kernel_finish(6);
             }
             apic_timer_disarm(); /* another CPU's interrupt will wake this one */
+            c->timer_due = JOIST_FOREVER;
         } else {
-            apic_timer_arm(next > K.now ? next - K.now : 1);
+            timer_set(c, next);
         }
         c->armed_for = 0;
         LS_KIND(c, LS_IDLE);
@@ -1346,9 +1385,9 @@ static void arm_timer(struct cpu *c, uint64_t next)
 #endif
     if (next == JOIST_FOREVER) {
         apic_timer_disarm();
+        c->timer_due = JOIST_FOREVER;
     } else {
-        uint64_t now = apic_clock_ns();
-        apic_timer_arm(next > now ? next - now : 1);
+        timer_set(c, next);
     }
     c->armed_for = next;
 #ifdef RUN_LOCK_STATS
@@ -1602,6 +1641,9 @@ void run_user_trap(struct trap_frame *tf)
     uint32_t t = c->cur; /* JOIST_MAX_THREADS: taken off this CPU meanwhile (hk_off_cpu) */
     /* Time first: the core's clock, and what the thread that ran used. */
     clock_now();
+    if (tf->vector == APIC_TIMER_VECTOR) {
+        timer_fired(c);
+    }
     if (t < JOIST_MAX_THREADS) {
         joist_sched_charge(&K, t, K.now - c->resumed_at);
         c->resumed_at = K.now;
@@ -1718,6 +1760,7 @@ void run_kernel_irq(uint64_t vector)
     if (vector == APIC_TIMER_VECTOR) {
         apic_timer_interrupt();
         c->armed_for = 0;
+        __atomic_store_n(&c->timer_hit, 1, __ATOMIC_RELEASE);
     } else {
         apic_eoi();
         cpu_sync(c);

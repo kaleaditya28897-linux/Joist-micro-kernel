@@ -283,6 +283,11 @@ __attribute__((no_stack_protector)) void kmain(void)
     kputs(" Hz, ");
     kputu(apic_counts_per_tick());
     kputs(" LAPIC counts per tick\n");
+    /* The kernel's clock is the TSC's (apic_clock_ns); where it isn't
+     * invariant it may stand still or drift, and the timer's interrupts
+     * keep the clock reaching its deadlines (run.c's timer_fired). */
+    kputs(apic_tsc_invariant() ? "joist: clock: the TSC, invariant\n"
+                               : "joist: clock: the TSC, not said to be invariant: deadlines kept by the timer's interrupts\n");
     kputs("joist: modules: ");
     kputu(module_req.response != NULL ? module_req.response->module_count : 0);
     kputs("\n");

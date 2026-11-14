@@ -17,6 +17,8 @@
 #   JOBS: runs at once (default 4); CPUS: each machine's (default 1).
 #   GT_UEXTRA: more flags for the user programs (-DMM_REPORT_REFUSED);
 #   GT_MMFLAGS: mm's sizes in place of the ones below.
+#   GT_KEXTRA: more flags for the kernel (-DAPIC_CLOCK_STOP_NS=...: its
+#   TSC clock stops there, as under KVM in KVM).
 #   GT_SPECS: glibc-tests-spec.py's OUT: a test with SPECS/SUBDIR/TEST.args
 #   gets those arguments and environment, its .stdin as its stdin, and its
 #   .expect compared with its output (FAIL output if they differ).
@@ -52,7 +54,7 @@ rm -rf "$K/$b" "$K/../user/build/glibc-tests"
 (cd "$K" && make -s BUILD=$b ROOT_TASK=glibcroot MODULES="mm glibctest" \
     UEXTRA="-DGT_POOL_PAGES=16384u -DGT_MM_TABLES=80u -DGT_STACK_PAGES=768u ${GT_UEXTRA:-}" \
     MMFLAGS="${GT_MMFLAGS:--DMM_MAX_TASKS=4u -DMM_TASK_PAGES=16384u -DMM_PAGES=16384u}" \
-    KEXTRA="-DRUN_POOL_FRAMES=2u -DRUN_POOL_PAGES=20480u" \
+    KEXTRA="-DRUN_POOL_FRAMES=2u -DRUN_POOL_PAGES=20480u ${GT_KEXTRA:-}" \
     USER_BUILD=build/glibc-tests GLIBCTEST="$first" GLIBC_CONSOLE="$CONSOLE" $b/joist.iso > "$OUT/build.log" 2>&1) ||
     { echo "build failed: $OUT/build.log"; exit 1; }
 LIMINE_DIR=${LIMINE_DIR:-/usr/share/limine}

@@ -86,6 +86,12 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # built outside with the cross-built glibc: GLIBCTEST names its ELF.
     glibc) kextra=""; root=glibcroot; mods="mm glibctest"; ubuild=build/glibc
         [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
+    # Phase 5 step 8: the same, with the TSC's clock stopping 300 ms after
+    # it starts (before the root task runs), as it was seen to under KVM in
+    # KVM: glibc's sleeps, locks and threads must still reach their
+    # deadlines, by the timer's interrupts (run.c's timer_fired).
+    glibc-clockstop) kextra="-DAPIC_CLOCK_STOP_NS=300000000u"; root=glibcroot; mods="mm glibctest"; ubuild=build/glibc
+        [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -322,4 +328,6 @@ run glibc 1 "glibc: main reached" "glibc: malloc ok" "glibc: nanosleep ok" "glib
 run kvm-smp1-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
 run kvm-smp2-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
 run kvm-smp4-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp1-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp2-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
 exit $fail

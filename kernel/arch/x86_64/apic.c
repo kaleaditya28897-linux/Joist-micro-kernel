@@ -172,7 +172,33 @@ uint64_t apic_clock_ns(void)
      * in 2^32, well inside what the calibration against the PIT is good
      * for. */
     uint64_t d = rdtsc() - tsc_zero;
-    return (uint64_t)(((unsigned __int128)d * ns_per_tsc_q32) >> 32);
+    uint64_t ns = (uint64_t)(((unsigned __int128)d * ns_per_tsc_q32) >> 32);
+#ifdef APIC_CLOCK_STOP_NS
+    /* A test build: the TSC's clock stops here, as it was seen to under
+     * KVM in KVM (Phase 5 step 8) while the timer's interrupts went on;
+     * the kernel's clock must still reach every deadline (run.c's
+     * timer_fired). */
+    if (ns > APIC_CLOCK_STOP_NS) {
+        ns = APIC_CLOCK_STOP_NS;
+    }
+#endif
+    return ns;
+}
+
+int apic_tsc_invariant(void)
+{
+    uint32_t a = 0x80000000u;
+    uint32_t b;
+    uint32_t c = 0;
+    uint32_t d;
+    __asm__ volatile("cpuid" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
+    if (a < 0x80000007u) {
+        return 0;
+    }
+    a = 0x80000007u;
+    c = 0;
+    __asm__ volatile("cpuid" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
+    return (d & (1u << 8)) != 0; /* invariant TSC: it runs at one rate, in every state */
 }
 
 void apic_timer_oneshot(void)
