@@ -1234,3 +1234,99 @@ interrupting RPCs (`hurd_thread_cancel`, another thread's state).
 Accepted by the owner as written, 2026-11-12: demuxers on Joist messages,
 a notifier thread a bucket, a cancel flag only, the source fetched with
 an overlay.
+
+### Step 8: libports on Joist, built and tested (2026-11-12 to 2026-11-14)
+
+The design above, built: Joist's files over the Hurd's libports
+(`hurd/joist/libports/`: the table of live ports by badge, both request
+loops on `ReplyRecv`, the bounded pool, a no-senders thread a bucket, the
+cancel flag, in `joist.c` and the Joist copies of `create-internal.c`,
+`destroy-right.c`, `complete-deallocate.c`, `create-bucket.c` and
+`manage-*.c`), fetched and overlaid by `tools/phase5/hurd-libs.sh` (all
+58 objects compile without a warning, nothing left unresolved), with
+glibc's server side (`sysdeps/joist/joist-mig.c`). A test server,
+`tools/phase5/libports-test/tst-libports.c` (built by
+`tools/phase5/libports-test.sh`): one task, two buckets, the one-thread
+loop on one and the multithreaded loop with a pool of 3 on the other, its
+clients its threads through joistmig's user stubs (`lpt.defs`); seeded,
+seeds 1-7, run by `glibc-tests-run.sh` on joist-dev2. Most of the running
+and debugging was a hand-off on the P53 (`/srv/joist/handoff/p5-libports/`,
+its record `findings.md`).
+
+- **Every part passes on 1, 2 and 4 CPUs, every run:** answers right in
+  both loops; the pool used and never past its size; each object cleaned
+  exactly once, after its last send right; clients getting, using and
+  dropping rights to one object while the notifier runs, no held right
+  ever refused; a destroyed port's requests answered `EOPNOTSUPP`; an RPC
+  interrupted (`EINTR`, by the cancel flag); a client killed while the
+  server works on its call (the server's reply fails, `E_PEER`, and it
+  serves on) and one killed while queued for a thread (never served).
+- **The stale no-senders firing:** `ports_get_right` counts a send right
+  before the reply that carries it mints it, so a firing taken in between
+  must be ignored, as Mach's make-send count does. glibc's names table now
+  keeps Mach's make-send count for a receive right (every `MAKE_SEND`,
+  into a message or the port's own name; not `MAKE_SEND_ONCE`), and
+  `__joist_nosenders_next` reads it with the firing under the names lock
+  for the Hurd's `ports_no_senders`. Host test: `model/test/test_names.c`'s
+  `names_mscount`. **The check of the check:** with the notifier passing
+  the port's own count instead, the race part failed in all 14 runs on 2
+  and 4 CPUs: the test reaches the window the count closes.
+- **Found and fixed in glibc** (`sysdeps/joist`), by the hand-off:
+  - inside an RPC every wait returned at once: the kernel refuses a `Wait`
+    while the thread holds a call's reply capability (I10), and glibc took
+    the refusal for "time ran out", so a server thread's sleeps, locks and
+    conditions didn't wait (htl's own assertion fired on 2 CPUs). The
+    reply is now saved into the thread's reply object (`reply_save`) and
+    answered through it (`REPLY_SAVED`). The object is made at a server
+    thread's plain receive, never inside a wait: made there, it took the
+    names lock inside a wait for it, the inner wait took the thread's one
+    futex queue entry and the outer wake-up was lost (a server thread
+    waited for ever, 2 CPUs);
+  - whether the reply is saved is read just before the answer's system
+    call (a lock taken before may have been waited for, and saved it:
+    answers had gone to another call's caller);
+  - an answer that can't be sent (its rights refused) is replaced by an
+    error alone, so the reply is always consumed (the next receive was
+    refused, which libports' loops took for their port set gone).
+- **Found and fixed in joistmig:** a server stub named an argument's
+  variable `jm_NAME`, so an argument called `b` clashed with the stub's own
+  `jm_b`; arguments are `jm_a_NAME` now, and `tools/mig-test/dtor.defs`
+  has one called `b` (mig-test: every round trip at -O0, -O1, -O2; 15 of 15
+  mutations caught).
+- **Found and fixed in the kernel:** `sys/abi.c`'s `pending[t]` (a thread
+  blocked in a system call, its outputs written when it next runs) was
+  cleared only by that thread's own return, which a thread killed while
+  blocked never makes; a thread spawned into its slot then had the dead
+  call's outputs written over its start registers (glibc's start argument,
+  in RDX, became 0). `ABI_THREAD_SPAWN` clears it for the slot it returns;
+  host test `abi_spawn_into_a_killed_callers_slot`, mutation
+  `abi-spawn-keeps-pending`. Any thread made after a client was killed in
+  a call could meet it, in any task.
+- **Seen, not fixed: the kernel's clock under nested KVM.** With two 2-CPU
+  guests side by side on joist-dev2 (KVM in KVM), at times the timer
+  interrupts come but `K.now`, read from the TSC, stops, and every timed
+  wait hangs (15 of 42 boots of a stress loop, whole rounds of both guests
+  at once; not in the main runs after the glibc fixes). The hand-off's
+  proposal: a timer interrupt advances the clock to at least the time it
+  was armed for, and the invariant-TSC bit is checked at boot; first, a
+  probe on the P53 of whether the nested guest's TSC stands while idle.
+  The owner's to decide.
+
+Gaps, as built:
+
+- **Deferred replies** (a server returning `MIG_NO_REPLY` and answering
+  later): not yet. glibc saves a reply only inside a wait, for the thread
+  itself; a request answered `MIG_NO_REPLY` is not answered at all.
+- **No cancel threshold:** Joist messages have no sequence numbers, so
+  `ports_interrupt_self_on_notification`'s early cancel and the loops'
+  threshold are gone; `ports_interrupt_rpcs` and an RPC's own
+  `interrupt_operation` still work, by the cancel flag.
+- **Design item 3 as built:** a port's badge (its payload) is libports' own
+  serial, set by Joist's `create-internal.c`, below glibc's own badges
+  (from 2^63), and found in libports' table of live ports.
+- **Design item 5 as built:** a firing is judged stale by glibc's
+  make-send count read with it (above), not by the name's send references.
+- **Design item 8's host test** of the request loop and notifier against
+  the kernel model: not done; only the names table's count is host-tested.
+- **libtrivfs's `demuxer.c`** will need a Joist copy for its types (step
+  10), not "compiles unchanged".

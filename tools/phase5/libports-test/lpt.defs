@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* lpt.defs - the libports test server's interface (Phase 5 step 8,
+   tst-libports.c): its objects are libports' ports, each request's
+   target translated by its badge (intranpayload), as the Hurd's are. */
+subsystem lpt 47100;
+
+#include <mach/std_types.defs>
+
+import "lpt_types.h";
+
+#ifdef SERVERPREFIX
+serverprefix SERVERPREFIX;
+#endif
+
+type lpt_t = mach_port_t
+	ctype: mach_port_t
+	intran: lpt_obj_t lpt_in(mach_port_t)
+	intranpayload: lpt_obj_t lpt_in_payload
+	destructor: lpt_done(lpt_obj_t);
+
+/* A + B. */
+routine lpt_add(
+	target: lpt_t;
+	a: int;
+	b: int;
+	out c: int);
+
+/* MS milliseconds of work, seeing an interruption (EINTR); a negative MS
+   holds until the test lets it go.  PEAK: the most at once so far. */
+routine lpt_slow(
+	target: lpt_t;
+	ms: int;
+	out peak: int);
+
+/* A new object ID in TARGET's bucket, its send right. */
+routine lpt_make(
+	target: lpt_t;
+	id: int;
+	out obj: mach_port_make_send_t);
+
+/* A send right to the live object ID made last (ENOENT: none). */
+routine lpt_get(
+	target: lpt_t;
+	id: int;
+	out obj: mach_port_make_send_t);

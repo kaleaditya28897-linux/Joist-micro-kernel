@@ -1,0 +1,168 @@
+cpus 1 seed 1: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 6 objects made and cleaned, 6 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 0 clients killed in the server's work, 6 queued; served on, pool 3 of 3
+cpus 1 seed 2: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 8 objects made and cleaned, 8 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 2 clients killed in the server's work, 4 queued; served on, pool 3 of 3
+cpus 1 seed 3: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 4 objects made and cleaned, 4 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 3 clients killed in the server's work, 3 queued; served on, pool 3 of 3
+cpus 1 seed 4: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 6 objects made and cleaned, 6 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 5 clients killed in the server's work, 1 queued; served on, pool 3 of 3
+cpus 1 seed 5: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 7 objects made and cleaned, 7 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 4 clients killed in the server's work, 2 queued; served on, pool 3 of 3
+cpus 1 seed 6: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 4 objects made and cleaned, 4 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 3 clients killed in the server's work, 3 queued; served on, pool 3 of 3
+cpus 1 seed 7: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 10 objects made and cleaned, 10 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 2 clients killed in the server's work, 4 queued; served on, pool 3 of 3
+cpus 2 seed 1: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 44 objects made and cleaned, 44 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 0 clients killed in the server's work, 6 queued; served on, pool 3 of 3
+cpus 2 seed 2: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 200 objects made and cleaned, 200 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 4 clients killed in the server's work, 2 queued; served on, pool 3 of 3
+cpus 2 seed 3: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 96 objects made and cleaned, 96 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 3 clients killed in the server's work, 3 queued; served on, pool 3 of 3
+cpus 2 seed 4: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 236 objects made and cleaned, 236 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 3 clients killed in the server's work, 3 queued; served on, pool 3 of 3
+cpus 2 seed 5: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 153 objects made and cleaned, 153 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 1 clients killed in the server's work, 5 queued; served on, pool 3 of 3
+cpus 2 seed 6: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 144 objects made and cleaned, 144 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 3 clients killed in the server's work, 3 queued; served on, pool 3 of 3
+cpus 2 seed 7: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 53 objects made and cleaned, 53 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 2 clients killed in the server's work, 4 queued; served on, pool 3 of 3
+cpus 4 seed 1: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 46 objects made and cleaned, 46 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 0 clients killed in the server's work, 6 queued; served on, pool 3 of 3
+cpus 4 seed 2: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 47 objects made and cleaned, 47 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 2 clients killed in the server's work, 4 queued; served on, pool 3 of 3
+cpus 4 seed 3: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 62 objects made and cleaned, 62 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 3 clients killed in the server's work, 3 queued; served on, pool 3 of 3
+cpus 4 seed 4: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 76 objects made and cleaned, 76 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 5 clients killed in the server's work, 1 queued; served on, pool 3 of 3
+cpus 4 seed 5: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 42 objects made and cleaned, 42 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 2 ms
+    kills: 4 clients killed in the server's work, 2 queued; served on, pool 3 of 3
+cpus 4 seed 6: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 59 objects made and cleaned, 59 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 3 clients killed in the server's work, 3 queued; served on, pool 3 of 3
+cpus 4 seed 7: tst-libports: PASS (0 failed)
+    add: 2000 answers right, both loops
+    pool: 24 calls by 6 clients, 0 refused; at most 3 at once, 3 threads (pool 3)
+    no-senders: 40 objects, each cleaned once after its last right (0 not)
+    race: 900 get/use/drop, 74 objects made and cleaned, 74 remade, 0 refused
+    destroyed: a held right's call answered 1073741869
+    interrupt: answered 1073741828 after 3 ms
+    kills: 2 clients killed in the server's work, 4 queued; served on, pool 3 of 3

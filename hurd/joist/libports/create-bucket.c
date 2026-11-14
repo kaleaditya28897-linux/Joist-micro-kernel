@@ -1,0 +1,89 @@
+/* Create a port bucket
+   Copyright (C) 1995, 1997, 2001, 2003 Free Software Foundation, Inc.
+   Written by Michael I. Bushnell.
+
+   This file is part of the GNU Hurd.
+
+   The GNU Hurd is free software; you can redistribute it and/or
+   modify it under the terms of the GNU General Public License as
+   published by the Free Software Foundation; either version 2, or (at
+   your option) any later version.
+
+   The GNU Hurd is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
+
+/* Joist's copy (Phase 5 step 8; the owner's design of 2026-11-12): the
+   bucket's no-senders bound to its port set's endpoint, and its notifier
+   thread started (joist.c).  */
+
+#include "ports.h"
+#include <stddef.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <hurd/ihash.h>
+
+static struct port_class *notify_port_class;
+static pthread_once_t init_notify_port_class_once = PTHREAD_ONCE_INIT;
+
+static void
+init_notify_port_class (void)
+{
+  notify_port_class = ports_create_class (NULL, NULL);
+}
+
+struct port_bucket *
+ports_create_bucket (void)
+{
+  struct port_bucket *ret;
+  error_t err;
+
+  ret = malloc (sizeof (struct port_bucket));
+  if (! ret)
+    {
+      errno = ENOMEM;
+      return NULL;
+    }
+
+  err = mach_port_allocate (mach_task_self (), MACH_PORT_RIGHT_PORT_SET, 
+			    &ret->portset);
+  if (err)
+    {
+      errno = err;
+      free (ret);
+      return NULL;
+    }
+
+  hurd_ihash_init (&ret->htable, offsetof (struct port_info, hentry));
+  ret->rpcs = ret->flags = ret->count = 0;
+  ret->joist_pool = 8;		/* Joist: ports_set_pool_size */
+  _ports_threadpool_init (&ret->threadpool);
+
+  /* Create the notify_port for this bucket.  */
+  pthread_once (&init_notify_port_class_once, init_notify_port_class);
+  err = ports_create_port (notify_port_class, ret,
+                           sizeof (struct port_info),
+                           &ret->notify_port);
+  if (err)
+    {
+      hurd_ihash_destroy (&ret->htable);
+      free (ret);
+      errno = err;
+      return NULL;
+    }
+
+  /* Joist: no-senders, bound to the set's endpoint, and its notifier.  */
+  err = _ports_joist_nosenders_start (ret);
+  if (err)
+    {
+      errno = err;
+      return NULL;		/* (the notify port stays: as above, a leak) */
+    }
+
+  return ret;
+}
