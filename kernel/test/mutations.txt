@@ -40,6 +40,7 @@ upper-half-user @@ mem/vm.c @@ pml4[i] = (f & PTE_ADDR) | PTE_P | PTE_W; @@ pml4
 take-range-over-used @@ mem/frame.c @@ return KERR_STATE; /* in use, or never allocatable: nothing taken */ @@ continue;
 abi-slot-truncated @@ sys/abi.c @@ return v > UINT32_MAX ? JOIST_CSPACE_SLOTS : (joist_slot)v; @@ return (joist_slot)v;
 abi-complete-silent @@ sys/abi.c @@ outputs(env->k, t, th->result); @@ (void)th;
+abi-spawn-keeps-pending @@ sys/abi.c @@             env->pending[nt] = 0; @@             (void)nt;
 # Phase 3 step 6: writing user memory, a thread's registers through it.
 uc-write-readonly @@ sys/usercopy.c @@ (perms & (VM_USER | VM_W)) != (VM_USER | VM_W)) { @@ (perms & VM_USER) == 0) {
 uc-write-kernel-page @@ sys/usercopy.c @@ (perms & (VM_USER | VM_W)) != (VM_USER | VM_W)) { @@ (perms & VM_W) == 0) {

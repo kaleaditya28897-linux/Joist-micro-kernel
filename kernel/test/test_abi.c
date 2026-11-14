@@ -217,6 +217,42 @@ JT_TEST(abi_spawn_starts_at_pc_and_sp)
     JT_CHECK(clean());
 }
 
+/* A thread killed while its call waits, and a new thread spawned into its
+ * slot: the dead call's outputs must not land in the new thread's
+ * registers (found by libports' test, Phase 5 step 8: a spawned thread's
+ * start argument in RDX became 0). */
+JT_TEST(abi_spawn_into_a_killed_callers_slot)
+{
+    setup();
+    joist_thread t;
+    JT_REQUIRE(joist_thread_create(&k, root, &t) == JOIST_OK);
+    JT_REQUIRE(sys(t, ABI_TASK_CREATE, 10, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(t, ABI_THREAD_SPAWN, 0, 1, 0x401000, 0x7ff000) == ABI_DONE &&
+               k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    uint32_t nt = k.obj[k.cs[root].slot[1].obj - 1u].target - 1u;
+    /* It calls an endpoint nobody receives on, and waits. */
+    JT_REQUIRE(sys(nt, ABI_OBJ_CREATE, JOIST_OBJ_ENDPOINT, 0, 0, 0) == ABI_DONE &&
+               k.th[nt].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(sys(nt, ABI_CAP_MINT, 0, 1, JOIST_R_SEND, 9) == ABI_DONE &&
+               k.th[nt].regs.r[ABI_RAX] == JOIST_OK);
+    k.th[nt].regs.r[ABI_R9] = 0;
+    JT_REQUIRE(sys(nt, ABI_CALL, 1, JOIST_FOREVER, 0, 0) == ABI_WAITING && env.pending[nt]);
+    /* Killed there; a new thread in the same task, in the same slot. */
+    JT_REQUIRE(sys(t, ABI_THREAD_KILL, 1, 0, 0, 0) == ABI_DONE && k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    JT_REQUIRE(k.th[nt].state == JOIST_T_FREE);
+    JT_REQUIRE(sys(t, ABI_THREAD_SPAWN, 0, 2, 0x402000, 0x7fe000) == ABI_DONE &&
+               k.th[t].regs.r[ABI_RAX] == JOIST_OK);
+    uint32_t nt2 = k.obj[k.cs[root].slot[2].obj - 1u].target - 1u;
+    JT_REQUIRE(nt2 == nt); /* (the case: the slot reused) */
+    /* Its registers set before it first runs (glibc's start argument). */
+    k.th[nt2].regs.r[ABI_RDX] = 0x1234;
+    abi_complete(&env, nt2);
+    JT_CHECK(!env.pending[nt2]);
+    JT_CHECK(k.th[nt2].regs.pc == 0x402000 && k.th[nt2].regs.sp == 0x7fe000 &&
+             k.th[nt2].regs.r[ABI_RAX] == 0 && k.th[nt2].regs.r[ABI_RDX] == 0x1234);
+    JT_CHECK(clean());
+}
+
 JT_TEST(abi_exit)
 {
     setup();

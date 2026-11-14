@@ -197,6 +197,10 @@ int abi_syscall(struct abi_env *env, uint32_t t)
             k->th[nt].regs.flags = 0x202u;
             env->exact[nt] = 1;
             env->fresh[nt] = 1;
+            /* A thread killed while its call waited never came back for
+             * abi_complete to clear this: its outputs would land in the
+             * new thread's registers. */
+            env->pending[nt] = 0;
         }
         break;
     }
