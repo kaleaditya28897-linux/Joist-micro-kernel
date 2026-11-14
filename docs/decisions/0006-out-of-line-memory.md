@@ -1,7 +1,8 @@
 # 0006 — Out-of-line memory → typed bulk transfer, not one mechanism
 
 Date: 2026-09-23
-Status: accepted (2026-10-01)
+Status: accepted (2026-10-01); its third mechanism, move-grant, replaced by
+0032 (2026-11-14: a kernel copy through the caller's windows)
 Covers: §6 row *Out-of-line memory*. This row keeps its **known-hard** status.
 
 ## Context

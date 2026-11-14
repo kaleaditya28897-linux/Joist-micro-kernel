@@ -1,8 +1,8 @@
 # 0032 — Bulk data crosses by a kernel copy through the caller's windows, not by moving pages
 
 Date: 2026-11-14
-Status: **proposed** (its direction the owner's, 2026-11-14: a copy into
-a window, not a move; to be accepted as written before the model step)
+Status: **accepted** (the owner, 2026-11-14, as written; its direction,
+a copy into a window and not a move, the owner's the same day)
 Amends: 0006 (its third mechanism, move-grant: replaced by this copy; a
 true move stays possible later, if `io_read`'s measurements ask for it
 before Phase 11, as 0006 itself requires). Carries out 0006's second
