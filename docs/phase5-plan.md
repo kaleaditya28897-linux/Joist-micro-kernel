@@ -216,7 +216,7 @@ task tree (decision 0028).
    it).
 7. **glibc's `sysdeps/joist`, `htl` and `malloc` over a region;** the
    cross-build with Clang.
-8. **libports.**
+8. ~~**libports.**~~ Done 2026-11-14 (*Progress*).
 9. **Move-grant** (its decision first), and the `dealloc` review.
 10. **libtrivfs and `hello`.**
 11. **Exit:** the exit run, the measurements, the record.
@@ -1336,3 +1336,24 @@ Gaps, as built:
   the kernel model: not done; only the names table's count is host-tested.
 - **libtrivfs's `demuxer.c`** will need a Joist copy for its types (step
   10), not "compiles unchanged".
+
+### Step 9: the decision on bulk data (2026-11-14, proposed)
+
+Choice 4's move-grant, looked at against regions as built, doesn't fit
+them: I12 says every page mapped in a region is a page of that region's
+own extents, so a page moved into a receiver's region needs per-page
+holder records the kernel would have to allocate; every page a server
+moves out is gone for good, refilled from `mm` by RPC about once an
+`io_read`; and each move is a TLB shootdown on several CPUs. The owner's
+choice (2026-11-14): no move; **a kernel copy through windows the caller
+gives** (0006's second mechanism, for both directions). Written as
+decision 0032, *proposed*: a read and a write window a thread
+(`thread_window`), the write window in one of the caller's regions (pages
+never COW-shared, written through the direct map); a server copies with
+`reply_read` and `reply_write` through the reply it holds, at most
+`JOIST_COPY_MAX` bytes a call (64 KiB proposed, to be measured: it runs
+under the kernel's lock); nothing mapped, unmapped or shared. Its model
+step waits for the owner's acceptance. The `dealloc` review goes on
+meanwhile: for each of the 54 parameters, its direction, how the receiver
+can bound its size (the write window's), and whether its sender uses the
+data after sending.
