@@ -343,9 +343,12 @@ static void write_user_routine(FILE *f, const routine_t *rt)
 
 /* ---- the server ---- */
 
+/* A server-side argument's name, after "jm_": "a_NAME", never one of the
+ * stub's own locals (jm_b, jm_o, jm_r, jm_n, ...), whatever the argument is
+ * called (a .defs with an argument "b" had its jm_b clash). */
 static const char *svname(const argument_t *a)
 {
-    return a->argVarName;
+    return strconcat("a_", a->argVarName);
 }
 
 /* Locals and request reads for one server-side argument. */

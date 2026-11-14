@@ -24,7 +24,7 @@ type dtor_arg_t = mach_port_t
 routine dtor_ok(
 	target: dtor_req_t;
 	other: dtor_arg_t;
-	x: int);
+	b: int);	/* (named as joistmig's own jm_b once clashed) */
 
 routine dtor_fail(
 	target: dtor_req_t;
