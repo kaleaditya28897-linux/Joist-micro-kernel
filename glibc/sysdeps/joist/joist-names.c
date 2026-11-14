@@ -37,6 +37,7 @@ __jn_init (struct jn_table *t, uint32_t fixed)
       e->minted = 0;
       e->refs = 0;
       e->set = e->ep = 0;
+      e->mscount = 0;
       e->badge = 0;
     }
   t->leaves = 1;
@@ -117,6 +118,7 @@ free_name (struct jn_table *t, uint32_t name)
   e->minted = 0;
   e->refs = 0;
   e->set = e->ep = 0;
+  e->mscount = 0;
   e->badge = 0;
 }
 
@@ -528,7 +530,10 @@ __jn_insert_right (struct jn_table *t, uint32_t name, uint32_t poly,
 	return JN_INVALID_RIGHT;
       if (name != poly)
 	return JN_INVALID_VALUE;	/* one name per port, here as in Mach */
-      return make_send (t, name);
+      int r = make_send (t, name);
+      if (r == JN_OK && disposition == JN_MAKE_SEND)
+	e->mscount++;
+      return r;
     }
   if (disposition != JN_COPY_SEND && disposition != JN_MOVE_SEND
       && disposition != JN_MOVE_SEND_ONCE)
@@ -635,6 +640,8 @@ __jn_send_prepare (struct jn_table *t, uint32_t name, int disposition,
 	    undo_all (t, name, &u);
 	    return r;
 	  }
+	if (disposition == JN_MAKE_SEND)
+	  e->mscount++;
 	*slot = s;
 	*temp = 1;
 	return JN_OK;
@@ -723,4 +730,30 @@ __jn_badge (const struct jn_table *t, uint32_t name)
 {
   const struct jn_entry *e = lookup_c (t, name);
   return e != NULL && e->kind == JN_RECEIVE && e->minted ? e->badge : 0;
+}
+
+int
+__jn_mscount_by_badge (const struct jn_table *t, uint32_t ep, uint64_t badge,
+		       uint32_t *mscount)
+{
+  /* A search of the names in the space: a firing is rare, and a table by
+     badge would be one more thing to keep in step.  */
+  if (ep == 0 || badge == 0)
+    return JN_INVALID_NAME;
+  for (uint32_t i = 0; i < JN_NAMES; i++)
+    {
+      if (!(t->leaves >> (i / JN_LEAF) & 1))
+	{
+	  i += JN_LEAF - 1 - i % JN_LEAF;
+	  continue;
+	}
+      const struct jn_entry *e = &t->e[i];
+      if (e->kind == JN_RECEIVE && e->minted && e->badge == badge
+	  && (e->set != 0 ? e->set : e->ep) == ep)
+	{
+	  *mscount = e->mscount;
+	  return JN_OK;
+	}
+    }
+  return JN_INVALID_NAME;
 }

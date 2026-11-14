@@ -271,6 +271,7 @@ rtld_hidden_def (__joist_mig_call)
 #define JOIST_SYS_RECV		11
 #define JOIST_SYS_REPLY		12
 #define JOIST_SYS_REPLY_RECV	13
+#define JOIST_SYS_REPLY_SAVED	18
 
 /* An IPC call NR (Recv, Reply, ReplyRecv) on SLOT: registers R and the
    capabilities and word count in *R9 go out and come back, the received
@@ -344,10 +345,49 @@ rcv_error_of (uint64_t e)
     }
 }
 
+/* Send an answer: registers R, its rights and words prepared (R9), on the
+   thread's reply capability, or through its reply object if the reply was
+   saved (joist-sync.c's reply_save: the thread waited as it served).  ERR
+   not 0 (its rights refused), or the kernel's refusal (the reply
+   capability then still the thread's, or the object's): an error alone
+   answers instead, so the caller never waits for ever and the thread's
+   next receive isn't refused (the kernel's I10), which a server's loop
+   would take for its port set gone.  The kernel's result for the answer
+   (E_PEER: its caller gone, no error).
+
+   Whether the reply is saved is read here, just before the system call:
+   any lock taken before (the names lock, say) may have been waited for,
+   and that wait saves the reply.  */
+static uint64_t
+answer_send (struct joist_thread *self, const uint64_t r_in[4], uint64_t r9,
+	     int err)
+{
+  uint64_t badge, e = JOIST_E_GONE;
+  int saved = self->reply_saved;
+  uint64_t nr = saved ? JOIST_SYS_REPLY_SAVED : JOIST_SYS_REPLY;
+  uint32_t obj = saved ? self->reply_obj : 0;
+  if (err == 0)
+    {
+      uint64_t r[4];
+      memcpy (r, r_in, sizeof r);
+      e = joist_ipc (nr, obj, 0, r, &r9, &badge);
+    }
+  if (e != JOIST_OK && e != JOIST_E_PEER)
+    {
+      uint64_t r0[4] = { (uint32_t) (err != 0 ? err
+				     : MACH_SEND_INVALID_REPLY), 0, 0, 0 };
+      uint64_t r90 = 0;
+      (void) joist_ipc (nr, obj, 0, r0, &r90, &badge);
+    }
+  self->reply_saved = 0;
+  return e;
+}
+
 /* Answer OUT (if not NULL), then (if IN isn't NULL) receive on NAME for at
    most TIMEOUT nanoseconds (JOIST_FOREVER: no limit) into IN.  An answer
    with rights goes alone first (its rights' refusal must not be taken for
-   the receive's); one without, with the receive in one step.  */
+   the receive's); one without, with the receive in one step.  An answer
+   whose reply was saved goes alone too (answer_send).  */
 static int
 server_ipc (struct joist_mig_msg *out, mach_port_t name,
 	    struct joist_mig_msg *in, uint64_t timeout)
@@ -358,16 +398,22 @@ server_ipc (struct joist_mig_msg *out, mach_port_t name,
   if (buf == NULL)
     return MACH_SEND_NO_BUFFER;
 
-  if (out != NULL && (in == NULL || out->ncaps > 0))
+  struct joist_thread *self = __joist_thread_self ();
+  if (out == NULL && self->reply_obj == 0)
+    /* A server thread's first receive (it holds no reply: it may wait):
+       its reply object, for reply_save (joist-sync.c) to use later.  Not
+       made, its waits while it serves stay refused (they return at once),
+       as before reply_save.  */
+    (void) __joist_reply_obj_make (self);
+  if (out != NULL && (in == NULL || out->ncaps > 0 || self->reply_saved))
     {
-      uint64_t r9 = 0, badge, r[4];
+      uint64_t r9 = 0;
       struct jn_table *t = __joist_ports_lock ();
       int err = answer_prepare (t, out, buf, slot, temp, &r9);
       __joist_ports_unlock ();
+      uint64_t e = answer_send (self, out->r, r9, err);
       if (err != 0)
 	return err;
-      memcpy (r, out->r, sizeof r);
-      uint64_t e = joist_ipc (JOIST_SYS_REPLY, 0, 0, r, &r9, &badge);
       int sent = e == JOIST_OK || e == JOIST_E_PEER;
       t = __joist_ports_lock ();
       for (uint32_t i = 0; i < out->ncaps; i++)
@@ -394,6 +440,15 @@ server_ipc (struct joist_mig_msg *out, mach_port_t name,
   if (err == 0 && out != NULL)
     err = answer_prepare (t, out, buf, slot, temp, &r9);	/* no rights */
   __joist_ports_unlock ();
+  if (out != NULL && (err != 0 || self->reply_saved))
+    {
+      /* Not with the receive: refused (an error alone answers it), or its
+	 reply saved as the lock above was waited for (it goes through the
+	 reply object).  */
+      (void) answer_send (self, out->r, r9, err);
+      out = NULL;
+      r9 = 0;
+    }
 
   uint64_t e = JOIST_E_GONE, badge = 0;
   if (err == 0)
@@ -522,16 +577,27 @@ __joist_nosenders_wait (mach_port_t notif)
 rtld_hidden_def (__joist_nosenders_wait)
 
 int
-__joist_nosenders_next (mach_port_t set, uint64_t *badge)
+__joist_nosenders_next (mach_port_t set, uint64_t *badge,
+			mach_port_mscount_t *mscount)
 {
+  /* The firing taken and the count read under the table's lock, as every
+     make-send counts and mints under it: a send right made before is
+     counted (and, made after the firing, took it back: I4), one made
+     after isn't, so libports sees a send right it handed out since (its
+     own count past this one) and ignores the firing, as on Mach.  */
   struct jn_table *t = __joist_ports_lock ();
-  uint32_t ep = __jn_recv_slot (t, set);
-  __joist_ports_unlock ();
-  if (ep == 0)
-    return KERN_INVALID_NAME;
+  uint32_t ep = __jn_recv_slot (t, set), ms = 0;
+  uint64_t e = JOIST_E_GONE;
   *badge = 0;
-  return __joist_sys (JOIST_SYS_NOSENDERS_NEXT, ep, 0, 0, 0, badge) == JOIST_OK
-	 ? KERN_SUCCESS : KERN_INVALID_NAME;
+  if (ep != 0)
+    {
+      e = __joist_sys (JOIST_SYS_NOSENDERS_NEXT, ep, 0, 0, 0, badge);
+      if (e == JOIST_OK && *badge != 0)
+	(void) __jn_mscount_by_badge (t, ep, *badge, &ms);	/* (gone: 0) */
+    }
+  __joist_ports_unlock ();
+  *mscount = ms;
+  return e == JOIST_OK ? KERN_SUCCESS : KERN_INVALID_NAME;
 }
 rtld_hidden_def (__joist_nosenders_next)
 

@@ -294,6 +294,82 @@ JT_TEST(names_transfer_and_nosenders)
     JT_CHECK(agree());
 }
 
+/* The make-send count (libports' no-senders, Phase 5 step 8): every
+ * MAKE_SEND counts, into a message or into the port's own name, minted or
+ * not; MAKE_SEND_ONCE doesn't; found by the badge a firing names. */
+JT_TEST(names_mscount)
+{
+    setup();
+    uint32_t set, port, other, slot, ms = 99u;
+    int temp;
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_PORT_SET, &set) == JN_OK);
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &port) == JN_OK);
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &other) == JN_OK);
+    JT_REQUIRE(__jn_move_member(&TA, port, set) == JN_OK);
+    JT_REQUIRE(__jn_move_member(&TA, other, set) == JN_OK);
+    JT_REQUIRE(__jn_set_payload(&TA, port, 5u) == JN_OK); /* libports' serial */
+    JT_REQUIRE(__jn_set_payload(&TA, other, 6u) == JN_OK);
+    JT_REQUIRE(joist_obj_create(&k, A, JOIST_OBJ_NOTIFICATION, A_NOTE) == JOIST_OK);
+    JT_REQUIRE(joist_cap_mint(&k, A, A_NOTE, A_SIG, JOIST_R_SEND, 1) == JOIST_OK);
+    JT_REQUIRE(joist_bind_nosenders(&k, A, set, A_SIG) == JOIST_OK);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 5u, &ms) == JN_INVALID_NAME); /* not minted yet */
+    /* One into a message, given to B. */
+    JT_CHECK(__jn_send_prepare(&TA, port, JN_MAKE_SEND, &slot, &temp) == JN_OK);
+    uint32_t got = give_to_b(slot);
+    JT_REQUIRE(got != 0);
+    __jn_send_done(&TA, port, JN_MAKE_SEND, slot, temp, 1);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 5u, &ms) == JN_OK && ms == 1u);
+    /* Two into its own name (one mint), a send-once not counted. */
+    JT_CHECK(__jn_insert_right(&TA, port, port, JN_MAKE_SEND) == JN_OK);
+    JT_CHECK(__jn_insert_right(&TA, port, port, JN_MAKE_SEND) == JN_OK);
+    JT_CHECK(__jn_send_prepare(&TA, port, JN_MAKE_SEND_ONCE, &slot, &temp) == JN_OK);
+    __jn_send_done(&TA, port, JN_MAKE_SEND_ONCE, slot, temp, 0);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 5u, &ms) == JN_OK && ms == 3u);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 6u, &ms) == JN_INVALID_NAME); /* other: none */
+    JT_CHECK(__jn_mscount_by_badge(&TA, set + 1u, 5u, &ms) == JN_INVALID_NAME);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 0u, &ms) == JN_INVALID_NAME);
+    JT_CHECK(__jn_deallocate(&TA, port) == JN_OK && __jn_deallocate(&TA, port) == JN_OK);
+    JT_CHECK(agree());
+    /* B's goes: the firing, and the count as it was taken. */
+    cur = B;
+    JT_CHECK(__jn_deallocate(&TB, got) == JN_OK);
+    cur = A;
+    joist_badge q = 0;
+    JT_CHECK(joist_nosenders_next(&k, A, set, &q) == JOIST_OK && q == 5u);
+    JT_CHECK(__jn_mscount_by_badge(&TA, __jn_recv_slot(&TA, port), q, &ms) == JN_OK && ms == 3u);
+    /* A right made since counts past it (libports then ignores the firing). */
+    JT_CHECK(__jn_send_prepare(&TA, port, JN_MAKE_SEND, &slot, &temp) == JN_OK);
+    got = give_to_b(slot);
+    JT_REQUIRE(got != 0);
+    __jn_send_done(&TA, port, JN_MAKE_SEND, slot, temp, 1);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 5u, &ms) == JN_OK && ms == 4u);
+    /* Gone again, and a right made before the queue is read: the firing
+     * is taken back (I4), the count past it. */
+    cur = B;
+    JT_CHECK(__jn_deallocate(&TB, got) == JN_OK);
+    cur = A;
+    JT_CHECK(__jn_insert_right(&TA, port, port, JN_MAKE_SEND) == JN_OK);
+    JT_CHECK(joist_nosenders_next(&k, A, set, &q) == JOIST_OK && q == 0);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 5u, &ms) == JN_OK && ms == 5u);
+    /* A refused make-send counts nothing. */
+    JT_CHECK(__jn_mod_refs(&TA, port, JN_RIGHT_SEND, (int)JN_MAX_REFS - 1) == JN_OK);
+    JT_CHECK(__jn_insert_right(&TA, port, port, JN_MAKE_SEND) == JN_UREFS_OVERFLOW);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 5u, &ms) == JN_OK && ms == 5u);
+    /* Its receive right gone: no count, and a new right there starts at 0. */
+    JT_CHECK(__jn_destroy(&TA, port) == JN_OK);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, 5u, &ms) == JN_INVALID_NAME);
+    JT_CHECK(agree());
+    /* A port with its own endpoint, found by that endpoint. */
+    uint32_t lone;
+    JT_REQUIRE(__jn_allocate(&TA, JN_RIGHT_RECEIVE, &lone) == JN_OK);
+    JT_CHECK(TA.e[lone].mscount == 0u);
+    JT_CHECK(__jn_insert_right(&TA, lone, lone, JN_MAKE_SEND) == JN_OK);
+    JT_CHECK(__jn_mscount_by_badge(&TA, __jn_recv_slot(&TA, lone), __jn_badge(&TA, lone), &ms) == JN_OK &&
+             ms == 1u);
+    JT_CHECK(__jn_mscount_by_badge(&TA, set, __jn_badge(&TA, lone), &ms) == JN_INVALID_NAME);
+    JT_CHECK(agree());
+}
+
 JT_TEST(names_standalone_port)
 {
     setup();

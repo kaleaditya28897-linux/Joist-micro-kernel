@@ -42,7 +42,10 @@
 #define JOIST_SYS_CLOCK		56
 #define JOIST_OBJ_NOTIFICATION	2
 #define JOIST_E_TIMEOUT		9
+#define JOIST_E_STATE		13
 #define JOIST_E_ABORTED		14
+#define JOIST_SYS_REPLY_SAVE	17
+#define JOIST_OBJ_REPLY		5
 
 struct joist_thread __joist_thread0 = { .self = JOIST_SLOT_THREAD };
 rtld_hidden_data_def (__joist_thread0)
@@ -114,14 +117,15 @@ __joist_thread_make (struct joist_thread *t, uint32_t self)
 }
 rtld_hidden_def (__joist_thread_make)
 
-/* Its three names under one lock: a wait for the lock needs T whole when
-   T is the calling thread's own (pt-thread-terminate.c).  */
+/* Its names under one lock: a wait for the lock needs T whole when T is
+   the calling thread's own (pt-thread-terminate.c).  Its reply object
+   too: a reply still saved there wakes its caller (E_PEER) as it goes.  */
 void
 __joist_thread_free (struct joist_thread *t)
 {
-  uint32_t names[3] = { t->sig_htl, t->sig_gsync, t->recv };
+  uint32_t names[4] = { t->sig_htl, t->sig_gsync, t->recv, t->reply_obj };
   struct jn_table *tab = __joist_ports_lock ();
-  for (unsigned int i = 0; i < 3; i++)
+  for (unsigned int i = 0; i < 4; i++)
     if (names[i] != 0)
       {
 	(void) __joist_sys (JOIST_SYS_CAP_DELETE, names[i], 0, 0, 0, NULL);
@@ -129,6 +133,7 @@ __joist_thread_free (struct joist_thread *t)
       }
   __joist_ports_unlock ();
   t->recv = t->sig_gsync = t->sig_htl = 0;
+  t->reply_obj = t->reply_saved = 0;
 }
 rtld_hidden_def (__joist_thread_free)
 
@@ -138,6 +143,51 @@ now (void)
   uint64_t ns = 0;
   (void) __joist_sys (JOIST_SYS_CLOCK, 0, 0, 0, 0, &ns);
   return ns;
+}
+
+int
+__joist_reply_obj_make (struct joist_thread *t)
+{
+  if (t->reply_obj != 0)
+    return 0;
+  uint32_t r = 0;
+  if (pinned (&r) != JN_OK)
+    return -1;
+  if (__joist_sys (JOIST_SYS_OBJ_CREATE, JOIST_OBJ_REPLY, r, 0, 0, NULL)
+      != JOIST_OK)
+    {
+      unpin (r);
+      return -1;
+    }
+  t->reply_obj = r;
+  return 0;
+}
+rtld_hidden_def (__joist_reply_obj_make)
+
+/* The kernel refused the calling thread T's Wait (JOIST_E_STATE) because
+   T holds the reply capability of a call it serves (I10: a Wait with no
+   end would strand the caller).  A server's thread waits for locks,
+   conditions and sleeps as it serves, as on Mach, so the capability moves
+   into T's reply object, and the call's answer goes through it
+   (joist-mig.c's server_ipc): 0, and the wait is tried again; or -1 (none
+   held, or no object), and the refusal stands.
+
+   The object is made before (__joist_reply_obj_make, at the thread's
+   plain receive), never here: this runs inside a wait, maybe for the
+   names lock, which making it takes; a second wait for a lock inside the
+   first, on the thread's one futex queue entry, loses the first's
+   wake-up (the thread then waits for ever: seen as a hang of the pool's
+   thread in pthread_create, 2 CPUs).  No lock and no wait here.  */
+static int
+reply_save (struct joist_thread *t)
+{
+  if (t->reply_saved || t->reply_obj == 0)
+    return -1;			/* refused for another reason, or no object */
+  if (__joist_sys (JOIST_SYS_REPLY_SAVE, t->reply_obj, 0, 0, 0, NULL)
+      != JOIST_OK)
+    return -1;
+  t->reply_saved = 1;
+  return 0;
 }
 
 int
@@ -166,6 +216,8 @@ __joist_thread_wait (struct joist_thread *t, uint64_t bit, uint64_t timeout)
 	}
       uint64_t bits = 0;
       uint64_t e = __joist_sys (JOIST_SYS_WAIT, t->recv, left, 0, 0, &bits);
+      if (e == JOIST_E_STATE && reply_save (t) == 0)
+	continue;		/* serving a call: its reply saved, again */
       if (e == JOIST_E_ABORTED)
 	return 2;		/* thread_abort or thread_suspend */
       if (e != JOIST_OK)
@@ -201,10 +253,13 @@ __joist_gsync_wait (uint64_t notif, uint64_t timeout)
   if (recv == self->recv)
     /* Its own: the futex queues' bit, htl's kept for it.  */
     return __joist_thread_wait (self, JOIST_BIT_GSYNC, timeout);
-  /* A bucket's lock: its one bit.  */
+  /* A bucket's lock: its one bit (a server's reply saved first, as
+     above).  */
   uint64_t bits;
-  return __joist_sys (JOIST_SYS_WAIT, recv, timeout, 0, 0, &bits)
-	 != JOIST_OK;
+  uint64_t e = __joist_sys (JOIST_SYS_WAIT, recv, timeout, 0, 0, &bits);
+  if (e == JOIST_E_STATE && reply_save (self) == 0)
+    e = __joist_sys (JOIST_SYS_WAIT, recv, timeout, 0, 0, &bits);
+  return e != JOIST_OK;
 }
 
 uint64_t

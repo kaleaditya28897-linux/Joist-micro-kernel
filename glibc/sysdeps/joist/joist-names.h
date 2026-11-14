@@ -99,6 +99,7 @@ struct jn_entry
   uint16_t refs;		/* send (or dead-name) references */
   uint32_t set;			/* a receive right: its set's name, or 0 */
   uint32_t ep;			/* a receive right: its own endpoint's, or 0 */
+  uint32_t mscount;		/* a receive right: Mach's make-send count */
   uint64_t badge;		/* a receive right: payload, then its badge */
 };
 
@@ -201,5 +202,13 @@ extern void __jn_unpin (struct jn_table *t, uint32_t name);
 extern uint32_t __jn_recv_slot (const struct jn_table *t, uint32_t name);
 /* A receive right's badge (0 until its first send right).  */
 extern uint64_t __jn_badge (const struct jn_table *t, uint32_t name);
+/* The receive right receiving on endpoint slot EP (a port set's or its
+   own; __jn_recv_slot's) whose badge is BADGE: its make-send count (send
+   rights made from it, as Mach counts them: every MAKE_SEND, made into a
+   message or into its own name, not MAKE_SEND_ONCE) in *MSCOUNT, and
+   JN_OK; or JN_INVALID_NAME, none.  libports' no-senders reads it when it
+   takes a firing (glibc's joist-mig.c), under the same lock.  */
+extern int __jn_mscount_by_badge (const struct jn_table *t, uint32_t ep,
+				  uint64_t badge, uint32_t *mscount);
 
 #endif

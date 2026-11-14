@@ -81,11 +81,14 @@ rtld_hidden_proto (__joist_mig_reply_receive)
 rtld_hidden_proto (__joist_mig_reply)
 /* No-senders for a port set (joist-mig.c; libports' notifier): a
    notification bound to its endpoint, in a pinned name *NOTIF; a wait on
-   it (0, or EINTR); the next badge that lost its last sender, 0 if none.
+   it (0, or EINTR); the next badge that lost its last sender, 0 if none,
+   with its port's make-send count as the firing was taken (Mach's
+   no-senders' mscount: libports' check for a send right made since).
    0, or a Mach error.  */
 extern int __joist_nosenders_bind (mach_port_t set, mach_port_t *notif);
 extern int __joist_nosenders_wait (mach_port_t notif);
-extern int __joist_nosenders_next (mach_port_t set, uint64_t *badge);
+extern int __joist_nosenders_next (mach_port_t set, uint64_t *badge,
+				   mach_port_mscount_t *mscount);
 rtld_hidden_proto (__joist_nosenders_bind)
 rtld_hidden_proto (__joist_nosenders_wait)
 rtld_hidden_proto (__joist_nosenders_next)
@@ -99,6 +102,7 @@ extern int __joist_thread_wait (struct joist_thread *t, uint64_t bit,
 				uint64_t timeout);
 extern void __joist_thread_signal (const struct joist_thread *t,
 				   uint64_t bit);
+extern int __joist_reply_obj_make (struct joist_thread *t);
 extern int __joist_sync_init (void);
 /* Scheduling contexts terminated threads left, for the next (joist-sync.c).  */
 extern uint32_t __joist_sc_reuse (void);
@@ -128,6 +132,7 @@ rtld_hidden_proto (__joist_thread_make)
 rtld_hidden_proto (__joist_thread_free)
 rtld_hidden_proto (__joist_thread_wait)
 rtld_hidden_proto (__joist_thread_signal)
+rtld_hidden_proto (__joist_reply_obj_make)
 rtld_hidden_proto (__joist_sync_init)
 rtld_hidden_proto (__joist_sc_reuse)
 /* The bootstrap port (joist-special.c).  */

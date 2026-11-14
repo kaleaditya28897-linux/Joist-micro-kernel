@@ -64,6 +64,13 @@ struct joist_thread
   uint32_t ipc_on;		/* 1 once it has registered ipc_buf itself */
   uint64_t kept;		/* bits a wait of the other kind took */
   uint64_t *ipc_buf;		/* its IPC buffer (joist-mig.c) */
+  /* A server thread that must wait while it serves a call (a lock, a
+     condition, a sleep): the kernel refuses a Wait while the thread holds
+     the call's reply capability (I10), so the capability is moved into
+     the thread's reply object first (reply_save, made at its first need)
+     and the answer goes through it (reply_saved, joist-mig.c).  */
+  uint32_t reply_obj;		/* its reply object, 0 none yet */
+  uint32_t reply_saved;		/* 1: the call it serves is answered there */
 };
 
 /* The first thread's record until its TLS is set up (tls.h).  */
@@ -78,12 +85,20 @@ extern void __joist_thread_free (struct joist_thread *t);
    TIMEOUT nanoseconds (JG_FOREVER: no limit): 0 when it came, 1 when the
    time ran out, 2 when the wait was aborted (thread_abort, or
    thread_suspend, which aborts first: Mach's MACH_RCV_INTERRUPTED; the
-   caller waits again, or returns EINTR).  */
+   caller waits again, or returns EINTR).  A server thread serving a call
+   saves its reply first (reply_obj above).  */
 extern int __joist_thread_wait (struct joist_thread *t, uint64_t bit,
 				uint64_t timeout);
 /* Signal BIT to T.  */
 extern void __joist_thread_signal (const struct joist_thread *t,
 				   uint64_t bit);
+/* T's reply object made (T the calling thread, holding no reply: its
+   waits are allowed), if it has none: 0, or -1.  A server thread's plain
+   receive does it (joist-mig.c's server_ipc), so that reply_save, which
+   runs inside a refused wait, never makes one: making it takes the names
+   lock, and a wait for that lock inside a wait for it (on the same
+   thread's futex queue entry) would lose the first wait's wake-up.  */
+extern int __joist_reply_obj_make (struct joist_thread *t);
 /* The futex queues' table made: before the second thread exists (htl's
    pt-thread-alloc); until then no lock can be contended.  */
 extern int __joist_sync_init (void);
