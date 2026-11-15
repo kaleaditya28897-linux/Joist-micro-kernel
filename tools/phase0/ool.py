@@ -42,6 +42,10 @@ for f in files:
 
 def ool(t, depth=0):
     t = t.strip()
+    # A type defined in the parameter itself (`x: name_t = array[] of y`):
+    # its right-hand side decides (missed until Phase 5 step 9's review).
+    if "=" in t:
+        return ool(t.split("=", 1)[1], depth)
     if re.match(r'\^?\s*array\s*\[\s*\]', t) or t.startswith('^'):
         return True
     base = re.match(r'(\w+)', t)
