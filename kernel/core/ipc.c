@@ -227,6 +227,174 @@ joist_err joist_ipc_buffer(struct joist_kernel *k, joist_thread t, uint64_t va)
     return JOIST_OK;
 }
 
+/* ---- bulk data through the caller's windows (decision 0032) ---- */
+
+static joist_err reply_obj(const struct joist_kernel *k, joist_thread t, joist_slot slot,
+                           uint32_t *obj);
+
+/* The bytes of the user half. */
+#define USER_BYTES (JOIST_USER_PAGES * (uint64_t)JOIST_PAGE_SIZE)
+
+joist_err joist_thread_window(struct joist_kernel *k, joist_thread t, unsigned kind, uint64_t va,
+                              uint64_t len)
+{
+    joist_err e = running(k, t);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (kind > JOIST_WIN_WRITE) {
+        return JOIST_E_RANGE;
+    }
+    if (len != 0) {
+        if (va >= USER_BYTES || len > USER_BYTES - va) {
+            return JOIST_E_RANGE;
+        }
+        uint64_t first = va / JOIST_PAGE_SIZE;
+        uint64_t last = (va + len - 1u) / JOIST_PAGE_SIZE;
+        if (kind == JOIST_WIN_WRITE && !joist__region_holds(k, k->th[t].cs, first, last - first + 1u)) {
+            return JOIST_E_RANGE; /* written only where no page is COW-shared */
+        }
+    } else {
+        va = 0;
+    }
+    k->th[t].win[kind].va = va;
+    k->th[t].win[kind].len = len;
+    return JOIST_OK;
+}
+
+/* The caller whose reply t holds (its own: slot JOIST_SLOT_NONE; or the one
+ * saved in the reply object in slot), still waiting for it, and the user
+ * address of bytes [off, off + len) of its window `kind`. Nothing changes. */
+static joist_err window_of(const struct joist_kernel *k, joist_thread t, joist_slot slot,
+                           unsigned kind, uint64_t off, uint64_t len, uint32_t *caller,
+                           uint64_t *va)
+{
+    joist_err e = running(k, t);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    uint32_t to;
+    uint32_t seq;
+    if (slot == JOIST_SLOT_NONE) {
+        to = k->th[t].reply_to;
+        seq = k->th[t].reply_seq;
+    } else {
+        uint32_t obj;
+        e = reply_obj(k, t, slot, &obj);
+        if (e != JOIST_OK) {
+            return e;
+        }
+        to = k->obj[obj].target;
+        seq = k->obj[obj].rseq;
+    }
+    if (to == 0) {
+        return JOIST_E_NOREPLY;
+    }
+    const struct joist_thread_rec *c = &k->th[to - 1u];
+    if (c->state != JOIST_T_BLOCKED_REPLY || c->call_seq != seq || !joist__usable(k, c->cs)) {
+        return JOIST_E_PEER; /* it stopped waiting: no window of its is reachable */
+    }
+    if (c->win[kind].len == 0) {
+        return JOIST_E_STATE;
+    }
+    if (len > JOIST_COPY_MAX || off > c->win[kind].len || len > c->win[kind].len - off) {
+        return JOIST_E_RANGE;
+    }
+    *caller = to - 1u;
+    *va = c->win[kind].va + off;
+    return JOIST_OK;
+}
+
+/* Where the page a present entry names is, if the core can reach it. */
+static uint8_t *page_of(const struct joist_kernel *k, uint64_t pte)
+{
+    if (k->hooks.page == NULL) {
+        return NULL;
+    }
+    return k->hooks.page(k->hooks.ctx, k->obj[JOIST_PTE_FRAME(pte)].base + JOIST_PTE_OFF(pte));
+}
+
+/* Copy len bytes from `from` in space fs to `to` in space ts, a piece of a
+ * page at a time, up to the first page that may not be read (not present)
+ * or written (not present, not writable, or outside every live region of
+ * ts: a page that may be COW-shared is never written). The bytes copied.
+ * With no page hook (the host model's plain tests), the checks alone. */
+static uint64_t copy_bytes(struct joist_kernel *k, uint32_t fs, uint64_t from, uint32_t ts,
+                           uint64_t to, uint64_t len)
+{
+    uint64_t done = 0;
+    while (done < len) { /* cbmc: copy loop */
+        JOIST_WORK(k);
+        uint64_t f = from + done;
+        uint64_t d = to + done;
+        uint64_t fp = f / JOIST_PAGE_SIZE;
+        uint64_t dp = d / JOIST_PAGE_SIZE;
+        if (fp >= JOIST_USER_PAGES || dp >= JOIST_USER_PAGES) {
+            break;
+        }
+        uint64_t fe = joist__pte(k, fs, fp);
+        uint64_t de = joist__pte(k, ts, dp);
+        if ((fe & JOIST_PTE_P) == 0 || (de & JOIST_PTE_P) == 0 || (de & JOIST_PTE_W) == 0 ||
+            !joist__region_holds(k, ts, dp, 1)) {
+            break;
+        }
+        uint64_t n = len - done;
+        if (n > JOIST_PAGE_SIZE - f % JOIST_PAGE_SIZE) {
+            n = JOIST_PAGE_SIZE - f % JOIST_PAGE_SIZE;
+        }
+        if (n > JOIST_PAGE_SIZE - d % JOIST_PAGE_SIZE) {
+            n = JOIST_PAGE_SIZE - d % JOIST_PAGE_SIZE;
+        }
+#ifndef JOIST_CBMC
+        /* (CBMC's simulated pages are a few words, not JOIST_PAGE_SIZE
+         * bytes: its proofs check which bytes may be copied, and the unit
+         * and property tests what is copied.) */
+        if (k->hooks.page != NULL) {
+            const uint8_t *sp = page_of(k, fe);
+            uint8_t *dpg = page_of(k, de);
+            if (sp == NULL || dpg == NULL) {
+                break;
+            }
+            memmove(dpg + d % JOIST_PAGE_SIZE, sp + f % JOIST_PAGE_SIZE, (size_t)n);
+        }
+#endif
+        done += n;
+    }
+    return done;
+}
+
+joist_err joist_reply_read(struct joist_kernel *k, joist_thread t, joist_slot slot, uint64_t off,
+                           uint64_t dst_va, uint64_t len, uint64_t *n)
+{
+    uint32_t c;
+    uint64_t va;
+    joist_err e = window_of(k, t, slot, JOIST_WIN_READ, off, len, &c, &va);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (dst_va > UINT64_MAX - len) {
+        return JOIST_E_RANGE;
+    }
+    *n = copy_bytes(k, k->th[c].cs, va, k->th[t].cs, dst_va, len);
+    return JOIST_OK;
+}
+
+joist_err joist_reply_write(struct joist_kernel *k, joist_thread t, joist_slot slot, uint64_t off,
+                            uint64_t src_va, uint64_t len, uint64_t *n)
+{
+    uint32_t c;
+    uint64_t va;
+    joist_err e = window_of(k, t, slot, JOIST_WIN_WRITE, off, len, &c, &va);
+    if (e != JOIST_OK) {
+        return e;
+    }
+    if (src_va > UINT64_MAX - len) {
+        return JOIST_E_RANGE;
+    }
+    *n = copy_bytes(k, k->th[t].cs, src_va, k->th[c].cs, va, len);
+    return JOIST_OK;
+}
+
 joist_err joist_recv_slots(struct joist_kernel *k, joist_thread t, const joist_slot *slots,
                            uint32_t n)
 {

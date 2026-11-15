@@ -382,3 +382,13 @@ mm-grow-unbounded         @@ ../servers/mm/mmlib.c @@ tk->ngrow >= MM_TABLE_GROW
 mm-grow-past-the-ceiling  @@ ../servers/mm/mmlib.c @@ g->pages + g->tables > g->ceil - MM_TABLE_GROW @@ 0
 ns-mint-withdraws-nothing  @@ ../kernel/core/notify.c @@         if (a->badge == b) { @@         if (0 && a->badge == b) {
 ns-withdraw-tail-stale     @@ ../kernel/core/notify.c @@ e->ns_last = prev; @@ (void)prev;
+# Decision 0032 (Phase 5 step 9): bulk data through the caller's windows.
+win-write-anywhere @@ ../kernel/core/ipc.c @@ if (kind == JOIST_WIN_WRITE && !joist__region_holds(k, k->th[t].cs, first, last - first + 1u)) { @@ if (kind == JOIST_WIN_WRITE && first > last) {
+win-dst-not-region @@ ../kernel/core/ipc.c @@ !joist__region_holds(k, ts, dp, 1)) { @@ 0) {
+win-dst-readonly @@ ../kernel/core/ipc.c @@ (de & JOIST_PTE_P) == 0 || (de & JOIST_PTE_W) == 0 || @@ (de & JOIST_PTE_P) == 0 ||
+win-src-absent @@ ../kernel/core/ipc.c @@ if ((fe & JOIST_PTE_P) == 0 || (de & JOIST_PTE_P) == 0 @@ if ((de & JOIST_PTE_P) == 0
+win-caller-gone @@ ../kernel/core/ipc.c @@ if (c->state != JOIST_T_BLOCKED_REPLY || c->call_seq != seq || !joist__usable(k, c->cs)) { @@ if ((seq & 0u) != 0u || !joist__usable(k, c->cs)) {
+win-past-window @@ ../kernel/core/ipc.c @@ if (len > JOIST_COPY_MAX || off > c->win[kind].len || len > c->win[kind].len - off) { @@ if (len > JOIST_COPY_MAX || off > c->win[kind].len) {
+win-past-max @@ ../kernel/core/ipc.c @@ if (len > JOIST_COPY_MAX || off @@ if (off
+win-page-cross @@ ../kernel/core/ipc.c @@ if (n > JOIST_PAGE_SIZE - d % JOIST_PAGE_SIZE) { @@ if (0) {
+win-wrong-kind @@ ../kernel/core/ipc.c @@ joist_err e = window_of(k, t, slot, JOIST_WIN_WRITE, off, len, &c, &va); @@ joist_err e = window_of(k, t, slot, JOIST_WIN_READ, off, len, &c, &va);

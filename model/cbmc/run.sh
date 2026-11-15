@@ -65,9 +65,16 @@ for arg in "$@"; do
         extra="-DJOIST_CBMC_NO_BUFFERS" ;;
     esac
     # The mapping calls (11-16) and the region calls (22-26, decision 0030).
-    case "$op:$withtables" in 1[1-6]:*|2[2-6]:*|*:1)
+    case "$op:$withtables" in 1[1-6]:*|2[2-9]:*|*:1)
         tables="-DJOIST_CBMC_TABLES -DJOIST_CBMC_SIM_PAGES=${sim_pages}u"
         sizes=$(printf '%s' "$SIZES" | sed 's/@SPACES@/1/') ;;
+    esac
+    # Decision 0032's window and copies (27-29): with the tables, two
+    # threads (a caller and the server holding its reply, in the one
+    # space), and a copy limit of two pages, so the copy's loop is short.
+    case $op in 2[7-9])
+        sizes=$(printf '%s' "$sizes" | sed 's/-DJOIST_MAX_THREADS=1u/-DJOIST_MAX_THREADS=2u/')
+        sizes="$sizes -DJOIST_COPY_MAX=8192u" ;;
     esac
     # OP:TYPE, OP:TYPE/t: slot a holds a capability of that type (9:7/t is a
     # frame's kill with page tables; the Makefile's tally names it the same).
@@ -89,6 +96,10 @@ for arg in "$@"; do
         fi
         unwindset="--unwindset $free:$((sim_pages + 2)),$lent:$((objects + 2))"
         unwindset="$unwindset,$hfree:$((sim_pages + 2))"
+        # The copy's loop: a piece of a page at a time, at most two pages
+        # of JOIST_COPY_MAX each side, so five pieces and the exit.
+        copy=$(loop_id "$here/../kernel/core/ipc.c" "cbmc: copy loop")
+        [ -n "$copy" ] && unwindset="$unwindset,$copy:7"
     fi
     cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $sizes -DJOIST_CBMC -DJOIST_CBMC_INDUCTIVE -DJOIST_CBMC_STEPS=1 \
         -DJOIST_CBMC_OP="$op" $tables $extra $split "$here/cbmc/harness_cspace.c" "$here"/../kernel/core/*.c \

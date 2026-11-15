@@ -1337,7 +1337,7 @@ Gaps, as built:
 - **libtrivfs's `demuxer.c`** will need a Joist copy for its types (step
   10), not "compiles unchanged".
 
-### Step 9: the decision on bulk data (2026-11-14, proposed)
+### Step 9: the decision on bulk data (2026-11-14, accepted)
 
 Choice 4's move-grant, looked at against regions as built, doesn't fit
 them: I12 says every page mapped in a region is a page of that region's
@@ -1353,7 +1353,83 @@ never COW-shared, written through the direct map); a server copies with
 `reply_read` and `reply_write` through the reply it holds, at most
 `JOIST_COPY_MAX` bytes a call (64 KiB proposed, to be measured: it runs
 under the kernel's lock); nothing mapped, unmapped or shared. Its model
-step waits for the owner's acceptance. The `dealloc` review goes on
+step waited for the owner's acceptance, given the same day (0032
+accepted as written). The `dealloc` review went on
 meanwhile: for each of the 54 parameters, its direction, how the receiver
 can bound its size (the write window's), and whether its sender uses the
 data after sending.
+
+### Step 9: the `dealloc` review (2026-11-14)
+
+Every out-of-line parameter of the Hurd's interfaces with a `dealloc`
+flag, read in the Hurd (0.9.git20261028) and glibc 2.43: its direction,
+how the receiver can bound it before the call (0032's write window),
+whether its sender uses the memory after sending, and who serves and
+calls it. Recorded in `docs/phase5-data/step9-dealloc/` (a line a
+parameter); the reading was a hand-off on the P53
+(`/srv/joist/handoff/p5-dealloc/`, its record `findings.md`).
+
+- **56 parameters, not 54:** `tools/phase0/ool.py` missed a type defined
+  inside a parameter (`x: name = array[] of y`), so
+  `default_pager_storage_info`'s `size` and `free` were missing; corrected,
+  the Hurd has 144 OOL parameters, 56 with `dealloc` (51 `dealloc`, 3
+  `CountInOut Dealloc`, 2 `dealloc[]`). 48 go server to client, 8 client
+  to server.
+- **Bounds of the 48 `out`:** 6 by an argument (`io_read`'s and
+  `socket_recv`'s `amount`, `dir_readdir`'s `bufsiz`, `pci_conf_read`,
+  `pfinet_siocgifconf`, `pfinet_getroutes`), 3 fixed, 1 always within the
+  stub's buffer, 14 small by meaning (a stub default covers them), 24 with
+  none known: 5 port arrays and 19 data arrays (proc's pid lists, process
+  info, arguments and environments; `exec_startup_get_info`'s argv and
+  envp; `file_get_storage_info`; `msg_get_environment`; the default
+  pager's; pflocal's control data). None of the 24 is reached in Phase 5;
+  they are 0032's open question for Phases 6-8. glibc calls `dir_readdir`
+  with `bufsiz` 0 and `pfinet_siocgifconf` with -1 (everything): their
+  bound is in the protocol, but glibc's calls must pass the window's size.
+- **No sender uses the memory after sending:** the 8 `in`
+  (`process_reply.defs`) are sent by nothing; every server of the 48
+  `out` returns its stub's buffer or memory it allocated or held, and
+  never touches it after returning. 0032's copy during the call keeps them
+  all right. libpipe returns pages of its own packet buffer and counts on
+  the send to unmap them (pflocal, the fifos), and exec gives away its
+  startup arrays: the stub's free after the copy does what the send did,
+  and must be made even when the copy fails. `trans/magic` returns its own
+  directory buffer with `dealloc[]` false: the copy is right as long as
+  the stub doesn't free it.
+- **Found in joistmig:** for a `dealloc[]` result, the server stub passes
+  NULL as the routine's `boolean_t *` and frees regardless; libdiskfs's,
+  libnetfs's and magic's `dir_readdir` would write through NULL. hello's
+  libtrivfs never touches it; to fix before a directory server runs.
+- 8 of the 56 are port arrays (their rights move: not bulk data);
+  `login_get_*` (server not built) and `process_reply` (unused) are
+  obsolete.
+
+### Step 9: bulk data through the caller's windows, in the model (2026-11-14)
+
+Decision 0032, accepted by the owner the same day, built in the kernel
+core and tested. A thread's two windows (`win[2]` in its record, set by
+`thread_window` for itself only; a write window must lie inside one of its
+space's live regions, `joist__region_holds`); `reply_read` and
+`reply_write` through the reply the server holds (its own, or one saved in
+a reply object), refused unless that caller still waits on it (`E_PEER`),
+the window is set (`E_STATE`) and the range is inside it and at most
+`JOIST_COPY_MAX` (`E_RANGE`, 64 KiB by default); the copy goes a piece of
+a page at a time and stops at the first page not present, not writable or,
+for a write, outside a live region, returning the bytes copied.
+
+- **Tested:** model 300 (`test_window.c`: eight unit tests and a property
+  test checking every copy byte by byte against a reference), under every
+  sanitizer; the kernel's host tests and image build. Nine mutations
+  (`win-*`: a write window anywhere, a write outside a region, into a
+  read-only page, from an absent page, after the caller stopped waiting,
+  past the window, past `JOIST_COPY_MAX`, across a page boundary, the wrong
+  window), all caught.
+- **CBMC:** operations 27-29 (`thread_window`, `reply_read`,
+  `reply_write`), each from any state with the page tables and two
+  threads, at a copy limit of two pages: every invariant kept, and a copy
+  reports no more bytes than asked; 2202, 2009 and 1810 s on joist-dev2,
+  all VERIFICATION SUCCESSFUL. That a copy changes nothing else the kernel
+  holds is left to the unit and property tests (a before/after comparison
+  didn't finish in CBMC).
+- **The `dealloc` review** (`docs/phase5-data/step9-dealloc/`): 56
+  parameters, as 0032 records.

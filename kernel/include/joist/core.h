@@ -92,6 +92,11 @@
 #ifndef JOIST_REGION_EXTENTS
 #define JOIST_REGION_EXTENTS 8u
 #endif
+/* Bytes one reply_read or reply_write may copy (decision 0032): the copy
+ * runs under the kernel's one lock, so it is bounded; the stubs loop. */
+#ifndef JOIST_COPY_MAX
+#define JOIST_COPY_MAX 65536u
+#endif
 #ifndef JOIST_REGIONS_PER_TASK
 #define JOIST_REGIONS_PER_TASK 8u
 #endif
@@ -506,6 +511,13 @@ struct joist_thread_rec {
     uint8_t faulting;    /* 1 in a fault call; 2 in one that brings no thread capability */
     /* Its IPC buffer: a page-aligned user address, 0 for none. */
     uint64_t ipc_buf;
+    /* Its windows (decision 0032): byte ranges of its own space that a
+     * server serving its call may read (win[0]) or write (win[1]), through
+     * the reply it holds; len 0: none. Set only by the thread itself. */
+    struct {
+        uint64_t va;
+        uint64_t len;
+    } win[2];
     /* The run queues (choice 9, Phase 3 step 10): the queue it is on (a CPU,
      * plus one; 0 none), that list's priority, its neighbours in it (thread
      * plus one), and the CPU whose queue it goes on when it next waits for
@@ -901,6 +913,35 @@ joist_err joist_reply_save(struct joist_kernel *k, joist_thread t, joist_slot sl
  * waiting. */
 joist_err joist_reply_saved(struct joist_kernel *k, joist_thread t, joist_slot slot,
                             const struct joist_msg *m);
+
+/* Bulk data through the caller's windows (decision 0032). Thread t sets its
+ * own read window (kind JOIST_WIN_READ) or write window (JOIST_WIN_WRITE):
+ * bytes [va, va + len) of its space, len 0 for none. A write window must
+ * lie inside one of its space's live regions (0030), whose pages are never
+ * COW-shared. JOIST_E_RANGE (kind, a range past the user half or
+ * wrapping; a write window outside every region), E_RANGE/E_STATE
+ * (thread). O(JOIST_REGIONS_PER_TASK). */
+#define JOIST_WIN_READ 0u
+#define JOIST_WIN_WRITE 1u
+joist_err joist_thread_window(struct joist_kernel *k, joist_thread t, unsigned kind, uint64_t va,
+                              uint64_t len);
+/* A server thread t copies between its own space and the window of the
+ * caller whose reply it holds: its own reply (slot JOIST_SLOT_NONE) or the
+ * one saved in the reply object in slot (needs SEND). reply_read copies len
+ * bytes at `off` in the caller's read window to dst_va in t's space;
+ * reply_write, len bytes from src_va in t's space to `off` in the caller's
+ * write window. Every page written must be present, writable and inside a
+ * live region of its space; every page read, present. The copy stops at
+ * the first page that isn't (*n: the bytes copied, in order). Refused,
+ * nothing copied: E_NOREPLY (no reply held), E_PEER (its caller no longer
+ * waits; the reply is kept), E_STATE (no such window), E_RANGE (len past
+ * JOIST_COPY_MAX, or off + len past the window), the reply object's
+ * E_RANGE/E_EMPTY/E_TYPE/E_RIGHTS, E_RANGE/E_STATE (thread). O(len /
+ * JOIST_PAGE_SIZE + JOIST_REGIONS_PER_TASK) a page. */
+joist_err joist_reply_read(struct joist_kernel *k, joist_thread t, joist_slot slot, uint64_t off,
+                           uint64_t dst_va, uint64_t len, uint64_t *n);
+joist_err joist_reply_write(struct joist_kernel *k, joist_thread t, joist_slot slot, uint64_t off,
+                            uint64_t src_va, uint64_t len, uint64_t *n);
 
 /* Advance model time and expire deadlines (JOIST_E_TIMEOUT). Bounded by
  * JOIST_MAX_THREADS. */

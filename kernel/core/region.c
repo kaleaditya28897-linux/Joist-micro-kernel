@@ -54,6 +54,21 @@ int joist__region_meets(const struct joist_kernel *k, uint32_t space, uint64_t v
     return 0;
 }
 
+int joist__region_holds(const struct joist_kernel *k, uint32_t space, uint64_t va, uint64_t npages)
+{
+    const struct joist_cspace_state *st = &k->cs[space];
+    for (uint32_t i = 0; i < JOIST_REGIONS_PER_TASK; i++) {
+        if (st->region[i] == 0) {
+            continue;
+        }
+        const struct joist_region *r = &k->reg[st->region[i] - 1u];
+        if (r->live && !r->dying && r->obj != 0 && inside(r, va, npages)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* The region record named by the capability in cs's slot, which must hold
  * `need`: E_RANGE/E_DEAD (space), E_RANGE, E_EMPTY, E_TYPE, E_RIGHTS, and
  * E_GONE if the region is killed, dying or its task gone or going. */

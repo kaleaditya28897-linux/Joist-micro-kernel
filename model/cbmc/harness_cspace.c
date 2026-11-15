@@ -345,6 +345,26 @@ int main(void)
         case 26:
             e = joist_region_protect(&k, cs, a, va, n, perms);
             break;
+        /* Decision 0032, bulk data through the caller's windows, with the
+         * page tables and two threads: the invariants hold after each, and
+         * a copy reports no more bytes than asked. (That a copy changes
+         * nothing the kernel holds, and which bytes it moves, are the unit
+         * and property tests', test_window.c: a comparison of the state
+         * before and after is a formula CBMC didn't finish in 15 minutes,
+         * nor 46 for the whole state, 2026-11-14.) */
+        case 27:
+            e = joist_thread_window(&k, any(JOIST_MAX_THREADS), perms, va, n);
+            break;
+        case 28:
+        case 29: {
+            joist_thread t = any(JOIST_MAX_THREADS);
+            joist_slot slot = any(1) == 0 ? JOIST_SLOT_NONE : a;
+            uint64_t got = 0;
+            e = op == 28 ? joist_reply_read(&k, t, slot, off, va, n, &got)
+                         : joist_reply_write(&k, t, slot, off, off2, n, &got);
+            __CPROVER_assert(e != JOIST_OK || got <= n, "no more than asked");
+            break;
+        }
         default:
             e = joist_task_destroy(&k, cs, a);
             break;

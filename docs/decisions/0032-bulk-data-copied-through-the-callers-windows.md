@@ -133,6 +133,15 @@ owner choosing C, with the measurement this decision asks for kept.
   ahead (to be found by the review); the stub default and what happens
   past it.
 
+- **The review (step 9, 2026-11-14,** `docs/phase5-data/step9-dealloc/`):
+  56 `dealloc` parameters, not 54 (Phase 0's script missed a type defined
+  in its parameter); 48 go server to client, 8 client to server. No sender
+  uses its memory after sending, so the copy during the call keeps every
+  one right. Of the 48 `out`, 24 have no bound known before the call (5 of
+  them port arrays); none is reached in Phase 5, so the open question above
+  is Phases 6-8's. The stubs must free a `dealloc` sender's memory even
+  when the copy fails, and honour `dealloc[]`.
+
 ## Priority check
 
 - **Reliability:** every call bounded (`JOIST_COPY_MAX`); no allocation; no

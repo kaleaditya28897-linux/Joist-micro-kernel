@@ -25,6 +25,7 @@ static inline int joist__usable(const struct joist_kernel *k, uint32_t cs)
 #define JOIST_FMT(msg, msglen, ...) ((void)snprintf((msg), (msglen), __VA_ARGS__))
 #else
 void *memset(void *dst, int c, size_t n);
+void *memmove(void *dst, const void *src, size_t n);
 void joist__fmt_bare(char *msg, unsigned msglen, const char *fmt);
 #define JOIST_FMT(msg, msglen, ...) joist__fmt_bare((msg), (msglen), JOIST_FMT_FIRST(__VA_ARGS__, 0))
 #define JOIST_FMT_FIRST(first, ...) (first)
@@ -126,6 +127,10 @@ void joist__frame_extent_gone(struct joist_kernel *k, uint32_t f);
 /* Regions (region.c, 0030). Whether [va, va + npages) of space meets one of
  * its regions; O(JOIST_REGIONS_PER_TASK). */
 int joist__region_meets(const struct joist_kernel *k, uint32_t space, uint64_t va, uint64_t npages);
+/* Whether pages [va, va + npages) of the space lie inside one live region
+ * of it (not killed, not dying): pages never COW-shared (0030, 0032).
+ * O(JOIST_REGIONS_PER_TASK). */
+int joist__region_holds(const struct joist_kernel *k, uint32_t space, uint64_t va, uint64_t npages);
 /* Region object obj was killed, or its last capability went: its range is
  * unmapped on the work list. */
 void joist__region_ends(struct joist_kernel *k, uint32_t obj);

@@ -178,7 +178,9 @@ tla-mutate:
 # 19/n), so it is left to the unit and property tests, as 3 and 6 are.
 # Operations 22-26 are decision 0030's region calls (create, add, map, unmap,
 # protect), with the page tables; a region's kill is operation 9's.
-CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21 22 23 24 25 26
+# Operations 27-29 are decision 0032's window and copies (thread_window,
+# reply_read, reply_write), with the page tables and two threads.
+CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21 22 23 24 25 26 27 28 29
 CBMC_JOBS ?= 1
 cbmc:
 	@mkdir -p $(BUILD)/cbmc
