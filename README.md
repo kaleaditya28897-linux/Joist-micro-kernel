@@ -26,7 +26,45 @@ in [`docs/`](docs).
 | 3 | IPC and capabilities in the kernel: the model as its object layer, scheduling contexts, SMP | done ([exit](docs/phase3-exit.md)) |
 | 4 | Memory management: frames, page tables, the `mm` server, copy-on-write, revocation | done ([exit](docs/phase4-exit.md)) |
 | 5 | MIG retarget and libports, with the region capability, per-tree limits and glibc's `sysdeps/joist` | in progress ([plan](docs/phase5-plan.md)) |
-| 6-11 | Paging and libpager, the glibc port, bootstrapping the Hurd, resilience, drivers, server hardening | planned ([plan](joist-microkernel-plan.md) §11) |
+| 6-13 | Paging and libpager, the glibc port, bootstrapping the Hurd, resilience, drivers, server hardening, POSIX conformance, native optimisation | planned ([plan](joist-microkernel-plan.md) §11) |
+
+### Where it stands (2026-11-15)
+
+**The foundation is built.** A kernel core whose invariants are checked by
+property tests, CBMC proofs and mutation testing; synchronous IPC with
+capabilities and lifetime notifications; scheduling contexts and SMP;
+memory managed by a user-level server, `mm`, with copy-on-write `fork`;
+and fault-injection tests of all of it.
+
+**Phase 5 is bringing the Hurd's own code across.** Done so far:
+
+- the region capability: a task maps its own pages, in a range `mm` gives it;
+- per-tree memory limits in `mm`;
+- MIG retargeted to Joist's IPC, with the `.defs` files unchanged;
+- glibc's `sysdeps/joist`, built with Clang: about 1 900 of glibc's own
+  tests pass on Joist, threads (htl), `malloc` and the Mach layer among them;
+- the Hurd's libports, its request loops and no-senders on Joist,
+  tested under fault injection on 1, 2 and 4 CPUs.
+
+In progress: bulk data between tasks ([decision 0032](docs/decisions/0032-bulk-data-copied-through-the-callers-windows.md):
+a kernel copy through windows the caller gives, in place of Mach's
+out-of-line memory), already in the model, proved and in the kernel's
+calls; MIG's stubs and the measurements are next. Then the phase's
+milestone: libtrivfs and the Hurd's `hello` translator, the first Hurd
+server running unmodified on Joist.
+
+**Ahead.** The paging protocol and libpager (Phase 6), the rest of the
+glibc port (7), and bootstrapping the Hurd to a `/bin/sh` prompt running
+coreutils (8), the next large visible goal; then resilience (servers
+restarted transparently, the Minix 3 goal), drivers, server hardening and
+POSIX conformance. The foundation took less time than the plan's estimates;
+the phases ahead hold most of the problems the plan calls hard (paging,
+the boot chain, drivers).
+
+**Known open items:** Joist's own locks inside glibc must become critical
+sections before a thread can be aborted mid-call (Phase 7); robust mutexes
+can't yet notice a thread that died holding one; and whether a copy is fast
+enough for `io_read`, against a page move, is to be measured before Phase 11.
 
 Design decisions, each with its options and the reason for the choice, are
 in [`docs/decisions/`](docs/decisions); the native ABI is
