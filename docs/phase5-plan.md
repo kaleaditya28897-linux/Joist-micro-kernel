@@ -1400,6 +1400,12 @@ parameter); the reading was a hand-off on the P53
   NULL as the routine's `boolean_t *` and frees regardless; libdiskfs's,
   libnetfs's and magic's `dir_readdir` would write through NULL. hello's
   libtrivfs never touches it; to fix before a directory server runs.
+  **Fixed 2026-11-15:** the stub keeps a flag a result, clear until the
+  routine sets it, and frees only then (never its own buffer); the
+  generated test servers set it; `tools/mig-test/dtor.defs` gains a
+  `dealloc[]` routine whose server returns its own buffer (flag clear),
+  memory it allocated (set: freed once) and the stub's buffer; mutations
+  `dealloc-flag-ignored` and `dealloc-flag-null`, both caught (17 of 17).
 - 8 of the 56 are port arrays (their rights move: not bulk data);
   `login_get_*` (server not built) and `process_reply` (unused) are
   obsolete.

@@ -29,3 +29,12 @@ routine dtor_ok(
 routine dtor_fail(
 	target: dtor_req_t;
 	other: dtor_arg_t);
+
+/* A `dealloc[]` result (as fs.defs's dir_readdir): the routine says
+   whether the memory it returns is freed after the reply. */
+type dtor_data_t = array[] of char;
+
+routine dtor_read(
+	target: dtor_req_t;
+	which: int;
+	out data: dtor_data_t, dealloc[]);

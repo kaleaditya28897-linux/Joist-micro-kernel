@@ -65,6 +65,49 @@ kern_return_t dtor_fail(dtor_obj_t target, dtor_obj_t other)
     return KERN_FAILURE;
 }
 
+/* dtor_read's memory (a `dealloc[]` result): which 0, the routine's own
+ * buffer, the flag left clear (never to be freed); 1, memory it allocated,
+ * the flag set (freed once, after the reply); 2, the stub's own buffer,
+ * written in place (never freed). The stub frees through
+ * joist_mig_deallocate, counted here. */
+static char own[16] = "own buffer";
+static void *given, *freed;
+static unsigned frees;
+
+void *joist_mig_allocate(size_t n)
+{
+    return malloc(n != 0 ? n : 1);
+}
+
+void joist_mig_deallocate(void *p, size_t n)
+{
+    (void)n;
+    frees++;
+    freed = p;
+    free(p);
+}
+
+kern_return_t dtor_read(dtor_obj_t target, int which, char **data, mach_msg_type_number_t *dataCnt,
+                        boolean_t *dataDealloc)
+{
+    (void)target;
+    if (which == 0) {
+        *data = own;
+        *dataCnt = sizeof own;
+        *dataDealloc = 0;
+    } else if (which == 1) {
+        given = joist_mig_allocate(8);
+        memcpy(given, "fresh!!", 8);
+        *data = given;
+        *dataCnt = 8;
+        *dataDealloc = 1;
+    } else {
+        memcpy(*data, "stub", 5);
+        *dataCnt = 5;
+    }
+    return KERN_SUCCESS;
+}
+
 static void check(int ok, const char *what)
 {
     if (!ok) {
@@ -115,6 +158,17 @@ int main(void)
     request(7001, 1, 0, 0, NULL, 0, &out);
     check((uint32_t)out.r[0] == (uint32_t)JOIST_MIG_BAD_ARGUMENTS, "a missing capability not refused");
     check(translated == 6 && destroyed == 6, "a refused request translated something");
+    /* dealloc[]: freed exactly when the routine says so, and only then. */
+    uint64_t w = 0;
+    request(7002, 1, 0, 0, &w, 1, &out);
+    check((uint32_t)out.r[0] == 0 && frees == 0, "the routine's own buffer freed (dealloc[] clear)");
+    w = 1;
+    request(7002, 1, 0, 0, &w, 1, &out);
+    check((uint32_t)out.r[0] == 0 && frees == 1 && freed == given,
+          "allocated memory not freed once (dealloc[] set)");
+    w = 2;
+    request(7002, 1, 0, 0, &w, 1, &out);
+    check((uint32_t)out.r[0] == 0 && frees == 1, "the stub's own buffer freed");
     for (unsigned i = 0; i < 8u; i++) {
         check(objs[i].live == 0, "an object left translated");
     }

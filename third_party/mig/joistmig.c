@@ -356,6 +356,15 @@ static void server_in(FILE *f, const argument_t *a, int *k)
 {
     const ipc_type_t *it = a->argType;
     const char *st = FetchServerType(it);
+    if (akIdent(a->argKind) == akeDealloc && a->argByReferenceServer) {
+        /* A `dealloc[]` result: the routine says whether the memory it
+         * returns is to be freed after the reply (libdiskfs's dir_readdir
+         * sets it for memory it allocated, trans/magic leaves it clear for
+         * its own buffer). Clear unless it sets it: a leak, never a free
+         * of memory the routine still uses. */
+        fprintf(f, "\tboolean_t jm_%sDealloc = 0;\n", svname(a->argParent));
+        return;
+    }
     switch (wire_of(a)) {
     case W_FIXED:
         fprintf(f, "\t%s jm_%s;\n", st, svname(a));
@@ -479,7 +488,11 @@ static void server_arg(FILE *f, const argument_t *a)
         }
         return;
     case akeDealloc:
-        fprintf(f, "%s0", a->argByReferenceServer ? "(void *)" : "");
+        if (a->argByReferenceServer) {
+            fprintf(f, "&jm_%sDealloc", svname(p)); /* server_in's flag */
+        } else {
+            fprintf(f, "0");
+        }
         return;
     default:
         break;
@@ -516,8 +529,15 @@ static void server_out(FILE *f, const argument_t *a)
         fprintf(f, "\t\t    joist_mig_put(&jm_o, (const void *)(uintptr_t)jm_%s, jm_n * sizeof (%s)) != 0;\n",
                 svname(a), elem(a));
         if (a->argDeallocate != d_NO) {
-            /* The routine gave memory of its own: MIG would have moved it. */
-            fprintf(f, "\t\tif ((void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n", svname(a), svname(a));
+            /* The routine gave memory of its own: MIG would have moved it.
+             * With `dealloc[]`, only if the routine said so (server_in). */
+            if (a->argDeallocate == d_MAYBE && a->argDealloc != argNULL &&
+                a->argDealloc->argByReferenceServer) {
+                fprintf(f, "\t\tif (jm_%sDealloc && (void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n",
+                        svname(a), svname(a), svname(a));
+            } else {
+                fprintf(f, "\t\tif ((void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n", svname(a), svname(a));
+            }
             fprintf(f, "\t\t\tjoist_mig_deallocate((void *)(uintptr_t)jm_%s, jm_n * sizeof (%s));\n", svname(a),
                     elem(a));
         }
@@ -814,6 +834,11 @@ static void write_test_server_routine(FILE *f, const routine_t *rt)
         }
         if (wire_of(a) == W_PORT && a->argPoly != argNULL && akCheck(a->argPoly->argKind, akbServerArg)) {
             fprintf(f, "\t*%s = MACH_MSG_TYPE_COPY_SEND;\n", a->argPoly->argVarName);
+        }
+        if (wire_of(a) == W_VAR && a->argDealloc != argNULL && a->argDealloc->argByReferenceServer) {
+            /* A `dealloc[]` result: what it returns is to be freed (the
+             * stub never frees its own buffer, whatever the flag says). */
+            fprintf(f, "\t*%s = 1;\n", a->argDealloc->argVarName);
         }
     }
     fprintf(f, "\treturn KERN_SUCCESS;\n}\n");

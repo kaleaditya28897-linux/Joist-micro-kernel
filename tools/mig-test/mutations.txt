@@ -18,3 +18,5 @@ server-string-unterminated @@ joistmig.c @@             fprintf(f, "\t\t    (jm_
 demux-unknown-served @@ joistmig.c @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = (uint32_t)JOIST_MIG_BAD_ID;\n"); @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = 0;\n");
 routine-lookup-finds-none @@ joistmig.c @@ "\tcase %u:\n\t\treturn _X%s;\n" @@ "\tcase %u:\n\t\treturn NULL;\n"
 server-destructor-dropped @@ joistmig.c @@         fprintf(f, "\t%s(jm_t_%s);\n", dt[ndt]->argType->itDestructor, svname(dt[ndt])); @@         (void)dt;
+dealloc-flag-ignored @@ joistmig.c @@ fprintf(f, "\t\tif (jm_%sDealloc && (void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n", @@ fprintf(f, "\t\tif ((void)jm_%sDealloc, (void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n",
+dealloc-flag-null @@ joistmig.c @@ fprintf(f, "&jm_%sDealloc", svname(p)); /* server_in's flag */ @@ fprintf(f, "(void *)0"); (void)p;

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <mach/port.h>
 typedef struct dtor_obj *dtor_obj_t;
+typedef char *dtor_data_t; /* dtor_read's data (dtor.defs) */
 dtor_obj_t dtor_in(mach_port_t name);
 dtor_obj_t dtor_in_payload(uintptr_t payload);
 void dtor_done(dtor_obj_t o);
