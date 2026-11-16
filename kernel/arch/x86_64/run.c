@@ -1267,6 +1267,16 @@ static void clock_now(void)
  * little early moves the clock as little ahead.) */
 static void timer_fired(struct cpu *c)
 {
+    /* Only if this arming has run out. An earlier arming's interrupt can
+     * still be pending when the timer is set again (it expired while the
+     * kernel ran with interrupts off; writing the count doesn't take it
+     * back): taken after the new arming, it would move the clock to a
+     * deadline that hasn't come, and every wait up to it would end early
+     * (faultinj seed 7, the checking kernel on 4 CPUs: the P53 hand-off,
+     * 2026-11-15). The new arming is still counting then. */
+    if (apic_timer_left() != 0) {
+        return;
+    }
     uint64_t due = c->timer_due;
     c->timer_due = JOIST_FOREVER;
     if (due != JOIST_FOREVER && due > K.now) {
@@ -1283,8 +1293,12 @@ static void timer_set(struct cpu *c, uint64_t next)
     if (now < K.now) {
         now = K.now;
     }
-    apic_timer_arm(next > now ? next - now : 1);
-    c->timer_due = next;
+    /* A wait past the counter's reach fires at its limit: the clock may
+     * move only that far then. */
+    c->timer_due = now + apic_timer_arm(next > now ? next - now : 1);
+    if (c->timer_due > next) {
+        c->timer_due = next;
+    }
 }
 
 /* After anything that may have changed who should run where (the core

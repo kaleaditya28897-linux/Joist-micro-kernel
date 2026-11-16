@@ -41,8 +41,12 @@ void apic_timer_oneshot(void);
 
 /* Fire once, ns from now. Never sooner than one timer count; if ns is more
  * than the 32-bit counter holds (about a minute) it fires at that limit,
- * and the caller, finding nothing due, arms it again. */
-void apic_timer_arm(uint64_t ns);
+ * and the caller, finding nothing due, arms it again. Returns the ns the
+ * arming covers: ns, or that limit. */
+uint64_t apic_timer_arm(uint64_t ns);
+/* The one-shot timer's count still to run: 0 once it has fired (or was
+ * never armed); not 0 while an arming is still counting down. */
+uint32_t apic_timer_left(void);
 
 /* Don't fire (nothing is due). */
 void apic_timer_disarm(void);

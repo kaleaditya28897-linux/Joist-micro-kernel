@@ -207,17 +207,27 @@ void apic_timer_oneshot(void)
     wr(LAPIC_LVT_TMR, APIC_TIMER_VECTOR); /* one-shot, unmasked */
 }
 
-void apic_timer_arm(uint64_t ns)
+uint64_t apic_timer_arm(uint64_t ns)
 {
     uint64_t whole = ns / NS_PER_10MS;
     uint64_t counts = 0xffffffffu;
+    uint64_t covers = ns;
     if (whole < 0xffffffffu / counts_per_10ms) {
         counts = whole * counts_per_10ms + ns % NS_PER_10MS * counts_per_10ms / NS_PER_10MS;
+    } else {
+        /* Capped (about 68 s at 625 695 counts a tick): it fires sooner. */
+        covers = counts / counts_per_10ms * NS_PER_10MS;
     }
     if (counts == 0) {
         counts = 1;
     }
     wr(LAPIC_TMR_INIT, (uint32_t)counts);
+    return covers;
+}
+
+uint32_t apic_timer_left(void)
+{
+    return rd(LAPIC_TMR_CUR);
 }
 
 void apic_timer_disarm(void)
