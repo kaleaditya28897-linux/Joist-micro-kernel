@@ -1440,7 +1440,7 @@ for a write, outside a live region, returning the bytes copied.
 - **The `dealloc` review** (`docs/phase5-data/step9-dealloc/`): 56
   parameters, as 0032 records.
 
-### Step 10: the design of libtrivfs and `hello` on Joist (2026-11-16, proposed)
+### Step 10: the design of libtrivfs and `hello` on Joist (2026-11-16, accepted)
 
 The plan's choice 7, made concrete against the Hurd's source (Debian's
 `hurd_0.9.git20261028`, the one `tools/phase5/hurd-libs.sh` checks).
@@ -1493,3 +1493,5 @@ translators (`start-translator-long.c`), which `hello` doesn't reach.
    (Phase 8), so `hello` is attached by the root alone; `io_reauthenticate`
    and the auth server's calls are refused (no auth server); libfshelp's
    translator-starting code is built but not run.
+
+Accepted by the owner as written, 2026-11-16.
