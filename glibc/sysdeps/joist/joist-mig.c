@@ -621,4 +621,75 @@ __joist_mig_deallocate (void *p, size_t size)
 }
 rtld_hidden_def (__joist_mig_deallocate)
 
+/* ---- bulk data through the caller's windows (Joist's decision 0032) ----
+
+   The kernel's calls 86-88 (kernel/sys/abi.h).  A copy goes through the
+   reply the thread holds for the call it serves: its own (the slot
+   JOIST_SLOT_NONE32), or, if it waited while serving, the reply object it
+   was saved into (joist-sync.c's reply_save): read at each copy, as
+   answer_send reads it, since anything before may have waited.  */
+
+#define JOIST_SYS_THREAD_WINDOW	86
+#define JOIST_SYS_REPLY_READ	87
+#define JOIST_SYS_REPLY_WRITE	88
+#define JOIST_SLOT_NONE32	0xffffffffu
+
+int
+__joist_mig_window (unsigned int kind, const void *va, size_t bytes)
+{
+  return __joist_sys (JOIST_SYS_THREAD_WINDOW, kind, (uintptr_t) va, bytes,
+		      0, NULL) == JOIST_OK ? 0 : -1;
+}
+rtld_hidden_def (__joist_mig_window)
+
+/* A write window must lie in one of the task's regions (0030), and libc
+   has none yet: its memory is mm's demand-zero pages (vm_allocate).  So
+   no write window is offered, and an out array stays in line, as before
+   0032.  (Phase 5 step 9's proposal: a region a thread for its windows,
+   made at its first need from mm, as its IPC buffer is.)  */
+void *
+__joist_mig_window_allocate (size_t bytes)
+{
+  (void) bytes;
+  return NULL;
+}
+rtld_hidden_def (__joist_mig_window_allocate)
+
+void
+__joist_mig_window_free (void *p, size_t bytes)
+{
+  (void) p;
+  (void) bytes;
+}
+rtld_hidden_def (__joist_mig_window_free)
+
+static int
+reply_copy (uint64_t nr, uint64_t off, uintptr_t va, size_t bytes,
+	    size_t *done)
+{
+  struct joist_thread *self = __joist_thread_self ();
+  uint32_t reply = self->reply_saved ? self->reply_obj : JOIST_SLOT_NONE32;
+  uint64_t n = 0;
+  uint64_t e = __joist_sys (nr, reply, off, va, bytes, &n);
+  *done = e == JOIST_OK ? (size_t) n : 0;
+  return e == JOIST_OK ? 0 : -1;
+}
+
+int
+__joist_mig_reply_read (uint64_t off, void *dst, size_t bytes, size_t *done)
+{
+  return reply_copy (JOIST_SYS_REPLY_READ, off, (uintptr_t) dst, bytes,
+		     done);
+}
+rtld_hidden_def (__joist_mig_reply_read)
+
+int
+__joist_mig_reply_write (uint64_t off, const void *src, size_t bytes,
+			 size_t *done)
+{
+  return reply_copy (JOIST_SYS_REPLY_WRITE, off, (uintptr_t) src, bytes,
+		     done);
+}
+rtld_hidden_def (__joist_mig_reply_write)
+
 #endif

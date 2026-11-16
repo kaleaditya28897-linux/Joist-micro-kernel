@@ -87,6 +87,45 @@ void joist_mig_deallocate(void *p, size_t n)
     free(p);
 }
 
+/* Decision 0032's runtime: no windows here (the arrays it tests fit in line). */
+int joist_mig_window(unsigned kind, const void *va, size_t bytes)
+{
+    (void)kind;
+    (void)va;
+    (void)bytes;
+    return 1;
+}
+
+void *joist_mig_window_allocate(size_t bytes)
+{
+    (void)bytes;
+    return NULL;
+}
+
+void joist_mig_window_free(void *p, size_t bytes)
+{
+    (void)p;
+    (void)bytes;
+}
+
+int joist_mig_reply_read(uint64_t off, void *dst, size_t bytes, size_t *done)
+{
+    (void)off;
+    (void)dst;
+    (void)bytes;
+    *done = 0;
+    return 1;
+}
+
+int joist_mig_reply_write(uint64_t off, const void *src, size_t bytes, size_t *done)
+{
+    (void)off;
+    (void)src;
+    (void)bytes;
+    *done = 0;
+    return 1;
+}
+
 kern_return_t dtor_read(dtor_obj_t target, int which, char **data, mach_msg_type_number_t *dataCnt,
                         boolean_t *dataDealloc)
 {

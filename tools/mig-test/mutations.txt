@@ -13,10 +13,25 @@ user-small-buffer-overrun @@ joistmig.c @@         fprintf(f, "\t\tif (jm_n > *%
 server-cap-index-stuck @@ joistmig.c @@             *k += 1; @@             (void)k;
 server-cap-unchecked @@ joistmig.c @@             fprintf(f, "\tif (in->ncaps <= %d)\n\t\tgoto bad;\n\tjm_%s = in->cap[%d];\n", *k, svname(a), *k); @@             fprintf(f, "\tjm_%s = in->cap[%d];\n", svname(a), *k);
 server-takes-extra @@ joistmig.c @@     fprintf(f, "\tif (jm_b.at != jm_b.end)\n\t\tgoto bad; /* more than it takes */\n"); @@     fprintf(f, "\tif (0)\n\t\tgoto bad; /* more than it takes */\n");
-server-moved-memory-kept @@ joistmig.c @@ "\t\t\tjoist_mig_deallocate((void *)(uintptr_t)jm_%s, jm_n * sizeof (%s));\n" @@ "\t\t\t(void)jm_%s; (void)sizeof (%s);\n"
+server-moved-memory-kept @@ joistmig.c @@ "\t\t\tjoist_mig_deallocate((void *)(uintptr_t)jm_%s, jm_n * sizeof (%s));\n" @@ "\t\t\t(void)jm_%s, (void)sizeof (%s);\n"
 server-string-unterminated @@ joistmig.c @@             fprintf(f, "\t\t    (jm_%s = joist_mig_ref(&jm_b, jm_n)) == NULL || jm_%s[jm_n - 1] != 0)\n", svname(a), @@             fprintf(f, "\t\t    (jm_%s = joist_mig_ref(&jm_b, jm_n)) == NULL || 0 * jm_%s[0])\n", svname(a),
 demux-unknown-served @@ joistmig.c @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = (uint32_t)JOIST_MIG_BAD_ID;\n"); @@     fprintf(f, "\tdefault:\n\t\tout->r[0] = 0;\n");
 routine-lookup-finds-none @@ joistmig.c @@ "\tcase %u:\n\t\treturn _X%s;\n" @@ "\tcase %u:\n\t\treturn NULL;\n"
 server-destructor-dropped @@ joistmig.c @@         fprintf(f, "\t%s(jm_t_%s);\n", dt[ndt]->argType->itDestructor, svname(dt[ndt])); @@         (void)dt;
 dealloc-flag-ignored @@ joistmig.c @@ fprintf(f, "\t\tif (jm_%sDealloc && (void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n", @@ fprintf(f, "\t\tif ((void)jm_%sDealloc, (void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n",
 dealloc-flag-null @@ joistmig.c @@ fprintf(f, "&jm_%sDealloc", svname(p)); /* server_in's flag */ @@ fprintf(f, "(void *)0"); (void)p;
+# Decision 0032's windows (Phase 5 step 9).
+win-not-cleared @@ joist_mig.h @@             (void)joist_mig_window(k, NULL, 0); @@             (void)k;
+win-read-short-taken @@ joist_mig.h @@         if (joist_mig_reply_read(off + at, (unsigned char *)o->p + at, k, &done) != 0 || done != k) { @@         if (joist_mig_reply_read(off + at, (unsigned char *)o->p + at, k, &done) != 0) {
+win-write-short-taken @@ joist_mig.h @@         if (joist_mig_reply_write(off + at, (const unsigned char *)src + at, k, &done) != 0 || done != k) { @@         if (joist_mig_reply_write(off + at, (const unsigned char *)src + at, k, &done) != 0) {
+win-read-not-in-pieces @@ joist_mig.h @@         size_t k = o->n - at < JOIST_MIG_COPY_MAX ? o->n - at : JOIST_MIG_COPY_MAX; @@         size_t k = o->n - at;
+win-write-not-in-pieces @@ joist_mig.h @@         size_t k = bytes - at < JOIST_MIG_COPY_MAX ? bytes - at : JOIST_MIG_COPY_MAX; @@         size_t k = bytes - at;
+win-result-unchecked @@ joist_mig.h @@     if (w->out == NULL || i >= w->nout || w->out_n[i] == 0 || off != w->out_off[i] || bytes > w->out_n[i]) { @@     if (w->out == NULL) {
+win-stage-unaligned @@ joist_mig.h @@             o = joist_mig_align(o); @@             (void)0;
+win-dealloc-skipped-on-failure @@ joistmig.c @@ fprintf(f, "\t\tif ((void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n", svname(a), svname(a)); @@ fprintf(f, "\t\tif (jm_fail == KERN_SUCCESS && (void *)(uintptr_t)jm_%s != (void *)jm_space_%s)\n", svname(a), svname(a));
+win-out-never-offered @@ joistmig.c @@ fprintf(f, " > sizeof jm_b.w ? jm_bd * sizeof (%s) : 0);\n\t}\n", elem(a)); @@ fprintf(f, " > sizeof jm_b.w ? 0 * jm_bd * sizeof (%s) : 0);\n\t}\n", elem(a));
+win-user-ool-flag-ignored @@ joistmig.c @@ fprintf(f, "\t\tif (jm_n & JOIST_MIG_OOL) {\n\t\t\tuint64_t jm_off;\n\t\t\tjm_n &= ~JOIST_MIG_OOL;\n"); @@ fprintf(f, "\t\tif (0) {\n\t\t\tuint64_t jm_off;\n\t\t\tjm_n &= ~JOIST_MIG_OOL;\n");
+win-server-ool-flag-ignored @@ joistmig.c @@ fprintf(f, "\t\tif (jm_n & JOIST_MIG_OOL) {\n\t\t\tjm_n &= ~JOIST_MIG_OOL;\n"); @@ fprintf(f, "\t\tif (0) {\n\t\t\tjm_n &= ~JOIST_MIG_OOL;\n");
+win-server-read-skipped @@ joistmig.c @@ fprintf(f, "\t\tif (joist_mig_ool_read(&jm_ool_%s, jm_oolat_%s) != 0)\n\t\t\tgoto bad;\n", svname(a), @@ fprintf(f, "\t\tif (0 && joist_mig_ool_read(&jm_ool_%s, jm_oolat_%s) != 0)\n\t\t\tgoto bad;\n", svname(a),
+win-reserve-ignored @@ joistmig.c @@         fprintf(f, " <= joist_mig_room(&jm_b))) {\n"); @@         fprintf(f, " * 0u <= joist_mig_room(&jm_b))) {\n");
+win-no-memory-offered @@ joist_mig.h @@             w->out_n[i] = w->out_off[i] = 0; @@             (void)i;

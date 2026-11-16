@@ -173,4 +173,243 @@ static inline int joist_mig_right(struct joist_mig_msg *m, uint32_t name, int di
     return 0;
 }
 
+/* ---- bulk data through the caller's windows (decision 0032; Phase 5 step 9) ----
+ *
+ * A variable array that doesn't fit in line goes through a window: its count
+ * word has JOIST_MIG_OOL set and the next word is its byte offset in the
+ * window. An in array is in the client's read window, which the server copies
+ * from (joist_mig_reply_read); an out array goes into the slice of the
+ * client's write window the request offered for it (two words at the
+ * array's place in the request: the slice's bytes, 0 for none, and its
+ * offset), which the server copies into (joist_mig_reply_write). Each copy
+ * call moves at most JOIST_MIG_COPY_MAX bytes; a call carries at most
+ * JOIST_MIG_WINDOW_MAX through each window. */
+#define JOIST_MIG_COPY_MAX   65536u            /* the kernel's JOIST_COPY_MAX */
+#define JOIST_MIG_WINDOW_MAX (1024u * 1024u)   /* a call's most through a window */
+#define JOIST_MIG_OOL        ((uint64_t)1 << 63)
+#define JOIST_MIG_WIN_READ   0u
+#define JOIST_MIG_WIN_WRITE  1u
+#define JOIST_MIG_WIN_ARGS   8u                /* windowed arrays a call, each way */
+#define JOIST_MIG_PAGE       4096u
+
+/* The runtime's. The calling thread's read or write window over bytes at va
+ * (0 bytes: none): 0, or not 0 if refused. */
+int joist_mig_window(unsigned kind, const void *va, size_t bytes);
+/* Memory a write window may lie over (present, writable, in one of the
+ * task's regions), and its release: NULL if the runtime has none, and the
+ * stubs then offer no write window. */
+void *joist_mig_window_allocate(size_t bytes);
+void joist_mig_window_free(void *p, size_t bytes);
+/* A server's copies, through the reply it holds for the call it serves:
+ * bytes at off in the caller's read window to dst, or from src to off in its
+ * write window, at most JOIST_MIG_COPY_MAX; *done the bytes copied. 0, or
+ * not 0 if refused. */
+int joist_mig_reply_read(uint64_t off, void *dst, size_t bytes, size_t *done);
+int joist_mig_reply_write(uint64_t off, const void *src, size_t bytes, size_t *done);
+
+/* Bytes a body has left. */
+static inline size_t joist_mig_room(const struct joist_mig_body *b)
+{
+    size_t a = joist_mig_align(b->at);
+    return a > sizeof b->w ? 0 : sizeof b->w - a;
+}
+
+/* A client stub's windows for one call. */
+struct joist_mig_win {
+    unsigned nin, nout;
+    const void *in_p[JOIST_MIG_WIN_ARGS];
+    size_t in_n[JOIST_MIG_WIN_ARGS];
+    size_t in_total;
+    size_t out_n[JOIST_MIG_WIN_ARGS];   /* the slices offered (0: none) */
+    size_t out_off[JOIST_MIG_WIN_ARGS];
+    size_t out_total;
+    void *stage;                        /* two in arrays or more, together */
+    unsigned char *out;                 /* the write window's memory */
+    unsigned set;                       /* the windows set: bit 1 << kind */
+};
+
+static inline void joist_mig_win_init(struct joist_mig_win *w)
+{
+    *w = (struct joist_mig_win){0};
+}
+
+/* The next out array's slice of the write window, bytes long (0: none
+ * offered). The generated code calls it at most JOIST_MIG_WIN_ARGS times. */
+static inline void joist_mig_win_out(struct joist_mig_win *w, size_t bytes)
+{
+    size_t off = joist_mig_align(w->out_total);
+    w->out_off[w->nout] = bytes != 0 ? off : 0;
+    w->out_n[w->nout] = bytes;
+    w->out_total = bytes != 0 ? off + bytes : w->out_total;
+    w->nout++;
+}
+
+/* The write window's memory for the slices: if the runtime has none, no
+ * slice is offered. */
+static inline void joist_mig_win_alloc(struct joist_mig_win *w)
+{
+    if (w->out_total == 0) {
+        return;
+    }
+    w->out = (unsigned char *)joist_mig_window_allocate(w->out_total);
+    if (w->out == NULL) {
+        for (unsigned i = 0; i < w->nout; i++) {
+            w->out_n[i] = w->out_off[i] = 0;
+        }
+        w->out_total = 0;
+    }
+}
+
+/* An in array of bytes at p through the read window: its offset there in
+ * *off. -1 past what a call carries. */
+static inline int joist_mig_win_in(struct joist_mig_win *w, const void *p, size_t bytes, uint64_t *off)
+{
+    size_t o = joist_mig_align(w->in_total);
+    if (w->nin == JOIST_MIG_WIN_ARGS || bytes == 0 || bytes > JOIST_MIG_WINDOW_MAX ||
+        o > JOIST_MIG_WINDOW_MAX - bytes) {
+        return -1;
+    }
+    w->in_p[w->nin] = p;
+    w->in_n[w->nin] = bytes;
+    w->nin++;
+    w->in_total = o + bytes;
+    *off = o;
+    return 0;
+}
+
+/* Before the call: the read window over the in data (the caller's own array,
+ * a byte of each page read first, since a page not present stops the
+ * kernel's copy; two arrays or more staged together), the write window over
+ * its memory. 0, or a MIG error. */
+static inline int joist_mig_win_open(struct joist_mig_win *w)
+{
+    if (w->nin == 1) {
+        const volatile unsigned char *p = (const volatile unsigned char *)w->in_p[0];
+        size_t n = w->in_n[0];
+        size_t lead = (size_t)(JOIST_MIG_PAGE - (uintptr_t)p % JOIST_MIG_PAGE);
+        (void)p[0];
+        for (size_t i = lead; i < n; i += JOIST_MIG_PAGE) {
+            (void)p[i];
+        }
+        if (joist_mig_window(JOIST_MIG_WIN_READ, w->in_p[0], n) != 0) {
+            return JOIST_MIG_ARRAY_TOO_LARGE;
+        }
+        w->set |= 1u << JOIST_MIG_WIN_READ;
+    } else if (w->nin > 1) {
+        unsigned char *s = (unsigned char *)joist_mig_allocate(w->in_total);
+        if (s == NULL) {
+            return JOIST_MIG_ARRAY_TOO_LARGE;
+        }
+        w->stage = s;
+        size_t o = 0;
+        for (unsigned i = 0; i < w->nin; i++) {
+            o = joist_mig_align(o);
+            memcpy(s + o, w->in_p[i], w->in_n[i]);
+            o += w->in_n[i];
+        }
+        if (joist_mig_window(JOIST_MIG_WIN_READ, s, w->in_total) != 0) {
+            return JOIST_MIG_ARRAY_TOO_LARGE;
+        }
+        w->set |= 1u << JOIST_MIG_WIN_READ;
+    }
+    if (w->out != NULL) {
+        if (joist_mig_window(JOIST_MIG_WIN_WRITE, w->out, w->out_total) != 0) {
+            return JOIST_MIG_ARRAY_TOO_LARGE;
+        }
+        w->set |= 1u << JOIST_MIG_WIN_WRITE;
+    }
+    return 0;
+}
+
+/* After the call: both windows cleared. */
+static inline void joist_mig_win_close(struct joist_mig_win *w)
+{
+    for (unsigned k = 0; k < 2u; k++) {
+        if (w->set & 1u << k) {
+            (void)joist_mig_window(k, NULL, 0);
+        }
+    }
+    w->set = 0;
+}
+
+/* When the stub returns (its cleanup): the windows cleared, the memory freed. */
+static inline void joist_mig_win_done(struct joist_mig_win *w)
+{
+    joist_mig_win_close(w);
+    if (w->stage != NULL) {
+        joist_mig_deallocate(w->stage, w->in_total);
+        w->stage = NULL;
+    }
+    if (w->out != NULL) {
+        joist_mig_window_free(w->out, w->out_total);
+        w->out = NULL;
+    }
+}
+
+/* A reply's windowed array, bytes long at off, for slice i: where it is, or
+ * NULL if that isn't inside the slice offered. */
+static inline const void *joist_mig_win_result(const struct joist_mig_win *w, unsigned i, uint64_t off,
+                                               size_t bytes)
+{
+    if (w->out == NULL || i >= w->nout || w->out_n[i] == 0 || off != w->out_off[i] || bytes > w->out_n[i]) {
+        return NULL;
+    }
+    return w->out + off;
+}
+
+/* A server stub's in array that came through the window: memory of its own,
+ * freed when the stub returns (its cleanup). */
+struct joist_mig_ool {
+    void *p;
+    size_t n;
+};
+
+static inline void joist_mig_ool_free(struct joist_mig_ool *o)
+{
+    if (o->p != NULL) {
+        joist_mig_deallocate(o->p, o->n);
+        o->p = NULL;
+    }
+}
+
+/* o->n bytes at off in the caller's read window into memory of the stub's
+ * own, a copy call at a time: 0, or -1 (refused, or short). */
+static inline int joist_mig_ool_read(struct joist_mig_ool *o, uint64_t off)
+{
+    if (o->n == 0 || o->n > JOIST_MIG_WINDOW_MAX || off > JOIST_MIG_WINDOW_MAX) {
+        return -1;
+    }
+    o->p = joist_mig_allocate(o->n);
+    if (o->p == NULL) {
+        return -1;
+    }
+    for (size_t at = 0; at < o->n;) {
+        size_t k = o->n - at < JOIST_MIG_COPY_MAX ? o->n - at : JOIST_MIG_COPY_MAX;
+        size_t done = 0;
+        if (joist_mig_reply_read(off + at, (unsigned char *)o->p + at, k, &done) != 0 || done != k) {
+            return -1;
+        }
+        at += k;
+    }
+    return 0;
+}
+
+/* bytes from src to off in the caller's write window, a copy call at a time:
+ * 0, or -1 (refused, or short). */
+static inline int joist_mig_write_all(uint64_t off, const void *src, size_t bytes)
+{
+    if (off > JOIST_MIG_WINDOW_MAX) {
+        return -1;
+    }
+    for (size_t at = 0; at < bytes;) {
+        size_t k = bytes - at < JOIST_MIG_COPY_MAX ? bytes - at : JOIST_MIG_COPY_MAX;
+        size_t done = 0;
+        if (joist_mig_reply_write(off + at, (const unsigned char *)src + at, k, &done) != 0 || done != k) {
+            return -1;
+        }
+        at += k;
+    }
+    return 0;
+}
+
 #endif

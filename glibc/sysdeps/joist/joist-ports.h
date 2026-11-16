@@ -158,6 +158,21 @@ rtld_hidden_proto (__joist_gsync_wake_call)
 rtld_hidden_proto (__joist_gsync_requeue_call)
 rtld_hidden_proto (__joist_mig_allocate)
 rtld_hidden_proto (__joist_mig_deallocate)
+/* Bulk data through the caller's windows (joist-mig.c, joist_mig.h;
+   Joist's decision 0032).  */
+extern int __joist_mig_window (unsigned int kind, const void *va,
+			       size_t bytes);
+extern void *__joist_mig_window_allocate (size_t bytes);
+extern void __joist_mig_window_free (void *p, size_t bytes);
+extern int __joist_mig_reply_read (uint64_t off, void *dst, size_t bytes,
+				   size_t *done);
+extern int __joist_mig_reply_write (uint64_t off, const void *src,
+				    size_t bytes, size_t *done);
+rtld_hidden_proto (__joist_mig_window)
+rtld_hidden_proto (__joist_mig_window_allocate)
+rtld_hidden_proto (__joist_mig_window_free)
+rtld_hidden_proto (__joist_mig_reply_read)
+rtld_hidden_proto (__joist_mig_reply_write)
 
 /* Whether TASK is this task.  */
 #define JOIST_PORTS_SELF(task) ((task) == __mach_task_self ())

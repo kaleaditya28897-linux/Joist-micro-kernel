@@ -404,6 +404,39 @@ void joist_mig_deallocate(void *p, size_t bytes)
     (void)p;
     (void)bytes;
 }
+/* Decision 0032's copies, through the reply serve_one holds while io_server
+ * runs; the client's windows are not this root's (it makes no calls). */
+int joist_mig_reply_read(uint64_t off, void *dst, size_t bytes, size_t *done)
+{
+    uint64_t n = 0;
+    uint64_t e = j_reply_read(J_SLOT_NONE, off, dst, bytes, &n);
+    *done = e == J_OK ? (size_t)n : 0;
+    return e == J_OK ? 0 : -1;
+}
+int joist_mig_reply_write(uint64_t off, const void *src, size_t bytes, size_t *done)
+{
+    uint64_t n = 0;
+    uint64_t e = j_reply_write(J_SLOT_NONE, off, src, bytes, &n);
+    *done = e == J_OK ? (size_t)n : 0;
+    return e == J_OK ? 0 : -1;
+}
+int joist_mig_window(unsigned kind, const void *va, size_t bytes)
+{
+    (void)kind;
+    (void)va;
+    (void)bytes;
+    return -1;
+}
+void *joist_mig_window_allocate(size_t bytes)
+{
+    (void)bytes;
+    return 0;
+}
+void joist_mig_window_free(void *p, size_t bytes)
+{
+    (void)p;
+    (void)bytes;
+}
 
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free)

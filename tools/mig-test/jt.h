@@ -15,6 +15,8 @@ extern uint64_t jt_seen;     /* the hash the test server took of what it got */
 extern uint64_t jt_out_seed; /* where the test server's outputs come from */
 
 void jt_fail(const char *routine, int r, const char *what);
+/* After a client stub returns: both its thread's windows clear (0032). */
+void jt_check_windows(const char *routine);
 /* *p made the server's own memory of n bytes (an out array it moves). */
 void jt_own(void *pp, size_t n);
 
@@ -41,6 +43,39 @@ static inline void jt_fill(void *p, size_t n)
     for (size_t i = 0; i < n; i++) {
         b[i] = (unsigned char)jt_next();
     }
+}
+
+/* The largest array a round trip sends (0032's windows: past the in-line
+ * limit, about 4 KiB, and the kernel's copy limit, 64 KiB, twice). */
+#define JT_BIG (160u * 1024u)
+
+/* A size in bytes, at most max: often small, often about the in-line limit
+ * (4 120 bytes a body) or the kernel's copy limit (65 536 a call), sometimes
+ * past both. */
+static inline size_t jt_size(size_t max)
+{
+    size_t n;
+    switch (jt_next() % 8u) {
+    case 0:
+    case 1:
+    case 2:
+        n = jt_next() % 301u;
+        break;
+    case 3:
+    case 4:
+        n = 3900u + jt_next() % 400u;
+        break;
+    case 5:
+        n = 65536u - 200u + jt_next() % 400u;
+        break;
+    case 6:
+        n = 131072u - 100u + jt_next() % 200u;
+        break;
+    default:
+        n = jt_next() % (JT_BIG + 1u);
+        break;
+    }
+    return n < max ? n : max;
 }
 
 /* A string of up to cap - 1 letters, terminated. */

@@ -37,6 +37,70 @@ void joist_mig_deallocate(void *p, size_t bytes)
     free(p);
 }
 
+/* Decision 0032's copies, as the input says: each copy call copies all,
+ * stops short, or is refused (a window the server reads past is the
+ * kernel's to refuse; here every offset is taken, so the stub's own checks
+ * are what keep its reads and writes inside its memory). */
+static unsigned copy_mode;
+
+static int fz_copy(void *dst, const void *src, size_t bytes, size_t *done)
+{
+    *done = 0;
+    if (bytes > JOIST_MIG_COPY_MAX || copy_mode % 5u == 4u) {
+        return 4; /* E_RANGE */
+    }
+    size_t k = copy_mode % 5u == 3u ? bytes / 2u : bytes;
+    if (dst != NULL) {
+        memset(dst, 0x5a, k);
+    } else {
+        volatile unsigned char sum = 0;
+        for (size_t i = 0; i < k; i++) {
+            sum ^= ((const unsigned char *)src)[i]; /* every byte read: ASan sees an overrun */
+        }
+    }
+    copy_mode /= 5u;
+    *done = k;
+    return 0;
+}
+
+int joist_mig_reply_read(uint64_t off, void *dst, size_t bytes, size_t *done)
+{
+    (void)off;
+    return fz_copy(dst, NULL, bytes, done);
+}
+
+int joist_mig_reply_write(uint64_t off, const void *src, size_t bytes, size_t *done)
+{
+    (void)off;
+    return fz_copy(NULL, src, bytes, done);
+}
+
+/* The client's side: not reached from a demuxer. */
+int joist_mig_window(unsigned kind, const void *va, size_t bytes)
+{
+    (void)kind;
+    (void)va;
+    (void)bytes;
+    return 1;
+}
+
+void *joist_mig_window_allocate(size_t bytes)
+{
+    (void)bytes;
+    return NULL;
+}
+
+void joist_mig_window_free(void *p, size_t bytes)
+{
+    (void)p;
+    (void)bytes;
+}
+
+void jt_check_windows(const char *routine)
+{
+    (void)routine;
+}
+
 void jt_own(void *pp, size_t n)
 {
     *(void **)pp = joist_mig_allocate(n);
@@ -87,6 +151,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         in.cap[i] = (uint32_t)take(&data, &size, 2);
     }
     in.badge = take(&data, &size, 4);
+    copy_mode = (unsigned)take(&data, &size, 2);
     uint64_t words = ((in.r[0] >> 32) + 7u) / 8u;
     in.len = take(&data, &size, 1) == 0 ? (uint32_t)take(&data, &size, 2) : (uint32_t)(words > 3u ? words - 3u : 0);
     size_t fill = size < sizeof inbuf ? size : sizeof inbuf;

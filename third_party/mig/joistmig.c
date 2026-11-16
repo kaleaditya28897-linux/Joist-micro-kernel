@@ -126,6 +126,119 @@ static int carried(const routine_t *rt)
     return in <= JOIST_CAPS && out <= JOIST_CAPS;
 }
 
+/* ---- arrays through the caller's windows (decision 0032; Phase 5 step 9) ----
+ *
+ * An in array that doesn't fit in line goes through the client's read
+ * window. An out array goes through its write window only where the client
+ * can size the window before the call: the routine says how much it asks
+ * for (docs/phase5-data/step9-dealloc/, the `argument' bounds). The others
+ * stay in line, as before: the stub default for an out array with no bound
+ * is the owner's choice, not made yet (0032's open question). */
+struct bound {
+    const char *routine, *param; /* the out array */
+    const char *by;              /* the in argument that bounds it, in elements */
+    int zero_none;               /* by 0 means no bound ("everything") */
+    int may_lower;               /* the routine may return less than asked: a bound past
+                                  * JOIST_MIG_WINDOW_MAX is lowered to it (a short read) */
+};
+
+static const struct bound bounds[] = {
+    {"io_read", "data", "amount", 0, 1},
+    {"socket_recv", "data", "amount", 0, 1},
+    {"dir_readdir", "data", "bufsiz", 1, 0},
+};
+
+/* The bound of rt's out array a, and the argument giving it: NULL if none. */
+static const struct bound *bound_of(const routine_t *rt, const argument_t *a, const argument_t **by)
+{
+    if (!is_out(a) || wire_of(a) != W_VAR || !a->argByReferenceUser ||
+        !akCheck(a->argKind, akbUserArg)) {
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof bounds / sizeof bounds[0]; i++) {
+        if (strcmp(rt->rtName, bounds[i].routine) != 0 || strcmp(a->argName, bounds[i].param) != 0) {
+            continue;
+        }
+        for (const argument_t *b = rt->rtArgs; b != argNULL; b = b->argNext) {
+            if (strcmp(b->argName, bounds[i].by) == 0 && is_in(b) && wire_of(b) == W_FIXED &&
+                !b->argByReferenceUser && akCheck(b->argKind, akbUserArg)) {
+                if (by != NULL) {
+                    *by = b;
+                }
+                return &bounds[i];
+            }
+        }
+    }
+    return NULL;
+}
+
+static int win_out(const routine_t *rt, const argument_t *a)
+{
+    return bound_of(rt, a, NULL) != NULL;
+}
+
+/* Whether a client stub of rt has windows to set up. */
+static int windowed(const routine_t *rt)
+{
+    for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
+        if ((is_in(a) && wire_of(a) == W_VAR) || win_out(rt, a)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* The most bytes argument b can take in a body, at its smallest for an
+ * array (the count and an offset, in a window): what is kept free for it by
+ * an array that goes before it. server: the server's types. */
+static void worst(FILE *f, const routine_t *rt, const argument_t *b, int server)
+{
+    const ipc_type_t *it = b->argType;
+    const char *t = server ? FetchServerType(it) : FetchUserType(it);
+    switch (wire_of(b)) {
+    case W_FIXED:
+        fprintf(f, " + joist_mig_align(sizeof (%s))", t);
+        break;
+    case W_STRING:
+        fprintf(f, " + 8u + joist_mig_align(sizeof (%s))", t);
+        break;
+    case W_VAR:
+        /* an in array, or an out array's slice words: 16; an out array that
+         * can't be windowed: its count at least */
+        fprintf(f, is_in(b) || win_out(rt, b) ? " + 16u" : " + 8u");
+        break;
+    default:
+        break;
+    }
+}
+
+/* The bytes to keep free after a's place in the request (client) or the
+ * reply (server): every later argument's most. */
+static void reserve_after(FILE *f, const routine_t *rt, const argument_t *a, int reply)
+{
+    fprintf(f, "(0u");
+    for (const argument_t *b = a->argNext; b != argNULL; b = b->argNext) {
+        if (reply ? is_out(b) && akCheck(b->argKind, akbServerArg)
+                  : is_in(b) || win_out(rt, b)) {
+            worst(f, rt, b, reply);
+        }
+    }
+    fprintf(f, ")");
+}
+
+/* The bytes every other out argument of rt may take in the reply: an out
+ * array whose bound fits beside them is never windowed. */
+static void reserve_others(FILE *f, const routine_t *rt, const argument_t *a)
+{
+    fprintf(f, "(0u");
+    for (const argument_t *b = rt->rtArgs; b != argNULL; b = b->argNext) {
+        if (b != a && is_out(b) && akCheck(b->argKind, akbUserArg)) {
+            worst(f, rt, b, 0);
+        }
+    }
+    fprintf(f, ")");
+}
+
 /* A user-side argument's value, and its pointer when passed by reference. */
 static void uval(FILE *f, const argument_t *a)
 {
@@ -136,7 +249,7 @@ static void uval(FILE *f, const argument_t *a)
 
 static const char *elem(const argument_t *a);
 
-static void user_put(FILE *f, const argument_t *a)
+static void user_put(FILE *f, const routine_t *rt, const argument_t *a)
 {
     const ipc_type_t *it = a->argType;
     switch (wire_of(a)) {
@@ -160,10 +273,22 @@ static void user_put(FILE *f, const argument_t *a)
         if (it->itNumber != 0 && !it->itIndefinite) {
             fprintf(f, "\t\tif (jm_n > %u)\n\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n", it->itNumber);
         }
-        fprintf(f, "\t\tif (jm_n > sizeof jm_b.w / (sizeof (%s)) || joist_mig_put(&jm_b, &jm_n, 8) != 0 ||\n"
-                   "\t\t    joist_mig_put(&jm_b, (const void *)(uintptr_t)(", elem(a));
+        /* In line if it fits with room kept for what follows; else through
+         * the read window (0032). */
+        fprintf(f, "\t\tif (jm_n == 0 || (jm_n <= JOIST_MIG_WINDOW_MAX / (sizeof (%s)) &&\n", elem(a));
+        fprintf(f, "\t\t    8u + joist_mig_align(jm_n * sizeof (%s)) + ", elem(a));
+        reserve_after(f, rt, a, 0);
+        fprintf(f, " <= joist_mig_room(&jm_b))) {\n");
+        fprintf(f, "\t\t\tif (joist_mig_put(&jm_b, &jm_n, 8) != 0 ||\n"
+                   "\t\t\t    joist_mig_put(&jm_b, (const void *)(uintptr_t)(");
         uval(f, a);
-        fprintf(f, "), jm_n * sizeof (%s)) != 0)\n\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n\t}\n", elem(a));
+        fprintf(f, "), jm_n * sizeof (%s)) != 0)\n\t\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n", elem(a));
+        fprintf(f, "\t\t} else {\n\t\t\tuint64_t jm_c[2] = {jm_n | JOIST_MIG_OOL, 0};\n");
+        fprintf(f, "\t\t\tif (jm_n > JOIST_MIG_WINDOW_MAX / (sizeof (%s)) ||\n", elem(a));
+        fprintf(f, "\t\t\t    joist_mig_win_in(&jm_w, (const void *)(uintptr_t)(");
+        uval(f, a);
+        fprintf(f, "), jm_n * sizeof (%s), &jm_c[1]) != 0 || joist_mig_put(&jm_b, jm_c, 16) != 0)\n", elem(a));
+        fprintf(f, "\t\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n\t\t}\n\t}\n");
         break;
     }
     case W_PORT: {
@@ -230,7 +355,7 @@ static void user_dealloc(FILE *f, const argument_t *a)
     fprintf(f, " * sizeof (%s));\n", elem(a));
 }
 
-static void user_get(FILE *f, const argument_t *a, int *k)
+static void user_get(FILE *f, const routine_t *rt, const argument_t *a, int *k, unsigned *slice)
 {
     const ipc_type_t *it = a->argType;
     switch (wire_of(a)) {
@@ -270,14 +395,35 @@ static void user_get(FILE *f, const argument_t *a, int *k)
             fprintf(f, "\t\t%s%s = (mach_msg_type_number_t)jm_n;\n\t}\n", cref, c->argVarName);
             break;
         }
+        int wi = win_out(rt, a);
         fprintf(f, "\t{\n\t\tuint64_t jm_n;\n");
-        fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0 || jm_n > sizeof jm_b.w / (sizeof (%s)))\n",
-                elem(a));
-        fprintf(f, "\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
+        if (wi) {
+            /* In line, or in the slice of the write window offered for it. */
+            fprintf(f, "\t\tconst void *jm_src = NULL;\n");
+            fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0)\n\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
+            fprintf(f, "\t\tif (jm_n & JOIST_MIG_OOL) {\n\t\t\tuint64_t jm_off;\n\t\t\tjm_n &= ~JOIST_MIG_OOL;\n");
+            fprintf(f, "\t\t\tif (joist_mig_get(&jm_b, &jm_off, 8) != 0 || jm_n > JOIST_MIG_WINDOW_MAX / (sizeof (%s)) ||\n",
+                    elem(a));
+            fprintf(f, "\t\t\t    (jm_src = joist_mig_win_result(&jm_w, %uu, jm_off, jm_n * sizeof (%s))) == NULL)\n",
+                    *slice, elem(a));
+            fprintf(f, "\t\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
+            fprintf(f, "\t\t} else if (jm_n > sizeof jm_b.w / (sizeof (%s)))\n\t\t\treturn JOIST_MIG_TYPE_ERROR;\n",
+                    elem(a));
+            (*slice)++;
+        } else {
+            fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0 || jm_n > sizeof jm_b.w / (sizeof (%s)))\n",
+                    elem(a));
+            fprintf(f, "\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
+        }
         fprintf(f, "\t\tif (jm_n > *%s) {\n", c->argVarName);
         fprintf(f, "\t\t\tvoid *jm_p = joist_mig_allocate(jm_n * sizeof (%s));\n", elem(a));
         fprintf(f, "\t\t\tif (jm_p == NULL)\n\t\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n");
         fprintf(f, "\t\t\t*%s = (__typeof__(*%s))(uintptr_t)jm_p;\n\t\t}\n", a->argVarName, a->argVarName);
+        if (wi) {
+            fprintf(f, "\t\tif (jm_src != NULL) {\n\t\t\tif (jm_n != 0)\n");
+            fprintf(f, "\t\t\t\tmemcpy((void *)(uintptr_t)(*%s), jm_src, jm_n * sizeof (%s));\n\t\t} else\n",
+                    a->argVarName, elem(a));
+        }
         fprintf(f, "\t\tif (joist_mig_get(&jm_b, (void *)(uintptr_t)(*%s), jm_n * sizeof (%s)) != 0)\n",
                 a->argVarName, elem(a));
         fprintf(f, "\t\t\treturn JOIST_MIG_TYPE_ERROR;\n");
@@ -294,6 +440,39 @@ static void user_get(FILE *f, const argument_t *a, int *k)
         break;
     default:
         break;
+    }
+}
+
+/* The write window's slice for each out array with a bound (0032), before
+ * the request is written: the bound's argument may be lowered. */
+static void user_slices(FILE *f, const routine_t *rt)
+{
+    int any = 0;
+    for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
+        const argument_t *by = argNULL;
+        const struct bound *bd = bound_of(rt, a, &by);
+        if (bd == NULL) {
+            continue;
+        }
+        any = 1;
+        fprintf(f, "\t{\n\t\t/* %s: at most %s elements%s */\n", a->argVarName, by->argVarName,
+                bd->zero_none ? " (0: no bound)" : "");
+        fprintf(f, "\t\tuint64_t jm_bd = (uint64_t)%s;\n", by->argVarName);
+        fprintf(f, "\t\tif (jm_bd > JOIST_MIG_WINDOW_MAX / (sizeof (%s)))\n", elem(a));
+        if (bd->may_lower) {
+            fprintf(f, "\t\t\t%s = (__typeof__(%s))(jm_bd = JOIST_MIG_WINDOW_MAX / (sizeof (%s)));\n",
+                    by->argVarName, by->argVarName, elem(a));
+        } else {
+            fprintf(f, "\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n");
+        }
+        /* Offered only if it might not fit in line beside the rest. */
+        fprintf(f, "\t\tjoist_mig_win_out(&jm_w, %sjm_bd * sizeof (%s) + 8u + ", bd->zero_none ? "jm_bd != 0 && " : "",
+                elem(a));
+        reserve_others(f, rt, a);
+        fprintf(f, " > sizeof jm_b.w ? jm_bd * sizeof (%s) : 0);\n\t}\n", elem(a));
+    }
+    if (any) {
+        fprintf(f, "\tjoist_mig_win_alloc(&jm_w);\n");
     }
 }
 
@@ -316,15 +495,34 @@ static void write_user_routine(FILE *f, const routine_t *rt)
     fprintf(f, "\tstruct joist_mig_body jm_b;\n\tuint64_t jm_buf[JOIST_MIG_BUF_WORDS];\n");
     fprintf(f, "\tstruct joist_mig_msg jm_m;\n\tmemset(&jm_m, 0, sizeof jm_m);\n");
     fprintf(f, "\tjm_m.buf = jm_buf;\n\tjm_b.at = jm_b.end = 0;\n");
+    int win = windowed(rt);
+    if (win) {
+        /* Its windows (0032), cleared and freed whenever it returns. */
+        fprintf(f, "\tstruct joist_mig_win jm_w __attribute__((cleanup(joist_mig_win_done)));\n");
+        fprintf(f, "\tjoist_mig_win_init(&jm_w);\n");
+        user_slices(f, rt);
+    }
+    unsigned slice = 0;
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
         if (is_in(a)) {
-            user_put(f, a);
+            user_put(f, rt, a);
+        } else if (win_out(rt, a)) {
+            fprintf(f, "\t{\n\t\tuint64_t jm_s[2] = {jm_w.out_n[%u], jm_w.out_off[%u]};\n", slice, slice);
+            fprintf(f, "\t\tif (joist_mig_put(&jm_b, jm_s, 16) != 0)\n\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n\t}\n");
+            slice++;
         }
     }
     fprintf(f, "\tjm_m.r[0] = %u;\n\tjoist_mig_send(&jm_m, &jm_b);\n", SubsystemBase + rt->rtNumber);
-    fprintf(f, "\t{\n\t\tint jm_e = joist_mig_call((uint32_t)");
-    uval(f, rt->rtRequestPort);
-    fprintf(f, ", &jm_m);\n\t\tif (jm_e != 0)\n\t\t\treturn jm_e;\n\t}\n");
+    if (win) {
+        /* The windows set just before the call, cleared just after it. */
+        fprintf(f, "\t{\n\t\tint jm_e = joist_mig_win_open(&jm_w);\n\t\tif (jm_e == 0)\n\t\t\tjm_e = joist_mig_call((uint32_t)");
+        uval(f, rt->rtRequestPort);
+        fprintf(f, ", &jm_m);\n\t\tjoist_mig_win_close(&jm_w);\n\t\tif (jm_e != 0)\n\t\t\treturn jm_e;\n\t}\n");
+    } else {
+        fprintf(f, "\t{\n\t\tint jm_e = joist_mig_call((uint32_t)");
+        uval(f, rt->rtRequestPort);
+        fprintf(f, ", &jm_m);\n\t\tif (jm_e != 0)\n\t\t\treturn jm_e;\n\t}\n");
+    }
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
         if (is_in(a)) {
             user_dealloc(f, a);
@@ -333,9 +531,10 @@ static void write_user_routine(FILE *f, const routine_t *rt)
     fprintf(f, "\tif (joist_mig_recv(&jm_m, &jm_b) != 0)\n\t\treturn JOIST_MIG_TYPE_ERROR;\n");
     fprintf(f, "\tif ((kern_return_t)joist_mig_code(&jm_m) != KERN_SUCCESS)\n\t\treturn (kern_return_t)joist_mig_code(&jm_m);\n");
     int k = 0;
+    slice = 0;
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
         if (is_out(a) && akCheck(a->argKind, akbUserArg)) {
-            user_get(f, a, &k);
+            user_get(f, rt, a, &k, &slice);
         }
     }
     fprintf(f, "\treturn KERN_SUCCESS;\n}\n");
@@ -352,7 +551,7 @@ static const char *svname(const argument_t *a)
 }
 
 /* Locals and request reads for one server-side argument. */
-static void server_in(FILE *f, const argument_t *a, int *k)
+static void server_in(FILE *f, const routine_t *rt, const argument_t *a, int *k)
 {
     const ipc_type_t *it = a->argType;
     const char *st = FetchServerType(it);
@@ -388,9 +587,17 @@ static void server_in(FILE *f, const argument_t *a, int *k)
         break;
     case W_VAR:
         if (is_in(a)) {
-            fprintf(f, "\t%s jm_%s;\n\tmach_msg_type_number_t jm_%sCnt;\n\t{\n\t\tuint64_t jm_n;\n", st,
+            /* In line, in place in the message; or in the caller's read
+             * window (0032): read after the whole request is checked
+             * (server_ool_reads), into jm_ool_NAME. */
+            fprintf(f, "\t%s jm_%s = 0;\n\tmach_msg_type_number_t jm_%sCnt;\n\t{\n\t\tuint64_t jm_n;\n", st,
                     svname(a), svname(a));
-            fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0 || jm_n > sizeof jm_b.w ||\n");
+            fprintf(f, "\t\tif (joist_mig_get(&jm_b, &jm_n, 8) != 0)\n\t\t\tgoto bad;\n");
+            fprintf(f, "\t\tif (jm_n & JOIST_MIG_OOL) {\n\t\t\tjm_n &= ~JOIST_MIG_OOL;\n");
+            fprintf(f, "\t\t\tif (joist_mig_get(&jm_b, &jm_oolat_%s, 8) != 0 || jm_n == 0 ||\n", svname(a));
+            fprintf(f, "\t\t\t    jm_n > JOIST_MIG_WINDOW_MAX / (sizeof (%s)))\n\t\t\t\tgoto bad;\n", elem(a));
+            fprintf(f, "\t\t\tjm_ool_%s.n = jm_n * sizeof (%s);\n", svname(a), elem(a));
+            fprintf(f, "\t\t} else if (jm_n > sizeof jm_b.w ||\n");
             fprintf(f, "\t\t    (jm_%s = (%s)(uintptr_t)joist_mig_ref(&jm_b, jm_n * sizeof (%s))) == 0)\n",
                     svname(a), st, elem(a));
             fprintf(f, "\t\t\tgoto bad;\n\t\tjm_%sCnt = (mach_msg_type_number_t)jm_n;\n\t}\n", svname(a));
@@ -399,6 +606,13 @@ static void server_in(FILE *f, const argument_t *a, int *k)
             fprintf(f, "\t%s jm_%s = (%s)(uintptr_t)jm_space_%s;\n", st, svname(a), st, svname(a));
             fprintf(f, "\tmach_msg_type_number_t jm_%sCnt = sizeof jm_space_%s / (sizeof (%s));\n", svname(a),
                     svname(a), elem(a));
+            if (win_out(rt, a)) {
+                /* The slice of the caller's write window offered for it. */
+                fprintf(f, "\tuint64_t jm_win_%s[2];\n", svname(a));
+                fprintf(f, "\tif (joist_mig_get(&jm_b, jm_win_%s, 16) != 0 || jm_win_%s[0] > JOIST_MIG_WINDOW_MAX ||\n",
+                        svname(a), svname(a));
+                fprintf(f, "\t    jm_win_%s[1] > JOIST_MIG_WINDOW_MAX)\n\t\tgoto bad;\n", svname(a));
+            }
         }
         break;
     case W_PORT:
@@ -507,27 +721,53 @@ static void server_arg(FILE *f, const argument_t *a)
     }
 }
 
-static void server_out(FILE *f, const argument_t *a)
+/* Each out argument into the reply, the first failure kept in jm_fail
+ * (then nothing more is put, but every dealloc result is still freed: the
+ * dealloc review, docs/phase5-data/step9-dealloc/). */
+static void server_out(FILE *f, const routine_t *rt, const argument_t *a)
 {
     const ipc_type_t *it = a->argType;
     switch (wire_of(a)) {
     case W_FIXED:
-        fprintf(f, "\tif (joist_mig_put(&jm_o, &jm_%s, sizeof jm_%s) != 0)\n\t\tgoto big;\n", svname(a),
-                svname(a));
+        fprintf(f, "\tif (jm_fail == KERN_SUCCESS && joist_mig_put(&jm_o, &jm_%s, sizeof jm_%s) != 0)\n"
+                   "\t\tjm_fail = JOIST_MIG_ARRAY_TOO_LARGE;\n", svname(a), svname(a));
         break;
     case W_STRING:
-        fprintf(f, "\t{\n\t\tuint64_t jm_n = strnlen(jm_%s, sizeof jm_%s);\n", svname(a), svname(a));
-        fprintf(f, "\t\tif (jm_n == sizeof jm_%s)\n\t\t\tgoto big;\n\t\tjm_n++;\n", svname(a));
-        fprintf(f, "\t\tif (joist_mig_put(&jm_o, &jm_n, 8) != 0 || joist_mig_put(&jm_o, jm_%s, jm_n) != 0)\n",
+        fprintf(f, "\tif (jm_fail == KERN_SUCCESS) {\n\t\tuint64_t jm_n = strnlen(jm_%s, sizeof jm_%s);\n", svname(a),
                 svname(a));
-        fprintf(f, "\t\t\tgoto big;\n\t}\n");
+        fprintf(f, "\t\tif (jm_n == sizeof jm_%s || (jm_n++, joist_mig_put(&jm_o, &jm_n, 8) != 0) ||\n", svname(a));
+        fprintf(f, "\t\t    joist_mig_put(&jm_o, jm_%s, jm_n) != 0)\n", svname(a));
+        fprintf(f, "\t\t\tjm_fail = JOIST_MIG_ARRAY_TOO_LARGE;\n\t}\n");
         break;
     case W_VAR:
         fprintf(f, "\t{\n\t\tuint64_t jm_n = jm_%sCnt;\n", svname(a));
-        fprintf(f, "\t\tint jm_big = jm_n > sizeof jm_o.w / (sizeof (%s)) || joist_mig_put(&jm_o, &jm_n, 8) != 0 ||\n",
-                elem(a));
-        fprintf(f, "\t\t    joist_mig_put(&jm_o, (const void *)(uintptr_t)jm_%s, jm_n * sizeof (%s)) != 0;\n",
-                svname(a), elem(a));
+        if (win_out(rt, a)) {
+            /* In line if it fits with room kept for what follows; else in
+             * the slice of the caller's write window offered for it, if it
+             * holds it (0032). */
+            fprintf(f, "\t\tif (jm_fail != KERN_SUCCESS) {\n");
+            fprintf(f, "\t\t} else if (8u + joist_mig_align(jm_n * sizeof (%s)) + ", elem(a));
+            reserve_after(f, rt, a, 1);
+            fprintf(f, " <= joist_mig_room(&jm_o)) {\n");
+            fprintf(f, "\t\t\tif (joist_mig_put(&jm_o, &jm_n, 8) != 0 ||\n");
+            fprintf(f, "\t\t\t    joist_mig_put(&jm_o, (const void *)(uintptr_t)jm_%s, jm_n * sizeof (%s)) != 0)\n",
+                    svname(a), elem(a));
+            fprintf(f, "\t\t\t\tjm_fail = JOIST_MIG_ARRAY_TOO_LARGE;\n");
+            fprintf(f, "\t\t} else if (jm_win_%s[0] != 0 && jm_n * sizeof (%s) <= jm_win_%s[0]) {\n", svname(a),
+                    elem(a), svname(a));
+            fprintf(f, "\t\t\tuint64_t jm_c[2] = {jm_n | JOIST_MIG_OOL, jm_win_%s[1]};\n", svname(a));
+            fprintf(f, "\t\t\tif (joist_mig_write_all(jm_win_%s[1], (const void *)(uintptr_t)jm_%s, jm_n * sizeof (%s)) != 0)\n",
+                    svname(a), svname(a), elem(a));
+            fprintf(f, "\t\t\t\tjm_fail = JOIST_MIG_BAD_ARGUMENTS;\n");
+            fprintf(f, "\t\t\telse if (joist_mig_put(&jm_o, jm_c, 16) != 0)\n\t\t\t\tjm_fail = JOIST_MIG_ARRAY_TOO_LARGE;\n");
+            fprintf(f, "\t\t} else\n\t\t\tjm_fail = JOIST_MIG_ARRAY_TOO_LARGE;\n");
+        } else {
+            fprintf(f, "\t\tif (jm_fail == KERN_SUCCESS && (jm_n > sizeof jm_o.w / (sizeof (%s)) ||\n", elem(a));
+            fprintf(f, "\t\t    joist_mig_put(&jm_o, &jm_n, 8) != 0 ||\n");
+            fprintf(f, "\t\t    joist_mig_put(&jm_o, (const void *)(uintptr_t)jm_%s, jm_n * sizeof (%s)) != 0))\n",
+                    svname(a), elem(a));
+            fprintf(f, "\t\t\tjm_fail = JOIST_MIG_ARRAY_TOO_LARGE;\n");
+        }
         if (a->argDeallocate != d_NO) {
             /* The routine gave memory of its own: MIG would have moved it.
              * With `dealloc[]`, only if the routine said so (server_in). */
@@ -541,10 +781,10 @@ static void server_out(FILE *f, const argument_t *a)
             fprintf(f, "\t\t\tjoist_mig_deallocate((void *)(uintptr_t)jm_%s, jm_n * sizeof (%s));\n", svname(a),
                     elem(a));
         }
-        fprintf(f, "\t\tif (jm_big)\n\t\t\tgoto big;\n\t}\n");
+        fprintf(f, "\t}\n");
         break;
     case W_PORT:
-        fprintf(f, "\tif (joist_mig_right(out, (uint32_t)");
+        fprintf(f, "\tif (jm_fail == KERN_SUCCESS && joist_mig_right(out, (uint32_t)");
         if (it->itOutTrans != strNULL) {
             fprintf(f, "%s(jm_%s)", it->itOutTrans, svname(a));
         } else {
@@ -555,7 +795,7 @@ static void server_out(FILE *f, const argument_t *a)
         } else {
             fprintf(f, ", %d", (int)it->itInName);
         }
-        fprintf(f, ") != 0)\n\t\tgoto big;\n");
+        fprintf(f, ") != 0)\n\t\tjm_fail = JOIST_MIG_ARRAY_TOO_LARGE;\n");
         break;
     default:
         break;
@@ -571,14 +811,34 @@ static void write_server_routine(FILE *f, const routine_t *rt)
         return;
     }
     fprintf(f, "\tstruct joist_mig_body jm_b;\n\tstruct joist_mig_body jm_o;\n\tkern_return_t jm_r;\n");
+    /* An in array from the caller's read window (0032): the stub's own
+     * memory, freed when it returns; declared before any jump. */
+    for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
+        if (akCheck(a->argKind, akbServerArg) && is_in(a) && wire_of(a) == W_VAR) {
+            fprintf(f, "\tstruct joist_mig_ool jm_ool_%s __attribute__((cleanup(joist_mig_ool_free))) = {0, 0};\n",
+                    svname(a));
+            fprintf(f, "\tuint64_t jm_oolat_%s = 0;\n", svname(a));
+        }
+    }
     fprintf(f, "\tif (joist_mig_recv(in, &jm_b) != 0)\n\t\tgoto bad;\n\tjm_o.at = jm_o.end = 0;\n");
     int k = 0;
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
         if (akCheck(a->argKind, akbServerArg)) {
-            server_in(f, a, &k);
+            server_in(f, rt, a, &k);
         }
     }
     fprintf(f, "\tif (jm_b.at != jm_b.end)\n\t\tgoto bad; /* more than it takes */\n");
+    /* The windowed in arrays, read once the request is known good: a
+     * refusal or a short copy, and the routine isn't called. */
+    for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
+        if (akCheck(a->argKind, akbServerArg) && is_in(a) && wire_of(a) == W_VAR) {
+            fprintf(f, "\tif (jm_ool_%s.n != 0) {\n", svname(a));
+            fprintf(f, "\t\tif (joist_mig_ool_read(&jm_ool_%s, jm_oolat_%s) != 0)\n\t\t\tgoto bad;\n", svname(a),
+                    svname(a));
+            fprintf(f, "\t\tjm_%s = (%s)(uintptr_t)jm_ool_%s.p;\n\t}\n", svname(a), FetchServerType(a->argType),
+                    svname(a));
+        }
+    }
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
         if (akCheck(a->argKind, akbServerArg) && has_dtor(a)) {
             fprintf(f, "\t%s jm_t_%s = ", a->argType->itTransType, svname(a));
@@ -613,14 +873,22 @@ static void write_server_routine(FILE *f, const routine_t *rt)
     int outs = 0;
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
         if (is_out(a) && akCheck(a->argKind, akbServerArg)) {
-            server_out(f, a);
             outs += wire_of(a) != W_NONE;
         }
     }
-    fprintf(f, "\tjoist_mig_send(out, &jm_o);\n\treturn;\n");
     if (outs != 0) {
-        fprintf(f, "big:\n\tout->r[0] = (uint32_t)JOIST_MIG_ARRAY_TOO_LARGE;\n\tout->ncaps = 0;\n\tout->len = 0;\n\treturn;\n");
+        fprintf(f, "\tkern_return_t jm_fail = KERN_SUCCESS;\n");
     }
+    for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
+        if (is_out(a) && akCheck(a->argKind, akbServerArg)) {
+            server_out(f, rt, a);
+        }
+    }
+    if (outs != 0) {
+        fprintf(f, "\tif (jm_fail != KERN_SUCCESS) {\n\t\tout->r[0] = (uint32_t)jm_fail;\n\t\tout->ncaps = 0;\n"
+                   "\t\tout->len = 0;\n\t\treturn;\n\t}\n");
+    }
+    fprintf(f, "\tjoist_mig_send(out, &jm_o);\n\treturn;\n");
     fprintf(f, "bad:\n\tout->r[0] = (uint32_t)JOIST_MIG_BAD_ARGUMENTS;\n\tout->ncaps = 0;\n\tout->len = 0;\n}\n");
 }
 
@@ -771,9 +1039,25 @@ static void jt_mix_in(FILE *f, const argument_t *a, const char *v, const char *c
     }
 }
 
+/* The out array whose bound in argument b is, if any. */
+static const argument_t *bound_target(const routine_t *rt, const argument_t *b)
+{
+    for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
+        const argument_t *by = argNULL;
+        if (bound_of(rt, a, &by) != NULL && by == b) {
+            return a;
+        }
+    }
+    return argNULL;
+}
+
 /* An out value made from the stream: by the server into its arguments, or
- * by the client into jt_x_ (to compare). */
-static void jt_make_out(FILE *f, const argument_t *a, const char *v, const char *cnt, const char *cap)
+ * by the client into jt_x_ (to compare). An array with a bound (0032) is
+ * any size up to it, the server's own memory past its stub's buffer (cap);
+ * bpre: the bound's argument's prefix ("" for the server, "jt_" for the
+ * client). */
+static void jt_make_out(FILE *f, const routine_t *rt, const argument_t *a, const char *v, const char *cnt,
+                        const char *cap, const char *bpre)
 {
     const ipc_type_t *it = a->argType;
     switch (wire_of(a)) {
@@ -784,7 +1068,24 @@ static void jt_make_out(FILE *f, const argument_t *a, const char *v, const char 
         fprintf(f, "\tjt_string(%s, sizeof (%s) < %u ? sizeof (%s) : %u);\n", v, FetchUserType(it), JT_STR + 1u,
                 FetchUserType(it), JT_STR + 1u);
         break;
-    case W_VAR:
+    case W_VAR: {
+        const argument_t *by = argNULL;
+        const struct bound *bd = rt != NULL ? bound_of(rt, a, &by) : NULL;
+        if (bd != NULL) {
+            fprintf(f, "\t{\n\t\tsize_t jt_b = (size_t)%s%s;\n", bpre, by->argVarName);
+            fprintf(f, "\t\tsize_t jt_c = jt_b < JOIST_MIG_WINDOW_MAX / sizeof (*%s)[0] ? jt_b : JOIST_MIG_WINDOW_MAX / sizeof (*%s)[0];\n",
+                    v, v);
+            if (bd->zero_none) {
+                /* 0: no bound, so what fits in line, as an unbounded array */
+                fprintf(f, "\t\tif (jt_b == 0)\n\t\t\tjt_c = %d / sizeof (*%s)[0];\n", JT_BYTES, v);
+            }
+            fprintf(f, "\t\tsize_t jt_n = jt_size(jt_c * sizeof (*%s)[0]) / sizeof (*%s)[0];\n", v, v);
+            fprintf(f, "\t\tint jt_o = %s;\n", a->argDeallocate != d_NO ? "jt_next() % 4u == 0" : "0");
+            fprintf(f, "\t\tif (jt_o || jt_n > %s)\n\t\t\tjt_own(%s, jt_n * sizeof (*%s)[0]);\n", cap, v, v);
+            fprintf(f, "\t\tjt_fill(*%s, jt_n * sizeof (*%s)[0]);\n\t\t%s = (mach_msg_type_number_t)jt_n;\n\t}\n", v, v,
+                    cnt);
+            break;
+        }
         fprintf(f, "\t{\n\t\tsize_t jt_c = %d / sizeof (*%s)[0];\n", JT_BYTES, v);
         fprintf(f, "\t\tif (jt_c > %s)\n\t\t\tjt_c = %s;\n", cap, cap);
         fprintf(f, "\t\tsize_t jt_n = jt_next() %% (jt_c + 1u);\n");
@@ -794,6 +1095,7 @@ static void jt_make_out(FILE *f, const argument_t *a, const char *v, const char 
         fprintf(f, "\t\tjt_fill(*%s, jt_n * sizeof (*%s)[0]);\n\t\t%s = (mach_msg_type_number_t)jt_n;\n\t}\n", v, v,
                 cnt);
         break;
+    }
     case W_PORT:
         fprintf(f, "\t*%s = (mach_port_t)(jt_next() %% 500u + 1u);\n", v);
         break;
@@ -828,9 +1130,9 @@ static void write_test_server_routine(FILE *f, const routine_t *rt)
         snprintf(v, sizeof v, "%s", a->argVarName);
         if (wire_of(a) == W_VAR) {
             snprintf(c, sizeof c, "*%s", a->argCount->argVarName);
-            jt_make_out(f, a, v, c, c);
+            jt_make_out(f, rt, a, v, c, c, "");
         } else {
-            jt_make_out(f, a, v, "", "");
+            jt_make_out(f, rt, a, v, "", "", "");
         }
         if (wire_of(a) == W_PORT && a->argPoly != argNULL && akCheck(a->argPoly->argKind, akbServerArg)) {
             fprintf(f, "\t*%s = MACH_MSG_TYPE_COPY_SEND;\n", a->argPoly->argVarName);
@@ -897,7 +1199,12 @@ static void write_test_client_routine(FILE *f, const routine_t *rt)
         switch (wire_of(a)) {
         case W_FIXED:
             fprintf(f, "\t%s jt_%s;\n", FetchUserType(it), n);
-            if (is_in(a)) {
+            if (is_in(a) && bound_target(rt, a) != argNULL) {
+                /* An out array's bound (0032): a size that crosses the
+                 * in-line limit and the kernel's copy limit. */
+                fprintf(f, "\tjt_%s = (%s)(jt_size(JT_BIG) / sizeof (%s));\n", n, FetchUserType(it),
+                        elem(bound_target(rt, a)));
+            } else if (is_in(a)) {
                 fprintf(f, "\tjt_fill(&jt_%s, sizeof jt_%s);\n", n, n);
             }
             break;
@@ -908,12 +1215,21 @@ static void write_test_client_routine(FILE *f, const routine_t *rt)
             }
             break;
         case W_VAR:
-            fprintf(f, "\tuint64_t jt_space_%s[%d];\n", n, is_in(a) ? JT_BYTES / 8 + 1 : 2);
+            if (is_in(a)) {
+                /* Sizes that cross the in-line limit and the kernel's copy
+                 * limit (0032): the read window. */
+                fprintf(f, "\tstatic uint64_t jt_space_%s[JT_BIG / 8 + 1];\n", n);
+            } else {
+                fprintf(f, "\tuint64_t jt_space_%s[2];\n", n);
+            }
             fprintf(f, "\t%s *jt_%s = (%s *)jt_space_%s;\n", FetchUserType(it->itElement), n,
                     FetchUserType(it->itElement), n);
             if (is_in(a)) {
-                fprintf(f, "\tmach_msg_type_number_t jt_%sCnt = (mach_msg_type_number_t)(jt_next() %% (%d / sizeof jt_%s[0] + 1u));\n",
-                        n, JT_BYTES, n);
+                fprintf(f, "\tmach_msg_type_number_t jt_%sCnt = (mach_msg_type_number_t)(jt_size(JT_BIG) / sizeof jt_%s[0]);\n",
+                        n, n);
+                if (it->itNumber != 0 && !it->itIndefinite) {
+                    fprintf(f, "\tif (jt_%sCnt > %uu)\n\t\tjt_%sCnt = %uu;\n", n, it->itNumber, n, it->itNumber);
+                }
                 fprintf(f, "\tjt_fill(jt_%s, jt_%sCnt * sizeof jt_%s[0]);\n", n, n, n);
             } else {
                 /* A small buffer: replies past it take the runtime's memory. */
@@ -949,7 +1265,8 @@ static void write_test_client_routine(FILE *f, const routine_t *rt)
             first = 0;
         }
     }
-    fprintf(f, ");\n\tif (jt_out_seed %% 13u == 0) {\n\t\tif (jt_r != KERN_FAILURE || jt_seen != jt_h) {\n");
+    fprintf(f, ");\n\tjt_check_windows(\"%s\");\n", rt->rtName);
+    fprintf(f, "\tif (jt_out_seed %% 13u == 0) {\n\t\tif (jt_r != KERN_FAILURE || jt_seen != jt_h) {\n");
     fprintf(f, "\t\t\tjt_fail(\"%s\", jt_r, \"an error reply wasn't returned\");\n\t\t\treturn 0;\n\t\t}\n\t\treturn 1;\n\t}\n",
             rt->rtName);
     fprintf(f, "\tif (jt_r != KERN_SUCCESS || jt_seen != jt_h) {\n");
@@ -966,23 +1283,27 @@ static void write_test_client_routine(FILE *f, const routine_t *rt)
         switch (wire_of(a)) {
         case W_FIXED:
             fprintf(f, "\t{\n\t\t%s jt_x_;\n\t", FetchUserType(it));
-            jt_make_out(f, a, "&jt_x_", "", "");
+            jt_make_out(f, rt, a, "&jt_x_", "", "", "jt_");
             fprintf(f, "\t\tif (memcmp(&jt_x_, &jt_%s, sizeof jt_x_) != 0) {\n", n);
             fprintf(f, "\t\t\tjt_fail(\"%s\", 0, \"%s\");\n\t\t\treturn 0;\n\t\t}\n\t}\n", rt->rtName, n);
             break;
         case W_STRING:
             fprintf(f, "\t{\n\t\tchar jt_x_[sizeof (%s)];\n\t", FetchUserType(it));
             snprintf(v, sizeof v, "jt_x_");
-            jt_make_out(f, a, v, "", "");
+            jt_make_out(f, rt, a, v, "", "", "");
             fprintf(f, "\t\tif (strcmp(jt_x_, jt_%s) != 0) {\n", n);
             fprintf(f, "\t\t\tjt_fail(\"%s\", 0, \"%s\");\n\t\t\treturn 0;\n\t\t}\n\t}\n", rt->rtName, n);
             break;
         case W_VAR:
-            fprintf(f, "\t{\n\t\tuint64_t jt_xs_[%d];\n\t\t%s *jt_x_ = (%s *)jt_xs_;\n", JT_BYTES / 8 + 1,
-                    FetchUserType(it->itElement), FetchUserType(it->itElement));
+            if (win_out(rt, a)) {
+                fprintf(f, "\t{\n\t\tstatic uint64_t jt_xs_[JT_BIG / 8 + 1];\n");
+            } else {
+                fprintf(f, "\t{\n\t\tuint64_t jt_xs_[%d];\n", JT_BYTES / 8 + 1);
+            }
+            fprintf(f, "\t\t%s *jt_x_ = (%s *)jt_xs_;\n", FetchUserType(it->itElement), FetchUserType(it->itElement));
             fprintf(f, "\t\t%s **jt_xp_ = &jt_x_;\n\t\tmach_msg_type_number_t jt_xn_ = 0;\n\t\tsize_t jt_cap_ = (size_t)-1;\n",
                     FetchUserType(it->itElement));
-            jt_make_out(f, a, "jt_xp_", "jt_xn_", "jt_cap_");
+            jt_make_out(f, rt, a, "jt_xp_", "jt_xn_", "jt_cap_", "jt_");
             fprintf(f, "\t\tif (jt_xn_ != jt_%sCnt || memcmp(jt_x_, jt_%s, jt_xn_ * sizeof jt_x_[0]) != 0) {\n", n, n);
             fprintf(f, "\t\t\tjt_fail(\"%s\", 0, \"%s\");\n\t\t\treturn 0;\n\t\t}\n", rt->rtName, n);
             fprintf(f, "\t\tif ((void *)jt_%s != (void *)jt_space_%s)\n\t\t\tjoist_mig_deallocate(jt_%s, jt_%sCnt * sizeof jt_%s[0]);\n",
@@ -992,7 +1313,7 @@ static void write_test_client_routine(FILE *f, const routine_t *rt)
             break;
         case W_PORT:
             fprintf(f, "\t{\n\t\tmach_port_t jt_x_;\n\t");
-            jt_make_out(f, a, "&jt_x_", "", "");
+            jt_make_out(f, rt, a, "&jt_x_", "", "", "jt_");
             fprintf(f, "\t\tif (jt_%s != jt_x_ + 2000u) {\n", n);
             fprintf(f, "\t\t\tjt_fail(\"%s\", 0, \"%s\");\n\t\t\treturn 0;\n\t\t}\n\t}\n", rt->rtName, n);
             break;
