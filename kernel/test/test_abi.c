@@ -150,6 +150,42 @@ JT_TEST(abi_call_recv_reply_through_registers)
     JT_CHECK(clean());
 }
 
+/* Decision 0032's calls through registers: the window set by the thread
+ * itself, the copies through the reply the server holds (0xffffffff: its
+ * own), the bytes copied in RDX. Nothing is mapped here, so a copy the
+ * kernel allows stops at once (0 bytes); which bytes move is the model's
+ * test (model/test/test_window.c). */
+JT_TEST(abi_window_calls_take_their_registers)
+{
+    setup();
+    joist_thread c;
+    joist_thread s;
+    JT_REQUIRE(joist_thread_create(&k, root, &c) == JOIST_OK);
+    JT_REQUIRE(joist_thread_create(&k, root, &s) == JOIST_OK);
+    JT_REQUIRE(sys(s, ABI_OBJ_CREATE, JOIST_OBJ_ENDPOINT, 0, 0, 0) == ABI_DONE &&
+               k.th[s].regs.r[ABI_RAX] == JOIST_OK);
+    JT_CHECK(sys(c, ABI_THREAD_WINDOW, 2, 0x10000, 100, 0) == ABI_DONE &&
+             k.th[c].regs.r[ABI_RAX] == JOIST_E_RANGE); /* no such kind */
+    JT_CHECK(sys(c, ABI_THREAD_WINDOW, 0, 0x10000, 100, 0) == ABI_DONE &&
+             k.th[c].regs.r[ABI_RAX] == JOIST_OK && k.th[c].win[0].va == 0x10000 &&
+             k.th[c].win[0].len == 100);
+    JT_CHECK(sys(s, ABI_REPLY_READ, 0xffffffffu, 0, 0x20000, 10) == ABI_DONE &&
+             k.th[s].regs.r[ABI_RAX] == JOIST_E_NOREPLY); /* no call held */
+    k.th[c].regs.r[ABI_R9] = 0;
+    JT_REQUIRE(sys(c, ABI_CALL, 0, JOIST_FOREVER, 0, 0) == ABI_WAITING);
+    JT_REQUIRE(sys(s, ABI_RECV, 0, JOIST_FOREVER, 0, 0) == ABI_DONE);
+    JT_CHECK(sys(s, ABI_REPLY_WRITE, 0xffffffffu, 0, 0x20000, 10) == ABI_DONE &&
+             k.th[s].regs.r[ABI_RAX] == JOIST_E_STATE); /* no write window */
+    JT_CHECK(sys(s, ABI_REPLY_READ, 0xffffffffu, 95, 0x20000, 10) == ABI_DONE &&
+             k.th[s].regs.r[ABI_RAX] == JOIST_E_RANGE); /* past the window */
+    k.th[s].regs.r[ABI_RDX] = 77;
+    JT_CHECK(sys(s, ABI_REPLY_READ, 0xffffffffu, 90, 0x20000, 10) == ABI_DONE &&
+             k.th[s].regs.r[ABI_RAX] == JOIST_OK && k.th[s].regs.r[ABI_RDX] == 0);
+    JT_CHECK(sys(s, ABI_REPLY_READ, 5, 0, 0x20000, 10) == ABI_DONE &&
+             k.th[s].regs.r[ABI_RAX] == JOIST_E_EMPTY); /* slot 5: no reply object */
+    JT_CHECK(clean());
+}
+
 JT_TEST(abi_capabilities_in_r9)
 {
     setup();

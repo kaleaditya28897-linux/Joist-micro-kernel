@@ -1,0 +1,29 @@
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/ipcbench.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 251 MiB usable in 5 ranges, 24 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fcec000), direct map at 0xffff800000000000
+joist: frames: 64504 free of 65246 covered (251 MiB)
+joist: page tables: the kernel's own, loaded (64241 frames free after)
+joist: timer: 20 ticks at 100 Hz, 625129 LAPIC counts per tick
+joist: clock: the TSC, not said to be invariant: deadlines kept by the timer's interrupts
+joist: modules: 2
+joist: cpus: 2 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 2 (one kernel lock, decision 0016)
+joist: root task: 8 MiB of memory, 1 module(s); entering it at 0x0000000000400000
+ipcbench: a system call that does nothing: n=20x5000 min=470 p50=500 p99=516 worst-p50=500 max=99838 cycles (bucket 4; 12000 cycles took 6770 to 7084 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server: n=20x5000 min=1908 p50=2012 p99=2068 worst-p50=2012 max=101282 cycles (bucket 4; 12000 cycles took 6770 to 7104 counts; clock 16 to 18 counts, taken off)
+ipcbench: one address space, passive server: n=20x5000 min=1498 p50=1544 p99=1576 worst-p50=1548 max=123492 cycles (bucket 4; 12000 cycles took 6772 to 7096 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, server with its own context: n=20x5000 min=3180 p50=15024 p99=21184 worst-p50=15120 max=152818 cycles (bucket 8; 12000 cycles took 6920 to 7108 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=3268 p50=3368 p99=3408 worst-p50=3368 max=134935 cycles (bucket 8; 12000 cycles took 6920 to 7094 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, reply_write of 4 KiB: n=20x5000 min=2808 p50=2840 p99=2904 worst-p50=2840 max=123602 cycles (bucket 8; 12000 cycles took 6922 to 6950 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, reply_write of 16 KiB: n=20x5000 min=3769 p50=3936 p99=4048 worst-p50=3960 max=105563 cycles (bucket 8; 12000 cycles took 6920 to 7086 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, reply_write of 64 KiB: n=20x5000 min=8506 p50=8832 p99=9152 worst-p50=8864 max=131263 cycles (bucket 32; 12000 cycles took 6920 to 6950 counts; clock 16 to 18 counts, taken off)
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=2046 p50=3704 p99=4008 worst-p50=3792 max=104949 cycles (bucket 8; 12000 cycles took 6920 to 7266 counts; clock 16 to 18 counts, taken off)
+ipcbench: done
+joist: root task exited with code 0 (timer ticks so far: 81)
+joist: finish code 0

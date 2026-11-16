@@ -69,7 +69,8 @@ enum {
     J_SYS_BIND_NOSENDERS, J_SYS_REQUEST_DEADNAME,
     J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER,
     J_SYS_REGION_CREATE = 80, J_SYS_REGION_ADD, J_SYS_REGION_MAP, J_SYS_REGION_UNMAP,
-    J_SYS_REGION_PROTECT
+    J_SYS_REGION_PROTECT,
+    J_SYS_THREAD_WINDOW = 86, J_SYS_REPLY_READ, J_SYS_REPLY_WRITE
 };
 
 /* Every register a call takes or returns. */
@@ -363,6 +364,37 @@ static inline uint64_t j_region_protect(uint64_t region, uint64_t va_page, uint6
                                         uint64_t perms)
 {
     return j_sys4(J_SYS_REGION_PROTECT, region, va_page, n, perms);
+}
+
+/* Bulk data through the caller's windows (decision 0032). The calling
+ * thread's read (kind J_WIN_READ) or write (J_WIN_WRITE) window: n bytes
+ * from va, 0 for none; a write window inside one of its task's regions. */
+#define J_WIN_READ  0u
+#define J_WIN_WRITE 1u
+static inline uint64_t j_thread_window(uint64_t kind, const void *va, uint64_t n)
+{
+    return j_sys4(J_SYS_THREAD_WINDOW, kind, (uint64_t)(uintptr_t)va, n, 0);
+}
+/* Through the reply the thread holds (reply: a reply object's slot, or
+ * J_SLOT_NONE for its own): n bytes at off in the caller's read window to
+ * dst, or from src to off in its write window; *done the bytes copied. */
+static inline uint64_t j_reply_read(uint64_t reply, uint64_t off, void *dst, uint64_t n,
+                                    uint64_t *done)
+{
+    struct j_regs r = {.rax = J_SYS_REPLY_READ, .rdi = reply, .rsi = off,
+                       .rdx = (uint64_t)(uintptr_t)dst, .r10 = n};
+    j_syscall(&r);
+    *done = r.rdx;
+    return r.rax;
+}
+static inline uint64_t j_reply_write(uint64_t reply, uint64_t off, const void *src, uint64_t n,
+                                     uint64_t *done)
+{
+    struct j_regs r = {.rax = J_SYS_REPLY_WRITE, .rdi = reply, .rsi = off,
+                       .rdx = (uint64_t)(uintptr_t)src, .r10 = n};
+    j_syscall(&r);
+    *done = r.rdx;
+    return r.rax;
 }
 /* What is mapped at n (at most J_QUERY_MAX) pages from va_page of a task,
  * into buf; frame is the frame to report (J_SLOT_NONE: none). */

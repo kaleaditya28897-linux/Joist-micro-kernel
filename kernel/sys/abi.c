@@ -371,6 +371,19 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_IPC_BUFFER:
         e = joist_ipc_buffer(k, t, a0);
         break;
+    case ABI_THREAD_WINDOW:
+        e = a0 > JOIST_WIN_WRITE ? JOIST_E_RANGE : joist_thread_window(k, t, (unsigned)a0, a1, a2);
+        break;
+    case ABI_REPLY_READ:
+    case ABI_REPLY_WRITE: {
+        uint64_t n = 0;
+        e = nr == ABI_REPLY_READ ? joist_reply_read(k, t, slot_arg(a0), a1, a2, a3, &n)
+                                 : joist_reply_write(k, t, slot_arg(a0), a1, a2, a3, &n);
+        if (e == JOIST_OK) {
+            out = n;
+        }
+        break;
+    }
     case ABI_THREAD_READ_REGS: {
         /* The capability first, then the caller's memory: a record that
          * can't be written whole is E_RANGE and nothing is written. */

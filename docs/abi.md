@@ -371,6 +371,23 @@ empty.
 | `region_unmap` | region slot, first virtual page, pages | for the region (MAP); `E_RANGE` (outside it or a table) | whatever is mapped there is unmapped | the run's pages |
 | `region_protect` | region slot, first virtual page, pages, permissions | as `region_unmap`, with `E_RIGHTS` (as `region_map`) before `E_RANGE` | the pages mapped there take those permissions | the run's pages |
 
+### Bulk data through the caller's windows (decision 0032)
+
+A thread has a **read window** and a **write window**: byte ranges of its
+own space that a server serving its call may read or write, through the
+reply it holds, while the thread waits for that reply. The write window
+lies inside one of the thread's space's live regions (0030: pages never
+COW-shared). A copy goes a piece of a page at a time and stops at the first
+page it may not touch: a page read must be present; a page written must
+be present, writable and inside a live region of its space (on either
+side). Nothing is mapped, unmapped or shared.
+
+| Operation | Arguments | Results, in check order | Effect | Bound |
+|---|---|---|---|---|
+| `thread_window` | kind (0 read, 1 write), address, bytes (0: none) | `E_RANGE`/`E_STATE` (thread), `E_RANGE` (kind, past the user half or wrapping, a write window outside every live region) | the calling thread's window of that kind | O(`JOIST_REGIONS_PER_TASK`) |
+| `reply_read` | reply (a reply object's slot, or 0xffffffff for the thread's own), offset, address, bytes | `E_RANGE`/`E_STATE` (thread), the reply object's `E_RANGE`, `E_EMPTY`, `E_TYPE`, `E_RIGHTS` (SEND), `E_NOREPLY` (none held), `E_PEER` (its caller no longer waits; the reply is kept), `E_STATE` (no read window), `E_RANGE` (more than `JOIST_COPY_MAX`, 64 KiB, or past the window; the address range wrapping) | the bytes at that offset of the caller's read window, to that address of the server's space, up to the first page that may not be touched; the bytes copied in `RDX` | O(bytes / page) |
+| `reply_write` | as `reply_read` | as `reply_read`, the write window | the bytes from that address of the server's space to that offset of the caller's write window, likewise | O(bytes / page) |
+
 ## Thread control and faults (0009, 0010; Phase 3 step 3)
 
 A **thread control capability** (CONTROL on a thread) is the authority over
@@ -592,7 +609,8 @@ notifications, 70-71 a thread's registers (`thread_read_regs`,
 `region_add`, `region_map`, `region_unmap`, `region_protect`;
 `region_create` takes dst in `R8`, `region_add` returns the extent in
 `RDX`, `region_map` takes the virtual page in `R8` and the permissions in
-`R9`). `thread_spawn` takes the new thread's pc and sp, so it
+`R9`), 86-88 bulk data (`thread_window`, `reply_read`,
+`reply_write`: decision 0032; the bytes copied in `RDX`). `thread_spawn` takes the new thread's pc and sp, so it
 starts where its creator says; `cap_read` also returns a frame's size in
 pages in `R10`; `cap_copy_batch` takes its flags in `R8` and returns `done`
 in `RDX` and `skipped` in `R8`. A slot argument wider than 32 bits is out of range, never

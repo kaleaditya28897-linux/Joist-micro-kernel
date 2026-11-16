@@ -1,0 +1,63 @@
+boot p53-kvm-smp1-1.log: status 1
+ipcbench: a system call that does nothing: n=20x5000 min=419 p50=448 p99=460
+ipcbench: two address spaces, passive server: n=20x5000 min=1810 p50=1912 p99=2000
+ipcbench: one address space, passive server: n=20x5000 min=1366 p50=1436 p99=1504
+ipcbench: two address spaces, server with its own context: n=20x5000 min=12625 p50=14592 p99=20576
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=3169 p50=3264 p99=3336
+ipcbench: two address spaces, passive server, reply_write of 4 KiB: n=20x5000 min=2427 p50=2688 p99=2944
+ipcbench: two address spaces, passive server, reply_write of 16 KiB: n=20x5000 min=3614 p50=3776 p99=3896
+ipcbench: two address spaces, passive server, reply_write of 64 KiB: n=20x5000 min=7864 p50=8672 p99=8992
+ipcbench: done
+boot p53-kvm-smp1-2.log: status 1
+ipcbench: a system call that does nothing: n=20x5000 min=419 p50=448 p99=460
+ipcbench: two address spaces, passive server: n=20x5000 min=1816 p50=1912 p99=1956
+ipcbench: one address space, passive server: n=20x5000 min=1394 p50=1436 p99=1448
+ipcbench: two address spaces, server with its own context: n=20x5000 min=13115 p50=14560 p99=20416
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=3125 p50=3264 p99=3360
+ipcbench: two address spaces, passive server, reply_write of 4 KiB: n=20x5000 min=2652 p50=2680 p99=2696
+ipcbench: two address spaces, passive server, reply_write of 16 KiB: n=20x5000 min=3595 p50=3768 p99=3904
+ipcbench: two address spaces, passive server, reply_write of 64 KiB: n=20x5000 min=8192 p50=8640 p99=9056
+ipcbench: done
+boot p53-kvm-smp1-3.log: status 1
+ipcbench: a system call that does nothing: n=20x5000 min=419 p50=448 p99=460
+ipcbench: two address spaces, passive server: n=20x5000 min=1811 p50=1912 p99=1996
+ipcbench: one address space, passive server: n=20x5000 min=1396 p50=1436 p99=1448
+ipcbench: two address spaces, server with its own context: n=20x5000 min=2830 p50=14584 p99=20320
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=3030 p50=3264 p99=3360
+ipcbench: two address spaces, passive server, reply_write of 4 KiB: n=20x5000 min=2426 p50=2688 p99=2752
+ipcbench: two address spaces, passive server, reply_write of 16 KiB: n=20x5000 min=3614 p50=3768 p99=3880
+ipcbench: two address spaces, passive server, reply_write of 64 KiB: n=20x5000 min=8009 p50=8640 p99=9152
+ipcbench: done
+boot p53-kvm-smp2-1.log: status 1
+ipcbench: a system call that does nothing: n=20x5000 min=470 p50=500 p99=524
+ipcbench: two address spaces, passive server: n=20x5000 min=1908 p50=2012 p99=2100
+ipcbench: one address space, passive server: n=20x5000 min=1502 p50=1544 p99=1568
+ipcbench: two address spaces, server with its own context: n=20x5000 min=13325 p50=15136 p99=21120
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=3265 p50=3360 p99=3392
+ipcbench: two address spaces, passive server, reply_write of 4 KiB: n=20x5000 min=2803 p50=2832 p99=2896
+ipcbench: two address spaces, passive server, reply_write of 16 KiB: n=20x5000 min=3756 p50=3904 p99=4016
+ipcbench: two address spaces, passive server, reply_write of 64 KiB: n=20x5000 min=8372 p50=8832 p99=9184
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=2052 p50=3744 p99=4088
+ipcbench: done
+boot p53-kvm-smp2-2.log: status 1
+ipcbench: a system call that does nothing: n=20x5000 min=480 p50=500 p99=512
+ipcbench: two address spaces, passive server: n=20x5000 min=1914 p50=2012 p99=2104
+ipcbench: one address space, passive server: n=20x5000 min=1463 p50=1544 p99=1616
+ipcbench: two address spaces, server with its own context: n=20x5000 min=8689 p50=15008 p99=21024
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=3263 p50=3368 p99=3416
+ipcbench: two address spaces, passive server, reply_write of 4 KiB: n=20x5000 min=2754 p50=2840 p99=2904
+ipcbench: two address spaces, passive server, reply_write of 16 KiB: n=20x5000 min=3757 p50=3904 p99=4016
+ipcbench: two address spaces, passive server, reply_write of 64 KiB: n=20x5000 min=8478 p50=8864 p99=9216
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=2030 p50=3736 p99=3984
+ipcbench: done
+boot p53-kvm-smp2-3.log: status 1
+ipcbench: a system call that does nothing: n=20x5000 min=470 p50=500 p99=516
+ipcbench: two address spaces, passive server: n=20x5000 min=1908 p50=2012 p99=2068
+ipcbench: one address space, passive server: n=20x5000 min=1498 p50=1544 p99=1576
+ipcbench: two address spaces, server with its own context: n=20x5000 min=3180 p50=15024 p99=21184
+ipcbench: two address spaces, passive server, 4 KiB of IPC buffer each way: n=20x5000 min=3268 p50=3368 p99=3408
+ipcbench: two address spaces, passive server, reply_write of 4 KiB: n=20x5000 min=2808 p50=2840 p99=2904
+ipcbench: two address spaces, passive server, reply_write of 16 KiB: n=20x5000 min=3769 p50=3936 p99=4048
+ipcbench: two address spaces, passive server, reply_write of 64 KiB: n=20x5000 min=8506 p50=8832 p99=9152
+ipcbench: two address spaces, passive server, every other CPU making system calls: n=20x5000 min=2046 p50=3704 p99=4008
+ipcbench: done

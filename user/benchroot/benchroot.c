@@ -49,6 +49,21 @@ static void finish(uint64_t task)
     }
 }
 
+/* Measurements 5-7 (decision 0032): the client's write window, a region
+ * of one page table at BENCH_WIN_VA in its task, the first 32 pages (a
+ * pool run) mapped writable: the server copies into it. The region's
+ * capability, in *slot, is the root's to delete. */
+#define BENCH_WIN_VA 0x40000000ull
+static void give_window(uint64_t task, uint64_t *slot)
+{
+    uint64_t r = slot_new();
+    uint64_t ext = 0;
+    must(j_region_create(task, BENCH_WIN_VA / J_PAGE, 1, J_MAP_W, r), "region_create");
+    must(j_region_add(r, chunk_split(), 0, LD_TABLE_PAGES, &ext), "region_add");
+    must(j_region_map(r, ext, 0, LD_TABLE_PAGES, BENCH_WIN_VA / J_PAGE, J_MAP_W), "region_map");
+    *slot = r;
+}
+
 static void measure(uint64_t name, int one_task, int passive)
 {
     uint64_t stask = slot_new();
@@ -64,6 +79,10 @@ static void measure(uint64_t name, int one_task, int passive)
         ld_stack(stask, STACK2_TOP);
     } else {
         (void)ld_load(0, ctask);
+    }
+    uint64_t window = J_SLOT_NONE;
+    if (name >= 5u) {
+        give_window(ctask, &window);
     }
     must(j_obj_create(J_ENDPOINT, ep), "obj_create");
     must(j_cap_give(stask, ep, 0, J_R_RECV), "cap_give (server)");
@@ -101,6 +120,9 @@ static void measure(uint64_t name, int one_task, int passive)
     if (!one_task) {
         finish(ctask);
     }
+    if (window != J_SLOT_NONE) {
+        must(j_cap_delete(window), "cap_delete");
+    }
     must(j_cap_delete(ep), "cap_delete");
     must(j_cap_delete(ssc), "cap_delete");
     must(j_cap_delete(csc), "cap_delete");
@@ -129,6 +151,9 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     measure(1, 1, 1);
     measure(2, 0, 0);
     measure(4, 0, 1); /* the IPC buffer, full, both ways (Phase 3's exit) */
+    measure(5, 0, 1); /* reply_write of 4, 16, 64 KiB (decision 0032) */
+    measure(6, 0, 1);
+    measure(7, 0, 1);
     if (ncpus > 1) {
         /* The kernel lock under contention (decision 0016 asks for its cost
          * on 2 and 4 CPUs): the first measurement again while a thread on

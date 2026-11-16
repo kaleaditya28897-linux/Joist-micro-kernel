@@ -99,6 +99,12 @@ enum {
 #define ABI_REGION_UNMAP    83u /* region, va page, pages */
 #define ABI_REGION_PROTECT  84u /* region, va page, pages, perms */
 
+/* Bulk data through the caller's windows (decision 0032). A reply object's
+ * slot, or 0xffffffff (JOIST_SLOT_NONE) for the thread's own reply. */
+#define ABI_THREAD_WINDOW   86u /* kind (0 read, 1 write), address, bytes (0: none) */
+#define ABI_REPLY_READ      87u /* reply, offset in the read window, address, bytes -> RDX copied */
+#define ABI_REPLY_WRITE     88u /* reply, offset in the write window, address, bytes -> RDX copied */
+
 #define ABI_THREAD_READ_REGS  70u /* thread, address of a struct joist_regs to fill */
 #define ABI_THREAD_WRITE_REGS 71u /* thread, address of a struct joist_regs to load */
 #define ABI_IPC_BUFFER        72u /* page-aligned address of the calling thread's IPC buffer, or 0 */

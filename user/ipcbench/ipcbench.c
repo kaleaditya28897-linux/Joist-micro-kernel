@@ -66,19 +66,43 @@ static const char *const names[] = {
     "two address spaces, server with its own context",
     "two address spaces, passive server, every other CPU making system calls",
     "two address spaces, passive server, 4 KiB of IPC buffer each way",
+    "two address spaces, passive server, reply_write of 4 KiB",
+    "two address spaces, passive server, reply_write of 16 KiB",
+    "two address spaces, passive server, reply_write of 64 KiB",
 };
+
+/* Measurements 5-7 (decision 0032): before each answer, the server copies
+ * that many bytes into the client's write window, a region benchroot gives
+ * the client at BENCH_WIN_VA. */
+#define BENCH_WIN_VA 0x40000000ull
+static uint64_t copy_bytes(uint64_t name)
+{
+    return name == 5 ? 4096u : name == 6 ? 16384u : name == 7 ? 65536u : 0;
+}
+static uint8_t src[65536] __attribute__((aligned(4096))); /* what the server copies */
 
 static uint64_t buf[512] __attribute__((aligned(4096))); /* this thread's IPC buffer */
 static unsigned words; /* buffer words each call carries (and the reply brings back) */
 
-static __attribute__((noreturn)) void serve(void)
+static __attribute__((noreturn)) void serve(uint64_t name)
 {
     struct j_msg m = {0};
+    uint64_t copy = copy_bytes(name);
+    for (uint64_t i = 0; i < sizeof src; i++) {
+        src[i] = (uint8_t)i; /* present before it is copied from */
+    }
     if (j_ipc_buffer(buf) != J_OK || j_recv(0, &m, J_FOREVER) != J_OK) {
         j_puts("ipcbench: recv failed\n");
         j_exit(1);
     }
     for (;;) {
+        /* (The start-up handshake's call, from the root, has no window:
+         * refused, E_STATE, and answered as any other.) */
+        uint64_t done = 0;
+        if (copy != 0 && j_reply_write(J_SLOT_NONE, 0, src, copy, &done) == J_OK && done != copy) {
+            j_puts("ipcbench: reply_write copied short\n");
+            j_exit(1);
+        }
         m.caps = J_WORDS_SET(J_WORDS(m.caps)); /* as many words back as came */
         if (j_reply_recv(0, &m, J_FOREVER) != J_OK) {
             j_puts("ipcbench: reply_recv failed\n");
@@ -304,7 +328,7 @@ static __attribute__((noreturn)) void timed(uint64_t from, uint64_t to)
 void _start(uint64_t role, uint64_t name, uint64_t from, uint64_t to)
 {
     if (role == 0) {
-        serve();
+        serve(name);
     }
     if (role == 3) {
         timed(from, to);
@@ -322,6 +346,11 @@ void _start(uint64_t role, uint64_t name, uint64_t from, uint64_t to)
             j_puts("ipcbench: ipc_buffer refused\n");
             j_exit(1);
         }
+    }
+    if (copy_bytes(name) != 0 &&
+        j_thread_window(J_WIN_WRITE, (void *)(uintptr_t)BENCH_WIN_VA, copy_bytes(name)) != J_OK) {
+        j_puts("ipcbench: thread_window refused\n");
+        j_exit(1);
     }
     if (name == 0) {
         nothing = 1;
