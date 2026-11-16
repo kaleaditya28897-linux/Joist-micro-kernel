@@ -1439,3 +1439,57 @@ for a write, outside a live region, returning the bytes copied.
   didn't finish in CBMC).
 - **The `dealloc` review** (`docs/phase5-data/step9-dealloc/`): 56
   parameters, as 0032 records.
+
+### Step 10: the design of libtrivfs and `hello` on Joist (2026-11-16, proposed)
+
+The plan's choice 7, made concrete against the Hurd's source (Debian's
+`hurd_0.9.git20261028`, the one `tools/phase5/hurd-libs.sh` checks).
+`trans/hello` (310 lines) links libtrivfs (3 855 lines, 81 files: the
+`fs`, `io` and `fsys` servers and `fsys_reply`'s user stub), libfshelp,
+libiohelp, libports (step 8), libihash and libshouldbeinlibc. Below glibc,
+only two of libtrivfs's files reach Mach: `demuxer.c` (its demuxer on
+Mach messages) and `startup.c` (a nested function); libiohelp reaches
+none; libfshelp's Mach calls (`task_create`, `mach_msg`) are in starting
+translators (`start-translator-long.c`), which `hello` doesn't reach.
+
+1. **Built as libports is:** the source fetched and checked, Joist's files
+   in `hurd/joist/libtrivfs/` laid over it, joistmig's servers for `fs`,
+   `io`, `fsys` and `fsys_reply`'s user stub with libtrivfs's own
+   `mig-mutate.h`; `hurd-libs.sh` gains libiohelp, libfshelp and
+   libtrivfs, and `trans/hello` is linked static against them and the
+   cross-built glibc. A file that doesn't compile is recorded, not
+   patched, unless `hello` reaches it.
+2. **Joist's copies, two files:**
+   - `demuxer.c`: the same five servers in the same order (io, fs, notify,
+     fsys, interrupt), on Joist messages, through the `_routine` lookups
+     joistmig makes (step 6's `<demuxer>_routine`);
+   - `startup.c`: the SIGTERM handler `trivfs_startup_debug` nests becomes a
+     function at file scope, the control it needs in a static (one control
+     a debug start-up, as there is one), for clang. `hello`'s own source is
+     unchanged.
+3. **Who plays the filesystem, and the client: the root** (`glibcroot`).
+   It starts `hello` as it starts a glibc program, its bootstrap port the
+   root's endpoint, which then also answers `fsys_startup` (taking the
+   control port, answering no underlying node). The root then calls
+   `fsys_getroot` on the control port for `hello`'s root node and is the
+   test client, through joistmig's user stubs on `user/lib`'s runtime:
+   `io_read` (the contents, at offsets, in pieces and whole), `io_seek`
+   (each `whence`), `io_stat` (size, type), `io_write` refused
+   (`EBADF`: `hello` allows only reading), a read past the end (0
+   bytes). A glibc client (glibc's `read`, `lseek`, `fstat` on the port)
+   comes with Phase 7's file descriptors, since glibc has no filesystem to
+   open the node from yet.
+4. **Large reads through 0032's windows:** `hello --contents` sets what it
+   serves; with contents past the IPC buffer, `io_read` goes through the
+   client's write window (the root makes its window a region of its own).
+   This is the plan's measurement: `io_read` by copy, 4 KiB to 1 MiB
+   (cold, as 0032 asks), against the IPC buffer's copy.
+5. **Tests, as the plan's *Testing* row:** the above on 1, 2 and 4 CPUs,
+   emulated and under KVM, as selftests; and `hello` killed mid-request (the
+   root destroys its task while a call waits in it): the call fails (the
+   kernel's `E_PEER`, as the runtime reports it), and the root goes on, its own
+   capabilities and memory clean (the kernel's counters level after).
+6. **Gaps, as Phase 5 leaves them:** no `settrans` or filesystem namespace
+   (Phase 8), so `hello` is attached by the root alone; `io_reauthenticate`
+   and the auth server's calls are refused (no auth server); libfshelp's
+   translator-starting code is built but not run.
