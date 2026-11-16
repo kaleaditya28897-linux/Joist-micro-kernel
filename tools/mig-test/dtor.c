@@ -198,15 +198,17 @@ int main(void)
     check((uint32_t)out.r[0] == (uint32_t)JOIST_MIG_BAD_ARGUMENTS, "a missing capability not refused");
     check(translated == 6 && destroyed == 6, "a refused request translated something");
     /* dealloc[]: freed exactly when the routine says so, and only then. */
-    uint64_t w = 0;
-    request(7002, 1, 0, 0, &w, 1, &out);
+    /* The request: `which', then the out array's write-window slice (0032:
+     * every out array has one; 0 bytes here, none offered), 24 bytes. */
+    uint64_t w[3] = {0, 0, 0};
+    request(7002, 1, 0, 0, w, 6, &out);
     check((uint32_t)out.r[0] == 0 && frees == 0, "the routine's own buffer freed (dealloc[] clear)");
-    w = 1;
-    request(7002, 1, 0, 0, &w, 1, &out);
+    w[0] = 1;
+    request(7002, 1, 0, 0, w, 6, &out);
     check((uint32_t)out.r[0] == 0 && frees == 1 && freed == given,
           "allocated memory not freed once (dealloc[] set)");
-    w = 2;
-    request(7002, 1, 0, 0, &w, 1, &out);
+    w[0] = 2;
+    request(7002, 1, 0, 0, w, 6, &out);
     check((uint32_t)out.r[0] == 0 && frees == 1, "the stub's own buffer freed");
     for (unsigned i = 0; i < 8u; i++) {
         check(objs[i].live == 0, "an object left translated");

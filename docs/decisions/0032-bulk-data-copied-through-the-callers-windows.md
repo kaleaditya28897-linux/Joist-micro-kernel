@@ -142,6 +142,16 @@ owner choosing C, with the measurement this decision asks for kept.
   is Phases 6-8's. The stubs must free a `dealloc` sender's memory even
   when the copy fails, and honour `dealloc[]`.
 
+- **The owner's choices on the stubs (2026-11-16),** after the P53's
+  measurement and stub design (`docs/phase5-data/step9-copy/`): an `out`
+  array with no bound known before the call gets a default write window,
+  `JOIST_MIG_OUT_DEFAULT` (64 KiB, one copy call), and a result past it is
+  refused, never cut short (settling the open question above); a call
+  carries at most `JOIST_MIG_WINDOW_MAX` = 8 MiB through each window (a
+  larger `io_read` is a short read, which glibc's `read` loops over);
+  `JOIST_COPY_MAX` stays 64 KiB (a 64 KiB copy holds the kernel's lock
+  about 2.6 µs on the P53), cold copies to be measured at step 10.
+
 ## Priority check
 
 - **Reliability:** every call bounded (`JOIST_COPY_MAX`); no allocation; no

@@ -129,11 +129,11 @@ static int carried(const routine_t *rt)
 /* ---- arrays through the caller's windows (decision 0032; Phase 5 step 9) ----
  *
  * An in array that doesn't fit in line goes through the client's read
- * window. An out array goes through its write window only where the client
- * can size the window before the call: the routine says how much it asks
- * for (docs/phase5-data/step9-dealloc/, the `argument' bounds). The others
- * stay in line, as before: the stub default for an out array with no bound
- * is the owner's choice, not made yet (0032's open question). */
+ * window. An out array goes through its write window, sized before the
+ * call: by the routine's own bound where it says how much it asks for
+ * (docs/phase5-data/step9-dealloc/, the `argument' bounds), otherwise by
+ * JOIST_MIG_OUT_DEFAULT (the owner's choice, 2026-11-16, 0032's open
+ * question): a result past it is refused, never cut short. */
 struct bound {
     const char *routine, *param; /* the out array */
     const char *by;              /* the in argument that bounds it, in elements */
@@ -172,9 +172,17 @@ static const struct bound *bound_of(const routine_t *rt, const argument_t *a, co
     return NULL;
 }
 
+/* Whether a is an out array the client receives into memory of its own:
+ * one the write window may carry (with a bound, or the default). */
+static int out_array(const argument_t *a)
+{
+    return is_out(a) && wire_of(a) == W_VAR && a->argByReferenceUser && akCheck(a->argKind, akbUserArg);
+}
+
 static int win_out(const routine_t *rt, const argument_t *a)
 {
-    return bound_of(rt, a, NULL) != NULL;
+    (void)rt;
+    return out_array(a);
 }
 
 /* Whether a client stub of rt has windows to set up. */
@@ -443,21 +451,39 @@ static void user_get(FILE *f, const routine_t *rt, const argument_t *a, int *k, 
     }
 }
 
-/* The write window's slice for each out array with a bound (0032), before
- * the request is written: the bound's argument may be lowered. */
+/* The slice of jm_bd elements for out array a, offered only if it might
+ * not fit in line beside the rest; ends the block user_slices opened. */
+static void offer_slice(FILE *f, const routine_t *rt, const argument_t *a)
+{
+    fprintf(f, "\t\tjoist_mig_win_out(&jm_w, jm_bd * sizeof (%s) + 8u + ", elem(a));
+    reserve_others(f, rt, a);
+    fprintf(f, " > sizeof jm_b.w ? jm_bd * sizeof (%s) : 0);\n\t}\n", elem(a));
+}
+
+/* The write window's slice for each out array (0032), before the request
+ * is written: by its bound, whose argument may be lowered, or the default. */
 static void user_slices(FILE *f, const routine_t *rt)
 {
     int any = 0;
     for (const argument_t *a = rt->rtArgs; a != argNULL; a = a->argNext) {
-        const argument_t *by = argNULL;
-        const struct bound *bd = bound_of(rt, a, &by);
-        if (bd == NULL) {
+        if (!out_array(a)) {
             continue;
         }
         any = 1;
+        const argument_t *by = argNULL;
+        const struct bound *bd = bound_of(rt, a, &by);
+        if (bd == NULL) {
+            fprintf(f, "\t{\n\t\t/* %s: no bound known: the default */\n", a->argVarName);
+            fprintf(f, "\t\tuint64_t jm_bd = JOIST_MIG_OUT_DEFAULT / (sizeof (%s));\n", elem(a));
+            offer_slice(f, rt, a);
+            continue;
+        }
         fprintf(f, "\t{\n\t\t/* %s: at most %s elements%s */\n", a->argVarName, by->argVarName,
-                bd->zero_none ? " (0: no bound)" : "");
+                bd->zero_none ? " (0: no bound, so the default)" : "");
         fprintf(f, "\t\tuint64_t jm_bd = (uint64_t)%s;\n", by->argVarName);
+        if (bd->zero_none) {
+            fprintf(f, "\t\tif (jm_bd == 0)\n\t\t\tjm_bd = JOIST_MIG_OUT_DEFAULT / (sizeof (%s));\n", elem(a));
+        }
         fprintf(f, "\t\tif (jm_bd > JOIST_MIG_WINDOW_MAX / (sizeof (%s)))\n", elem(a));
         if (bd->may_lower) {
             fprintf(f, "\t\t\t%s = (__typeof__(%s))(jm_bd = JOIST_MIG_WINDOW_MAX / (sizeof (%s)));\n",
@@ -466,10 +492,7 @@ static void user_slices(FILE *f, const routine_t *rt)
             fprintf(f, "\t\t\treturn JOIST_MIG_ARRAY_TOO_LARGE;\n");
         }
         /* Offered only if it might not fit in line beside the rest. */
-        fprintf(f, "\t\tjoist_mig_win_out(&jm_w, %sjm_bd * sizeof (%s) + 8u + ", bd->zero_none ? "jm_bd != 0 && " : "",
-                elem(a));
-        reserve_others(f, rt, a);
-        fprintf(f, " > sizeof jm_b.w ? jm_bd * sizeof (%s) : 0);\n\t}\n", elem(a));
+        offer_slice(f, rt, a);
     }
     if (any) {
         fprintf(f, "\tjoist_mig_win_alloc(&jm_w);\n");
@@ -1076,9 +1099,20 @@ static void jt_make_out(FILE *f, const routine_t *rt, const argument_t *a, const
             fprintf(f, "\t\tsize_t jt_c = jt_b < JOIST_MIG_WINDOW_MAX / sizeof (*%s)[0] ? jt_b : JOIST_MIG_WINDOW_MAX / sizeof (*%s)[0];\n",
                     v, v);
             if (bd->zero_none) {
-                /* 0: no bound, so what fits in line, as an unbounded array */
-                fprintf(f, "\t\tif (jt_b == 0)\n\t\t\tjt_c = %d / sizeof (*%s)[0];\n", JT_BYTES, v);
+                /* 0: no bound, so the default, as an unbounded array */
+                fprintf(f, "\t\tif (jt_b == 0)\n\t\t\tjt_c = JOIST_MIG_OUT_DEFAULT / sizeof (*%s)[0];\n", v);
             }
+            fprintf(f, "\t\tsize_t jt_n = jt_size(jt_c * sizeof (*%s)[0]) / sizeof (*%s)[0];\n", v, v);
+            fprintf(f, "\t\tint jt_o = %s;\n", a->argDeallocate != d_NO ? "jt_next() % 4u == 0" : "0");
+            fprintf(f, "\t\tif (jt_o || jt_n > %s)\n\t\t\tjt_own(%s, jt_n * sizeof (*%s)[0]);\n", cap, v, v);
+            fprintf(f, "\t\tjt_fill(*%s, jt_n * sizeof (*%s)[0]);\n\t\t%s = (mach_msg_type_number_t)jt_n;\n\t}\n", v, v,
+                    cnt);
+            break;
+        }
+        if (rt != NULL && out_array(a)) {
+            /* No bound: any size up to the default (0032), the server's own
+             * memory past its stub's buffer. */
+            fprintf(f, "\t{\n\t\tsize_t jt_c = JOIST_MIG_OUT_DEFAULT / sizeof (*%s)[0];\n", v);
             fprintf(f, "\t\tsize_t jt_n = jt_size(jt_c * sizeof (*%s)[0]) / sizeof (*%s)[0];\n", v, v);
             fprintf(f, "\t\tint jt_o = %s;\n", a->argDeallocate != d_NO ? "jt_next() % 4u == 0" : "0");
             fprintf(f, "\t\tif (jt_o || jt_n > %s)\n\t\t\tjt_own(%s, jt_n * sizeof (*%s)[0]);\n", cap, v, v);

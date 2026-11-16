@@ -35,3 +35,4 @@ win-server-ool-flag-ignored @@ joistmig.c @@ fprintf(f, "\t\tif (jm_n & JOIST_MI
 win-server-read-skipped @@ joistmig.c @@ fprintf(f, "\t\tif (joist_mig_ool_read(&jm_ool_%s, jm_oolat_%s) != 0)\n\t\t\tgoto bad;\n", svname(a), @@ fprintf(f, "\t\tif (0 && joist_mig_ool_read(&jm_ool_%s, jm_oolat_%s) != 0)\n\t\t\tgoto bad;\n", svname(a),
 win-reserve-ignored @@ joistmig.c @@         fprintf(f, " <= joist_mig_room(&jm_b))) {\n"); @@         fprintf(f, " * 0u <= joist_mig_room(&jm_b))) {\n");
 win-no-memory-offered @@ joist_mig.h @@             w->out_n[i] = w->out_off[i] = 0; @@             (void)i;
+win-no-default @@ joistmig.c @@ fprintf(f, "\t\tuint64_t jm_bd = JOIST_MIG_OUT_DEFAULT / (sizeof (%s));\n", elem(a)); @@ fprintf(f, "\t\tuint64_t jm_bd = 0 / (sizeof (%s));\n", elem(a));

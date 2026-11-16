@@ -197,7 +197,11 @@ joist_mig_right (struct joist_mig_msg *m, uint32_t name, int disposition)
    copy call moves at most JOIST_MIG_COPY_MAX bytes; a call carries at
    most JOIST_MIG_WINDOW_MAX through each window.  */
 #define JOIST_MIG_COPY_MAX	65536u		/* the kernel's JOIST_COPY_MAX */
-#define JOIST_MIG_WINDOW_MAX	(1024u * 1024u)
+#define JOIST_MIG_WINDOW_MAX	(8u * 1024u * 1024u)	/* the owner, 2026-11-16 */
+/* The write window offered for an out array whose size the client can't
+   bound before the call (0032's open question; the owner, 2026-11-16: a
+   default, one copy call): data past it is refused, never cut short.  */
+#define JOIST_MIG_OUT_DEFAULT	65536u
 #define JOIST_MIG_OOL		((uint64_t) 1 << 63)
 #define JOIST_MIG_WIN_READ	0u
 #define JOIST_MIG_WIN_WRITE	1u
