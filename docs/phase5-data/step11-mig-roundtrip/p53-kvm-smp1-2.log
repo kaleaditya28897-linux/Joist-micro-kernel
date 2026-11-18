@@ -1,0 +1,33 @@
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/mm.elf`...
+limine: Loading module `boot():/boot/glibctest.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 250 MiB usable in 6 ranges, 26 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fcec000), direct map at 0xffff800000000000
+joist: frames: 64222 free of 65258 covered (250 MiB)
+joist: page tables: the kernel's own, loaded (63958 frames free after)
+joist: timer: 20 ticks at 100 Hz, 624996 LAPIC counts per tick
+joist: clock: the TSC, not said to be invariant: deadlines kept by the timer's interrupts
+joist: modules: 3
+joist: cpus: 1 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 1
+joist: root task: 8 MiB of memory, 2 module(s); entering it at 0x0000000000400ae0
+glibcroot: started, passive ok
+glibcroot: started
+hello: fsys_startup ok
+hello: fsys_getroot ok
+hello: io_read ok
+hello: io_seek ok
+hello: io_stat ok
+hello: io_write refused ok
+hello: a MIG round trip (io_seek): median 3128, least 3106, most 84942 TSC counts
+hello: killed mid-request ok
+glibcroot: the program ended
+glibcroot: no exit status
+glibcroot: all ok
+joist: root task exited with code 0 (timer ticks so far: 28)
+joist: finish code 0

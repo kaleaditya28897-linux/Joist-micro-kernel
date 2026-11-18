@@ -723,6 +723,13 @@ unsigned long hr_stat_bytes(void);
 long long hr_stat_size(const void *st);
 unsigned int hr_stat_mode(const void *st);
 
+static uint64_t rdtsc_now(void)
+{
+    uint32_t lo, hi;
+    __asm__ volatile("lfence; rdtsc" : "=a"(lo), "=d"(hi) : : "memory");
+    return (uint64_t)hi << 32 | lo;
+}
+
 static char rbuf[4096];
 static uint8_t statbuf[512];
 
@@ -819,6 +826,37 @@ static uint32_t hello_client(void)
     uint64_t wrote = 77;
     check(hr_io_write(file, "x", 1, 0, &wrote) == HURD_EBADF && wrote == 77, "hello: io_write not refused");
     j_puts("hello: io_write refused ok\n");
+
+    /* The plan's measurement, a MIG round trip against the raw IPC one
+     * (ipcbench): io_seek(SEEK_CUR, 0), which changes nothing, 2 000 times
+     * after 200 to warm, each timed with the TSC: joistmig's user stub, the
+     * Call, libports' loop, libtrivfs's demuxer and hello's routine, and
+     * back. The median, the least and the greatest, in TSC counts. */
+    static uint64_t rt[2000];
+    for (unsigned i = 0; i < 2200u; i++) {
+        uint64_t t0 = rdtsc_now();
+        int r = hr_io_seek(file, 0, HURD_SEEK_CUR, &at);
+        uint64_t d = rdtsc_now() - t0;
+        check(r == 0, "hello: io_seek in the measurement");
+        if (i >= 200u) {
+            rt[i - 200u] = d;
+        }
+    }
+    for (unsigned i = 1; i < 2000u; i++) { /* insertion sort: 2 000 values */
+        uint64_t x = rt[i];
+        unsigned k = i;
+        for (; k > 0 && rt[k - 1u] > x; k--) {
+            rt[k] = rt[k - 1u];
+        }
+        rt[k] = x;
+    }
+    j_puts("hello: a MIG round trip (io_seek): median ");
+    j_putu(rt[1000]);
+    j_puts(", least ");
+    j_putu(rt[0]);
+    j_puts(", most ");
+    j_putu(rt[1999]);
+    j_puts(" TSC counts\n");
     return file;
 }
 
