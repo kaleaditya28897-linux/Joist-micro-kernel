@@ -20,7 +20,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
        #  build; N a name: the normal kernel with user/N as the root task)
     n=$1; want=$2; shift 2
     ub="-fsanitize=undefined -fsanitize-trap=undefined"
-    mods=""; uextra=""; ubuild=build; ksizes=""; cpu=""; smp=""; tmo=""; xmake=""
+    mods=""; uextra=""; ubuild=build; ksizes=""; cpu=""; smp=""; tmo=""; xmake=""; mmflags=""
     chk="-DRUN_CHECK_INVARIANTS"
     # Phase 3 step 9: NAME on 2 or 4 CPUs (smp2-NAME, smp4-NAME); with
     # "kvm" before the count, on the real CPU's (kvm-smp4-NAME), where
@@ -36,7 +36,8 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     case $full in chk-*) b=build/selftest-chk-$n ;; *) b=build/selftest-$n ;; esac
     log=$b/serial.log
     [ "$full" = "$n" ] || log=$b/serial-$full.log
-    gmods="mm glibctest glibcargs glibcstdin"; gwin_k="-DRUN_POOL_PAGES=1024u"; gwin_u="-DGT_POOL_PAGES=1024u"
+    gmods="mm glibctest glibcargs glibcstdin"; gwin_k="-DRUN_POOL_PAGES=2048u"; gwin_u="-DGT_POOL_PAGES=2048u -DGT_MM_TABLES=8u"
+    gmm="-DMM_MAX_TASKS=16u -DMM_TASK_PAGES=1024u -DMM_PAGES=2048u"
     big="-DJOIST_MAX_OBJECTS=8192u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=128u -DJOIST_MAX_LEAVES=256u -DJOIST_MAX_REGIONS=128u -DROOT_BUDGET=16384u"
     case $n in
     # Phase 3 step 4: the root task loads pong and ping from boot modules.
@@ -87,22 +88,25 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # built outside with the cross-built glibc: GLIBCTEST names its ELF.
     # Phase 5 step 9: with its arguments and a stdin of 200 KiB (modules 2
     # and 3, user/Makefile's glibcargs and glibcstdin), read at once through
-    # its write window; the window region's first extent is 256 pages, so
-    # the root's frames are 1024 pages and mm's pool one of them (the
-    # program's tree may have half).
-    glibc) kextra="$gwin_k"; root=glibcroot; mods="$gmods"; uextra="$gwin_u"; ubuild=build/glibc
+    # its write window; the window region's first extent is 256 pages, and
+    # Phase 5 step 11: malloc's break a region too, 256 pages by the test's
+    # first malloc check, so the program may have 1024 pages (mm's
+    # MM_TASK_PAGES; its tree half of mm's pool): the root's frames are 2048
+    # pages, mm's pool one of them (MM_PAGES), with 8 more pages for mm's
+    # own tables (its pool's mapping spans 4).
+    glibc) kextra="$gwin_k"; root=glibcroot; mods="$gmods"; uextra="$gwin_u"; ubuild=build/glibc; mmflags="$gmm"
         [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
     # Phase 5 step 8: the same, with the TSC's clock stopping 300 ms after
     # it starts (before the root task runs), as it was seen to under KVM in
     # KVM: glibc's sleeps, locks and threads must still reach their
     # deadlines, by the timer's interrupts (run.c's timer_fired).
     glibc-clockstop) kextra="-DAPIC_CLOCK_STOP_NS=300000000u $gwin_k"; root=glibcroot; mods="$gmods"; uextra="$gwin_u"
-        ubuild=build/glibc
+        ubuild=build/glibc; mmflags="$gmm"
         [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
     # Phase 5 step 10: the Hurd's trans/hello (tools/phase5/hello.sh: HELLO
     # names its ELF, beside it HELLO.helloroot.o), started and attached by
     # glibcroot, which is its first client; the console glibc's tests use.
-    hello) kextra=""; root=glibcroot; mods="mm glibctest"; uextra="-DGT_HELLO"; ubuild=build/hello
+    trivfs) kextra=""; root=glibcroot; mods="mm glibctest"; uextra="-DGT_HELLO"; ubuild=build/trivfs
         [ -n "${HELLO:-}" ] && [ -n "${GLIBCTEST:-}" ] ||
             { echo "selftest $full: SKIPPED (HELLO or GLIBCTEST unset: tools/phase5/hello.sh)"; return; }
         xmake="GLIBCTEST=$HELLO GLIBC_CONSOLE=$GLIBCTEST.console.o GLIBC_HELLO=$HELLO.helloroot.o" ;;
@@ -124,7 +128,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     esac
     # shellcheck disable=SC2086
     make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root MODULES="$mods" UEXTRA="$uextra" \
-        USER_BUILD=$ubuild ${ksizes:+KSIZES="$ksizes"} $xmake $b/joist.iso >/dev/null 2>&1 ||
+        USER_BUILD=$ubuild ${ksizes:+KSIZES="$ksizes"} ${mmflags:+MMFLAGS="$mmflags"} $xmake $b/joist.iso >/dev/null 2>&1 ||
         { echo "selftest $n: BUILD FAILED"; fail=1; return; }
     boot $b/joist.iso $log
     st=$?
@@ -338,7 +342,7 @@ run chk-kvm-smp2-cow3 1 "cow: all ok" "root task exited with code 0"
 # Phase 5 step 9: a read of 200 KiB at once, through the write window, a
 # slice of libc's window region (decision 0032), which vm_deallocate and
 # vm_protect refuse.
-run glibc 1 "glibc: main reached" "glibc: malloc ok" "glibc: nanosleep ok" "glibc: fork refused ok" \
+run glibc 1 "glibc: main reached" "glibc: malloc ok" "glibc: malloc in a region ok" "glibc: nanosleep ok" "glibc: fork refused ok" \
     "glibc: printf through the console" "glibc: a long write ok" "glibc: a long read ok" \
     "glibc: window region held ok" "glibc: stdin at its end ok" \
     "glibc: pthread_join ok" "glibc: mutex ok" "glibc: pid ok" "glibc: robust mutex excludes ok" \
@@ -355,7 +359,7 @@ run kvm-smp2-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: a long read ok" "gl
 # a call waits in it; the root left clean. 1, 2 and 4 CPUs, emulated and
 # under KVM.
 for cpus in "" smp2- smp4- kvm-smp1- kvm-smp2- kvm-smp4-; do
-    run ${cpus}hello 1 "hello: fsys_startup ok" "hello: fsys_getroot ok" "hello: io_read ok" \
+    run ${cpus}trivfs 1 "hello: fsys_startup ok" "hello: fsys_getroot ok" "hello: io_read ok" \
         "hello: io_seek ok" "hello: io_stat ok" "hello: io_write refused ok" \
         "hello: killed mid-request ok" "glibcroot: all ok" "root task exited with code 0"
 done

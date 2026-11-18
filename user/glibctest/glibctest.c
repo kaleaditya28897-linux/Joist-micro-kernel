@@ -180,8 +180,65 @@ static int iobench(void)
     return 0;
 }
 
+/* malloc's main arena in a region (Phase 5 step 11; the owner's choices of
+ * 2026-11-18: brk.c and joist-mig.c's break): 200 000 random mallocs and
+ * frees of 1 B to 4 KiB (below the mmap threshold, so the main arena's), at
+ * most 128 alive, each block filled and checked before it is freed. The
+ * break must have grown past 128 KiB, and every block lain in the break's
+ * region: from its start (on a page-table boundary, 2 MiB, at or below the
+ * break where main began: joist-mig.c's __joist_brk_hold) to the break.
+ * Not from where the break was before the test: the heap below it, freed
+ * by the test before, is used again. */
+static char *brk_at_main;
+
+static int malloc_in_region(void)
+{
+    enum { LIVE = 128 };
+    static unsigned char *blk[LIVE];
+    static size_t len[LIVE];
+    char *b0 = sbrk(0);
+    char *lo = (char *)((uintptr_t)brk_at_main & ~(uintptr_t)0x1fffff);
+    uint64_t r = 0x9e3779b97f4a7c15ull;
+    int ok = b0 != (char *)-1 && b0 != NULL && brk_at_main != (char *)-1 && brk_at_main != NULL;
+    unsigned op_at = 0;
+    for (unsigned op = 0; ok && op < 200000u; op++) {
+        op_at = op;
+        r ^= r << 13;
+        r ^= r >> 7;
+        r ^= r << 17;
+        unsigned i = (unsigned)(r % LIVE);
+        if (blk[i] != NULL) {
+            unsigned char v = (unsigned char)(i * 7u + len[i]);
+            ok &= blk[i][0] == v && blk[i][len[i] / 2] == v && blk[i][len[i] - 1] == v;
+            free(blk[i]);
+            blk[i] = NULL;
+        } else {
+            len[i] = 1 + (size_t)((r >> 20) % 4096u);
+            blk[i] = malloc(len[i]);
+            ok &= blk[i] != NULL;
+            if (blk[i] != NULL) {
+                memset(blk[i], (int)(unsigned char)(i * 7u + len[i]), len[i]);
+                ok &= (char *)blk[i] >= lo && (char *)blk[i] + len[i] <= (char *)sbrk(0);
+            }
+        }
+    }
+    char *b1 = sbrk(0);
+    for (unsigned i = 0; i < LIVE; i++) {
+        free(blk[i]);
+        blk[i] = NULL;
+    }
+    if (!ok || b1 - b0 <= 128 * 1024) {
+        char line[160];
+        (void)snprintf(line, sizeof line, "glibc: the break from %p to %p, its last op %u\n", (void *)b0,
+                       (void *)b1, op_at);
+        say(line);
+    }
+    return ok && b1 - b0 > 128 * 1024;
+}
+
 int main(int argc, char **argv)
 {
+    brk_at_main = sbrk(0);
     if (argc == 2 && strcmp(argv[1], "iobench") == 0) {
         return iobench();
     }
@@ -190,6 +247,8 @@ int main(int argc, char **argv)
     const char *e = getenv("JOIST");
     check(e != NULL && strcmp(e, "phase5") == 0, "environment");
 
+    /* First, on a heap not used yet: its growth is the test's. */
+    int region_ok = malloc_in_region();
     /* malloc: small ones, then large ones (mmap'd: mm's MAP_ANON). */
     int heap_ok = 1;
     for (size_t n = 1; n <= 1u << 19; n <<= 1) {
@@ -211,6 +270,7 @@ int main(int argc, char **argv)
     heap_ok &= big != NULL;
     free(big != NULL ? big : z);
     check(heap_ok, "malloc");
+    check(region_ok, "malloc in a region");
 
     char buf[64];
     (void)snprintf(buf, sizeof buf, "%d %s %#x %.3f", 42, "joist", 255, 2.5);

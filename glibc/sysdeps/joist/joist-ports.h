@@ -173,6 +173,17 @@ rtld_hidden_proto (__joist_mig_window_allocate)
 rtld_hidden_proto (__joist_mig_window_free)
 rtld_hidden_proto (__joist_mig_reply_read)
 rtld_hidden_proto (__joist_mig_reply_write)
+/* The main arena's break in a region (joist-mig.c; brk.c; Phase 5 step
+   11, the owner's choices of 2026-11-18).  __joist_brk_hold: its range
+   (8 MiB) held in libc's address table, *LO and *HI its bytes (0, or -1:
+   no region break; malloc then uses mmap alone).  __joist_brk_grow: pages
+   mapped up to END at least, the region made from mm at the first call,
+   grown by doubling extents from 64 KiB; *MAPPED the end of what is mapped (0, or -1:
+   no more).  Under the break's lock.  */
+extern int __joist_brk_hold (uint64_t *lo, uint64_t *hi);
+extern int __joist_brk_grow (uint64_t end, uint64_t *mapped);
+rtld_hidden_proto (__joist_brk_hold)
+rtld_hidden_proto (__joist_brk_grow)
 
 /* Whether TASK is this task.  */
 #define JOIST_PORTS_SELF(task) ((task) == __mach_task_self ())

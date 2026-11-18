@@ -858,4 +858,123 @@ __joist_mig_reply_write (uint64_t off, const void *src, size_t bytes,
 }
 rtld_hidden_def (__joist_mig_reply_write)
 
+/* ---- the main arena's break in a region (Phase 5 step 11) ----
+
+   The owner's choice of 2026-11-18: malloc's main arena (MORECORE: brk and
+   sbrk, brk.c) in one region from mm, as 0030 and 0031 meant (step 7's
+   design item 6); the thread arenas keep mmap (each is a 64 MiB heap
+   aligned to 64 MiB, a region's most). Its range, 4 page tables (8 MiB),
+   is held in libc's address table from start-up (so sbrk (0) has an
+   address, and vm_allocate never places anything there); the region is
+   made from mm at the first growth and grown by doubling extents (64 KiB,
+   64 KiB, 128 KiB, ... 4 MiB: 8 MiB in a region's 8), each mapped by the
+   task. An extent's frames are taken whole, where Mach's brk takes only
+   the pages touched: so the first is small (a first extent of 1 MiB was
+   all of hello's tree in the selftests, and its next fault was refused),
+   and what is taken is at most twice what the break has reached (the
+   owner's choice, 2026-11-18). Pages stay mapped when the break comes back
+   down. Past 8 MiB the break refuses, and malloc goes on with mmap, as it
+   does whenever sbrk fails.  */
+
+#define BRK_FIRST	16u		/* the first extent's pages: 64 KiB */
+#define BRK_PAGES	(BRK_FIRST << 7)	/* 8 extents, 2048 pages: 8 MiB */
+
+_Static_assert (BRK_PAGES % WIN_TABLE == 0,
+		"the break's region: whole page tables");
+
+static uint64_t brk_first;	/* the range's first page: 0 if not held */
+static uint64_t brk_mapped;	/* pages of it mapped */
+static uint32_t brk_slot;	/* the region's name: 0 until made */
+static uint32_t brk_ext;	/* extents grown */
+static int brk_stuck;		/* mm refused, or a map failed: no more */
+
+int
+__joist_brk_hold (uint64_t *lo, uint64_t *hi)
+{
+  if (brk_first == 0)
+    {
+      uint64_t first;
+      struct jv_table *vt = __joist_vm_lock ();
+      int e = __jv_hold (vt, BRK_PAGES, WIN_TABLE, &first);
+      __joist_vm_unlock ();
+      if (e != JV_OK)
+	return -1;
+      brk_first = first;
+    }
+  *lo = brk_first << WIN_PAGE_SHIFT;
+  *hi = (brk_first + BRK_PAGES) << WIN_PAGE_SHIFT;
+  return 0;
+}
+rtld_hidden_def (__joist_brk_hold)
+
+/* The region, made if it isn't yet: 0, or -1.  */
+static int
+brk_region (void)
+{
+  if (brk_slot != 0)
+    return 0;
+  uint32_t slot = 0;
+  struct jn_table *t = __joist_ports_lock ();
+  int ok = __jn_pinned (t, &slot) == JN_OK;
+  __joist_ports_unlock ();
+  ok = ok && win_mm (JOIST_MM_REGION_NEW, brk_first,
+		     (BRK_PAGES / WIN_TABLE) | JOIST_MM_W << 8, slot, NULL) == 0;
+  if (!ok)
+    {
+      if (slot != 0)
+	{
+	  t = __joist_ports_lock ();
+	  __jn_unpin (t, slot);
+	  __joist_ports_unlock ();
+	}
+      brk_stuck = 1;
+      return -1;
+    }
+  brk_slot = slot;
+  return 0;
+}
+
+int
+__joist_brk_grow (uint64_t end, uint64_t *mapped)
+{
+  if (brk_first == 0 || brk_stuck)
+    return -1;
+  uint64_t want = ((end + (1u << WIN_PAGE_SHIFT) - 1) >> WIN_PAGE_SHIFT);
+  if (want < brk_first || want - brk_first > BRK_PAGES)
+    return -1;
+  want -= brk_first;
+  if (want > brk_mapped && brk_region () != 0)
+    return -1;
+  while (brk_mapped < want)
+    {
+      uint64_t n = brk_ext == 0 ? BRK_FIRST : (uint64_t) BRK_FIRST << (brk_ext - 1);
+      if (n > BRK_PAGES - brk_mapped)
+	n = BRK_PAGES - brk_mapped;
+      uint64_t ext = 0;
+      if (n == 0 || win_mm (JOIST_MM_REGION_GROW, brk_slot, n, 0, &ext) != 0)
+	{
+	  brk_stuck = 1;
+	  return -1;
+	}
+      uint64_t va = brk_first + brk_mapped;
+      for (uint64_t at = 0; at < n;)
+	{
+	  uint64_t k = WIN_TABLE - (va + at) % WIN_TABLE;
+	  if (k > n - at)
+	    k = n - at;
+	  if (region_map (brk_slot, ext, at, k, va + at, JOIST_MM_W) != JOIST_OK)
+	    {
+	      brk_stuck = 1;
+	      return -1;
+	    }
+	  at += k;
+	}
+      brk_mapped += n;
+      brk_ext++;
+    }
+  *mapped = (brk_first + brk_mapped) << WIN_PAGE_SHIFT;
+  return 0;
+}
+rtld_hidden_def (__joist_brk_grow)
+
 #endif

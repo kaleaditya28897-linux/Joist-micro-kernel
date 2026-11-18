@@ -983,6 +983,20 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
             if (hn - h0 >= GT_WAIT_NS) {
                 die("hello never sent fsys_startup");
             }
+            /* Ended before it: say how, not wait for the time limit. */
+            struct j_counters hl;
+            must(j_debug_counters(&hl), "debug_counters");
+            if (hl.threads <= base.threads) {
+                j_puts("hello: ended before fsys_startup, ");
+                if (exited) {
+                    j_puts("exit status ");
+                    j_putu(exit_status);
+                    j_puts("\n");
+                } else {
+                    j_puts("no exit status\n");
+                }
+                die("hello ended before fsys_startup");
+            }
             serve_one(10u * J_MS);
         }
         j_puts("hello: fsys_startup ok\n");

@@ -10,6 +10,7 @@ ld {
     # MIG's runtime (joist-mig.c): RPCs from libc.so and libhurduser.
     __joist_mig_call; __joist_mig_allocate; __joist_mig_deallocate;
     __joist_mig_window; __joist_mig_window_allocate; __joist_mig_window_free;
+    __joist_brk_hold; __joist_brk_grow;
     __joist_mig_reply_read; __joist_mig_reply_write;
     __joist_mig_receive; __joist_mig_reply_receive; __joist_mig_reply;
     __joist_nosenders_bind; __joist_nosenders_wait; __joist_nosenders_next;

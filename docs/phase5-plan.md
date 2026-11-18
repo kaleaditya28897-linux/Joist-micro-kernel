@@ -1542,8 +1542,10 @@ The design above, built. **The Hurd's `trans/hello`, its source unchanged,
 runs on Joist:** started by the root, attached (`fsys_startup`), its root
 node taken (`fsys_getroot`), read, sought and stat'ed, a write refused,
 then killed while a call waits in it, the root left clean; on 1, 2 and 4
-CPUs, emulated and under KVM (selftests `hello`, `smp2-hello`,
-`smp4-hello`, `kvm-smp1-hello`, `kvm-smp2-hello`, `kvm-smp4-hello`).
+CPUs, emulated and under KVM (selftests `trivfs`, `smp2-trivfs`,
+`smp4-trivfs`, `kvm-smp1-trivfs`, `kvm-smp2-trivfs`, `kvm-smp4-trivfs`;
+named `hello` at first, which took Phase 1's `hello` selftests' names:
+renamed at the exit run, which caught it).
 
 - **Built** (`tools/phase5/hurd-libs.sh`, `tools/phase5/hello.sh`):
   libtrivfs whole (85 objects: its 81 files and the `fs`, `io`, `fsys`
@@ -1594,3 +1596,39 @@ CPUs, emulated and under KVM (selftests `hello`, `smp2-hello`,
   `hello --contents`; its contents come from one argument, which glibcroot
   holds to a page, so the console, an `io_read` server of the same shape,
   served the large reads.
+
+### Step 11: the exit (2026-11-18, in progress)
+
+- **A MIG round trip measured** (`docs/phase5-data/step11-mig-roundtrip/`):
+  `io_seek` to `hello` through joistmig's stubs, 3 198 TSC counts (median,
+  1 CPU), about 2.9 times the raw round trip.
+- **`malloc` over a region, found not built at the exit** (0031; step 7's
+  design item 6; the *Testing* row's "`malloc` stress in a region"):
+  glibc's `malloc` had run on `mm`'s demand-zero memory throughout. Built
+  now (the owner, 2026-11-18), the main arena only (the owner: each thread
+  arena is a 64 MiB heap aligned to 64 MiB, a region's most). Joist's
+  `brk.c` keeps the Hurd's locks and `__brk`/`_hurd_set_brk`; the memory is
+  `joist-mig.c`'s break region: 8 MiB held in libc's address table from
+  start-up, the region made from `mm` at the first growth, grown by
+  doubling extents from 64 KiB (8 extents, a region's most), mapped by the
+  task; past 8 MiB `sbrk` refuses and `malloc` goes on with `mmap`, as it
+  does whenever `sbrk` fails. glibctest's new check: 200 000 random
+  mallocs and frees (1 B to 4 KiB, at most 128 alive), every block in the
+  region, the break grown past 128 KiB.
+  - **First built with a 1 MiB first extent and a 64 MiB reach, which
+    failed:** an extent's frames are taken whole (Mach's `brk` takes only
+    the pages touched), and 1 MiB was all of `hello`'s tree in the
+    selftests: its next fault was refused and it died before
+    `fsys_startup`; glibctest's window region then had no room for the
+    long read. The owner chose 64 KiB doubling to 8 MiB (at most twice
+    what the break reached is taken). glibcroot now reports a program that
+    ends before `fsys_startup` instead of waiting for the time limit.
+  - glibc's selftests give the program 1 024 pages (`mm`'s
+    `MM_TASK_PAGES`, through a new `mmflags` in `selftest.sh`; the pool
+    2 048 pages), since the break and the window region now share it.
+  - In `libc.so` the break's functions are `ld.so`'s, as the window's
+    (`Versions`).
+- **The exit run caught a selftest name taken twice:** step 10's `hello`
+  runs had Phase 1's `hello` selftests' names, so `run hello`,
+  `smp2-hello` and `smp4-hello` booted the translator and failed. Step 10's
+  are now `trivfs`, `smp2-trivfs`, ... `kvm-smp4-trivfs`.
