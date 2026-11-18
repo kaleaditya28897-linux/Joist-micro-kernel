@@ -116,10 +116,13 @@ $(BUILD)/glibctest.elf: $(GLIBCTEST)
 # because the kernel's ISO takes a module as user/BUILD/NAME.elf: neither
 # is an ELF.
 GLIBC_STDIN_BYTES ?= 204800
+# glibctest's mode: "joist" its checks, "iobench" the io_read measurement
+# (Phase 5 step 10; docs/phase5-data/step10-ioread/).
+GLIBC_MODE ?= joist
 $(BUILD)/glibcargs.elf:
 	@mkdir -p $(@D)
-	printf 'a glibctest\na joist\ne JOIST=phase5\ne JOIST_STDIN=%s\ni %s\n' \
-	    $(GLIBC_STDIN_BYTES) $(GLIBC_STDIN_BYTES) > $@
+	printf 'a glibctest\na %s\ne JOIST=phase5\ne JOIST_STDIN=%s\ni %s\n' \
+	    $(GLIBC_MODE) $(GLIBC_STDIN_BYTES) $(GLIBC_STDIN_BYTES) > $@
 $(BUILD)/glibcstdin.elf:
 	@mkdir -p $(@D)
 	python3 -c 'import sys; n = int(sys.argv[1]); sys.stdout.buffer.write(bytes((i * 2654435761 & 0xffffffff) >> 24 for i in range(n)))' \

@@ -128,8 +128,63 @@ static int window_region_held(void)
     return 0;
 }
 
+/* "glibctest iobench" (Phase 5 step 10, the plan's measurement): io_read
+ * of 2 KiB to 1 MiB from offset 0 of stdin (pread: glibcroot's console
+ * serves it from module 3), 200 times each after 20 to warm, timed with
+ * the TSC around each call; 4 KiB and less in line through the IPC buffer,
+ * more through the write window (decision 0032). The median and the least
+ * and greatest, in TSC counts. Warm: the same bytes each time. */
+static uint64_t tsc(void)
+{
+    uint32_t lo, hi;
+    __asm__ volatile("lfence; rdtsc" : "=a"(lo), "=d"(hi) : : "memory");
+    return (uint64_t)hi << 32 | lo;
+}
+static int by_value(const void *a, const void *b)
+{
+    uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
+    return x < y ? -1 : x > y;
+}
+static int iobench(void)
+{
+    static const size_t sizes[] = {2048, 4096, 16384, 65536, 262144, 1048576};
+    static uint64_t t[200];
+    char *buf = malloc(1u << 20);
+    if (buf == NULL) {
+        say("iobench: no buffer\n");
+        return 1;
+    }
+    for (size_t s = 0; s < sizeof sizes / sizeof sizes[0]; s++) {
+        size_t n = sizes[s];
+        int bad = 0;
+        for (int i = 0; i < 20; i++) {
+            bad |= pread(0, buf, n, 0) != (ssize_t)n;
+        }
+        for (int i = 0; i < 200; i++) {
+            uint64_t t0 = tsc();
+            ssize_t got = pread(0, buf, n, 0);
+            t[i] = tsc() - t0;
+            bad |= got != (ssize_t)n;
+        }
+        qsort(t, 200, sizeof t[0], by_value);
+        char line[160];
+        (void)snprintf(line, sizeof line, "iobench: io_read of %zu bytes: median %llu, least %llu, most %llu%s\n", n,
+                       (unsigned long long)t[100], (unsigned long long)t[0], (unsigned long long)t[199],
+                       bad ? " (SHORT READS)" : "");
+        say(line);
+        if (bad) {
+            return 1;
+        }
+    }
+    say("iobench: done\n");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
+    if (argc == 2 && strcmp(argv[1], "iobench") == 0) {
+        return iobench();
+    }
     say("glibc: main reached\n");
     check(argc == 2 && strcmp(argv[0], "glibctest") == 0 && strcmp(argv[1], "joist") == 0, "argv");
     const char *e = getenv("JOIST");

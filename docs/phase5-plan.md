@@ -1580,8 +1580,17 @@ CPUs, emulated and under KVM (selftests `hello`, `smp2-hello`,
   quarter of the time (every round trip passes; mutations `nulls-unmarked`
   and `nulls-not-restored`, 34 of 34 caught). glibc rebuilt: its selftests
   pass, and libports' test, 21 of 21 (seeds 1-7 on 1, 2 and 4 CPUs).
-- **Still to do in step 10:** the large `io_read` through 0032's windows,
-  measured 4 KiB to 1 MiB (the design's item 4). glibc's window memory
-  (step 9's last hand-off) is merged: with it and this step's null ports,
-  glibc's six selftests (a 200 KiB read through the write window among
-  them), the six `hello` runs and libports' test (21 of 21) all pass.
+- **glibc's window memory** (step 9's last hand-off) is merged: with it and
+  this step's null ports, glibc's six selftests (a 200 KiB read through the
+  write window among them), the six `hello` runs and libports' test (21 of
+  21) all pass.
+- **The measurement** (`docs/phase5-data/step10-ioread/`): glibc's `pread`
+  of 2 KiB to 1 MiB from glibcroot's console, on the P53's own CPU. A read
+  costs about 22 000 TSC counts (1 CPU) plus about 0.16 a byte: 24 832 at
+  16 KiB (through the window), 32 842 at 64 KiB, 188 506 at 1 MiB; 2 CPUs
+  cost more (36 586 to 263 682). The constant is the test's polling server
+  and glibc's path, not the copy; the copies were warm (cold ones are left
+  to the first real file server). The design's item 4 asked this of
+  `hello --contents`; its contents come from one argument, which glibcroot
+  holds to a page, so the console, an `io_read` server of the same shape,
+  served the large reads.

@@ -328,11 +328,13 @@ int io_read(uint32_t io, char **data, uint32_t *n, int64_t offset, uint64_t amou
 
 int io_read(uint32_t io, char **data, uint32_t *n, int64_t offset, uint64_t amount)
 {
-    (void)offset;
     if (io != GT_BADGE_CON) {
         return 1100;
     }
-    uint64_t k = stdin_bytes == 0 || stdin_at >= stdin_len ? 0 : stdin_len - stdin_at;
+    /* At OFFSET, or (-1) at the file pointer, which only then moves: the
+     * Hurd's io_read (pread, Phase 5 step 10's measurement). */
+    uint64_t at = offset >= 0 ? (uint64_t)offset : stdin_at;
+    uint64_t k = stdin_bytes == 0 || at >= stdin_len ? 0 : stdin_len - at;
     k = k < amount ? k : amount;
     if (k > *n) {
         /* Past the room the server stub gives (its in-line buffer): the
@@ -341,13 +343,13 @@ int io_read(uint32_t io, char **data, uint32_t *n, int64_t offset, uint64_t amou
          * past the message), or refuses (MIG_ARRAY_TOO_LARGE) if it
          * offered none. The stub "frees" them after (dealloc):
          * joist_mig_deallocate is nothing here. */
-        *data = (char *)(uintptr_t)(stdin_bytes + stdin_at);
+        *data = (char *)(uintptr_t)(stdin_bytes + at);
     } else {
-        for (uint64_t i = 0; i < k; i++) {
-            (*data)[i] = (char)stdin_bytes[stdin_at + i];
-        }
+        memcpy(*data, stdin_bytes + at, (size_t)k);
     }
-    stdin_at += k;
+    if (offset < 0) {
+        stdin_at += k;
+    }
     *n = (uint32_t)k;
     return 0;
 }

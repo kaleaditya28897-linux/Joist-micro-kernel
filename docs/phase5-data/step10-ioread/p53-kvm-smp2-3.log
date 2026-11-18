@@ -1,0 +1,34 @@
+limine: Loading executable `boot():/boot/joist.elf`...
+limine: Loading module `boot():/boot/hello.elf`...
+limine: Loading module `boot():/boot/mm.elf`...
+limine: Loading module `boot():/boot/glibctest.elf`...
+limine: Loading module `boot():/boot/glibcargs.elf`...
+limine: Loading module `boot():/boot/glibcstdin.elf`...
+
+joist: boot
+joist: gdt, tss, idt loaded
+joist: memory: 249 MiB usable in 6 ranges, 29 map entries
+joist: kernel at 0xffffffff80000000 (physical 0x000000000fcec000), direct map at 0xffff800000000000
+joist: frames: 63990 free of 65239 covered (249 MiB)
+joist: page tables: the kernel's own, loaded (63726 frames free after)
+joist: timer: 20 ticks at 100 Hz, 624961 LAPIC counts per tick
+joist: clock: the TSC, not said to be invariant: deadlines kept by the timer's interrupts
+joist: modules: 5
+joist: cpus: 2 found, bsp lapic id 0
+joist: address spaces: PCID in use
+joist: cpus in use: 2 (one kernel lock, decision 0016)
+joist: root task: 160 MiB of memory, 4 module(s); entering it at 0x0000000000400220
+glibcroot: started, passive ok
+glibcroot: started
+iobench: io_read of 2048 bytes: median 36586, least 32910, most 98162
+iobench: io_read of 4096 bytes: median 37760, least 35330, most 155336
+iobench: io_read of 16384 bytes: median 43824, least 34592, most 114470
+iobench: io_read of 65536 bytes: median 55046, least 45536, most 126676
+iobench: io_read of 262144 bytes: median 98604, least 65504, most 283862
+iobench: io_read of 1048576 bytes: median 263682, least 241626, most 453236
+iobench: done
+glibcroot: the program ended
+glibcroot: exit status 0, code 0
+glibcroot: all ok
+joist: root task exited with code 0 (timer ticks so far: 22)
+joist: finish code 0
