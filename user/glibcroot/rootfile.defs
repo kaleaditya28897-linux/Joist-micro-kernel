@@ -1,0 +1,29 @@
+/* rootfile.defs - the node glibcroot gives the Hurd's trans/hello (Phase
+   5 step 10): fs.defs' file_check_access at its place (`skip' keeps the
+   numbers), which libtrivfs's fsys_getroot asks of the underlying node; the
+   rest answered MIG_BAD_ID. Built with the routine prefix node_. From
+   hurd/fs.defs, Copyright (C) 1991-2026 Free Software Foundation, Inc.,
+   under the GNU General Public License, version 2 or later; this file is
+   GPL-3.0-only, as Joist. */
+
+subsystem fs 20000;
+
+#include <hurd/hurd_types.defs>
+
+INTR_INTERFACE
+
+skip; /* 0 */
+skip; /* 1 */
+skip; /* 2 */
+skip; /* 3 */
+skip; /* 4 */
+skip; /* 5 */
+skip; /* 6 */
+skip; /* 7 */
+skip; /* 8 */
+
+/* 9: which of O_READ, O_WRITE, O_EXEC the caller may have. */
+routine file_check_access (
+	file: file_t;
+	RPT
+	out allowed: int);

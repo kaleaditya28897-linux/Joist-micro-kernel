@@ -50,14 +50,25 @@ INC="-nostdinc -isystem $RES/include -isystem $SR/usr/include -isystem $W/header
 
 # MIG's servers: joistmig, with the Hurd's flags for each (its Makefiles,
 # and Makeconf's SERVERPREFIX for every server).
-mig() { # LIB DEFS PREFIX [IMACROS]
+# (SPREFIX: the Makefile's mig-sheader-prefix, the server header's.)
+mig() { # LIB DEFS PREFIX [IMACROS [SPREFIX]]
     imacros=${4:+-imacros $4}
     # shellcheck disable=SC2086
     clang -E -x c -nostdinc -I"$W/headers/include" -I"$SR/usr/include" -I"$S/$1" $imacros \
         -D__x86_64__ -DSERVERPREFIX=S_ "$2" -o "$OUT/logs/$1-$(basename "$2" .defs).defsi"
     base=$(basename "$2" .defs)
-    (cd "$S/$1" && "$MIGCOM" -prefix "$3" -server "${base}Server.c" -sheader "${base}_S.h" \
+    (cd "$S/$1" && "$MIGCOM" -prefix "$3" -server "${base}Server.c" -sheader "${5:-}${base}_S.h" \
         -user /dev/null -header /dev/null < "$OUT/logs/$1-$base.defsi")
+}
+
+# MIG's user stubs (a library's MIGSTUBS ending in User.o).
+migu() { # LIB DEFS
+    # shellcheck disable=SC2086
+    clang -E -x c -nostdinc -I"$W/headers/include" -I"$SR/usr/include" -I"$S/$1" \
+        -D__x86_64__ "$2" -o "$OUT/logs/$1-$(basename "$2" .defs).udefsi"
+    base=$(basename "$2" .defs)
+    (cd "$S/$1" && "$MIGCOM" -user "${base}User.c" -header "${base}_U.h" \
+        -server /dev/null -sheader /dev/null < "$OUT/logs/$1-$base.udefsi")
 }
 
 build() { # LIB SRC...: OUT/lib/LIB.a from the sources that compile
@@ -82,24 +93,58 @@ build() { # LIB SRC...: OUT/lib/LIB.a from the sources that compile
     echo "$lib: $(echo $objs | wc -w) objects, $bad failed (logs/$lib.log)"
 }
 
-build libihash ihash.c murmur3.c
-cp "$S/libihash/ihash.h" "$OUT/include/hurd/"
-# Of libshouldbeinlibc, so far what libports uses: its assertions.
-build libshouldbeinlibc assert-backtrace.c
-cp "$S/libshouldbeinlibc/assert-backtrace.h" "$OUT/include/"
-
-mig libports "$W/headers/include/mach/notify.defs" ports_ "$S/libports/mig-mutate.h"
-mig libports "$W/headers/include/hurd/interrupt.defs" ports_ "$S/libports/mig-mutate.h"
-# The Makefile's SRCS (to its first line without a continuation), and
-# Joist's own files, those of the overlay not among them.
+# A Makefile variable's words (its definition to its first line without a
+# continuation), with the variables it names, $(X), put in once.
+makevar() ( # LIB VAR (a subshell: its variables are its own when it recurses)
+    v=$(awk -v n="$2" '
+        !on && $0 ~ "^" n "[ \t]*:?=" { on = 1; sub("^" n "[ \t]*:?=", "") }
+        on { line = $0; c = sub(/\\$/, "", line); printf "%s ", line; if (!c) exit }' "$S/$1/Makefile")
+    out=""
+    for w in $v; do
+        case $w in
+        '$('*')') name=${w#\$(}; out="$out $(makevar "$1" "${name%)}")" ;;
+        *) out="$out $w" ;;
+        esac
+    done
+    echo "$out"
+)
+# The Makefile's SRCS, and Joist's own files, those of the overlay not among them.
 srcs() { # LIB
-    s=$(sed -n '/^SRCS = /,/[^\\]$/p' "$S/$1/Makefile" | sed 's/^SRCS = //; s/\\//g')
+    s=$(makevar "$1" SRCS)
     for f in "$repo"/hurd/joist/"$1"/*.c; do
         [ -f "$f" ] || continue
         case " $s " in *" $(basename "$f") "*) ;; *) s="$s $(basename "$f")" ;; esac
     done
     echo "$s"
 }
+
+build libihash ihash.c murmur3.c
+cp "$S/libihash/ihash.h" "$OUT/include/hurd/"
+# libshouldbeinlibc whole (libports needs its assertions; libiohelp,
+# libfshelp and libtrivfs more): a file that doesn't compile is recorded.
+# shellcheck disable=SC2046
+build libshouldbeinlibc $(srcs libshouldbeinlibc)
+cp "$S"/libshouldbeinlibc/*.h "$OUT/include/"
+
+mig libports "$W/headers/include/mach/notify.defs" ports_ "$S/libports/mig-mutate.h"
+mig libports "$W/headers/include/hurd/interrupt.defs" ports_ "$S/libports/mig-mutate.h"
 # shellcheck disable=SC2046
 LIBFLAGS=-DPORTS_JOIST_INTERNAL build libports $(srcs libports) notifyServer.c interruptServer.c
 cp "$S/libports/ports.h" "$S/libports/port-deref-deferred.h" "$OUT/include/hurd/"
+
+# Phase 5 step 10 (the owner's design of 2026-11-16): what trans/hello needs
+# besides, and libtrivfs, its three servers with the trivfs_ prefix on
+# their routines and server headers, and fsys_reply's user stub.
+# shellcheck disable=SC2046
+build libiohelp $(srcs libiohelp)
+cp "$S/libiohelp/iohelp.h" "$OUT/include/hurd/"
+# shellcheck disable=SC2046
+build libfshelp $(srcs libfshelp)
+cp "$S/libfshelp/fshelp.h" "$S/libfshelp/rlock.h" "$OUT/include/hurd/"
+for d in fs io fsys; do
+    mig libtrivfs "$W/headers/include/hurd/$d.defs" trivfs_ "$S/libtrivfs/mig-mutate.h" trivfs_
+done
+migu libtrivfs "$W/headers/include/hurd/fsys_reply.defs"
+# shellcheck disable=SC2046
+build libtrivfs $(srcs libtrivfs) fsServer.c ioServer.c fsysServer.c fsys_replyUser.c
+cp "$S/libtrivfs/trivfs.h" "$OUT/include/hurd/"

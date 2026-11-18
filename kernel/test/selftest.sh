@@ -20,7 +20,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
        #  build; N a name: the normal kernel with user/N as the root task)
     n=$1; want=$2; shift 2
     ub="-fsanitize=undefined -fsanitize-trap=undefined"
-    mods=""; uextra=""; ubuild=build; ksizes=""; cpu=""; smp=""; tmo=""
+    mods=""; uextra=""; ubuild=build; ksizes=""; cpu=""; smp=""; tmo=""; xmake=""
     chk="-DRUN_CHECK_INVARIANTS"
     # Phase 3 step 9: NAME on 2 or 4 CPUs (smp2-NAME, smp4-NAME); with
     # "kvm" before the count, on the real CPU's (kvm-smp4-NAME), where
@@ -92,6 +92,13 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     # deadlines, by the timer's interrupts (run.c's timer_fired).
     glibc-clockstop) kextra="-DAPIC_CLOCK_STOP_NS=300000000u"; root=glibcroot; mods="mm glibctest"; ubuild=build/glibc
         [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
+    # Phase 5 step 10: the Hurd's trans/hello (tools/phase5/hello.sh: HELLO
+    # names its ELF, beside it HELLO.helloroot.o), started and attached by
+    # glibcroot, which is its first client; the console glibc's tests use.
+    hello) kextra=""; root=glibcroot; mods="mm glibctest"; uextra="-DGT_HELLO"; ubuild=build/hello
+        [ -n "${HELLO:-}" ] && [ -n "${GLIBCTEST:-}" ] ||
+            { echo "selftest $full: SKIPPED (HELLO or GLIBCTEST unset: tools/phase5/hello.sh)"; return; }
+        xmake="GLIBCTEST=$HELLO GLIBC_CONSOLE=$GLIBCTEST.console.o GLIBC_HELLO=$HELLO.helloroot.o" ;;
     [0-9]*) kextra="-DJOIST_SELFTEST=$n"; root=hello ;;
     ubsan-[0-9]*) kextra="$ub -DJOIST_SELFTEST=${n#ubsan-}"; root=hello ;;
     ubsan-*) kextra="$ub"; root=${n#ubsan-} ;;
@@ -108,8 +115,9 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     case $cpu in *enable-kvm*)
         [ -w /dev/kvm ] || { echo "selftest $n: SKIPPED (no /dev/kvm here; it needs the real CPU)"; return; } ;;
     esac
+    # shellcheck disable=SC2086
     make -s BUILD=$b KEXTRA="$kextra" ROOT_TASK=$root MODULES="$mods" UEXTRA="$uextra" \
-        USER_BUILD=$ubuild ${ksizes:+KSIZES="$ksizes"} $b/joist.iso >/dev/null 2>&1 ||
+        USER_BUILD=$ubuild ${ksizes:+KSIZES="$ksizes"} $xmake $b/joist.iso >/dev/null 2>&1 ||
         { echo "selftest $n: BUILD FAILED"; fail=1; return; }
     boot $b/joist.iso $log
     st=$?
@@ -330,4 +338,14 @@ run kvm-smp2-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcro
 run kvm-smp4-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
 run kvm-smp1-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
 run kvm-smp2-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
+# Phase 5 step 10: the Hurd's trans/hello, unchanged, on libtrivfs, libports
+# and glibc: started, attached (fsys_startup), its root node taken
+# (fsys_getroot), read, sought, stat'ed, a write refused, then killed while
+# a call waits in it; the root left clean. 1, 2 and 4 CPUs, emulated and
+# under KVM.
+for cpus in "" smp2- smp4- kvm-smp1- kvm-smp2- kvm-smp4-; do
+    run ${cpus}hello 1 "hello: fsys_startup ok" "hello: fsys_getroot ok" "hello: io_read ok" \
+        "hello: io_seek ok" "hello: io_stat ok" "hello: io_write refused ok" \
+        "hello: killed mid-request ok" "glibcroot: all ok" "root task exited with code 0"
+done
 exit $fail

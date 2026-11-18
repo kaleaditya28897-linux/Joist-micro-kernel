@@ -93,7 +93,11 @@ $(eval $(call libprog,mmbench,$(BUILD)/elf.o))
 # built with glibc's headers by ../tools/phase5/glibc-test.sh beside the
 # test program; without it the root answers every message MIG_BAD_ID.
 GLIBC_CONSOLE ?= $(if $(GLIBCTEST),$(wildcard $(GLIBCTEST).console.o))
-$(eval $(call libprog,glibcroot,$(BUILD)/elf.o $(GLIBC_CONSOLE)))
+# With GT_HELLO (Phase 5 step 10), the root's side of trans/hello:
+# rootfs.defs' server and the fsys and io user stubs, built with glibc's
+# headers by ../tools/phase5/hello.sh beside hello's ELF.
+GLIBC_HELLO ?= $(if $(GLIBCTEST),$(wildcard $(GLIBCTEST).helloroot.o))
+$(eval $(call libprog,glibcroot,$(BUILD)/elf.o $(GLIBC_CONSOLE) $(GLIBC_HELLO)))
 
 # glibctest, the first glibc program (Phase 5 step 7): built outside, with
 # the cross-built glibc (../tools/phase5/glibc-test.sh); GLIBCTEST names

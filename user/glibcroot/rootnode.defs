@@ -1,0 +1,51 @@
+/* rootnode.defs - the node glibcroot gives the Hurd's trans/hello as the
+   one it is attached to (Phase 5 step 10; the owner's design of
+   2026-11-16): what libtrivfs asks of its underlying node (fsys_getroot's
+   io_duplicate or io_restrict_auth, io_stat): io.defs' routines at their
+   places (`skip' keeps the others' numbers), the rest answered MIG_BAD_ID.
+   Built with the routine prefix node_ (tools/phase5/hello.sh), beside the
+   console's io server. From hurd/io.defs, Copyright (C) 1991-2026 Free
+   Software Foundation, Inc., under the GNU General Public License, version
+   2 or later; this file is GPL-3.0-only, as Joist. */
+
+subsystem io 21000;
+
+#include <hurd/hurd_types.defs>
+
+INTR_INTERFACE
+
+skip; /* 0 */
+skip; /* 1 */
+skip; /* 2 */
+skip; /* 3 */
+skip; /* 4 */
+skip; /* 5 */
+skip; /* 6 */
+skip; /* 7 */
+skip; /* 8 */
+skip; /* 9 */
+skip; /* 10 */
+skip; /* 11 */
+skip; /* 12 */
+
+/* 13: the node's stat. */
+routine io_stat (
+	stat_object: io_t;
+	RPT
+	out stat_info: io_statbuf_t);
+
+skip; /* 14 */
+
+/* 15: a port to the node for those ids. */
+routine io_restrict_auth (
+	io_object: io_t;
+	RPT
+	out new_object: mach_port_send_t;
+	uids: idarray_t SCP;
+	gids: idarray_t SCP);
+
+/* 16: another port to the node. */
+routine io_duplicate (
+	io_object: io_t;
+	RPT
+	out newport: mach_port_send_t);

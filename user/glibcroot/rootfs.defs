@@ -1,0 +1,25 @@
+/* rootfs.defs - what glibcroot serves as the filesystem that attaches the
+   Hurd's trans/hello (Phase 5 step 10; the owner's design of 2026-11-16):
+   fsys.defs' first routine, fsys_startup, alone, as the GNU Hurd's
+   fsys.defs declares it. A translator sends it on its bootstrap port with
+   its control port; the root keeps that port and answers no underlying
+   node. Every other fsys routine, and any other message, is answered
+   MIG_BAD_ID.
+   From hurd/fsys.defs, Copyright (C) 1991-2026 Free Software Foundation,
+   Inc., under the GNU General Public License, version 2 or later; this
+   file is GPL-3.0-only, as Joist. */
+
+subsystem fsys 22000;
+
+#include <hurd/hurd_types.defs>
+
+INTR_INTERFACE
+
+/* Sent by a translator to the bootstrap port: its control port. The
+   underlying node it is set on comes back in REALNODE (here none). */
+routine fsys_startup (
+	bootstrap: mach_port_t;
+	RPT
+	openflags: int;
+	control_port: mach_port_send_t;
+	out realnode: mach_port_send_t);

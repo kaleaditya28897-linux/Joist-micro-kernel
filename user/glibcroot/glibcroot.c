@@ -33,7 +33,17 @@
  *
  * Then it serves the program until it ends itself (exit: task_terminate,
  * the task's own TASK_DESTROY), prints the exit status it was given, and
- * sees that mm forgot the task and has every page back. */
+ * sees that mm forgot the task and has every page back.
+ *
+ * Built with GT_HELLO (Phase 5 step 10; the owner's design of 2026-11-16),
+ * the program is the Hurd's trans/hello (tools/phase5/hello.sh), and the
+ * root is the filesystem that attaches it and its first client: its
+ * bootstrap port also answers fsys_startup (rootfs.defs: the control port
+ * kept), then the root takes hello's root node with fsys_getroot and calls
+ * it through joistmig's user stubs (io_read, io_seek, io_stat, io_write
+ * refused), the stubs and the server built with glibc's headers into
+ * GLIBC_HELLO. Last, hello is killed while a call of the root's waits in
+ * it: the call fails, and the root's teardown checks finds nothing left. */
 #define TEST_NAME "glibcroot"
 #include "../lib/testroot.h"
 /* mm's pool: at most one of the root's frames; the program's tree may have
@@ -76,6 +86,7 @@ _Static_assert(GT_STACK_PAGES >= 1u && GT_STACK_PAGES <= 768u, "the stack must f
 #define GT_FDS         3u
 #define GT_BADGE_CON   1u
 #define GT_BADGE_BOOT  2u
+#define GT_BADGE_NODE  4u /* GT_HELLO: the node hello is attached to */
 #define GT_BOOT_EXIT   0x4a4f0001u /* joist-ports.h's JOIST_BOOT_EXIT */
 #define GT_BOOT_PID    0x4a4f0002u /* and JOIST_BOOT_PID */
 #define GT_ARGS_VA     (MOD_VA + 2u * 0x200000ull)
@@ -169,12 +180,19 @@ static uint64_t stdin_len; /* bytes of module 3, the program's stdin */
 static uint64_t put_args(uint64_t nmods, uint64_t *s, uint64_t *v)
 {
     if (nmods < 3) {
+#ifdef GT_HELLO
+        v[0] = put_str(s, "hello"); /* no arguments: it takes none to start */
+        v[1] = 0;
+        v[2] = 0;
+        return 1;
+#else
         v[0] = put_str(s, "glibctest");
         v[1] = put_str(s, "joist");
         v[2] = 0;
         v[3] = put_str(s, "JOIST=phase5");
         v[4] = 0;
         return 2;
+#endif
     }
     uint64_t pages = j_frame_pages(ld_mod_first + 2u);
     if (pages == 0 || pages > 1u) {
@@ -345,13 +363,56 @@ static uint64_t next_pid = 2; /* the pids the root gives (1 would be init's) */
 static int exited;
 static uint64_t exit_status;
 
+#ifdef GT_HELLO
+/* Where capabilities coming to the root land (a receive and a call's
+ * reply alike): two slots, a fresh one once one is taken. */
+static uint64_t land[2];
+static void landing(void)
+{
+    for (unsigned i = 0; i < 2u; i++) {
+        if (land[i] == 0) {
+            land[i] = slot_new();
+        }
+    }
+    must(j_recv_slots(land[0], land[1], 2), "recv_slots");
+}
+/* The capabilities a message brought, in its slots: no longer free. */
+static void landed(uint64_t caps)
+{
+    for (unsigned i = 0; i < J_CAPS_COUNT(caps); i++) {
+        uint64_t at = J_CAPS_SLOT(caps, i);
+        for (unsigned k = 0; k < 2u; k++) {
+            if (land[k] == at) {
+                land[k] = 0;
+            }
+        }
+    }
+}
+int fsys_server(struct joist_mig_msg *in, struct joist_mig_msg *out) __attribute__((weak));
+#define HELLO_FSYS_STARTUP 22000u /* fsys.defs' first routine */
+/* The node's servers (rootnode.defs, rootfile.defs: io and fs, prefixed). */
+int node_io_server(struct joist_mig_msg *in, struct joist_mig_msg *out) __attribute__((weak));
+int node_fs_server(struct joist_mig_msg *in, struct joist_mig_msg *out) __attribute__((weak));
+static int node_server(struct joist_mig_msg *in, struct joist_mig_msg *out)
+{
+    return (node_io_server != 0 && node_io_server(in, out)) ||
+           (node_fs_server != 0 && node_fs_server(in, out));
+}
+#endif
+
 /* One message, if one comes within ns: answered. */
 static void serve_one(uint64_t ns)
 {
     struct j_msg m = {0};
+#ifdef GT_HELLO
+    landing();
+#endif
     if (j_recv(root_ep_c, &m, ns) != J_OK) {
         return;
     }
+#ifdef GT_HELLO
+    landed(m.caps);
+#endif
     struct j_msg rep = {0};
     if (m.badge == GT_BADGE_BOOT && (uint32_t)m.r[0] == GT_BOOT_PID) {
         /* The program's pid (no proc server yet): one word of body. */
@@ -360,7 +421,13 @@ static void serve_one(uint64_t ns)
     } else if (m.badge == GT_BADGE_BOOT && (uint32_t)m.r[0] == GT_BOOT_EXIT) {
         exited = 1;
         exit_status = m.r[1];
-    } else if (m.badge == GT_BADGE_CON && io_server != 0) {
+    } else if ((m.badge == GT_BADGE_CON && io_server != 0)
+#ifdef GT_HELLO
+               || (m.badge == GT_BADGE_BOOT && fsys_server != 0 &&
+                   (uint32_t)m.r[0] == HELLO_FSYS_STARTUP)
+               || m.badge == GT_BADGE_NODE
+#endif
+    ) {
         struct joist_mig_msg in = {0};
         struct joist_mig_msg out = {0};
         for (unsigned i = 0; i < 4u; i++) {
@@ -369,24 +436,136 @@ static void serve_one(uint64_t ns)
         in.len = J_WORDS(m.caps);
         in.buf = ipc_buf;
         in.badge = m.badge;
+        in.ncaps = J_CAPS_COUNT(m.caps);
+        for (unsigned i = 0; i < in.ncaps; i++) {
+            in.cap[i] = J_CAPS_SLOT(m.caps, i);
+        }
         out.buf = out_buf;
-        if (!io_server(&in, &out)) {
+        int (*server)(struct joist_mig_msg *, struct joist_mig_msg *) = io_server;
+#ifdef GT_HELLO
+        if (m.badge == GT_BADGE_BOOT) {
+            server = fsys_server;
+        } else if (m.badge == GT_BADGE_NODE) {
+            server = node_server;
+        }
+#endif
+#ifdef GT_HELLO
+        (void)joist_mig_nulls_in(&in); /* null ports back in their places */
+#endif
+        if (!server(&in, &out)) {
             out.r[0] = (uint32_t)JOIST_MIG_BAD_ID;
             out.len = 0;
+            out.ncaps = 0;
         }
+#ifdef GT_HELLO
+        /* The answer's rights (fsys_startup's realnode, null: marked). */
+        joist_mig_nulls_out(&out);
+        uint32_t nout = out.ncaps <= 2u ? out.ncaps : 0;
+        rep.caps = nout;
+        for (uint32_t i = 0; i < nout; i++) {
+            uint64_t mask = out.mask[i] != 0 ? out.mask[i] : J_R_SEND;
+            rep.caps |= (uint64_t)out.cap[i] << (2u + 20u * i) | mask << (18u + 20u * i);
+        }
+#endif
         for (unsigned i = 0; i < 4u; i++) {
             rep.r[i] = out.r[i];
         }
         for (uint32_t i = 0; i < out.len && i < J_MSG_WORDS; i++) {
             ipc_buf[i] = out_buf[i];
         }
-        rep.caps = J_WORDS_SET(out.len);
+        rep.caps |= J_WORDS_SET(out.len);
     } else {
         rep.r[0] = (uint32_t)JOIST_MIG_BAD_ID;
     }
     (void)j_reply(&rep);
 }
 
+#ifdef GT_HELLO
+/* The client thread's own: its IPC buffer, and slots for capabilities its
+ * calls' replies bring, taken from a pool the main thread made (the
+ * loader's slot_new is the main thread's alone). */
+static __attribute__((aligned(J_PAGE))) uint64_t cbuf[J_MSG_WORDS];
+#define CLIENT_SLOTS 32u
+static uint64_t cslot[CLIENT_SLOTS];
+static unsigned cslot_next;
+static uint64_t cland[2];
+static void client_landing(void)
+{
+    for (unsigned i = 0; i < 2u; i++) {
+        if (cland[i] == 0) {
+            if (cslot_next == CLIENT_SLOTS) {
+                die("hello: the client thread ran out of slots");
+            }
+            cland[i] = cslot[cslot_next++];
+        }
+    }
+    must(j_recv_slots(cland[0], cland[1], 2), "recv_slots (client)");
+}
+
+/* A Call on the capability in slot `port`, for the user stubs (from the
+ * client thread): the message's words through its IPC buffer, its
+ * capabilities (rights as the stub asks, deleted after if it moves them),
+ * the reply's landing in fresh slots. The kernel's refusals as Mach's
+ * MACH_SEND_INVALID_DEST (the server gone) or MACH_SEND_INTERRUPTED (any
+ * other), never 0. */
+#define HELLO_CALL_NS (10u * 1000u * J_MS)
+int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
+{
+    struct j_msg c = {0};
+    for (unsigned i = 0; i < 4u; i++) {
+        c.r[i] = m->r[i];
+    }
+    joist_mig_nulls_out(m); /* null ports marked, not sent */
+    for (unsigned i = 0; i < 4u; i++) {
+        c.r[i] = m->r[i];
+    }
+    uint32_t len = m->len <= J_MSG_WORDS ? m->len : 0;
+    for (uint32_t i = 0; i < len; i++) {
+        cbuf[i] = m->buf[i];
+    }
+    uint32_t n = m->ncaps <= 2u ? m->ncaps : 0;
+    c.caps = J_WORDS_SET(len) | n;
+    for (uint32_t i = 0; i < n; i++) {
+        uint64_t mask = m->mask[i] != 0 ? m->mask[i] : J_R_SEND;
+        c.caps |= (uint64_t)m->cap[i] << (2u + 20u * i) | mask << (18u + 20u * i);
+    }
+    client_landing();
+    uint64_t e = j_call(port, &c, HELLO_CALL_NS);
+    if (e != J_OK && e != J_E_PEER && e != J_E_GONE) {
+        j_puts("hello: the kernel refused a call: ");
+        j_putu(e);
+        j_puts("\n");
+    }
+    if (e != J_OK) {
+        return e == J_E_PEER || e == J_E_GONE ? 0x10000003 : 0x10000007;
+    }
+    for (unsigned i = 0; i < J_CAPS_COUNT(c.caps); i++) {
+        for (unsigned k = 0; k < 2u; k++) {
+            if (cland[k] == J_CAPS_SLOT(c.caps, i)) {
+                cland[k] = 0;
+            }
+        }
+    }
+    for (uint32_t i = 0; i < n; i++) {
+        if (m->move[i]) {
+            (void)j_cap_delete(m->cap[i]);
+        }
+    }
+    for (unsigned i = 0; i < 4u; i++) {
+        m->r[i] = c.r[i];
+    }
+    m->len = J_WORDS(c.caps);
+    for (uint32_t i = 0; i < m->len && i < J_MSG_WORDS; i++) {
+        m->buf[i] = cbuf[i];
+    }
+    m->ncaps = J_CAPS_COUNT(c.caps);
+    for (uint32_t i = 0; i < m->ncaps; i++) {
+        m->cap[i] = J_CAPS_SLOT(c.caps, i);
+    }
+    (void)joist_mig_nulls_in(m); /* the reply's null ports back */
+    return 0;
+}
+#else
 /* What the root's console needs of MIG's runtime: nothing calls them. */
 int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
 {
@@ -394,6 +573,7 @@ int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
     (void)m;
     return 1;
 }
+#endif
 void *joist_mig_allocate(size_t bytes)
 {
     (void)bytes;
@@ -438,6 +618,269 @@ void joist_mig_window_free(void *p, size_t bytes)
     (void)bytes;
 }
 
+#ifdef GT_HELLO
+/* ---- the filesystem that attaches hello, and its first client ---- */
+
+/* The Hurd's numbers (hurd/hurd_types.h, fcntl.h, errno.h on the Hurd). */
+#define HURD_O_READ          1u
+#define HURD_SEEK_SET        0
+#define HURD_SEEK_CUR        1
+#define HURD_SEEK_END        2
+#define HURD_EBADF           0x40000009
+#define MACH_COPY_SEND       19u /* MACH_MSG_TYPE_COPY_SEND */
+#define HURD_FS_RETRY_NORMAL 1   /* retry_type: this is the file (retry_name empty) */
+#define HELLO_TEXT           "Hello, world!\n"
+#define HELLO_LEN            14u
+
+/* hello's control port, from its fsys_startup (0: not yet). */
+static uint64_t hello_control;
+/* The node it is attached to: a send right to the root's endpoint, badged
+ * GT_BADGE_NODE, given to it as fsys_startup's realnode and again whenever
+ * it asks for another (io_duplicate, io_restrict_auth). */
+static uint64_t node_cap;
+#define NODE_SIZE 0 /* hello reports its own contents' size */
+
+/* rootfs.defs' routine (joistmig's server, GLIBC_HELLO): the translator's
+ * control port kept, no underlying node answered. */
+int S_fsys_startup(uint32_t bootstrap, int openflags, uint32_t control_port, uint32_t *realnode,
+                   uint32_t *realnodePoly);
+int S_fsys_startup(uint32_t bootstrap, int openflags, uint32_t control_port, uint32_t *realnode,
+                   uint32_t *realnodePoly)
+{
+    (void)bootstrap;
+    (void)openflags;
+    if (hello_control != 0 || control_port == 0) {
+        return 0x40000011; /* EEXIST, or EINVAL: one translator here */
+    }
+    hello_control = control_port;
+    *realnode = (uint32_t)node_cap;
+    *realnodePoly = MACH_COPY_SEND;
+    return 0;
+}
+
+/* The node's routines (rootnode.defs, rootfile.defs): what libtrivfs asks
+ * of the node it is attached to. */
+void hr_stat_fill(void *st, long long size);
+int node_S_io_stat(uint32_t io, void *st);
+int node_S_io_stat(uint32_t io, void *st)
+{
+    (void)io;
+    hr_stat_fill(st, NODE_SIZE);
+    return 0;
+}
+int node_S_io_restrict_auth(uint32_t io, uint32_t *new_object, uint32_t *poly, const uint32_t *uids,
+                            uint32_t nuids, const uint32_t *gids, uint32_t ngids);
+int node_S_io_restrict_auth(uint32_t io, uint32_t *new_object, uint32_t *poly, const uint32_t *uids,
+                            uint32_t nuids, const uint32_t *gids, uint32_t ngids)
+{
+    (void)io;
+    (void)uids;
+    (void)nuids;
+    (void)gids;
+    (void)ngids;
+    *new_object = (uint32_t)node_cap;
+    *poly = MACH_COPY_SEND;
+    return 0;
+}
+int node_S_io_duplicate(uint32_t io, uint32_t *newport, uint32_t *poly);
+int node_S_io_duplicate(uint32_t io, uint32_t *newport, uint32_t *poly)
+{
+    (void)io;
+    *newport = (uint32_t)node_cap;
+    *poly = MACH_COPY_SEND;
+    return 0;
+}
+int node_S_file_check_access(uint32_t file, int *allowed);
+int node_S_file_check_access(uint32_t file, int *allowed)
+{
+    (void)file;
+    *allowed = (int)HURD_O_READ;
+    return 0;
+}
+
+/* The user stubs (joistmig's, prefixed hr_, built with glibc's types:
+ * ports are names, loff_t 64 bits, data_t a char pointer). */
+int hr_fsys_getroot(uint32_t fsys, uint32_t dotdot, uint32_t dotdotPoly, const uint32_t *uids,
+                    uint32_t nuids, const uint32_t *gids, uint32_t ngids, int flags, int *do_retry,
+                    char *retry_name, uint32_t *file);
+int hr_io_read(uint32_t io, char **data, uint32_t *n, int64_t offset, uint64_t amount);
+int hr_io_seek(uint32_t io, int64_t offset, int whence, int64_t *newp);
+int hr_io_write(uint32_t io, const char *data, uint32_t n, int64_t offset, uint64_t *amount);
+int hr_io_stat(uint32_t io, void *st);
+unsigned long hr_stat_bytes(void);
+long long hr_stat_size(const void *st);
+unsigned int hr_stat_mode(const void *st);
+
+static char rbuf[4096];
+static uint8_t statbuf[512];
+
+/* io_read of `amount` at `offset` (-1: the file pointer): the bytes, as a
+ * string's length, or -1 if refused. */
+static int64_t hello_read(uint32_t file, int64_t offset, uint64_t amount, const char **got)
+{
+    char *data = rbuf;
+    uint32_t n = sizeof rbuf;
+    if (hr_io_read(file, &data, &n, offset, amount) != 0) {
+        return -1;
+    }
+    *got = data;
+    return n;
+}
+
+static int same(const char *a, const char *b, uint64_t n)
+{
+    for (uint64_t i = 0; i < n; i++) {
+        if (a[i] != b[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* hello's first thread, for where it is when something fails. */
+static uint64_t hello_thread;
+static void hello_where(void)
+{
+    struct j_thread_regs regs;
+    if (j_thread_read_regs(hello_thread, &regs) == J_OK) {
+        j_puts("hello: its first thread at pc ");
+        j_putu(regs.pc);
+        j_puts(", sp ");
+        j_putu(regs.sp);
+        j_puts("\n");
+    } else {
+        j_puts("hello: its first thread is gone\n");
+    }
+}
+
+/* The client's checks, on hello's root node. */
+static uint32_t hello_client(void)
+{
+    uint32_t uids[1] = {0};
+    uint32_t gids[1] = {0};
+    int retry = -1;
+    static char retry_name[1024];
+    uint32_t file = 0;
+    /* No parent directory (dotdot null): it is the root of nothing else. */
+    int e = hr_fsys_getroot((uint32_t)hello_control, 0, MACH_COPY_SEND, uids, 1, gids, 1,
+                            (int)HURD_O_READ, &retry, retry_name, &file);
+    if (e != 0 || file == 0 || retry != HURD_FS_RETRY_NORMAL || retry_name[0] != 0) {
+        j_puts("hello: fsys_getroot: result ");
+        j_putu((uint64_t)(uint32_t)e);
+        j_puts(", retry ");
+        j_putu((uint64_t)(uint32_t)retry);
+        j_puts(", file ");
+        j_putu(file);
+        j_puts("\n");
+        hello_where();
+    }
+    check(e == 0 && file != 0 && retry == HURD_FS_RETRY_NORMAL && retry_name[0] == 0,
+          "hello: fsys_getroot didn't give its root node");
+    j_puts("hello: fsys_getroot ok\n");
+
+    const char *got = 0;
+    int64_t n = hello_read(file, 0, 100, &got);
+    check(n == HELLO_LEN && same(got, HELLO_TEXT, HELLO_LEN), "hello: io_read of it whole");
+    n = hello_read(file, 7, 5, &got);
+    check(n == 5 && same(got, "world", 5), "hello: io_read at an offset");
+    n = hello_read(file, HELLO_LEN, 10, &got);
+    check(n == 0, "hello: io_read past the end isn't empty");
+    j_puts("hello: io_read ok\n");
+
+    /* The file pointer: io_read at -1 reads from it and moves it. */
+    int64_t at = -1;
+    check(hr_io_seek(file, 0, HURD_SEEK_SET, &at) == 0 && at == 0, "hello: io_seek SEEK_SET");
+    n = hello_read(file, -1, 5, &got);
+    check(n == 5 && same(got, "Hello", 5), "hello: io_read at the pointer");
+    check(hr_io_seek(file, 2, HURD_SEEK_CUR, &at) == 0 && at == 7, "hello: io_seek SEEK_CUR");
+    n = hello_read(file, -1, 100, &got);
+    check(n == 7 && same(got, "world!\n", 7), "hello: io_read the rest");
+    check(hr_io_seek(file, -1, HURD_SEEK_END, &at) == 0 && at == HELLO_LEN - 1u, "hello: io_seek SEEK_END");
+    j_puts("hello: io_seek ok\n");
+
+    check(hr_stat_bytes() <= sizeof statbuf, "hello: struct stat larger than the root's buffer");
+    check(hr_io_stat(file, statbuf) == 0 && hr_stat_size(statbuf) == HELLO_LEN &&
+              (hr_stat_mode(statbuf) & 0170000u) != 0,
+          "hello: io_stat");
+    j_puts("hello: io_stat ok\n");
+
+    uint64_t wrote = 77;
+    check(hr_io_write(file, "x", 1, 0, &wrote) == HURD_EBADF && wrote == 77, "hello: io_write not refused");
+    j_puts("hello: io_write refused ok\n");
+    return file;
+}
+
+/* ---- the client thread, and hello killed while its call waits ---- */
+
+/* Where the client thread is: 0 running its checks, 1 done with them (the
+ * main thread then stops hello's serving thread), 2 told to make its last
+ * call (into hello's queue), 3 that call ended (its result in last_e). */
+static volatile int phase;
+static volatile int64_t last_n;
+static __attribute__((aligned(16))) uint8_t client_stack[65536];
+
+static void client_thread(void)
+{
+    must(j_ipc_buffer(cbuf), "ipc_buffer (client)");
+    uint32_t file = hello_client();
+    phase = 1;
+    while (phase != 2) {
+        sleep_ns(J_MS);
+    }
+    const char *got = 0;
+    last_n = hello_read(file, 0, 100, &got);
+    phase = 3;
+    for (;;) {
+        sleep_ns(1000u * J_MS);
+    }
+}
+
+/* The main thread: hello's messages served while the client checks it;
+ * then its serving thread stopped, the client's last call made into its
+ * queue, and its task destroyed under it: that call must fail. */
+static void hello_run(uint64_t task, uint64_t thread)
+{
+    for (unsigned i = 0; i < CLIENT_SLOTS; i++) {
+        cslot[i] = slot_new();
+    }
+    uint64_t ct = slot_new();
+    uint64_t csc = slot_new();
+    must(j_thread_spawn(J_ROOT_SELF, ct, (uint64_t)(uintptr_t)client_thread,
+                        (uint64_t)(uintptr_t)(client_stack + sizeof client_stack - 8u)),
+         "thread_spawn (client)");
+    must(j_sc_create(csc, GT_PRIO, 10 * J_MS, 10 * J_MS), "sc_create (client)");
+    must(j_sc_bind(csc, ct), "sc_bind (client)");
+    uint64_t t0, now, ncpu;
+    must(j_clock(&t0, &ncpu), "clock");
+    while (phase != 1) {
+        must(j_clock(&now, &ncpu), "clock");
+        if (now - t0 >= GT_WAIT_NS) {
+            hello_where();
+            die("hello: the client's checks didn't end");
+        }
+        serve_one(J_MS);
+    }
+    /* hello's one serving thread stopped: the call waits in its queue. */
+    must(j_thread_suspend(thread), "thread_suspend (hello)");
+    phase = 2;
+    sleep_ns(50u * J_MS);
+    must(j_task_destroy(task), "task_destroy (hello)");
+    must(j_clock(&t0, &ncpu), "clock");
+    while (phase != 3) {
+        must(j_clock(&now, &ncpu), "clock");
+        if (now - t0 >= GT_WAIT_NS) {
+            die("hello: the client's last call never ended");
+        }
+        sleep_ns(J_MS);
+    }
+    check(last_n == -1, "hello: a call to a killed translator didn't fail");
+    j_puts("hello: killed mid-request ok\n");
+    must(j_thread_kill(ct), "thread_kill (client)");
+    must(j_cap_delete(ct), "cap_delete (client)");
+    must(j_cap_delete(csc), "cap_delete (client's context)");
+}
+#endif
+
 void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t nmods,
             uint64_t first_free)
 {
@@ -478,6 +921,25 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     must(j_cap_give(k.task, k.thread, 2, J_R_ALL), "cap_give (its thread's)");
     j_puts("glibcroot: started\n");
     worker_run(&k, GT_PRIO, 10 * J_MS, 10 * J_MS);
+#ifdef GT_HELLO
+    {
+        node_cap = slot_new();
+        must(j_cap_mint(root_ep_c, node_cap, J_R_SEND | J_R_GRANT, GT_BADGE_NODE), "cap_mint (node)");
+        /* Its fsys_startup first, served as any other message. */
+        uint64_t h0, hn, hc;
+        must(j_clock(&h0, &hc), "clock");
+        while (hello_control == 0) {
+            must(j_clock(&hn, &hc), "clock");
+            if (hn - h0 >= GT_WAIT_NS) {
+                die("hello never sent fsys_startup");
+            }
+            serve_one(10u * J_MS);
+        }
+        j_puts("hello: fsys_startup ok\n");
+        hello_thread = k.thread;
+        hello_run(k.task, k.thread);
+    }
+#endif
 
     /* It ends itself (exit: its task destroyed, its threads with it), or
      * its last thread dies (a fault mm refused). Not its first thread's

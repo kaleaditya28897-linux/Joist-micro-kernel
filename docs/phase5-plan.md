@@ -1495,3 +1495,51 @@ translators (`start-translator-long.c`), which `hello` doesn't reach.
    translator-starting code is built but not run.
 
 Accepted by the owner as written, 2026-11-16.
+
+### Step 10: libtrivfs and `hello` on Joist, built and running (2026-11-18)
+
+The design above, built. **The Hurd's `trans/hello`, its source unchanged,
+runs on Joist:** started by the root, attached (`fsys_startup`), its root
+node taken (`fsys_getroot`), read, sought and stat'ed, a write refused,
+then killed while a call waits in it, the root left clean; on 1, 2 and 4
+CPUs, emulated and under KVM (selftests `hello`, `smp2-hello`,
+`smp4-hello`, `kvm-smp1-hello`, `kvm-smp2-hello`, `kvm-smp4-hello`).
+
+- **Built** (`tools/phase5/hurd-libs.sh`, `tools/phase5/hello.sh`):
+  libtrivfs whole (85 objects: its 81 files and the `fs`, `io`, `fsys`
+  servers and `fsys_reply`'s user stub), libiohelp, libfshelp and
+  libshouldbeinlibc as far as they compile, `hello` linked static (about
+  1 MB). Joist's overlay for libtrivfs, three files: `demuxer.c` (Joist
+  messages, the `_routine` lookups), `trivfs.h` (the demuxer's type) and
+  `startup.c` (its nested SIGTERM handler at file scope). **Not compiled,
+  recorded:** libshouldbeinlibc's `exec-reauth.c`, `idvec-verify.c`,
+  `idvec-rep.c`, `ugids-rep.c`, `ugids-posix.c` and libfshelp's
+  `start-translator-long.c`, `fetch-root.c`, `rlock-tweak.c` (GCC's nested
+  functions), libshouldbeinlibc's `portinfo.c` (the default pager's stub
+  header); `hello` reaches none of them (it links with nothing missing).
+- **The root as the filesystem** (glibcroot built with `GT_HELLO`): its
+  bootstrap port answers `fsys_startup` (`user/glibcroot/rootfs.defs`),
+  and it serves the node `hello` is attached to, which libtrivfs needs
+  (`fsys_getroot` asks it for `io_duplicate` or `io_restrict_auth`, then
+  `file_check_access`; `io_stat` starts from its stat):
+  `rootnode.defs` and `rootfile.defs`, those four routines at their places
+  (`skip` keeps MIG's numbers). The design had said "no underlying node"; a
+  null one makes libtrivfs's `fsys_getroot` fail. The client is a second
+  thread of the root's, with its own IPC buffer and slots, while the main
+  thread serves: `hello`, serving the client, calls the root's node, so a
+  single thread deadlocks. Through joistmig's user stubs (prefixed `hr_`)
+  on a real `joist_mig_call` in the root.
+- **Found and fixed: null ports.** joistmig's messages couldn't carry a
+  null port (`MACH_PORT_NULL`): the kernel has no empty capability
+  position, and the Hurd's protocols pass them (`fsys_getroot`'s `dotdot`,
+  `fsys_startup`'s `realnode`). The runtimes now send only the non-null
+  rights and mark each null position in the message's first register (its
+  top two bits, past the body's length); the receiving runtime puts them
+  back. Generated code is unchanged. In glibc's runtime, the raw one, the
+  root and the mig-test's simulated kernel; the mig-test's ports are null a
+  quarter of the time (every round trip passes; mutations `nulls-unmarked`
+  and `nulls-not-restored`, 34 of 34 caught). glibc rebuilt: its selftests
+  pass, and libports' test, 21 of 21 (seeds 1-7 on 1, 2 and 4 CPUs).
+- **Still to do in step 10:** the large `io_read` through 0032's windows,
+  measured 4 KiB to 1 MiB (the design's item 4), with glibc's window memory
+  (step 9's last hand-off, to be merged).
