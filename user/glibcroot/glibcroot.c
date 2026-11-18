@@ -29,7 +29,8 @@
  * as text, a line a thing (put_args); without it, "glibctest joist" and
  * JOIST=phase5. Module 3, if there is one, is its stdin, which io_read
  * gives out from the start to its end (module 2 says how long it is),
- * then end of file, on any of the three descriptors.
+ * then end of file, on any of the three descriptors: as much as a read
+ * asks for, past the message through the caller's write window (0032).
  *
  * Then it serves the program until it ends itself (exit: task_terminate,
  * the task's own TASK_DESTROY), prints the exit status it was given, and
@@ -333,9 +334,18 @@ int io_read(uint32_t io, char **data, uint32_t *n, int64_t offset, uint64_t amou
     }
     uint64_t k = stdin_bytes == 0 || stdin_at >= stdin_len ? 0 : stdin_len - stdin_at;
     k = k < amount ? k : amount;
-    k = k < *n ? k : *n; /* the reply's in-line room, which the server gives */
-    for (uint64_t i = 0; i < k; i++) {
-        (*data)[i] = (char)stdin_bytes[stdin_at + i];
+    if (k > *n) {
+        /* Past the room the server stub gives (its in-line buffer): the
+         * module's own bytes, which the stub copies into the slice of the
+         * caller's write window offered for them (decision 0032: a read
+         * past the message), or refuses (MIG_ARRAY_TOO_LARGE) if it
+         * offered none. The stub "frees" them after (dealloc):
+         * joist_mig_deallocate is nothing here. */
+        *data = (char *)(uintptr_t)(stdin_bytes + stdin_at);
+    } else {
+        for (uint64_t i = 0; i < k; i++) {
+            (*data)[i] = (char)stdin_bytes[stdin_at + i];
+        }
     }
     stdin_at += k;
     *n = (uint32_t)k;

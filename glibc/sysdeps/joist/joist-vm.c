@@ -79,6 +79,18 @@ split_at (struct jv_table *t, uint64_t page)
   t->r[i + 1].pages = end - page;
 }
 
+/* Whether [PAGE, PAGE + PAGES), in the user half, meets a held
+   reservation.  */
+static int
+meets_held (const struct jv_table *t, uint64_t page, uint64_t pages)
+{
+  for (uint32_t i = first_after (t, page);
+       i < t->n && t->r[i].page < page + pages; i++)
+    if (t->r[i].held)
+      return 1;
+  return 0;
+}
+
 void
 __jv_init (struct jv_table *t)
 {
@@ -142,6 +154,7 @@ __jv_reserve (struct jv_table *t, uint64_t page, uint64_t pages,
   t->r[i].page = page;
   t->r[i].pages = pages;
   t->r[i].prot = prot;
+  t->r[i].held = 0;
 }
 
 int
@@ -149,7 +162,7 @@ __jv_can_release (const struct jv_table *t, uint64_t page, uint64_t pages)
 {
   if (pages == 0)
     return JV_OK;
-  if (!in_user (page, pages))
+  if (!in_user (page, pages) || meets_held (t, page, pages))
     return JV_INVALID_ADDRESS;
   uint32_t i = inside (t, page);
   if (i < t->n && end_of (&t->r[i]) > page + pages && t->n == JV_MAX)
@@ -198,7 +211,7 @@ __jv_can_protect (const struct jv_table *t, uint64_t page, uint64_t pages)
 {
   if (pages == 0)
     return JV_OK;
-  if (!in_user (page, pages))
+  if (!in_user (page, pages) || meets_held (t, page, pages))
     return JV_INVALID_ADDRESS;
   uint64_t at = page, end = page + pages;
   for (uint32_t i = first_after (t, page); at < end; i++)
@@ -225,6 +238,34 @@ __jv_protect (struct jv_table *t, uint64_t page, uint64_t pages,
   for (uint32_t i = first_after (t, page); i < t->n && t->r[i].page < end;
        i++)
     t->r[i].prot = prot;
+}
+
+int
+__jv_hold (struct jv_table *t, uint64_t pages, uint64_t align,
+	   uint64_t *page)
+{
+  uint64_t at;
+  int e = __jv_find (t, pages, align, &at);
+  if (e == JV_OK)
+    e = __jv_can_reserve (t, at, pages);
+  if (e != JV_OK)
+    return e;
+  __jv_reserve (t, at, pages, JV_PROT_READ | JV_PROT_WRITE);
+  t->r[first_after (t, at)].held = 1;
+  *page = at;
+  return JV_OK;
+}
+
+int
+__jv_unhold (struct jv_table *t, uint64_t page)
+{
+  uint32_t i = first_after (t, page);
+  if (i == t->n || t->r[i].page != page || !t->r[i].held)
+    return JV_INVALID_ADDRESS;
+  for (uint32_t k = i + 1; k < t->n; k++)	/* by hand: open_at says why */
+    t->r[k - 1] = t->r[k];
+  t->n--;
+  return JV_OK;
 }
 
 int

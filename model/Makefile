@@ -43,9 +43,10 @@ CPPFLAGS := -I../kernel/include -I$(CORE) -I$(MM) -I../glibc/sysdeps/joist $(CNO
 OPT      ?= -O1 -g -fno-omit-frame-pointer
 
 # glibc's port names on Joist (Phase 5 step 7) are tested against the model
-# too, at the model's table size.
+# too, at the model's table size; and the pages of its write-window region
+# (Phase 5 step 9), against a page-by-page reference (test/test_winmem.c).
 JNAMES   := ../glibc/sysdeps/joist
-SRC      := $(wildcard $(CORE)/*.c) $(MM)/mmlib.c $(JNAMES)/joist-names.c
+SRC      := $(wildcard $(CORE)/*.c) $(MM)/mmlib.c $(JNAMES)/joist-names.c $(JNAMES)/joist-winmem.c
 TESTS    := $(wildcard test/test_*.c)
 RUNNER   := test/harness.c
 EXEC     := test/exec.c
@@ -63,8 +64,9 @@ SAN_ubsan := -fsanitize=undefined -fsanitize-trap=undefined
 SAN_msan  := -fsanitize=memory -fsanitize-memory-track-origins
 SAN_tsan  := -fsanitize=thread
 # Tiny capacities, so every table-exhaustion path (objects, threads, no-senders
-# accounts, dead-name registrations) is hit constantly; with ASan and UBSan.
-SAN_small := -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u \
+# accounts, dead-name registrations; the write-window region's runs and pages)
+# is hit constantly; with ASan and UBSan.
+SAN_small := -DJW_FIRST=4u -DJW_RUNS=5u -DJOIST_MAX_OBJECTS=32u -DJOIST_MAX_THREADS=8u -DJOIST_MAX_BADGE_ACCTS=4u \
              -DJOIST_MAX_DEADNAMES=4u -UJOIST_MAX_LEAVES -DJOIST_MAX_LEAVES=2u -fsanitize=address,undefined -fsanitize-trap=undefined
 
 .PHONY: all test check sanity mutate fuzz fuzz-sanity tla tla-mutate cbmc format clean $(SANITIZERS)

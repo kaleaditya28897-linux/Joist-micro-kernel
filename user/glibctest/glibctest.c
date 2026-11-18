@@ -8,7 +8,8 @@
  * clock_gettime, nanosleep, sysconf's CPU count, thread-local variables,
  * fork's refusal, and pthreads (htl over Joist threads): four threads
  * contending on one mutex and meeting at a condition variable, each
- * writing to stdout; stdout, the root's console. Its checks report
+ * writing to stdout; stdout, the root's console; given a stdin, one read
+ * of 200 KiB through the write window (decision 0032). Its checks report
  * through the kernel's debug write, which needs nothing of glibc: each
  * prints "glibc: <what> ok", and the last "glibc: all ok". Then it returns from main, so exit gives the root
  * its status and ends the task.
@@ -94,6 +95,39 @@ static void *worker(void *arg)
     return (void *)(intptr_t)(me * 3);
 }
 
+/* Byte i of the stdin the selftest gives (kernel/test/selftest.sh's
+ * glibcstdin): the top byte of i times Knuth's multiplicative constant. */
+static unsigned char stdin_byte(uint32_t i)
+{
+    return (unsigned char)((uint32_t)(i * 2654435761u) >> 24);
+}
+
+/* libc's window region (glibc/sysdeps/joist/joist-mig.c): a reservation
+ * of 64 MiB, read and write, that vm_region shows and that vm_deallocate
+ * and vm_protect refuse, wholly or in part. */
+static int window_region_held(void)
+{
+    vm_address_t a = 0;
+    vm_size_t size = 0;
+    for (int i = 0; i < 1024; i++, a += size) {
+        vm_prot_t prot, maxp;
+        vm_inherit_t inh;
+        boolean_t shared;
+        mach_port_t obj = MACH_PORT_NULL;
+        vm_offset_t off;
+        if (vm_region(mach_task_self(), &a, &size, &prot, &maxp, &inh, &shared, &obj, &off) !=
+            KERN_SUCCESS) {
+            return 0;
+        }
+        if (size == 64u << 20 && prot == (VM_PROT_READ | VM_PROT_WRITE)) {
+            return vm_deallocate(mach_task_self(), a, size) != KERN_SUCCESS &&
+                   vm_deallocate(mach_task_self(), a + size - 4096, 8192) != KERN_SUCCESS &&
+                   vm_protect(mach_task_self(), a, 4096, 0, VM_PROT_READ) != KERN_SUCCESS;
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     say("glibc: main reached\n");
@@ -166,7 +200,29 @@ int main(int argc, char **argv)
     line6k[sizeof line6k - 1] = '\n';
     check(write(1, line6k, sizeof line6k) == 4096, "a short write");
     check(fwrite(line6k, 1, sizeof line6k, stdout) == sizeof line6k && fflush(stdout) == 0, "a long write");
-    /* stdin is the console too: with no input given, at its end at once. */
+    /* stdin is the console too: what its starter was given as its stdin,
+     * JOIST_STDIN bytes (the selftest's: 200 KiB, each byte a hash of its
+     * place), else nothing. Read by one read, far past the message:
+     * io_read's data comes back through the write window (decision 0032),
+     * a slice of libc's window region, which vm_deallocate and vm_protect
+     * must then refuse. Then at its end. */
+    const char *sl = getenv("JOIST_STDIN");
+    long want = sl != NULL ? atol(sl) : 0;
+    if (want > 0) {
+        static unsigned char in_big[256 * 1024];
+        ssize_t got = read(0, in_big, sizeof in_big);
+        int ok = got == want;
+        for (long i = 0; ok && i < want; i++) {
+            ok = in_big[i] == stdin_byte((uint32_t)i);
+        }
+        if (!ok) {
+            char line[80];
+            (void)snprintf(line, sizeof line, "glibc: the long read gave %ld of %ld\n", (long)got, want);
+            say(line);
+        }
+        check(ok, "a long read");
+        check(window_region_held(), "window region held");
+    }
     char in_c;
     check(read(0, &in_c, 1) == 0 && getchar() == EOF, "stdin at its end");
     say("\n");

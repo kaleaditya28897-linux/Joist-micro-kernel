@@ -392,3 +392,19 @@ win-past-window @@ ../kernel/core/ipc.c @@ if (len > JOIST_COPY_MAX || off > c->
 win-past-max @@ ../kernel/core/ipc.c @@ if (len > JOIST_COPY_MAX || off @@ if (off
 win-page-cross @@ ../kernel/core/ipc.c @@ if (n > JOIST_PAGE_SIZE - d % JOIST_PAGE_SIZE) { @@ if (0) {
 win-wrong-kind @@ ../kernel/core/ipc.c @@ joist_err e = window_of(k, t, slot, JOIST_WIN_WRITE, off, len, &c, &va); @@ joist_err e = window_of(k, t, slot, JOIST_WIN_READ, off, len, &c, &va);
+# The pages of glibc's write-window region (../glibc/sysdeps/joist/joist-winmem.c; Phase 5 step 9)
+winmem fit not first   @@ ../glibc/sysdeps/joist/joist-winmem.c @@   while (i < t->n && t->r[i].pages < pages) @@   while (i < t->n && (t->r[i].pages < pages || (i + 1u < t->n && t->r[t->n - 1u].pages >= pages)))
+winmem take overlaps   @@ ../glibc/sysdeps/joist/joist-winmem.c @@       t->r[i].page += pages; @@       (void) 0;
+winmem take run kept   @@ ../glibc/sysdeps/joist/joist-winmem.c @@   if (t->r[i].pages == pages) @@   if (0)
+winmem no merge after  @@ ../glibc/sysdeps/joist/joist-winmem.c @@   int after = i < t->n && t->r[i].page == end; @@   int after = 0;
+winmem no merge before @@ ../glibc/sysdeps/joist/joist-winmem.c @@   int before = i > 0 && end_of (&t->r[i - 1u]) == page; @@   int before = 0;
+winmem give twice      @@ ../glibc/sysdeps/joist/joist-winmem.c @@   if (i < t->n && t->r[i].page < end) @@   if (0)
+winmem give past end   @@ ../glibc/sysdeps/joist/joist-winmem.c @@ || pages > t->mapped - page) @@ || 0)
+winmem give full       @@ ../glibc/sysdeps/joist/joist-winmem.c @@       if (t->n == JW_RUNS) @@       if (0)
+winmem slices kept     @@ ../glibc/sysdeps/joist/joist-winmem.c @@   t->slices--; @@   (void) 0;
+winmem slices unbound  @@ ../glibc/sysdeps/joist/joist-winmem.c @@   if (t->slices >= JW_RUNS - 1u) @@   if (0)
+winmem tail ignored    @@ ../glibc/sysdeps/joist/joist-winmem.c @@     room = t->r[t->n - 1u].pages; @@     room = 0;
+winmem grow any size   @@ ../glibc/sysdeps/joist/joist-winmem.c @@   if (pages == 0 || pages != __jw_extent_pages (t)) @@   if (pages == 0)
+winmem grow tail lost  @@ ../glibc/sysdeps/joist/joist-winmem.c @@ t->r[t->n - 1u].pages += pages; @@ t->r[t->n - 1u].pages += 0;
+winmem not doubling    @@ ../glibc/sysdeps/joist/joist-winmem.c @@   return k == 0 ? JW_FIRST : JW_FIRST << (k - 1u); @@   return JW_FIRST << k;
+winmem check touching  @@ ../glibc/sysdeps/joist/joist-winmem.c @@ r->page <= end_of (&t->r[i - 1u])) @@ r->page < end_of (&t->r[i - 1u]))

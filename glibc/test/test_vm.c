@@ -48,12 +48,14 @@ static unsigned failed;
  * reservation starts there. */
 static int prot[NP + 1];
 static unsigned char start[NP + 1];
+static unsigned char held[NP + 1]; /* in a held reservation (__jv_hold) */
 
 static void model_init(void)
 {
     for (unsigned p = 0; p <= NP; p++) {
         prot[p] = -1;
         start[p] = 0;
+        held[p] = 0;
     }
     __jv_init(&T);
 }
@@ -79,13 +81,31 @@ static void m_reserve(uint64_t a, uint64_t n, int pr)
     for (uint64_t p = a; p < a + n; p++) {
         prot[p] = pr;
         start[p] = p == a;
+        held[p] = 0;
     }
+}
+static void m_hold(uint64_t a, uint64_t n)
+{
+    m_reserve(a, n, JV_PROT_READ | JV_PROT_WRITE);
+    for (uint64_t p = a; p < a + n; p++) {
+        held[p] = 1;
+    }
+}
+static int m_meets_held(uint64_t a, uint64_t n)
+{
+    for (uint64_t p = a; p < a + n; p++) {
+        if (held[p]) {
+            return 1;
+        }
+    }
+    return 0;
 }
 static void m_release(uint64_t a, uint64_t n)
 {
     for (uint64_t p = a; p < a + n; p++) {
         prot[p] = -1;
         start[p] = 0;
+        held[p] = 0;
     }
     if (a + n < NP && prot[a + n] >= 0) {
         start[a + n] = 1;
@@ -119,7 +139,8 @@ static int agree(void)
             }
             i++;
         }
-        if (i == 0 || p >= T.r[i - 1].page + T.r[i - 1].pages || T.r[i - 1].prot != (uint32_t)prot[p]) {
+        if (i == 0 || p >= T.r[i - 1].page + T.r[i - 1].pages || T.r[i - 1].prot != (uint32_t)prot[p] ||
+            T.r[i - 1].held != held[p]) {
             return __LINE__;
         }
         if (p + 1 < NP && prot[p + 1] < 0 && p + 1 != T.r[i - 1].page + T.r[i - 1].pages) {
@@ -212,7 +233,7 @@ static int predict_release(uint64_t a, uint64_t n)
     if (n == 0) {
         return JV_OK;
     }
-    if (!valid(a, n)) {
+    if (!valid(a, n) || m_meets_held(a, n)) {
         return JV_INVALID_ADDRESS;
     }
     return entries_after(0, a, n) > JV_MAX ? JV_RESOURCE_SHORTAGE : JV_OK;
@@ -222,7 +243,7 @@ static int predict_protect(uint64_t a, uint64_t n)
     if (n == 0) {
         return JV_OK;
     }
-    if (!valid(a, n)) {
+    if (!valid(a, n) || m_meets_held(a, n)) {
         return JV_INVALID_ADDRESS;
     }
     for (uint64_t p = a; p < a + n; p++) {
@@ -381,6 +402,58 @@ static void directed_calls(void)
 }
 
 /* mm's permissions for a protection, or -1 if refused. */
+/* A held reservation (libc's write-window region): placed as __jv_find
+ * places, then refused to vm_deallocate, vm_protect and a fixed
+ * vm_allocate (mm never asked), shown by vm_region, and given up only by
+ * __jv_unhold at its first page. */
+static void directed_hold(void)
+{
+    uint64_t at = 0, h = 0, a, s;
+    uint32_t pr;
+    model_init();
+    CHECK(__jv_can_reserve(&T, JV_LO, 2) == JV_OK);
+    __jv_reserve(&T, JV_LO, 2, 3);
+    m_reserve(JV_LO, 2, 3);
+    CHECK(__jv_hold(&T, 8, 8, &h) == JV_OK && h == JV_LO + 8);
+    m_hold(h, 8);
+    CHECK(T.n == 2 && T.r[1].held == 1 && T.r[0].held == 0 && agree() == 0);
+    CHECK(__jv_find(&T, 4, 1, &at) == JV_OK && at == JV_LO + 2);
+    CHECK(__jv_can_reserve(&T, h + 2, 2) == JV_NO_SPACE);
+    CHECK(__jv_can_release(&T, h, 1) == JV_INVALID_ADDRESS);
+    CHECK(__jv_can_release(&T, h - 1, 2) == JV_INVALID_ADDRESS);
+    CHECK(__jv_can_release(&T, h + 7, 1) == JV_INVALID_ADDRESS);
+    CHECK(__jv_can_release(&T, 1, NP - 1) == JV_INVALID_ADDRESS);
+    CHECK(__jv_can_release(&T, h + 8, 1) == JV_OK && __jv_can_release(&T, JV_LO, 2) == JV_OK);
+    CHECK(__jv_can_protect(&T, h, 8) == JV_INVALID_ADDRESS);
+    CHECK(__jv_can_protect(&T, JV_LO, 1) == JV_OK);
+    mm.calls = 0;
+    mm.answer = 0;
+    CHECK(__jv_deallocate(&T, PG(h), PG(8)) == JV_INVALID_ADDRESS);
+    CHECK(__jv_deallocate(&T, PG(JV_LO), PG(NP - JV_LO)) == JV_INVALID_ADDRESS);
+    CHECK(__jv_vm_protect(&T, PG(h + 1), 1, JV_PROT_READ) == JV_INVALID_ADDRESS);
+    at = PG(h);
+    CHECK(__jv_allocate(&T, &at, PG(1), 0, 0, JV_PROT_READ) == JV_NO_SPACE);
+    CHECK(mm.calls == 0 && agree() == 0);
+    a = PG(h) + 5;
+    CHECK(__jv_vm_region(&T, &a, &s, &pr) == JV_OK && a == PG(h) && s == PG(8) &&
+          pr == (JV_PROT_READ | JV_PROT_WRITE));
+    /* Given up only at its first page, and only if held. */
+    CHECK(__jv_unhold(&T, h + 1) == JV_INVALID_ADDRESS);
+    CHECK(__jv_unhold(&T, JV_LO) == JV_INVALID_ADDRESS);
+    CHECK(__jv_unhold(&T, h) == JV_OK);
+    m_release(h, 8);
+    CHECK(T.n == 1 && agree() == 0);
+    CHECK(__jv_unhold(&T, h) == JV_INVALID_ADDRESS);
+    /* No room in the window, or in the table. */
+    CHECK(__jv_hold(&T, JV_HI - JV_LO + 1, 1, &h) == JV_NO_SPACE);
+    CHECK(__jv_hold(&T, 4, 3, &h) == JV_INVALID_ARGUMENT);
+    for (unsigned i = 1; i < JV_MAX; i++) {
+        __jv_reserve(&T, 1 + i, 1, 0);
+        m_reserve(1 + i, 1, 0);
+    }
+    CHECK(__jv_hold(&T, 1, 1, &h) == JV_RESOURCE_SHORTAGE && agree() == 0);
+}
+
 static int predict_perms(uint32_t pr)
 {
     if ((pr & 6u) == 6u) {
@@ -392,7 +465,7 @@ static int predict_perms(uint32_t pr)
     return (int)((pr & 2u ? JV_MM_W : 0) | (pr & 4u ? JV_MM_X : 0));
 }
 
-static unsigned calls_counts[4][8];
+static unsigned calls_counts[5][8];
 
 static uint64_t rng;
 static uint64_t rnd(void)
@@ -429,7 +502,7 @@ static uint64_t rpages(void)
     }
 }
 
-static unsigned counts[5][8];
+static unsigned counts[7][8];
 
 static void property(unsigned seeds)
 {
@@ -438,7 +511,7 @@ static void property(unsigned seeds)
         rng = seed * 0x9e3779b97f4a7c15ull;
         for (unsigned step = 0; step < 300; step++) {
             uint64_t a = rpage(), n = rpages(), at = 0, want = 0;
-            int pr = (int)(rnd() % 8u), op = (int)(rnd() % 5u), e, w;
+            int pr = (int)(rnd() % 8u), op = (int)(rnd() % 7u), e, w;
             switch (op) {
             case 0: /* anywhere */
             case 1:
@@ -462,6 +535,31 @@ static void property(unsigned seeds)
                 if (e == JV_OK) {
                     __jv_reserve(&T, a, n, (uint32_t)pr);
                     m_reserve(a, n, pr);
+                }
+                break;
+            case 5: /* held */
+                n = n > 16 ? 1 + n % 16 : n;
+                uint64_t halign = 1ull << (rnd() % 4u);
+                e = __jv_hold(&T, n, halign, &at);
+                w = predict_find(n, halign, &want);
+                if (w == JV_OK) {
+                    w = predict_reserve(want, n);
+                }
+                CHECK(e == w && (e != JV_OK || at == want));
+                if (e == JV_OK) {
+                    m_hold(at, n);
+                }
+                break;
+            case 6: /* a held one given up, at its first page or not */
+                e = __jv_unhold(&T, a);
+                w = a < NP && start[a] && held[a] ? JV_OK : JV_INVALID_ADDRESS;
+                CHECK(e == w);
+                if (e == JV_OK) {
+                    uint64_t q = a + 1;
+                    while (q < NP && held[q] && !start[q]) {
+                        q++;
+                    }
+                    m_release(a, q - a);
                 }
                 break;
             case 3:
@@ -528,7 +626,8 @@ static void property_calls(unsigned seeds)
         for (unsigned step = 0; step < 300; step++) {
             uint64_t addr = raddr(), size = rsize(), mask = 0, at = addr;
             uint32_t vp = (uint32_t)(rnd() % 8u);
-            int op = (int)(rnd() % 4u), e, w = JV_OK;
+            int op = rnd() % 10u == 0 ? 4 : (int)(rnd() % 4u), e, w = JV_OK;
+            uint64_t hp = 0;
             int perms = predict_perms(vp);
             /* The pages of [addr, addr + size), or none if past the end. */
             uint64_t off = addr & (PG(1) - 1), a = addr >> JV_PAGE_SHIFT, n = 0;
@@ -585,6 +684,14 @@ static void property_calls(unsigned seeds)
                     mm_req = w == JV_OK ? JV_MM_MAP_ANON : 0;
                 }
                 break;
+            case 4: /* libc's own: held (mm isn't asked) */
+                n = 1 + rnd() % 8u;
+                e = __jv_hold(&T, n, 1, &hp);
+                w = predict_find(n, 1, &a);
+                if (w == JV_OK) {
+                    w = predict_reserve(a, n);
+                }
+                break;
             case 2:
                 e = __jv_deallocate(&T, addr, size);
                 if (size != 0) {
@@ -610,6 +717,9 @@ static void property_calls(unsigned seeds)
             CHECK(e == w);
             if (e != JV_OK) {
                 CHECK(memcmp(&before, &T, sizeof T) == 0 && at == addr);
+            } else if (op == 4) {
+                CHECK(hp == a);
+                m_hold(a, n);
             } else if (op <= 1) {
                 CHECK(at == PG(a));
                 m_reserve(a, n, (int)vp);
@@ -643,6 +753,7 @@ int main(int argc, char **argv)
     directed();
     property(seeds);
     directed_calls();
+    directed_hold();
     property_calls(seeds);
     static const char *const names[5] = {"anywhere", "anywhere", "fixed", "release", "protect"};
     for (unsigned op = 1; op < 5; op++) {
@@ -659,6 +770,12 @@ int main(int argc, char **argv)
         CHECK(c[0] > 0 && c[6] > 0 && (op == 1 || op == 3 || c[1] > 0));
     }
     CHECK(counts[2][3] > 0 && counts[1][3] > 0);
+    fprintf(stderr, "test-vm: held     OK=%u NO_SPACE=%u RESOURCE_SHORTAGE=%u; given up OK=%u INVALID_ADDRESS=%u\n",
+            counts[5][0], counts[5][3], counts[5][6], counts[6][0], counts[6][1]);
+    CHECK(counts[5][0] > 0 && counts[5][3] > 0 && counts[5][6] > 0 && counts[6][0] > 0 && counts[6][1] > 0);
+    fprintf(stderr, "test-vm: held     (among the calls) OK=%u NO_SPACE=%u RESOURCE_SHORTAGE=%u\n",
+            calls_counts[4][0], calls_counts[4][3], calls_counts[4][6]);
+    CHECK(calls_counts[4][0] > 0);
     static const char *const cnames[4] = {"allocate", "fixed", "dealloc", "vm_prot"};
     for (unsigned op = 0; op < 4; op++) {
         unsigned *c = calls_counts[op];

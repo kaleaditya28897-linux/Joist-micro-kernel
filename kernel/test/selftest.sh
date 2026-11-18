@@ -36,6 +36,7 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     case $full in chk-*) b=build/selftest-chk-$n ;; *) b=build/selftest-$n ;; esac
     log=$b/serial.log
     [ "$full" = "$n" ] || log=$b/serial-$full.log
+    gmods="mm glibctest glibcargs glibcstdin"; gwin_k="-DRUN_POOL_PAGES=1024u"; gwin_u="-DGT_POOL_PAGES=1024u"
     big="-DJOIST_MAX_OBJECTS=8192u -DJOIST_MAX_CSPACES=64u -DJOIST_MAX_THREADS=128u -DJOIST_MAX_LEAVES=256u -DJOIST_MAX_REGIONS=128u -DROOT_BUDGET=16384u"
     case $n in
     # Phase 3 step 4: the root task loads pong and ping from boot modules.
@@ -84,13 +85,19 @@ run() { # N EXPECTED_STATUS "grep pattern"...   (N numeric: a kernel selftest
     cowstress) kextra=""; root=cowstress; mods="mm cowworker"; tmo=600 ;;
     # Phase 5 step 7: the first glibc program (user/glibcroot starts it),
     # built outside with the cross-built glibc: GLIBCTEST names its ELF.
-    glibc) kextra=""; root=glibcroot; mods="mm glibctest"; ubuild=build/glibc
+    # Phase 5 step 9: with its arguments and a stdin of 200 KiB (modules 2
+    # and 3, user/Makefile's glibcargs and glibcstdin), read at once through
+    # its write window; the window region's first extent is 256 pages, so
+    # the root's frames are 1024 pages and mm's pool one of them (the
+    # program's tree may have half).
+    glibc) kextra="$gwin_k"; root=glibcroot; mods="$gmods"; uextra="$gwin_u"; ubuild=build/glibc
         [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
     # Phase 5 step 8: the same, with the TSC's clock stopping 300 ms after
     # it starts (before the root task runs), as it was seen to under KVM in
     # KVM: glibc's sleeps, locks and threads must still reach their
     # deadlines, by the timer's interrupts (run.c's timer_fired).
-    glibc-clockstop) kextra="-DAPIC_CLOCK_STOP_NS=300000000u"; root=glibcroot; mods="mm glibctest"; ubuild=build/glibc
+    glibc-clockstop) kextra="-DAPIC_CLOCK_STOP_NS=300000000u $gwin_k"; root=glibcroot; mods="$gmods"; uextra="$gwin_u"
+        ubuild=build/glibc
         [ -n "${GLIBCTEST:-}" ] || { echo "selftest $full: SKIPPED (GLIBCTEST unset: tools/phase5/glibc-test.sh)"; return; } ;;
     # Phase 5 step 10: the Hurd's trans/hello (tools/phase5/hello.sh: HELLO
     # names its ELF, beside it HELLO.helloroot.o), started and attached by
@@ -328,16 +335,20 @@ run chk-kvm-smp2-cow3 1 "cow: all ok" "root task exited with code 0"
 # mm, stdio, the clock and sleeps, fork refused, TLS, pthreads (htl on
 # Joist's threads and the futex queues), stdout on the root's console, and
 # exit with its status; mm forgets the task. 1, 2 and 4 real CPUs.
+# Phase 5 step 9: a read of 200 KiB at once, through the write window, a
+# slice of libc's window region (decision 0032), which vm_deallocate and
+# vm_protect refuse.
 run glibc 1 "glibc: main reached" "glibc: malloc ok" "glibc: nanosleep ok" "glibc: fork refused ok" \
-    "glibc: printf through the console" "glibc: a long write ok" "glibc: stdin at its end ok" \
+    "glibc: printf through the console" "glibc: a long write ok" "glibc: a long read ok" \
+    "glibc: window region held ok" "glibc: stdin at its end ok" \
     "glibc: pthread_join ok" "glibc: mutex ok" "glibc: pid ok" "glibc: robust mutex excludes ok" \
     "glibc: a thread's write ok" "glibc: all ok" "glibcroot: exit status 0, code 0" \
     "glibcroot: all ok" "root task exited with code 0"
-run kvm-smp1-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
-run kvm-smp2-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
-run kvm-smp4-glibc 1 "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
-run kvm-smp1-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
-run kvm-smp2-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp1-glibc 1 "glibc: a long read ok" "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp2-glibc 1 "glibc: a long read ok" "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp4-glibc 1 "glibc: a long read ok" "glibc: all ok" "glibcroot: exit status 0, code 0" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp1-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: a long read ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
+run kvm-smp2-glibc-clockstop 1 "glibc: nanosleep ok" "glibc: a long read ok" "glibc: all ok" "glibcroot: all ok" "root task exited with code 0"
 # Phase 5 step 10: the Hurd's trans/hello, unchanged, on libtrivfs, libports
 # and glibc: started, attached (fsys_startup), its root node taken
 # (fsys_getroot), read, sought, stat'ed, a write refused, then killed while

@@ -39,6 +39,8 @@ rtld_hidden_proto (__jv_allocate)
 rtld_hidden_proto (__jv_deallocate)
 rtld_hidden_proto (__jv_vm_protect)
 rtld_hidden_proto (__jv_vm_region)
+rtld_hidden_proto (__jv_hold)
+rtld_hidden_proto (__jv_unhold)
 
 /* The body of a vm_* call on TASK: CALL, with T the table.  */
 #define JOIST_VM_CALL(task, call)				\

@@ -24,6 +24,7 @@
    back land in two names kept for them, and become send rights there.
    The table's lock is not held across the Call.  */
 
+#include "joist-mem.h"
 #include "joist-ports.h"
 #include "joist-sys.h"
 #include "joist-thread.h"
@@ -647,24 +648,184 @@ __joist_mig_window (unsigned int kind, const void *va, size_t bytes)
 }
 rtld_hidden_def (__joist_mig_window)
 
-/* A write window must lie in one of the task's regions (0030), and libc
-   has none yet: its memory is mm's demand-zero pages (vm_allocate).  So
-   no write window is offered, and an out array stays in line, as before
-   0032.  (Phase 5 step 9's proposal: a region a thread for its windows,
-   made at its first need from mm, as its IPC buffer is.)  */
+/* The write window's memory (the owner's choice of 2026-11-16): a write
+   window must lie in one of the task's regions (0030, 0032), and libc's
+   vm_allocate memory is mm's demand-zero pages, no region.  So libc keeps
+   one region for every thread's windows, made at the first need: 32 page
+   tables (64 MiB, JW_PAGES) held in its address table (vm_allocate never
+   places anything there; vm_deallocate and vm_protect of it are refused),
+   then asked of mm (MM_REQ_REGION_NEW, writable; its capability, MAP
+   alone, in a pinned name's slot).  It grows by extents of zeroed pages
+   (MM_REQ_REGION_GROW), each mapped writable by the task itself
+   (region_map), doubling (joist-winmem.h), only as far as a call needs;
+   pages stay mapped once grown.  A call's window is a run of whole pages
+   of the mapped part, first fit (joist-winmem.c), given back after the
+   call.  One lock over it all, held across mm's requests: a call that
+   needs the region grown waits for it either way.
+
+   NULL when mm refuses (the region, an extent), when the region is full,
+   or when as many slices are out as there may be: the stub then offers no
+   window (in line, or MIG_ARRAY_TOO_LARGE past the message), as before.
+   A refused request is asked again at the next need; an extent mm grew
+   but the kernel refused to map stops the region's growth for good (its
+   pages are mm's, counted against the task, until the task ends).
+
+   fork: mm gives a fork's child its parent's regions, copied, at the same
+   slots (0030), and the child's libc has its parent's table, address
+   table and names, so this state holds in the child as it is; the slices
+   other threads had out at the fork are never given back there (their
+   threads aren't in the child): at most JW_RUNS - 1 slices' pages.  fork
+   is refused in Phase 5 (_Fork.c); Phase 7's must take this lock across
+   it, as it takes libc's others.  */
+
+#include "joist-winmem.c"
+
+#define JOIST_SYS_REGION_MAP	82
+#define JOIST_MM_REGION_NEW	0x10009u
+#define JOIST_MM_REGION_GROW	0x1000au
+#define JOIST_MM_W		1u	/* mm's MM_W, the kernel's JOIST_MAP_W */
+#define WIN_TABLE		512u	/* pages a page table maps */
+#define WIN_PAGE_SHIFT		12
+
+_Static_assert (JW_PAGES == 32u * WIN_TABLE,
+		"the window region: 32 page tables");
+
+static struct jw_table win;
+static uint64_t win_first;	/* the region's first page: 0 until made */
+static uint32_t win_slot;	/* the name holding its capability */
+static int win_stuck;		/* an extent left unmapped: no more growth */
+__libc_lock_define_initialized (static, win_lock)
+
+/* region_map (82): pages [PAGE, PAGE + N) of extent EXT at virtual page
+   VA, with PERMS (VA's in R8, the permissions in R9).  */
+static uint64_t
+region_map (uint32_t slot, uint64_t ext, uint64_t page, uint64_t n,
+	    uint64_t va, uint64_t perms)
+{
+  register uint64_t r10 __asm__ ("r10") = n;
+  register uint64_t r8 __asm__ ("r8") = va;
+  register uint64_t r9 __asm__ ("r9") = perms;
+  uint64_t rax = JOIST_SYS_REGION_MAP, rdi = slot, rsi = ext, rdx = page;
+  __asm__ volatile ("syscall"
+		    : "+a" (rax), "+D" (rdi), "+S" (rsi), "+d" (rdx),
+		      "+r" (r10), "+r" (r8), "+r" (r9)
+		    :
+		    : "rcx", "r11", "r12", "r13", "r14", "r15", "memory");
+  return rax;
+}
+
+/* A request to mm: its result (mm's, or -1 if the kernel refused the
+   Call); its reply's second word in *R1.  */
+static int
+win_mm (uint64_t req, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t *r1)
+{
+  uint64_t msg[4] = { req, a1, a2, a3 };
+  if (__joist_call (JOIST_MM_SLOT, msg, JOIST_FOREVER) != JOIST_OK)
+    return -1;
+  if (r1 != NULL)
+    *r1 = msg[1];
+  return msg[0] > INT32_MAX ? -1 : (int) msg[0];
+}
+
+/* The region, made if it isn't yet: 0, or -1 (nothing kept).  */
+static int
+win_region (void)
+{
+  if (win_first != 0)
+    return 0;
+  uint64_t first;
+  struct jv_table *vt = __joist_vm_lock ();
+  int e = __jv_hold (vt, JW_PAGES, WIN_TABLE, &first);
+  __joist_vm_unlock ();
+  if (e != JV_OK)
+    return -1;
+  uint32_t slot = 0;
+  struct jn_table *t = __joist_ports_lock ();
+  int ok = __jn_pinned (t, &slot) == JN_OK;
+  __joist_ports_unlock ();
+  ok = ok && win_mm (JOIST_MM_REGION_NEW, first,
+		     (JW_PAGES / WIN_TABLE) | JOIST_MM_W << 8, slot, NULL) == 0;
+  if (!ok)
+    {
+      /* mm puts the capability in the slot only when it made the region:
+	 the name is empty, given back as it is.  */
+      if (slot != 0)
+	{
+	  t = __joist_ports_lock ();
+	  __jn_unpin (t, slot);
+	  __joist_ports_unlock ();
+	}
+      vt = __joist_vm_lock ();
+      (void) __jv_unhold (vt, first);
+      __joist_vm_unlock ();
+      return -1;
+    }
+  __jw_init (&win);
+  win_slot = slot;
+  win_first = first;
+  return 0;
+}
+
+/* The next extent grown by mm and mapped here, writable, a page table at
+   a time (a mapping can't cross one): 0, or -1.  */
+static int
+win_grow (void)
+{
+  uint32_t n = __jw_extent_pages (&win);
+  uint64_t ext = 0;
+  if (n == 0 || win_stuck
+      || win_mm (JOIST_MM_REGION_GROW, win_slot, n, 0, &ext) != 0)
+    return -1;
+  uint64_t va = win_first + win.mapped;
+  for (uint32_t at = 0; at < n;)
+    {
+      uint32_t k = WIN_TABLE - (uint32_t) ((va + at) % WIN_TABLE);
+      if (k > n - at)
+	k = n - at;
+      if (region_map (win_slot, ext, at, k, va + at, JOIST_MM_W) != JOIST_OK)
+	{
+	  win_stuck = 1;
+	  return -1;
+	}
+      at += k;
+    }
+  return __jw_grow (&win, n) == JW_OK ? 0 : -1;
+}
+
 void *
 __joist_mig_window_allocate (size_t bytes)
 {
-  (void) bytes;
-  return NULL;
+  if (bytes == 0 || bytes > (size_t) JW_PAGES << WIN_PAGE_SHIFT)
+    return NULL;
+  uint32_t pages = (uint32_t) ((bytes + (1u << WIN_PAGE_SHIFT) - 1)
+			       >> WIN_PAGE_SHIFT);
+  void *p = NULL;
+  uint32_t grow = 0, g = 0, at;
+  __libc_lock_lock (win_lock);
+  if (win_region () == 0 && __jw_plan (&win, pages, &grow) == JW_OK)
+    {
+      while (g < grow && win_grow () == 0)
+	g++;
+      if (g == grow && __jw_take (&win, pages, &at) == JW_OK)
+	p = (void *) (uintptr_t) ((win_first + at) << WIN_PAGE_SHIFT);
+    }
+  __libc_lock_unlock (win_lock);
+  return p;
 }
 rtld_hidden_def (__joist_mig_window_allocate)
 
 void
 __joist_mig_window_free (void *p, size_t bytes)
 {
-  (void) p;
-  (void) bytes;
+  if (p == NULL || bytes == 0)
+    return;
+  uint64_t page = (uintptr_t) p >> WIN_PAGE_SHIFT;
+  uint32_t pages = (uint32_t) ((bytes + (1u << WIN_PAGE_SHIFT) - 1)
+			       >> WIN_PAGE_SHIFT);
+  __libc_lock_lock (win_lock);
+  if (win_first != 0 && page >= win_first && page - win_first < JW_PAGES)
+    (void) __jw_give (&win, (uint32_t) (page - win_first), pages);
+  __libc_lock_unlock (win_lock);
 }
 rtld_hidden_def (__joist_mig_window_free)
 

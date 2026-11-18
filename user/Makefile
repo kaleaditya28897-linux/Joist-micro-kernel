@@ -108,6 +108,23 @@ $(BUILD)/glibctest.elf: $(GLIBCTEST)
 	@mkdir -p $(@D)
 	cp $< $@
 
+# The glibc selftests' modules 2 and 3 for glibcroot (kernel/test/
+# selftest.sh's glibc runs): the program's arguments and environment, as
+# glibcroot reads them, and its stdin, GLIBC_STDIN_BYTES bytes, byte i the
+# top byte of i times 2654435761 (glibctest's stdin_byte), which glibctest
+# reads at once, through its write window (decision 0032). Named .elf only
+# because the kernel's ISO takes a module as user/BUILD/NAME.elf: neither
+# is an ELF.
+GLIBC_STDIN_BYTES ?= 204800
+$(BUILD)/glibcargs.elf:
+	@mkdir -p $(@D)
+	printf 'a glibctest\na joist\ne JOIST=phase5\ne JOIST_STDIN=%s\ni %s\n' \
+	    $(GLIBC_STDIN_BYTES) $(GLIBC_STDIN_BYTES) > $@
+$(BUILD)/glibcstdin.elf:
+	@mkdir -p $(@D)
+	python3 -c 'import sys; n = int(sys.argv[1]); sys.stdout.buffer.write(bytes((i * 2654435761 & 0xffffffff) >> 24 for i in range(n)))' \
+	    $(GLIBC_STDIN_BYTES) > $@
+
 # The memory manager: its loop and its library, from servers/mm.
 $(BUILD)/mmlib.o: $(MM)/mmlib.c $(MM)/mmlib.h
 	@mkdir -p $(@D)

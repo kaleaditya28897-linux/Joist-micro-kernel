@@ -61,6 +61,7 @@ struct jv_res
 {
   uint64_t page, pages;
   uint32_t prot;
+  uint32_t held;		/* libc's own (__jv_hold): not the caller's */
 };
 
 struct jv_table
@@ -84,7 +85,8 @@ extern void __jv_reserve (struct jv_table *t, uint64_t page, uint64_t pages,
 			  uint32_t prot);
 
 /* Whatever of [PAGE, PAGE + PAGES) is reserved, released (a reservation
-   cut in two if the range is inside it).  */
+   cut in two if the range is inside it).  A range that meets a held
+   reservation is refused (JV_INVALID_ADDRESS), as by __jv_can_protect.  */
 extern int __jv_can_release (const struct jv_table *t, uint64_t page,
 			     uint64_t pages);
 extern void __jv_release (struct jv_table *t, uint64_t page, uint64_t pages);
@@ -94,6 +96,18 @@ extern int __jv_can_protect (const struct jv_table *t, uint64_t page,
 			     uint64_t pages);
 extern void __jv_protect (struct jv_table *t, uint64_t page, uint64_t pages,
 			  uint32_t prot);
+
+/* A reservation libc holds for itself (Phase 5 step 9: its write-window
+   region, joist-mig.c): PAGES, the lowest free run in the window starting
+   on a multiple of ALIGN, as __jv_find, reserved readable and writable
+   and held: vm_allocate never places anything there, and vm_deallocate
+   and vm_protect of any of it are refused.  Its first page in *PAGE.
+   mm isn't asked (the caller makes what it holds).  */
+extern int __jv_hold (struct jv_table *t, uint64_t pages, uint64_t align,
+		      uint64_t *page);
+/* The held reservation starting at PAGE given up (its maker refused):
+   JV_OK, or JV_INVALID_ADDRESS if there is none.  */
+extern int __jv_unhold (struct jv_table *t, uint64_t page);
 
 /* vm_region: the first reservation that ends past PAGE, in *R.  */
 extern int __jv_region (const struct jv_table *t, uint64_t page,

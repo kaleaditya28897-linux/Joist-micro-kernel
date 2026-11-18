@@ -50,6 +50,8 @@ rtld_hidden_def (__jv_allocate)
 rtld_hidden_def (__jv_deallocate)
 rtld_hidden_def (__jv_vm_protect)
 rtld_hidden_def (__jv_vm_region)
+rtld_hidden_def (__jv_hold)
+rtld_hidden_def (__jv_unhold)
 
 /* The table's environment (joist-vm.h): a request to mm, its result; a
    Call the kernel refused is none of mm's results (KERN_FAILURE).  */

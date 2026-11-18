@@ -249,3 +249,49 @@
   e = mm_result (__joist_vm_mm (JV_MM_UNMAP, page, pages, 0));
 -- replace
   e = JV_OK;
+
+# The held reservation (joist-vm.c's __jv_hold: libc's write-window region,
+# Phase 5 step 9; test_vm.c's directed_hold and the held operations)
+== vm-held-released sysdeps/joist/joist-vm.c
+-- find
+  if (!in_user (page, pages) || meets_held (t, page, pages))
+    return JV_INVALID_ADDRESS;
+  uint32_t i = inside (t, page);
+-- replace
+  if (!in_user (page, pages))
+    return JV_INVALID_ADDRESS;
+  uint32_t i = inside (t, page);
+
+== vm-held-protected sysdeps/joist/joist-vm.c
+-- find
+  if (!in_user (page, pages) || meets_held (t, page, pages))
+    return JV_INVALID_ADDRESS;
+  uint64_t at = page, end = page + pages;
+-- replace
+  if (!in_user (page, pages))
+    return JV_INVALID_ADDRESS;
+  uint64_t at = page, end = page + pages;
+
+== vm-held-first-only sysdeps/joist/joist-vm.c
+-- find
+       i < t->n && t->r[i].page < page + pages; i++)
+-- replace
+       i < t->n && t->r[i].page < page; i++)
+
+== vm-held-not-marked sysdeps/joist/joist-vm.c
+-- find
+  t->r[first_after (t, at)].held = 1;
+-- replace
+  (void) at;
+
+== vm-reserve-keeps-held sysdeps/joist/joist-vm.c
+-- find
+  t->r[i].held = 0;
+-- replace
+  (void) i;
+
+== vm-unhold-any sysdeps/joist/joist-vm.c
+-- find
+  if (i == t->n || t->r[i].page != page || !t->r[i].held)
+-- replace
+  if (i == t->n || !t->r[i].held)

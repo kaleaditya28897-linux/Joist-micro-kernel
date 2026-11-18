@@ -1440,6 +1440,46 @@ for a write, outside a live region, returning the bytes copied.
 - **The `dealloc` review** (`docs/phase5-data/step9-dealloc/`): 56
   parameters, as 0032 records.
 
+### Step 9: glibc's window memory (2026-11-16)
+
+The owner's choice of 2026-11-16 (0032's end), built: a write window must lie in one
+of the task's regions, and libc's `vm_allocate` memory is none, so libc keeps **one
+window region a task** and hands out slices of it per call.
+
+- **The region** (`glibc/sysdeps/joist/joist-mig.c`): at the first need, 16 384 pages
+  (32 page tables, 64 MiB, aligned to 512 pages) held in libc's address table
+  (`__jv_hold`, a reservation mm isn't asked for: `vm_allocate` can't place there,
+  `vm_deallocate` and `vm_protect` of any part are refused, `vm_region` shows it), then
+  `MM_REQ_REGION_NEW` (writable; its capability, MAP alone, in a pinned name). It grows
+  by `MM_REQ_REGION_GROW`, each extent mapped writable by the task (`region_map`, a page
+  table at a time): 1, 1, 2, 4, 8, 16, 32 MiB, seven extents, only as far as a call
+  needs; pages stay mapped. Anything refused: no window (the stub as before: in line,
+  or `MIG_ARRAY_TOO_LARGE`); a refused region is undone and asked again at the next need.
+- **Slices** (`joist-winmem.[ch]`, pure functions): whole pages, first fit over a table
+  of at most 32 free runs, merged when given back, under one lock; at most 31 slices out,
+  which keeps the table from overflowing (runs ≤ slices + 1).
+- **Tested on the host:** `model/test/test_winmem.c` (unit tests and a property test
+  against a page-by-page reference: no two slices share a page, runs are the maximal free
+  runs, every result predicted, a refusal changes nothing), under every sanitizer and a
+  tiny table; 15 mutations, all caught. `glibc/test/test_vm.c` with held reservations;
+  6 mutations more, 41 of 41 caught.
+- **fork:** checked by reading (fork is refused in Phase 5): mm copies regions to the
+  child at the same slots, and libc's state is copied with it, so it holds as is. For
+  Phase 7: fork must take the window lock; slices other threads had out are lost in the
+  child (bounded).
+- **On Joist:** glibctest reads a 200 KiB stdin (glibcroot's module 3) with one `read`,
+  through the window (the server's `reply_write` into the slice, the stub's copy into
+  the buffer); every byte right, and the region refused by `vm_deallocate` and
+  `vm_protect`. In `kernel/test/selftest.sh`'s six glibc runs (with a 1024-page pool for
+  the region's first extent): all ok on joist-dev2. libports' test, seeds 1-7 on 1, 2 and
+  4 CPUs: 21 of 21 PASS.
+- **Open:** glibc's `read` makes one `io_read` and returns a short count (`hurd/fd-read.c`),
+  so a regular file read past `JOIST_MIG_WINDOW_MAX` (8 MiB) in one call comes back short
+  where POSIX says it mustn't. No regular-file server exists yet; proposed: a Joist
+  `fd-read.c` that reads on only for regular files, with its test, when the first file
+  server comes. And `fd-write.c` still caps a write at 4096 bytes; now that an in array
+  goes through the read window, the cap could be 8 MiB (the owner's call).
+
 ### Step 10: the design of libtrivfs and `hello` on Joist (2026-11-16, accepted)
 
 The plan's choice 7, made concrete against the Hurd's source (Debian's
@@ -1541,5 +1581,7 @@ CPUs, emulated and under KVM (selftests `hello`, `smp2-hello`,
   and `nulls-not-restored`, 34 of 34 caught). glibc rebuilt: its selftests
   pass, and libports' test, 21 of 21 (seeds 1-7 on 1, 2 and 4 CPUs).
 - **Still to do in step 10:** the large `io_read` through 0032's windows,
-  measured 4 KiB to 1 MiB (the design's item 4), with glibc's window memory
-  (step 9's last hand-off, to be merged).
+  measured 4 KiB to 1 MiB (the design's item 4). glibc's window memory
+  (step 9's last hand-off) is merged: with it and this step's null ports,
+  glibc's six selftests (a 200 KiB read through the write window among
+  them), the six `hello` runs and libports' test (21 of 21) all pass.
