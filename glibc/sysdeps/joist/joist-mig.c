@@ -186,6 +186,7 @@ __joist_mig_call (uint32_t port, struct joist_mig_msg *m)
   uint64_t *buf = ipc_buffer ();
   if (buf == NULL)
     return MACH_SEND_NO_BUFFER;
+  joist_mig_nulls_out (m);	/* null ports: marked, not sent */
 
   struct jn_table *t = __joist_ports_lock ();
   uint32_t type;
@@ -255,6 +256,7 @@ __joist_mig_call (uint32_t port, struct joist_mig_msg *m)
     m->len = 0;
   if (m->len > 0)
     memcpy (m->buf, buf, (size_t) m->len * 8);
+  (void) joist_mig_nulls_in (m);	/* the reply's null ports back in place */
   return KERN_SUCCESS;
 }
 rtld_hidden_def (__joist_mig_call)
@@ -397,6 +399,8 @@ server_ipc (struct joist_mig_msg *out, mach_port_t name,
   uint64_t *buf = ipc_buffer ();
   if (buf == NULL)
     return MACH_SEND_NO_BUFFER;
+  if (out != NULL)
+    joist_mig_nulls_out (out);	/* the answer's null ports: marked, not sent */
 
   struct joist_thread *self = __joist_thread_self ();
   if (out == NULL && self->reply_obj == 0)
@@ -494,6 +498,7 @@ server_ipc (struct joist_mig_msg *out, mach_port_t name,
     in->len = 0;
   if (in->len > 0)
     memcpy (in->buf, buf, (size_t) in->len * 8);
+  (void) joist_mig_nulls_in (in);	/* the request's null ports back in place */
   return 0;
 }
 

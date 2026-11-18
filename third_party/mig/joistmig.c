@@ -1054,8 +1054,14 @@ static void jt_mix_in(FILE *f, const argument_t *a, const char *v, const char *c
         fprintf(f, "\t\tjt_h = jt_mix(jt_h, %s, jt_n * sizeof %s[0]);\n\t}\n", v, v);
         break;
     case W_PORT:
-        fprintf(f, "\t{\n\t\tuint32_t jt_p = (uint32_t)%s%s;\n\t\tjt_h = jt_mix(jt_h, &jt_p, 4);\n\t}\n", v,
-                client ? " + 1000u" : "");
+        /* (the transport renames a port +1000 on the way in; a null port
+         * arrives null) */
+        if (client) {
+            fprintf(f, "\t{\n\t\tuint32_t jt_p = %s != 0 ? (uint32_t)%s + 1000u : 0u;\n", v, v);
+        } else {
+            fprintf(f, "\t{\n\t\tuint32_t jt_p = (uint32_t)%s;\n", v);
+        }
+        fprintf(f, "\t\tjt_h = jt_mix(jt_h, &jt_p, 4);\n\t}\n");
         break;
     default:
         break;
@@ -1131,7 +1137,9 @@ static void jt_make_out(FILE *f, const routine_t *rt, const argument_t *a, const
         break;
     }
     case W_PORT:
-        fprintf(f, "\t*%s = (mach_port_t)(jt_next() %% 500u + 1u);\n", v);
+        /* a quarter of them null (MACH_PORT_NULL: the runtime marks it) */
+        fprintf(f, "\t{\n\t\tuint64_t jt_pr = jt_next();\n");
+        fprintf(f, "\t\t*%s = jt_pr %% 4u == 0 ? 0 : (mach_port_t)(jt_pr %% 500u + 1u);\n\t}\n", v);
         break;
     default:
         break;
@@ -1271,7 +1279,10 @@ static void write_test_client_routine(FILE *f, const routine_t *rt)
             }
             break;
         case W_PORT:
-            fprintf(f, "\tmach_port_t jt_%s = (mach_port_t)(jt_next() %% 500u + 1u);\n", n);
+            /* a quarter of them null (MACH_PORT_NULL: the runtime marks it) */
+            fprintf(f, "\tuint64_t jt_pr_%s = jt_next();\n", n);
+            fprintf(f, "\tmach_port_t jt_%s = jt_pr_%s %% 4u == 0 ? 0 : (mach_port_t)(jt_pr_%s %% 500u + 1u);\n",
+                    n, n, n);
             if (a->argPoly != argNULL && akCheck(a->argPoly->argKind, akbUserArg)) {
                 fprintf(f, "\tmach_msg_type_name_t jt_%sPoly = MACH_MSG_TYPE_COPY_SEND;\n", n);
             }
@@ -1348,7 +1359,7 @@ static void write_test_client_routine(FILE *f, const routine_t *rt)
         case W_PORT:
             fprintf(f, "\t{\n\t\tmach_port_t jt_x_;\n\t");
             jt_make_out(f, rt, a, "&jt_x_", "", "", "jt_");
-            fprintf(f, "\t\tif (jt_%s != jt_x_ + 2000u) {\n", n);
+            fprintf(f, "\t\tif (jt_%s != (jt_x_ != 0 ? jt_x_ + 2000u : 0u)) {\n", n);
             fprintf(f, "\t\t\tjt_fail(\"%s\", 0, \"%s\");\n\t\t\treturn 0;\n\t\t}\n\t}\n", rt->rtName, n);
             break;
         default:

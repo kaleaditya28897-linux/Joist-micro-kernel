@@ -172,6 +172,7 @@ int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
     if (m->len > JOIST_MIG_BUF_WORDS || m->ncaps > JOIST_MIG_CAPS) {
         return 1; /* the kernel's E_RANGE */
     }
+    joist_mig_nulls_out(m); /* the client's runtime: null ports marked, not sent */
     uint64_t inbuf[JOIST_MIG_BUF_WORDS];
     uint64_t outbuf[JOIST_MIG_BUF_WORDS];
     struct joist_mig_msg in = *m;
@@ -206,6 +207,7 @@ int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
     default:
         break;
     }
+    (void)joist_mig_nulls_in(&in); /* the server's runtime: the nulls back */
     waiting = jt_tamper != T_GONE; /* T_GONE: the caller has stopped waiting */
     int reply_tamper = jt_tamper;
     jt_tamper = T_NONE;
@@ -242,6 +244,7 @@ int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
     if (out.len > JOIST_MIG_BUF_WORDS || out.ncaps > JOIST_MIG_CAPS) {
         return 1;
     }
+    joist_mig_nulls_out(&out); /* the server's runtime, answering */
     memcpy(m->r, out.r, sizeof m->r);
     m->len = out.len;
     memcpy(m->buf, outbuf, (size_t)out.len * 8u);
@@ -249,6 +252,7 @@ int joist_mig_call(uint32_t port, struct joist_mig_msg *m)
     for (uint32_t i = 0; i < out.ncaps; i++) {
         m->cap[i] = out.cap[i] + 2000u;
     }
+    (void)joist_mig_nulls_in(m); /* the client's runtime: the reply's nulls back */
     return 0;
 }
 

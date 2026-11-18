@@ -173,6 +173,62 @@ static inline int joist_mig_right(struct joist_mig_msg *m, uint32_t name, int di
     return 0;
 }
 
+/* ---- null ports (Phase 5 step 10) ----
+ *
+ * A port argument may be MACH_PORT_NULL (name 0: fsys_getroot's dotdot,
+ * fsys_startup's realnode), and joist_mig_right keeps its position, but the
+ * kernel carries no empty capability position. So the runtime sends only
+ * the others (joist_mig_nulls_out, before a message goes) and marks each
+ * null position in r[0]'s top two bits, past the body's length; the
+ * receiving runtime puts the nulls back in their places and clears the
+ * bits (joist_mig_nulls_in, as a message arrives, before the stub reads it).
+ * Generated code never sees the bits. Name 0 is never a capability here,
+ * as in Mach. */
+#define JOIST_MIG_NULL_SHIFT 62u
+#define JOIST_MIG_NULL_BITS  (3ull << JOIST_MIG_NULL_SHIFT)
+
+static inline void joist_mig_nulls_out(struct joist_mig_msg *m)
+{
+    uint64_t bits = 0;
+    uint32_t k = 0;
+    for (uint32_t i = 0; i < m->ncaps && i < JOIST_MIG_CAPS; i++) {
+        if (m->cap[i] == 0) {
+            bits |= 1ull << i;
+            continue;
+        }
+        m->cap[k] = m->cap[i];
+        m->mask[k] = m->mask[i];
+        m->move[k] = m->move[i];
+        k++;
+    }
+    m->ncaps = k;
+    m->r[0] = (m->r[0] & ~JOIST_MIG_NULL_BITS) | bits << JOIST_MIG_NULL_SHIFT;
+}
+
+/* 0, or -1 if the marks are impossible (more positions than a message
+ * has): the message is then left with no capabilities, which every stub
+ * that expects one refuses. */
+static inline int joist_mig_nulls_in(struct joist_mig_msg *m)
+{
+    uint32_t bits = (uint32_t)(m->r[0] >> JOIST_MIG_NULL_SHIFT) & 3u;
+    m->r[0] &= ~JOIST_MIG_NULL_BITS;
+    if (bits == 0) {
+        return 0;
+    }
+    uint32_t total = m->ncaps + (bits & 1u) + (bits >> 1);
+    if (m->ncaps > JOIST_MIG_CAPS || total > JOIST_MIG_CAPS || (bits >> total) != 0) {
+        m->ncaps = 0;
+        return -1;
+    }
+    uint32_t got[JOIST_MIG_CAPS] = {m->cap[0], m->cap[1]};
+    uint32_t k = 0;
+    for (uint32_t i = 0; i < total; i++) {
+        m->cap[i] = (bits >> i & 1u) ? 0u : got[k++];
+    }
+    m->ncaps = total;
+    return 0;
+}
+
 /* ---- bulk data through the caller's windows (decision 0032; Phase 5 step 9) ----
  *
  * A variable array that doesn't fit in line goes through a window: its count

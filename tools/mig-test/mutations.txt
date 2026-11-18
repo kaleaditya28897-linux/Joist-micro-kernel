@@ -36,3 +36,5 @@ win-server-read-skipped @@ joistmig.c @@ fprintf(f, "\t\tif (joist_mig_ool_read(
 win-reserve-ignored @@ joistmig.c @@         fprintf(f, " <= joist_mig_room(&jm_b))) {\n"); @@         fprintf(f, " * 0u <= joist_mig_room(&jm_b))) {\n");
 win-no-memory-offered @@ joist_mig.h @@             w->out_n[i] = w->out_off[i] = 0; @@             (void)i;
 win-no-default @@ joistmig.c @@ fprintf(f, "\t\tuint64_t jm_bd = JOIST_MIG_OUT_DEFAULT / (sizeof (%s));\n", elem(a)); @@ fprintf(f, "\t\tuint64_t jm_bd = 0 / (sizeof (%s));\n", elem(a));
+nulls-unmarked @@ joist_mig.h @@ bits |= 1ull << i; @@ (void)bits;
+nulls-not-restored @@ joist_mig.h @@ m->cap[i] = (bits >> i & 1u) ? 0u : got[k++]; @@ m->cap[i] = got[k < 1u ? k++ : k];
