@@ -1,6 +1,6 @@
 # Phase 5 exit
 
-**Status: complete, for the owner's acceptance (2026-11-20).** Phase 5
+**Status: complete; accepted by the owner (2026-11-20).** Phase 5
 (§11, *MIG retarget and libports*): its three exit criteria met, its scope
 built (move-grant replaced by 0032, the owner's decision), every suite
 passing (*Verification*). The work, step by step, is in
