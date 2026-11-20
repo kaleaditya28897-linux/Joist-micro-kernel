@@ -41,6 +41,7 @@ permanent; a superseded decision keeps its number and gains a
 | 0030 | The region capability: a task maps its own pages inside a range `mm` gives it | accepted 2026-10-30 (several frames a region) | Phase 5 |
 | 0031 | Reused Hurd code runs on glibc from Phase 5: the port starts early | accepted 2026-10-30 | Phases 5 and 7 |
 | 0032 | Bulk data crosses by a kernel copy through the caller's windows, not by moving pages | accepted 2026-11-14 (amends 0006's move-grant) | Phase 5 step 10 |
+| 0033 | The paging protocol: `mm` and the servers that back files | accepted 2026-11-21 (`cap_read` returns an endpoint's identity) | Phase 6 steps 5-8 |
 
 **All entries were accepted on 2026-10-01** by the project owner, at the close
 of Phase 0 (`docs/phase0-exit.md`). The recommendations taken were: 0002 on

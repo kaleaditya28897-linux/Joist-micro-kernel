@@ -191,8 +191,8 @@ Phase 6 of §11: *Paging protocol and libpager*.
 3. **Fault routing in the kernel and `mm`:** the ABI call, `mm` as the
    pager, `PASS` for what it now ends; the user tests, including the hung
    exception handler.
-4. **Decision 0033, the paging protocol** (choices 2-6 written out), for
-   the owner's acceptance.
+4. ~~**Decision 0033, the paging protocol** (choices 2-6 written out), for
+   the owner's acceptance.~~ Accepted 2026-11-21 (*Progress*).
 5. **File pages in `mmlib`, host side:** the page cache, private and
    shared mappings, write-back, eviction, a dead server; the refinement
    test with files; mutations.
@@ -226,3 +226,19 @@ the helpers (choice 3), a dead server's cached pages (choice 6) and
 eviction's scan (choice 5).
 
 ## Progress
+
+### Step 4: decision 0033, the paging protocol (2026-11-21, accepted)
+
+`docs/decisions/0033-the-paging-protocol-mm-and-backing-servers.md`: a
+pager capability a file (`io_map`'s result) passed to `mm` in
+`MM_REQ_MAP_FILE`; five requests from `mm`'s helpers (`PG_HELLO`,
+`PG_READ`, `PG_WRITE`, `PG_UNLOCK`, `PG_EVICTED`), one page each through
+the IPC buffer pointed at the pool page; three from the server
+(`MM_REQ_PG_SYNC`, `FLUSH`, `SIZE`) on a capability `mm` badges a file;
+the page cache, private and shared mappings, eviction and a dead server as
+the plan chose; passes with signal and code (the owner, 2026-11-21: glibc's
+code in bits 0-15, the signal in 16-23; a fault `mm` can't serve for want
+of pages passes `SIGBUS`/`BUS_ADRERR`). The owner's choice: `cap_read`
+returns an endpoint capability's identity (object index and generation),
+so `mm` can tell two capabilities to one file or one server apart: a small
+kernel change, model first, in step 5.
