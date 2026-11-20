@@ -1,0 +1,7 @@
+htl/tst-robust1 TIMEOUT
+htl/tst-robust4 TIMEOUT
+htl/tst-robust7 TIMEOUT
+htl/tst-robust9 TIMEOUT
+malloc/tst-trim1-threaded-main NO-STATUS
+stdlib/tst-qsort2 NO-STATUS
+string/test-strncmp-nonarray PASS

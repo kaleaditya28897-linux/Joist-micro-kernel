@@ -1,0 +1,40 @@
+From: aditya kale <252700881+kaleaditya28897-linux@users.noreply.github.com>
+Date: Fri, 20 Nov 2026 18:40:00 +0530
+Subject: [PATCH] malloc: a configuration may start with no dynamic mmap
+ threshold
+
+MALLOC_NO_DYN_THRESHOLD (default 0) gives mp_.no_dyn_threshold its
+initial value, as mallopt (M_MMAP_THRESHOLD) or the mmap_threshold
+tunable would set it, without initialising malloc before the tunables
+are read.  Joist, Phase 5 exit: the main arena's break is a region of
+at most 8 MiB, its frames taken as it grows; with the threshold raised
+by each free of an mmap'd block, large blocks went to the main arena,
+past the break into mmap'd pieces it never gives back
+(stdlib/tst-qsort2 reached its 32 MiB).  sysdeps/joist/Makefile sets it
+to 1 for malloc.c.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ malloc/malloc.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/malloc/malloc.c b/malloc/malloc.c
+--- a/malloc/malloc.c
++++ b/malloc/malloc.c
+@@ -1818,9 +1818,14 @@
+ 
+ /* There is only one instance of the malloc parameters.  */
+ 
++#ifndef MALLOC_NO_DYN_THRESHOLD
++# define MALLOC_NO_DYN_THRESHOLD 0
++#endif
++
+ static struct malloc_par mp_ =
+ {
+   .top_pad = DEFAULT_TOP_PAD,
++  .no_dyn_threshold = MALLOC_NO_DYN_THRESHOLD,
+   .n_mmaps_max = DEFAULT_MMAP_MAX,
+   .mmap_threshold = DEFAULT_MMAP_THRESHOLD,
+   .trim_threshold = DEFAULT_TRIM_THRESHOLD,
+-- 
+2.43

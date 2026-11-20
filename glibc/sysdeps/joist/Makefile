@@ -65,3 +65,12 @@ endif
 CFLAGS-joist-mem.c += -fno-builtin
 # And the pid asked for at start-up (joist-special.c), the same way.
 CFLAGS-joist-special.c += -fno-builtin
+
+# malloc: no dynamic mmap threshold (glibc-patches/0013; Phase 5 exit, the
+# owner's choice of 2026-11-20).  The main arena's break is a region of at
+# most 8 MiB, its frames taken as it grows (brk.c): large blocks stay
+# mmap'd and go back to mm when freed, instead of moving into the main
+# arena past the break, where malloc never gives them back.
+ifeq ($(subdir),malloc)
+CFLAGS-malloc.c += -DMALLOC_NO_DYN_THRESHOLD=1
+endif

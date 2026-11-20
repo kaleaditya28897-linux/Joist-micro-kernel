@@ -1,0 +1,256 @@
+malloc/tst-aligned-alloc PASS
+malloc/tst-aligned-alloc-random PASS
+malloc/tst-aligned-alloc-random-thread FAIL 1
+malloc/tst-aligned-alloc-random-thread-cross FAIL 1
+malloc/tst-aligned-alloc-random-threaded-main PASS
+malloc/tst-aligned-alloc-random-threaded-worker PASS
+malloc/tst-aligned-alloc-static PASS
+malloc/tst-aligned-alloc-threaded-main PASS
+malloc/tst-aligned-alloc-threaded-worker PASS
+malloc/tst-alloc_buffer PASS
+malloc/tst-alloc_buffer-threaded-main PASS
+malloc/tst-alloc_buffer-threaded-worker PASS
+malloc/tst-calloc PASS
+malloc/tst-calloc-threaded-main PASS
+malloc/tst-calloc-threaded-worker PASS
+malloc/tst-dynarray PASS
+malloc/tst-dynarray-at-fail FAIL 1
+malloc/tst-dynarray-fail FAIL 1
+malloc/tst-free-aligned-sized PASS
+malloc/tst-free-aligned-sized-threaded-main PASS
+malloc/tst-free-aligned-sized-threaded-worker PASS
+malloc/tst-free-aligned-sized-trace PASS
+malloc/tst-free-aligned-sized-trace-threaded-main PASS
+malloc/tst-free-aligned-sized-trace-threaded-worker PASS
+malloc/tst-free-errno FAIL 1
+malloc/tst-free-errno-threaded-main FAIL 1
+malloc/tst-free-errno-threaded-worker FAIL 1
+malloc/tst-free-sized PASS
+malloc/tst-free-sized-threaded-main PASS
+malloc/tst-free-sized-threaded-worker PASS
+malloc/tst-free-sized-trace PASS
+malloc/tst-free-sized-trace-threaded-main PASS
+malloc/tst-free-sized-trace-threaded-worker PASS
+malloc/tst-interpose-nothread FAIL 1
+malloc/tst-interpose-static-nothread FAIL 1
+malloc/tst-interpose-static-thread FAIL 1
+malloc/tst-interpose-thread FAIL 1
+malloc/tst-mallinfo2 PASS
+malloc/tst-mallinfo2-threaded-main PASS
+malloc/tst-mallinfo2-threaded-worker PASS
+malloc/tst-malloc PASS
+malloc/tst-malloc-alternate-path FAIL 1
+malloc/tst-malloc-alternate-path-threaded-main FAIL 1
+malloc/tst-malloc-alternate-path-threaded-worker FAIL 1
+malloc/tst-malloc-backtrace FAIL 127
+malloc/tst-malloc-check PASS
+malloc/tst-malloc-check-threaded-main PASS
+malloc/tst-malloc-check-threaded-worker PASS
+malloc/tst-malloc-fork-deadlock FAIL 127
+malloc/tst-malloc-random PASS
+malloc/tst-malloc-random-threaded-main PASS
+malloc/tst-malloc-random-threaded-worker PASS
+malloc/tst-malloc-stats-cancellation FAIL 2
+malloc/tst-malloc-tcache-leak FAIL 1
+malloc/tst-malloc-thread-exit FAIL 1
+malloc/tst-malloc-thread-fail FAIL 1
+malloc/tst-malloc-threaded-main PASS
+malloc/tst-malloc-threaded-worker PASS
+malloc/tst-malloc-too-large PASS
+malloc/tst-malloc-too-large-threaded-main PASS
+malloc/tst-malloc-too-large-threaded-worker PASS
+malloc/tst-malloc-usable FAIL 1
+malloc/tst-malloc-usable-threaded-main FAIL 1
+malloc/tst-malloc-usable-threaded-worker FAIL 1
+malloc/tst-malloc-usable-tunables FAIL 1
+malloc/tst-malloc-usable-tunables-threaded-main FAIL 1
+malloc/tst-malloc-usable-tunables-threaded-worker FAIL 1
+malloc/tst-malloc_info FAIL 1
+malloc/tst-mallocalign1 PASS
+malloc/tst-mallocalign1-threaded-main PASS
+malloc/tst-mallocalign1-threaded-worker PASS
+malloc/tst-mallocfork PASS
+malloc/tst-mallocfork2 FAIL 1
+malloc/tst-mallocfork3 FAIL 1
+malloc/tst-mallopt PASS
+malloc/tst-mallopt-threaded-main PASS
+malloc/tst-mallopt-threaded-worker PASS
+malloc/tst-memalign PASS
+malloc/tst-memalign-2 FAIL 1
+malloc/tst-memalign-2-threaded-main FAIL 1
+malloc/tst-memalign-2-threaded-worker FAIL 1
+malloc/tst-memalign-3 PASS
+malloc/tst-memalign-threaded-main PASS
+malloc/tst-memalign-threaded-worker PASS
+malloc/tst-mtrace FAIL 127
+malloc/tst-obstack PASS
+malloc/tst-obstack-threaded-main PASS
+malloc/tst-obstack-threaded-worker PASS
+malloc/tst-posix_memalign PASS
+malloc/tst-posix_memalign-threaded-main PASS
+malloc/tst-posix_memalign-threaded-worker PASS
+malloc/tst-pvalloc PASS
+malloc/tst-pvalloc-fortify PASS
+malloc/tst-pvalloc-fortify-threaded-main PASS
+malloc/tst-pvalloc-fortify-threaded-worker PASS
+malloc/tst-pvalloc-threaded-main PASS
+malloc/tst-pvalloc-threaded-worker PASS
+malloc/tst-realloc PASS
+malloc/tst-realloc-threaded-main PASS
+malloc/tst-realloc-threaded-worker PASS
+malloc/tst-reallocarray PASS
+malloc/tst-reallocarray-threaded-main PASS
+malloc/tst-reallocarray-threaded-worker PASS
+malloc/tst-safe-linking FAIL 1
+malloc/tst-safe-linking-threaded-main FAIL 1
+malloc/tst-safe-linking-threaded-worker FAIL 1
+malloc/tst-scratch_buffer PASS
+malloc/tst-tcfree1 FAIL 127
+malloc/tst-tcfree1-threaded-main FAIL 127
+malloc/tst-tcfree1-threaded-worker FAIL 127
+malloc/tst-tcfree2 FAIL 127
+malloc/tst-tcfree2-threaded-main FAIL 127
+malloc/tst-tcfree2-threaded-worker FAIL 127
+malloc/tst-tcfree3 PASS
+malloc/tst-tcfree3-threaded-main PASS
+malloc/tst-tcfree3-threaded-worker PASS
+malloc/tst-tcfree4 FAIL 127
+malloc/tst-tcfree4-threaded-main FAIL 127
+malloc/tst-tcfree4-threaded-worker FAIL 127
+malloc/tst-trim1 NO-STATUS
+malloc/tst-trim1-threaded-main NO-STATUS
+malloc/tst-trim1-threaded-worker PASS
+malloc/tst-valloc PASS
+malloc/tst-valloc-threaded-main PASS
+malloc/tst-valloc-threaded-worker PASS
+stdlib/test-a64l PASS
+stdlib/test-as-const-ucontext_i PASS
+stdlib/test-at_quick_exit-race FAIL 1
+stdlib/test-atexit-race FAIL 1
+stdlib/test-atexit-recursive FAIL 1
+stdlib/test-bz22786 FAIL 1
+stdlib/test-canon FAIL 1
+stdlib/test-canon2 PASS
+stdlib/test-cxa_atexit-race FAIL 1
+stdlib/test-cxa_atexit-race2 FAIL 1
+stdlib/test-dlclose-exit-race FAIL 1
+stdlib/test-on_exit-race FAIL 1
+stdlib/tst-abs PASS
+stdlib/tst-arc4random-fork FAIL 1
+stdlib/tst-arc4random-stats FAIL 127
+stdlib/tst-arc4random-thread FAIL 1
+stdlib/tst-at_quick_exit FAIL 3
+stdlib/tst-atexit FAIL 3
+stdlib/tst-atof1 PASS
+stdlib/tst-atof2 PASS
+stdlib/tst-bsearch PASS
+stdlib/tst-bz20544 FAIL 1
+stdlib/tst-canon-bz26341 FAIL 1
+stdlib/tst-concurrent-exit PASS
+stdlib/tst-concurrent-quick_exit FAIL 1
+stdlib/tst-const PASS
+stdlib/tst-cxa_atexit FAIL 3
+stdlib/tst-environ PASS
+stdlib/tst-environ-change-1 NO-STATUS
+stdlib/tst-environ-change-2 NO-STATUS
+stdlib/tst-environ-change-3 PASS
+stdlib/tst-environ-change-4 PASS
+stdlib/tst-fmtmsg PASS
+stdlib/tst-getenv-signal FAIL 1
+stdlib/tst-getenv-static PASS
+stdlib/tst-getenv-thread PASS
+stdlib/tst-getenv-unsetenv PASS
+stdlib/tst-getrandom FAIL 1
+stdlib/tst-getrandom-errno PASS
+stdlib/tst-getrandom2 FAIL 1
+stdlib/tst-labs PASS
+stdlib/tst-limits PASS
+stdlib/tst-llabs PASS
+stdlib/tst-makecontext PASS
+stdlib/tst-makecontext-align FAIL 1
+stdlib/tst-makecontext2 PASS
+stdlib/tst-makecontext3 PASS
+stdlib/tst-memalignment PASS
+stdlib/tst-on_exit FAIL 3
+stdlib/tst-putenv FAIL 1
+stdlib/tst-qsort PASS
+stdlib/tst-qsort2 PASS
+stdlib/tst-qsort3 FAIL 127
+stdlib/tst-qsort4 PASS
+stdlib/tst-qsort6 PASS
+stdlib/tst-qsort7 TIMEOUT
+stdlib/tst-qsortx7 TIMEOUT
+stdlib/tst-rand-sequence PASS
+stdlib/tst-rand48 PASS
+stdlib/tst-rand48-2 PASS
+stdlib/tst-random PASS
+stdlib/tst-random-bz30584 PASS
+stdlib/tst-random2 PASS
+stdlib/tst-realpath PASS
+stdlib/tst-realpath-toolong UNSUPPORTED
+stdlib/tst-secure-getenv FAIL 1
+stdlib/tst-setcontext PASS
+stdlib/tst-setcontext10 PASS
+stdlib/tst-setcontext11 PASS
+stdlib/tst-setcontext2 FAIL 127
+stdlib/tst-setcontext3 FAIL 1
+stdlib/tst-setcontext4 FAIL 127
+stdlib/tst-setcontext5 PASS
+stdlib/tst-setcontext6 PASS
+stdlib/tst-setcontext7 PASS
+stdlib/tst-setcontext8 PASS
+stdlib/tst-setcontext9 PASS
+stdlib/tst-setenv-environ PASS
+stdlib/tst-stdbit-Wconversion PASS
+stdlib/tst-stdbit-builtins PASS
+stdlib/tst-stdc_bit_ceil PASS
+stdlib/tst-stdc_bit_floor PASS
+stdlib/tst-stdc_bit_width PASS
+stdlib/tst-stdc_count_ones PASS
+stdlib/tst-stdc_count_zeros PASS
+stdlib/tst-stdc_first_leading_one PASS
+stdlib/tst-stdc_first_leading_zero PASS
+stdlib/tst-stdc_first_trailing_one PASS
+stdlib/tst-stdc_first_trailing_zero PASS
+stdlib/tst-stdc_has_single_bit PASS
+stdlib/tst-stdc_leading_ones PASS
+stdlib/tst-stdc_leading_zeros PASS
+stdlib/tst-stdc_trailing_ones PASS
+stdlib/tst-stdc_trailing_zeros PASS
+stdlib/tst-strfmon_l FAIL 127
+stdlib/tst-strfrom PASS
+stdlib/tst-strfrom-locale FAIL 93
+stdlib/tst-strtod PASS
+stdlib/tst-strtod-nan-locale FAIL 1
+stdlib/tst-strtod-nan-sign PASS
+stdlib/tst-strtod-overflow FAIL 1
+stdlib/tst-strtod-round FAIL 1
+stdlib/tst-strtod-underflow FAIL 1
+stdlib/tst-strtod1i FAIL 1
+stdlib/tst-strtod2 PASS
+stdlib/tst-strtod3 FAIL 1
+stdlib/tst-strtod4 FAIL 1
+stdlib/tst-strtod5 FAIL 1
+stdlib/tst-strtod5i FAIL 1
+stdlib/tst-strtod6 PASS
+stdlib/tst-strtol PASS
+stdlib/tst-strtol-binary-c11 PASS
+stdlib/tst-strtol-binary-c23 PASS
+stdlib/tst-strtol-binary-gnu11 PASS
+stdlib/tst-strtol-binary-gnu23 PASS
+stdlib/tst-strtol-locale FAIL 1
+stdlib/tst-strtoll PASS
+stdlib/tst-swapcontext1 PASS
+stdlib/tst-swapcontext2 PASS
+stdlib/tst-system FAIL 1
+stdlib/tst-tininess PASS
+stdlib/tst-tls-atexit FAIL 1
+stdlib/tst-tls-atexit-nodelete FAIL 1
+stdlib/tst-uabs PASS
+stdlib/tst-ulabs PASS
+stdlib/tst-ullabs PASS
+stdlib/tst-umaxabs PASS
+stdlib/tst-unsetenv1 PASS
+stdlib/tst-width PASS
+stdlib/tst-width-stdint PASS
+stdlib/tst-xpg-basename PASS

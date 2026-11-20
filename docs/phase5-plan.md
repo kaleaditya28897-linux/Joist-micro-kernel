@@ -1597,7 +1597,7 @@ renamed at the exit run, which caught it).
   holds to a page, so the console, an `io_read` server of the same shape,
   served the large reads.
 
-### Step 11: the exit (2026-11-18, in progress)
+### Step 11: the exit (2026-11-18 to 2026-11-20)
 
 - **A MIG round trip measured** (`docs/phase5-data/step11-mig-roundtrip/`):
   `io_seek` to `hello` through joistmig's stubs, 3 198 TSC counts (median,
@@ -1632,3 +1632,25 @@ renamed at the exit run, which caught it).
   runs had Phase 1's `hello` selftests' names, so `run hello`,
   `smp2-hello` and `smp4-hello` booted the translator and failed. Step 10's
   are now `trivfs`, `smp2-trivfs`, ... `kvm-smp4-trivfs`.
+- **glibc's own tests again** (`docs/phase5-data/step11-glibc-tests/`):
+  3 060 linked, as at step 7; 1 938 PASS, 41 UNSUPPORTED, 1 003 FAIL, 21
+  TIMEOUT, 57 NO-STATUS (step 7: 1 937, 41, 1 010, 16, 56), every change
+  explained there; accepted as the phase's record (the owner,
+  2026-11-20). One was the break's: `stdlib/tst-qsort2`. glibc raises its
+  `mmap` threshold as `mmap`'d blocks are freed, so large blocks went to the
+  main arena, past the 8 MiB break into `mmap`'d pieces `malloc` never
+  returns, and the test reached its 32 MiB. The owner chose no dynamic
+  threshold on Joist: glibc patch 0013 lets a configuration start `malloc`
+  with `no_dyn_threshold` set (without initialising it before the tunables
+  are read, as calling `mallopt` would), and `sysdeps/joist/Makefile` sets
+  it. `malloc/` and `stdlib/` rerun: `tst-qsort2` passes, nothing else
+  changed.
+- **The robust-mutex tests** `htl/tst-robust1`, `4`, `7` and `9` now time
+  out waiting for `EOWNERDEAD`: the locks exclude since 1b44e4e, and Joist
+  can't yet notice a dead owner (open); `tst-robust9` passed at step 7 only
+  because they didn't.
+- **The exit run** (joist-dev2): every suite passes (`docs/phase5-exit.md`,
+  *Verification*). The mig-test's `gnumach-dev` package is gone from
+  Debian's ports archive; the run uses the copy already checked by its
+  SHA-256.
+- **The exit record:** `docs/phase5-exit.md`.
