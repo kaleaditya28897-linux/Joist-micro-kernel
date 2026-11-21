@@ -105,6 +105,9 @@ enum {
 #define ABI_REPLY_READ      87u /* reply, offset in the read window, address, bytes -> RDX copied */
 #define ABI_REPLY_WRITE     88u /* reply, offset in the write window, address, bytes -> RDX copied */
 
+/* Fault routing (decision 0027): a task's pager, for page faults. */
+#define ABI_TASK_SET_PAGER  89u /* task, pager slot, flags (JOIST_FAULT_NO_THREAD_CAP) */
+
 #define ABI_THREAD_READ_REGS  70u /* thread, address of a struct joist_regs to fill */
 #define ABI_THREAD_WRITE_REGS 71u /* thread, address of a struct joist_regs to load */
 #define ABI_IPC_BUFFER        72u /* page-aligned address of the calling thread's IPC buffer, or 0 */

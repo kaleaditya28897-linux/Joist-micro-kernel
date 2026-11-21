@@ -543,6 +543,37 @@ JT_TEST(abi_map_query_into_the_callers_memory)
 
 /* Each argument reaches its parameter: the model's tests cover what the
  * calls do; these, that a register mix-up would show. */
+/* Decision 0027's call: the task, the pager's slot, the flags; a thread
+ * capability is the wrong type, a wide slot and an unknown flag out of
+ * range. Where its faults go is the model's test (test_fault.c). */
+JT_TEST(abi_task_set_pager_takes_its_registers)
+{
+    setup();
+    joist_thread a;
+    JT_REQUIRE(joist_thread_create(&k, root, &a) == JOIST_OK);
+    JT_REQUIRE(sys(a, ABI_TASK_CREATE, 10, 2, 0, 0) == ABI_DONE &&
+               k.th[a].regs.r[ABI_RAX] == JOIST_OK);
+    uint32_t t = k.obj[k.cs[root].slot[2].obj - 1u].target - 1u;
+    JT_CHECK(sys(a, ABI_TASK_SET_PAGER, 2, 7, 2, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* an unknown flag */
+    JT_CHECK(sys(a, ABI_TASK_SET_PAGER, 2, 1ull << 40, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_RANGE); /* a wide slot */
+    JT_CHECK(sys(a, ABI_TASK_SET_PAGER, 9, 7, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_EMPTY);
+    JT_CHECK(k.cs[t].pager_slot == 0);
+    JT_CHECK(sys(a, ABI_TASK_SET_PAGER, 2, 7, JOIST_FAULT_NO_THREAD_CAP, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK && k.cs[t].pager_slot == 8u &&
+             k.cs[t].pager_flags == JOIST_FAULT_NO_THREAD_CAP);
+    JT_CHECK(k.cs[t].fault_slot == 0); /* the exception handler's is another */
+    JT_CHECK(sys(a, ABI_TASK_SET_PAGER, 2, JOIST_SLOT_NONE, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_OK && k.cs[t].pager_slot == 0);
+    joist_thread b;
+    JT_REQUIRE(joist_thread_spawn(&k, root, 2, 3, &b) == JOIST_OK);
+    JT_CHECK(sys(a, ABI_TASK_SET_PAGER, 3, 7, 0, 0) == ABI_DONE &&
+             k.th[a].regs.r[ABI_RAX] == JOIST_E_TYPE); /* task level only */
+    JT_CHECK(clean());
+}
+
 JT_TEST(abi_region_calls_take_their_registers)
 {
     setup();

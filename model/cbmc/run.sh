@@ -47,7 +47,8 @@ for arg in "$@"; do
     withtables=""
     case $arg in */s) op=${op%/s}; split="-DJOIST_CBMC_SENDERS=1"; name="op$op-senders" ;;
                  */n) op=${op%/n}; split="-DJOIST_CBMC_SENDERS=0"; name="op$op-nosenders" ;;
-                 */t) op=${op%/t}; withtables=1; name="op$op-tables" ;; esac
+                 */t) op=${op%/t}; withtables=1; name="op$op-tables" ;;
+                 */r[123]) r=${op##*/r}; op=${op%/r*}; split="-DJOIST_CBMC_ROUTE=$r"; name="op$op-route$r" ;; esac
     tables=""
     extra=""
     unwind=4
@@ -80,6 +81,25 @@ for arg in "$@"; do
     # frame's kill with page tables; the Makefile's tally names it the same).
     case $arg in *:*) ty=${arg#*:}; ty=${ty%/t}
         split="-DJOIST_CBMC_SLOT_TYPE=$ty"; name="op$op-type$ty${withtables:+-tables}" ;; esac
+    # Decision 0027's fault routes (30-34): two threads (the faulting one
+    # and its pager or handler; three exhausted joist-dev2's 11 GB for 31
+    # and 32, 2026-11-20), one capability a message and no IPC buffers
+    # (19's sizes). A pass in 32/33 therefore queues on the exception
+    # handler's endpoint (the replier is running) or ends the root's
+    # thread; its delivery to a waiting handler is the unit and property
+    # tests'.
+    # 31-33 with one space, as 19-21 (none of 31-33 has fitted joist-dev2's
+    # 11 GB in any form tried: Makefile): the pager and the handler are endpoints in
+    # the faulting task's own space, which the kernel treats no
+    # differently; OP/r1, /r2, /r3 split 31 by the route its fault takes
+    # (pager, exception handler, the root's with nowhere to go).
+    case $op in 3[0-4])
+        sizes=$(printf '%s' "$sizes" | sed "s/-DJOIST_MAX_THREADS=1u/-DJOIST_MAX_THREADS=2u/")
+        case $op in 3[1-3]) sizes=$(printf '%s' "$sizes" | sed 's/-DJOIST_MAX_CSPACES=2u/-DJOIST_MAX_CSPACES=1u/') ;; esac
+        sizes="$sizes -DJOIST_MSG_CAPS=1u"
+        extra="-DJOIST_CBMC_NO_BUFFERS -DJOIST_CBMC_ROUTES"
+        case $op in 3[1-3]) extra="$extra -DJOIST_CBMC_FIXED" ;; esac ;;
+    esac
     start=$(date +%s)
     if [ -n "$tables" ]; then
         loops=$(cbmc -I"$here/../kernel/include" -I"$here/../kernel/core" $sizes -DJOIST_CBMC -DJOIST_CBMC_INDUCTIVE \

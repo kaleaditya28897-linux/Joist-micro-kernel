@@ -1,7 +1,9 @@
 # Testbeds
 
 **Since 2026-10-14 everything runs on the P53** (below), a machine kept for
-this project alone; the Proxmox hosts run none of it any more. The sections
+this project alone; the Proxmox hosts run none of it any more, but for one
+container on pve1 for CBMC proofs too large for the P53's VM (below, since
+2026-11-21). The sections
 after it describe the Proxmox VMs the P53 replaced, kept for the record:
 the toolchain table of VM 113 still describes the build VM, whose disk was
 moved, not rebuilt.
@@ -109,6 +111,22 @@ then each booted on the P53.
 
 VM 112 had no disk: it was only a configuration, which `tools/p53/boot.sh`
 replaces. The Proxmox VMs 111, 112, 113 and 114 were then deleted.
+
+## `joist-cbmc`: CBMC on pve1 (container 100, since 2026-11-21)
+
+A Proxmox container on pve1 (Xeon E5-2670, 16 threads, 31 GB), made at the
+owner's suggestion for CBMC proofs that need more memory than joist-dev2's
+11 GB or the laptop's 23 GB (Phase 6's operations 31-33).
+
+| | |
+|---|---|
+| Kind | unprivileged LXC, `nesting=1` (Debian 13's systemd asks for it); no guest kernel |
+| OS | Debian 13.6 (Proxmox's `debian-13-standard_13.6-1` template, checksum verified by `pveam`) |
+| Resources | 26 GB memory, no swap; 12 cores; 32 GB on `local-zfs` |
+| Tools | `gcc` 14.2 and `make` from Debian; CBMC 6.11.0: joist-dev2's `/opt/cbmc-6.11.0`, copied, so proofs run on the same build (it preprocesses with `gcc` against Debian's glibc headers, as joist-dev2's does) |
+| Address | 192.168.1.5 on pve1's LAN (DHCP); reached as `ssh -J root@pve1 root@192.168.1.5`, or `pct exec 100` on pve1 |
+| Tree | `/root/joist` (an rsync of the working tree, no `.git`); `make -C model cbmc CBMC_OPS=...` |
+| Not for | boot tests (no QEMU/KVM in a container) |
 
 # The Proxmox VMs, until 2026-10-14
 

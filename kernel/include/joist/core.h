@@ -413,21 +413,50 @@ struct joist_hooks {
  * unless the handler asked for none on page faults
  * (JOIST_FAULT_NO_THREAD_CAP: the badge names the task). The handler's
  * reply says what happens: r[0] == JOIST_FAULT_RESUME resumes it, anything
- * else terminates it. */
+ * else terminates it.
+ *
+ * Two roles a task (0027): the pager (joist_task_set_pager) receives page
+ * faults and nothing else; the exception handler (the thread's handler, else
+ * the task's: joist_thread_set_fault, joist_task_set_fault) every other
+ * kind, page faults when there is no pager, and any page fault the pager
+ * passes on. A pager's reply may be JOIST_FAULT_PASS, with a POSIX code
+ * (si_code) in r[1]: the kernel then makes the fault Call to the exception
+ * handler with the original message, and in r[0] JOIST_FAULT_PASSED and the
+ * code's low 32 bits (JOIST_FAULT_CODE); r[1], r[2] and r[3] stay the
+ * address, the architecture's code and the pc. At most one pass: a PASS from
+ * an exception handler terminates, as any other verdict but RESUME does. A
+ * passed fault with no usable exception handler ends the task (the root's
+ * thread alone), as a fault with no handler does (0009). */
 #define JOIST_FAULT_PAGE   1u
 #define JOIST_FAULT_GP     2u
 #define JOIST_FAULT_UD     3u
 #define JOIST_FAULT_MATH   4u
 #define JOIST_FAULT_OTHER  5u
 #define JOIST_FAULT_RESUME 0u
+#define JOIST_FAULT_PASS   2u /* a pager's reply only (0027); r[1] the code */
 #define JOIST_FAULT_KIND(r0)   ((r0) & 0xffu)
 #define JOIST_FAULT_ACCESS(r0) (((r0) >> 8) & 0xffu)
+#define JOIST_FAULT_PASSED     0x10000u /* r[0]: the pager passed this fault on */
+#define JOIST_FAULT_CODE(r0)   ((r0) >> 32) /* r[0]: the pager's code, if passed */
+/* The codes a pager passes (0027, 0033; the owner, 2026-11-21): glibc's
+ * si_code (<bits/siginfo-consts.h>) in bits 0-15 and the signal's number in
+ * bits 16-23, since the si_code alone doesn't name the signal (SEGV_ACCERR
+ * and BUS_ADRERR are both 2). The kernel carries the code untouched. */
+#define JOIST_PASS_CODE(sig, si_code) (((uint64_t)(sig) << 16) | (uint64_t)(si_code))
+#define JOIST_PASS_SIGNAL(code)       (((code) >> 16) & 0xffu)
+#define JOIST_PASS_SI_CODE(code)      ((code) & 0xffffu)
+#define JOIST_SIGBUS  7u
+#define JOIST_SIGSEGV 11u
+#define JOIST_SEGV_MAPERR JOIST_PASS_CODE(JOIST_SIGSEGV, 1u) /* no mapping at the address */
+#define JOIST_SEGV_ACCERR JOIST_PASS_CODE(JOIST_SIGSEGV, 2u) /* mapped, the access not allowed */
+#define JOIST_BUS_ADRERR  JOIST_PASS_CODE(JOIST_SIGBUS, 2u)  /* past a file's end; no page to be had */
+#define JOIST_BUS_OBJERR  JOIST_PASS_CODE(JOIST_SIGBUS, 3u)  /* the backing object failed */
 #define JOIST_ACCESS_READ    0x1u
 #define JOIST_ACCESS_WRITE   0x2u
 #define JOIST_ACCESS_EXEC    0x4u
 #define JOIST_ACCESS_PRESENT 0x8u /* the page was mapped: a protection fault */
-/* joist_thread_set_fault, joist_task_set_fault: page faults bring no thread
- * capability (saving the handler a delete per fault). */
+/* joist_thread_set_fault, joist_task_set_fault, joist_task_set_pager: page
+ * faults bring no thread capability (saving the handler a delete per fault). */
 #define JOIST_FAULT_NO_THREAD_CAP 0x1u
 
 /* The IPC buffer (0001 amendment, item 1; Phase 3's exit): a message can
@@ -509,6 +538,11 @@ struct joist_thread_rec {
     uint32_t fault_slot;
     uint8_t fault_flags; /* JOIST_FAULT_NO_THREAD_CAP, for this thread's handler */
     uint8_t faulting;    /* 1 in a fault call; 2 in one that brings no thread capability */
+    /* Which fault call (0027): JOIST_ROUTE_*, 0 exactly when not faulting.
+     * fault_msg: the fault's message as the kernel first sent it (r[0] to
+     * r[3]), kept for a pass: the second call carries it again. */
+    uint8_t fault_route;
+    uint64_t fault_msg[4];
     /* Its IPC buffer: a page-aligned user address, 0 for none. */
     uint64_t ipc_buf;
     /* Its windows (decision 0032): byte ranges of its own space that a
@@ -535,6 +569,13 @@ struct joist_thread_rec {
     uint8_t cpu;
 };
 
+/* A thread's fault call (fault_route, 0027): to the task's pager; to the
+ * exception handler directly; to the exception handler after the pager
+ * passed the fault on (no further pass). */
+#define JOIST_ROUTE_PAGER   1u
+#define JOIST_ROUTE_HANDLER 2u
+#define JOIST_ROUTE_PASSED  3u
+
 struct joist_cspace_state {
     uint8_t live;
     uint32_t quota;    /* objects this space may still create */
@@ -548,6 +589,10 @@ struct joist_cspace_state {
     uint32_t fault_slot; /* the task's fault handler, for threads without their own:
                             a slot in this space plus one, 0 for none (0009) */
     uint8_t fault_flags; /* JOIST_FAULT_NO_THREAD_CAP, for the task's handler */
+    /* The task's pager (0027): page faults go here first. A slot in this
+     * space plus one, 0 for none; its JOIST_FAULT_NO_THREAD_CAP. */
+    uint32_t pager_slot;
+    uint8_t pager_flags;
     /* Destruction in progress (decision 0016): the space is still live, but
      * acts as dead to every operation and accepts no capability (TLA+'s
      * rule); its threads are gone, and its slots are being swept from
@@ -1315,11 +1360,20 @@ joist_err joist_thread_set_fault(struct joist_kernel *k, joist_cspace cs, joist_
                                  joist_slot handler, unsigned flags);
 joist_err joist_task_set_fault(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
                                joist_slot handler, unsigned flags);
+/* Name a task's pager (0027): page faults go to it before the exception
+ * handler; it may answer JOIST_FAULT_PASS to send one on. A slot in the
+ * task's space, or JOIST_SLOT_NONE; checked as the handlers' are, when a
+ * fault happens (an empty slot or a dead endpoint: no pager). Task level
+ * only. flags: JOIST_FAULT_NO_THREAD_CAP, or 0 (JOIST_E_RANGE for any other). */
+joist_err joist_task_set_pager(struct joist_kernel *k, joist_cspace cs, joist_slot task_slot,
+                               joist_slot pager, unsigned flags);
 
 /* A fault in running thread t (the kernel's trap handlers call this; the
  * model's tests and executor call it directly); access is a page fault's
- * JOIST_ACCESS_* (ignored for other kinds), in the message's r[0]. The handler is the thread's,
- * else its task's: an endpoint capability with SEND, alive. With one, the
+ * JOIST_ACCESS_* (ignored for other kinds), in the message's r[0]. A page
+ * fault goes to the task's pager, if it has one usable (0027); every other
+ * fault, and a page fault with no pager, to the exception handler: the
+ * thread's, else its task's: an endpoint capability with SEND, alive. With one, the
  * fault is a Call to it (JOIST_BLOCKED; the thread's context is lent as for
  * any Call, so the fault is charged to the faulting thread, 0009); its reply
  * resumes or terminates the thread, and if the call ends any other way

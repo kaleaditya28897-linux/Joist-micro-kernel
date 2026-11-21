@@ -69,9 +69,18 @@ enum {
                      * itself; a fork's child holds a copy of its own; freed, and again */
     MMC_BOMB,       /* clones (never confirmed) until mm refuses: RES how many */
     MMC_HOG,        /* touches page after page, each index in aux first, until mm ends it */
-    MMC_STEADY      /* after the root's go: faults pages and forks, round after round;
+    MMC_STEADY,     /* after the root's go: faults pages and forks, round after round;
                      * every request must succeed (0028: its tree's reservation) */
+    MMC_PASSED      /* 0027: after the root's go (mark 1), bad accesses mm passes on to
+                     * the task's exception handler (the root's): outside every region,
+                     * a write where it may only read, a guard; each resumed past the
+                     * access with RAX set by the handler (MMC_PASS_RAX) */
 };
+/* MMC_PASSED's accesses (in MMC_W: where the load and the store that fault
+ * are, for the handler to check the pc), and the RAX each is resumed with. */
+enum { MMC_P_LOAD_AT = 8, MMC_P_STORE_AT, MMC_P_N };
+#define MMC_PASS_RAX(i) (0x5e9f0000ull + (i))
+#define MMC_PASS_INSN 3u /* the faulting load's and store's length */
 #define MMC_B 100u
 enum {
     MMC_B_ZERO_W, MMC_B_ZERO_R, MMC_B_COPY, MMC_B_UPGRADE, MMC_B_REQ, MMC_B_PROT_RO, MMC_B_PROT_W,

@@ -329,7 +329,8 @@ static uint64_t lend_tables(uint32_t t, uint64_t slot)
 }
 
 /* Give task t, in slot, its badged capability to mm in MM_SLOT, and make it
- * its fault handler. On failure the badge has no sender left: its firing
+ * its pager (0027: page faults only; the task's exception handler, if it
+ * has one, is its own). On failure the badge has no sender left: its firing
  * is queued, and collecting it forgets the task (and drops mm's capability
  * to it) before its index can be used again. */
 static uint64_t give_badge(uint32_t t, uint64_t slot)
@@ -342,7 +343,7 @@ static uint64_t give_badge(uint32_t t, uint64_t slot)
     if (g != J_OK) {
         return MM_E_KERNEL;
     }
-    if (j_task_set_fault_flags(slot, MM_SLOT, J_FAULT_NO_THREAD_CAP) != J_OK) {
+    if (j_task_set_pager(slot, MM_SLOT, J_FAULT_NO_THREAD_CAP) != J_OK) {
         /* Can't happen once space_donate took the capability: it stays
          * served, and goes when its badge does. */
         return MM_E_KERNEL;
@@ -555,14 +556,30 @@ static void handle(const struct j_msg *in, struct j_msg *out)
     }
     int served = ready && b != 0 && b <= MM_MAX_TASKS && M.task[b - 1u].live;
     if (r0 < MM_REQ_BASE) { /* a fault */
-        int resume = served && J_FAULT_KIND(r0) == J_FAULT_PAGE &&
-                     mm_fault(&M, (uint32_t)(b - 1u), in->r[1] / J_PAGE,
-                              (unsigned)J_FAULT_ACCESS(r0)) != 0;
-        out->r[0] = resume ? J_FAULT_RESUME : 1u;
+        int pf = served && J_FAULT_KIND(r0) == J_FAULT_PAGE;
+        int resume = pf && mm_fault(&M, (uint32_t)(b - 1u), in->r[1] / J_PAGE,
+                                      (unsigned)J_FAULT_ACCESS(r0)) != 0;
+        /* Not resumed: passed on to the task's exception handler (0027);
+         * with none, the kernel ends the task. An access the task's regions
+         * don't allow, as SIGSEGV's codes; a fault mm would serve but
+         * can't (no page: its tree's limits, 0028, or the pool; the kernel
+         * refusing), as SIGBUS/BUS_ADRERR (the owner, 2026-11-21). A fault
+         * of another kind, or from a task mm doesn't serve, ends the
+         * thread. */
+        unsigned why = pf && !resume ? mm_fault_refusal(&M, (uint32_t)(b - 1u), in->r[1] / J_PAGE,
+                                                          (unsigned)J_FAULT_ACCESS(r0))
+                                       : 0;
+        out->r[0] = resume ? J_FAULT_RESUME : pf ? J_FAULT_PASS : 1u;
+        out->r[1] = resume || !pf               ? 0
+                    : why == MM_REFUSE_MAPERR ? J_SEGV_MAPERR
+                    : why == MM_REFUSE_ACCERR ? J_SEGV_ACCERR
+                                              : J_BUS_ADRERR;
 #ifdef MM_REPORT_REFUSED
         /* A build for a new program's first runs: each fault refused. */
         if (!resume) {
-            j_puts("mm: refused fault: kind and access ");
+            j_puts(why != 0 ? "mm: passed fault (code " : "mm: refused fault (");
+            j_putu(out->r[1]);
+            j_puts("): kind and access ");
             j_putu(r0);
             j_puts(", address ");
             j_putu(in->r[1]);

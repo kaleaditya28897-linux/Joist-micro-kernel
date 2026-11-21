@@ -265,8 +265,18 @@ int mm_region_grow(struct mm *m, uint32_t t, uint32_t tslot, uint64_t n, uint32_
 int mm_region_free(struct mm *m, uint32_t t, uint32_t tslot);
 
 /* A fault in task t at page va with the kernel's access bits: 1 to resume
- * the thread (the page is there now), 0 to end it. */
+ * the thread (the page is there now), 0 if not. */
 int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access);
+
+/* Why mm_fault would refuse that fault for what the task asked of mm
+ * (0027): MM_REFUSE_MAPERR, outside every region; MM_REFUSE_ACCERR, a
+ * guard (MM_NONE) or an access the region doesn't allow; 0 if the fault is
+ * one mm serves (it may still fail, for want of pages or of the kernel).
+ * mm passes every refused page fault on to the task's exception handler
+ * (0027): these two as SIGSEGV's (SEGV_MAPERR, SEGV_ACCERR), and a fault
+ * it serves but can't as SIGBUS's BUS_ADRERR. Changes nothing. */
+enum { MM_REFUSE_MAPERR = 1, MM_REFUSE_ACCERR = 2 };
+unsigned mm_fault_refusal(const struct mm *m, uint32_t t, uint64_t va, unsigned access);
 
 /* mm's records, checked (for its tests and mm's own self-check): 0 if
  * sound, else the number of faults found, the first in msg. */

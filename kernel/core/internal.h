@@ -92,6 +92,10 @@ void joist__cancel(struct joist_kernel *k, uint32_t t, joist_err result);
 /* A fault in t, as a Call on endpoint obj with that badge (ipc.c). */
 joist_err joist__fault_call(struct joist_kernel *k, uint32_t t, uint32_t obj, joist_badge badge,
                             int with_cap, const struct joist_msg *m);
+/* Running thread t's pager passed its fault on with code (0027): the fault
+ * Call to its exception handler, or, with none usable, its task ends (the
+ * root's thread alone), as joist_fault's would (fault.c). */
+void joist__fault_pass(struct joist_kernel *k, uint32_t t, uint64_t code);
 
 /* Frames and page tables (map.c). */
 /* The last capability to obj is gone: 1 if it is a frame still mapped or

@@ -70,3 +70,6 @@ abi-lost-unreported @@ sys/abi.c @@                          (th->msg.lost ? ABI
 
 abi-region-ext-not-returned @@ sys/abi.c @@ out = x; @@ (void)x;
 abi-region-map-perms-from-r8 @@ sys/abi.c @@ e = joist_region_map(k, cs, slot_arg(a0), u32_arg(a1), a2, a3, R->r[ABI_R8], @@ e = joist_region_map(k, cs, slot_arg(a0), u32_arg(a1), a2, a3, R->r[ABI_R8], u32_arg(R->r[ABI_R8]) | 0u *
+# Phase 6 step 3 (0027): task_set_pager through the ABI.
+abi-pager-is-set-fault @@ sys/abi.c @@ e = joist_task_set_pager(k, cs, slot_arg(a0), slot_arg(a1), u32_arg(a2)); @@ e = joist_task_set_fault(k, cs, slot_arg(a0), slot_arg(a1), u32_arg(a2));
+abi-pager-flags-dropped @@ sys/abi.c @@ e = joist_task_set_pager(k, cs, slot_arg(a0), slot_arg(a1), u32_arg(a2)); @@ e = joist_task_set_pager(k, cs, slot_arg(a0), slot_arg(a1), 0);

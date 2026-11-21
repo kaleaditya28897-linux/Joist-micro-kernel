@@ -5,15 +5,22 @@
  *
  * mm has one endpoint. Every task it serves holds one capability to it,
  * with SEND and a badge naming the task, in MM_SLOT; it is also the task's
- * fault handler (JOIST_FAULT_NO_THREAD_CAP), so a fault arrives as a
- * message from that badge. The root holds one with MM_ROOT_BADGE, for the
+ * pager (0027: task_set_pager, JOIST_FAULT_NO_THREAD_CAP), so a page fault
+ * arrives as a message from that badge; other faults go to the task's
+ * exception handler, never to mm. The root holds one with MM_ROOT_BADGE, for the
  * requests only it may make.
  *
  * A request: r[0] the request (MM_REQ_*), r[1]-r[3] its arguments (pages,
  * not bytes). A fault message's r[0] is the fault kind and access
  * (JOIST_FAULT_KIND, JOIST_FAULT_ACCESS: below 0x10000), so the two can't
  * be confused. The reply: r[0] the result (MM_OK or an MM_E_*: mmlib.h)
- * or, for a fault, JOIST_FAULT_RESUME (0) or not.
+ * or, for a fault, JOIST_FAULT_RESUME (0); JOIST_FAULT_PASS with
+ * a code in r[1] (0027: the kernel hands it to the task's exception
+ * handler, or ends the task if it has none): SIGSEGV's SEGV_MAPERR or
+ * SEGV_ACCERR for an access the task's regions don't allow, SIGBUS's
+ * BUS_ADRERR for a page fault mm would serve but can't (no page); or 1,
+ * the thread ended, for a fault of another kind. (A passed fault's r[0] is above
+ * 0x10000, but mm never receives one: the exception handler does.)
  *
  * A task's id (MM_REQ_ID) is its index in mm's records and a generation
  * that mm bumps each time the index is used again: an id names one task,

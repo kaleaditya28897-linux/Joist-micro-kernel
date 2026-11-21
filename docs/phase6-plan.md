@@ -186,11 +186,12 @@ Phase 6 of §11: *Paging protocol and libpager*.
 ## Order of work
 
 1. ~~**This plan,** accepted by the owner.~~ Done 2026-11-20.
-2. **Fault routing in the model:** `task_set_pager`, `PASS`, the
-   invariant, property tests, CBMC, mutations.
-3. **Fault routing in the kernel and `mm`:** the ABI call, `mm` as the
+2. ~~**Fault routing in the model:** `task_set_pager`, `PASS`, the
+   invariant, property tests, CBMC, mutations.~~ Done 2026-11-21
+   (*Progress*).
+3. ~~**Fault routing in the kernel and `mm`:** the ABI call, `mm` as the
    pager, `PASS` for what it now ends; the user tests, including the hung
-   exception handler.
+   exception handler.~~ Done 2026-11-21 (*Progress*).
 4. ~~**Decision 0033, the paging protocol** (choices 2-6 written out), for
    the owner's acceptance.~~ Accepted 2026-11-21 (*Progress*).
 5. **File pages in `mmlib`, host side:** the page cache, private and
@@ -226,6 +227,125 @@ the helpers (choice 3), a dead server's cached pages (choice 6) and
 eviction's scan (choice 5).
 
 ## Progress
+
+### Step 2: fault routing in the model (2026-11-20 to 2026-11-21)
+
+Decision 0027 built in the kernel core, as accepted (by a P53 hand-off,
+`/srv/joist/handoff/p6-routing`); the choices inside it are the
+implementation's, so *(changeable)*.
+
+- **Built:** `joist_task_set_pager(k, cs, task_slot, slot, flags)`, task
+  level only, checked as `task_set_fault` (a slot in the task's own space
+  or none; `NO_THREAD_CAP` the only flag); one slot and a flags byte in the
+  space record. A page fault goes to the pager if its slot names an
+  endpoint with SEND, alive; otherwise (no pager, an empty slot, a dead
+  endpoint) and for every other kind, to the exception handler (the
+  thread's, then the task's), as before.
+- **PASS:** `JOIST_FAULT_PASS` (2) from the pager, with a code in `r[1]`.
+  Nothing else of that reply reaches the thread (no words, no
+  capabilities); the thread wakes, its context back, and the kernel makes
+  the fault Call to the exception handler: the same `r[1]`-`r[3]`
+  (address, architecture code, pc), and in `r[0]` beside kind and access
+  `JOIST_FAULT_PASSED` (bit 16) and the code's low 32 bits (bits 32-63:
+  four message registers, all used). At most one pass: a PASS from the
+  exception handler, passed or not, ends the thread like any verdict but
+  RESUME. No usable exception handler: the task ends (the root's thread
+  alone), 0009's rule. Both calls on the faulting thread's context.
+- **What the thread record keeps:** the route of its fault call (1 byte,
+  in existing padding) and the fault as first sent (4 words): the
+  kernel's thread record 384 → 416 bytes, the space record +8; 4 608
+  bytes in all at the kernel's 128 threads and 64 spaces.
+- **Invariant (`joist__check_ipc`):** faulting exactly when on a route;
+  the pager's and a passed call are page faults; the passed mark exactly
+  on the passed route. "A passed fault never returns to the pager": a
+  per-step check in the property executor and an assertion in CBMC (a
+  thread on the passed route before an operation is never on the pager's
+  after it).
+- **Tests:** 16 unit tests (`test_fault.c`), one for each route 0027
+  lists and the edges (a PASS reply's capabilities not delivered; the
+  handler dead meanwhile; the root; a pass queued, and left unanswered:
+  suspended; through a saved reply; both hops charged to the faulting
+  thread; a pager in the faulting task passing with no handler; one
+  endpoint in both roles). The property executor gains `task_set_pager`,
+  page faults half the time, PASS verdicts from `reply`, `reply_saved` and
+  `reply_recv`, and checks of each fault's route and each pass's code;
+  floors: 557 faults to a pager, 36 passes, 16 that ended the task, 29
+  PASS from an exception handler in the full run. 323 tests in each of the
+  six builds of `make -C model check`.
+- **Mutations:** 0027's four (a second pass allowed; a page fault to the
+  exception handler with a pager set; another fault to the pager; the
+  code dropped) and 12 more (`route-*`), 3 for `mm`'s codes; four older
+  ones re-pointed at the moved code. `make -C model mutate`: 391 of 391.
+- **CBMC:** operations 30 (`task_set_pager`, 418 s) and 34
+  (`thread_abort`, 940 s) verify on joist-dev2, with two threads and no
+  IPC buffers; each operation keeps every invariant, the 0027 one
+  included, and no thread goes from the passed route to the pager's. 31-33
+  (`joist_fault`, and `reply` and `reply_saved` with any verdict) are in
+  the harness but **did not fit** joist-dev2's 11 GB: with three threads,
+  two, one space, the threads fixed (`JOIST_CBMC_FIXED`), split by the
+  fault's route (`31/r1`-`r3`), one thread, and the root's space fixed so
+  no task can be destroyed, each run was killed while CBMC built its
+  formula (425 to 3 479 s). Left out of `CBMC_OPS` and to the unit and
+  property tests and the mutations, as 3, 6 and 19 are. Tried again on
+  the laptop (23 GB, capped at 20 GB), the owner's choice: op 31 ran out
+  of memory in 209 s, op 32 passed 16 GB within half an hour, and the
+  owner stopped them (2026-11-21): **31-33 are a known limit**, beside
+  Phase 5's 3, 6 and 19. Found on the way: a first op-31 result in
+  216 s meant nothing, since my 4-word copy loop failed its unwinding
+  assertion and CBMC cuts every path past one (the loop is unrolled now).
+
+### Step 3: fault routing in the kernel and `mm` (2026-11-20 to 2026-11-21)
+
+- **The call:** system call 89, `task_set_pager` (task, pager slot,
+  flags), `docs/abi.md`, `j_task_set_pager` in `user/lib/joist.h` with
+  `J_FAULT_PASS`, `J_FAULT_PASSED`, `J_FAULT_CODE` and the codes; a host
+  test (`abi_task_set_pager_takes_its_registers`), the user library's
+  numbers checked against the kernel's, the ABI fuzzer's list, 2 kernel
+  mutations. `run.c`'s root-task check counts a pager for page faults.
+- **`mm`:** installs `MM_SLOT` with `task_set_pager` at adoption; answers
+  PASS with `SEGV_MAPERR` (outside every region) or `SEGV_ACCERR` (a
+  guard, or an access the region forbids), decided by `mm_fault_refusal`
+  in `mmlib` (one host test, 3 mutations). A fault it would serve but
+  can't (no page: the tree's ceiling, the pool, the kernel refusing)
+  passes `SIGBUS`/`BUS_ADRERR` (the owner, 2026-11-21).
+  `MM_REPORT_REFUSED` prints passed faults with their code.
+- **What changed for the programs that relied on `mm` ending a thread:**
+  with no exception handler the task now goes where the thread went.
+  `mmroot`'s read-only write, outside and guard cases now check the task
+  is gone and `mm` forgets it. `faultroot` doesn't use `mm` (unchanged).
+  `cowstress` makes no access `mm` refuses (its runs pass unchanged).
+  `glibcroot`: a program a passed fault ends is gone at once (its thread
+  count falls: "the program ended", "no exit status", as for a thread
+  ended before), so a multi-threaded program no longer lingers to TIMEOUT
+  with its other threads; comments updated; no glibc change (no exception
+  handler until Phase 7).
+- **User tests** (`mmroot`, run on 1, 2 and 4 CPUs emulated, on 1, 2 and 4
+  under KVM, and on the checking kernel): "passed": a client's three bad
+  accesses (outside, a write to a read-only region, a guard) reach a
+  handler of the root's own with kind, the passed mark, the code, address,
+  access and pc; the handler rewrites the registers (past the 3-byte
+  access, RAX set) and resumes; faults `mm` serves never reach it. "hung
+  handler": a handler that takes the passed fault and keeps it
+  (`reply_save`) for ever, while `mm` serves a fork's demand-zero and
+  copy-on-write faults and a basic client; then the client goes and `mm`
+  forgets it.
+- **Runs:** `make -C kernel check` (joist-dev2: the P53 has no Limine) all
+  passing, 103 selftests, 33 artifacts reproducible; `make -C kernel
+  mutate` 63 of 63; `make -C model check` and `mutate` whole; `make -C
+  glibc/test check`. glibc not rebuilt (no glibc file changed).
+- **Found:** my first user test left the root's receive slots pointing at
+  its handler's capability slot, so a later fork's child capabilities
+  missed; and each client costs the root its image's pages for good, so
+  the hung test runs a basic client, not a steady one, to leave the trees
+  test its pages. Three 4-CPU KVM timing tests failed once beside a CBMC
+  proof and mutation jobs; quiet, they pass on this tree and on 25dbe81.
+- **The owner's answers (2026-11-21):** glibc's codes alone don't name the
+  signal (`SEGV_ACCERR` and `BUS_ADRERR` are both 2), so a pass's code
+  carries glibc's `si_code` in bits 0-15 and the signal in bits 16-23
+  (`JOIST_PASS_CODE`, `JOIST_PASS_SIGNAL`, `JOIST_PASS_SI_CODE`; the kernel
+  carries it untouched); and a fault `mm` would serve but can't passes
+  `SIGBUS`/`BUS_ADRERR`, so with no handler the task ends, not the thread
+  alone. Applied in the review.
 
 ### Step 4: decision 0033, the paging protocol (2026-11-21, accepted)
 

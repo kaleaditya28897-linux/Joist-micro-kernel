@@ -375,6 +375,42 @@ JT_TEST(mm_fault_refused_outside_regions_and_their_permissions)
     JT_CHECK(m.nfree == POOL_PAGES - 4u && clean());
 }
 
+JT_TEST(mm_fault_refusals_name_their_code)
+{
+    /* 0027: what mm passes on, and with which code. Outside every region:
+     * SEGV_MAPERR; a region that forbids the access, or a guard:
+     * SEGV_ACCERR; a fault mm serves: none, even when it can't (pool
+     * empty: mm.c then passes SIGBUS's BUS_ADRERR, the owner's choice of
+     * 2026-11-21). The question changes nothing. */
+    setup();
+    JT_REQUIRE(mm_map_anon(&m, t, 0x400, 4, 0) == MM_OK);       /* read-only */
+    JT_REQUIRE(mm_map_anon(&m, t, 0x500, 4, MM_X) == MM_OK);    /* read and execute */
+    JT_REQUIRE(mm_map_anon(&m, t, 0x600, 1, MM_NONE) == MM_OK); /* a guard */
+    JT_REQUIRE(mm_map_anon(&m, t, 0x700, 2u * POOL_PAGES, MM_W) == MM_OK);
+    maps = 0;
+    JT_CHECK(mm_fault_refusal(&m, t, 0x3ff, MM_ACCESS_READ) == MM_REFUSE_MAPERR);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x404, MM_ACCESS_WRITE) == MM_REFUSE_MAPERR);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x400, MM_ACCESS_WRITE) == MM_REFUSE_ACCERR);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x400, MM_ACCESS_EXEC) == MM_REFUSE_ACCERR);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x500, MM_ACCESS_WRITE | MM_ACCESS_PRESENT) == MM_REFUSE_ACCERR);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x600, MM_ACCESS_READ) == MM_REFUSE_ACCERR);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x400, MM_ACCESS_READ) == 0);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x500, MM_ACCESS_EXEC) == 0);
+    JT_CHECK(mm_fault_refusal(&m, t, 0x700, MM_ACCESS_WRITE) == 0);
+    JT_CHECK(mm_fault_refusal(&m, MM_MAX_TASKS, 0x400, MM_ACCESS_READ) == 0); /* not a task */
+    JT_CHECK(maps == 0 && m.nfree == POOL_PAGES);
+    /* Every fault it names is one mm_fault refuses. */
+    JT_CHECK(mm_fault(&m, t, 0x3ff, MM_ACCESS_READ) == 0 && mm_fault(&m, t, 0x600, MM_ACCESS_READ) == 0 &&
+             mm_fault(&m, t, 0x400, MM_ACCESS_WRITE) == 0);
+    /* The pool empty: refused, but not for what the task asked. */
+    for (uint64_t va = 0x700; va < 0x700 + POOL_PAGES; va++) {
+        JT_REQUIRE(mm_fault(&m, t, va, MM_ACCESS_WRITE) == 1);
+    }
+    JT_CHECK(mm_fault(&m, t, 0x700 + POOL_PAGES, MM_ACCESS_WRITE) == 0 &&
+             mm_fault_refusal(&m, t, 0x700 + POOL_PAGES, MM_ACCESS_WRITE) == 0);
+    JT_CHECK(clean());
+}
+
 JT_TEST(mm_map_anon_refusals)
 {
     setup();

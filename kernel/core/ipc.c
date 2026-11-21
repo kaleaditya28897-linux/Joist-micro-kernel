@@ -38,6 +38,7 @@ void joist__wake(struct joist_kernel *k, uint32_t t, joist_err result)
      * aborted) leaves the fault unresolved: the thread stops (0009). */
     if (r->faulting && result != JOIST_OK) {
         r->faulting = 0;
+        r->fault_route = 0;
         r->state = JOIST_T_SUSPENDED;
     }
     /* Woken with no context (a passive thread's Recv timed out or was
@@ -670,12 +671,27 @@ static joist_err deliver_reply(struct joist_kernel *k, uint32_t from, uint64_t f
     if (k->th[c].state != JOIST_T_BLOCKED_REPLY || k->th[c].call_seq != seq) {
         return JOIST_E_PEER; /* the caller stopped waiting */
     }
+    if (k->th[c].fault_route == JOIST_ROUTE_PAGER && m->r[0] == JOIST_FAULT_PASS) {
+        /* The pager passes the fault on (0027). Nothing of its reply
+         * reaches the thread (no words, no capabilities): the thread wakes
+         * (its context back), and its fault goes to the exception handler,
+         * with the pager's code. */
+        k->th[c].badge = 0;
+        k->th[c].faulting = 0;
+        k->th[c].fault_route = 0;
+        joist__wake(k, c, JOIST_OK);
+        joist__fault_pass(k, c, m->r[1]);
+        return JOIST_OK;
+    }
     deliver(k, from, from_buf, c, m);
     k->th[c].badge = 0;
     joist__wake(k, c, JOIST_OK);
     if (k->th[c].faulting) {
-        /* The handler's verdict on a fault (0009): resume, or terminate. */
+        /* The handler's verdict on a fault (0009): resume, or terminate. A
+         * PASS from the exception handler, or after a pass, terminates
+         * (0027: at most one pass). */
         k->th[c].faulting = 0;
+        k->th[c].fault_route = 0;
         if (m->r[0] != JOIST_FAULT_RESUME) {
             (void)joist_thread_destroy(k, c);
         }
@@ -950,6 +966,22 @@ unsigned joist__check_ipc(const struct joist_kernel *k, char *msg, unsigned msgl
         }
         if (r->faulting > 2u || (r->fault_flags & ~(unsigned)JOIST_FAULT_NO_THREAD_CAP) != 0) {
             VIOLATION("0009: thread %u fault state %u, flags 0x%x", t, r->faulting, r->fault_flags);
+        }
+        /* 0027: a thread is in at most one fault call, and its record says
+         * which; the pager's call and a passed one are page faults' only,
+         * and a passed fault is marked so, which the pager's never is
+         * (the pager never sees a fault it passed). */
+        if ((r->faulting != 0) != (r->fault_route != 0) || r->fault_route > JOIST_ROUTE_PASSED) {
+            VIOLATION("0027: thread %u faulting %u on route %u", t, r->faulting, r->fault_route);
+        } else if ((r->fault_route == JOIST_ROUTE_PAGER || r->fault_route == JOIST_ROUTE_PASSED) &&
+                   JOIST_FAULT_KIND(r->fault_msg[0]) != JOIST_FAULT_PAGE) {
+            VIOLATION("0027: thread %u on route %u with a fault of kind %u", t, r->fault_route,
+                      (unsigned)JOIST_FAULT_KIND(r->fault_msg[0]));
+        } else if ((r->fault_route == JOIST_ROUTE_PAGER || r->fault_route == JOIST_ROUTE_PASSED) &&
+                   ((r->fault_msg[0] & JOIST_FAULT_PASSED) != 0) !=
+                       (r->fault_route == JOIST_ROUTE_PASSED)) {
+            VIOLATION("0027: thread %u on route %u, its fault %s passed", t, r->fault_route,
+                      (r->fault_msg[0] & JOIST_FAULT_PASSED) != 0 ? "marked" : "not marked");
         }
         /* A caller blocks, so it can never receive its own call (CBMC). */
         if (r->reply_to == t + 1u) {

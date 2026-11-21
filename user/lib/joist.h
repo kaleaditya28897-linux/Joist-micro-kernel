@@ -70,7 +70,8 @@ enum {
     J_SYS_THREAD_READ_REGS = 70, J_SYS_THREAD_WRITE_REGS, J_SYS_IPC_BUFFER,
     J_SYS_REGION_CREATE = 80, J_SYS_REGION_ADD, J_SYS_REGION_MAP, J_SYS_REGION_UNMAP,
     J_SYS_REGION_PROTECT,
-    J_SYS_THREAD_WINDOW = 86, J_SYS_REPLY_READ, J_SYS_REPLY_WRITE
+    J_SYS_THREAD_WINDOW = 86, J_SYS_REPLY_READ, J_SYS_REPLY_WRITE,
+    J_SYS_TASK_SET_PAGER = 89
 };
 
 /* Every register a call takes or returns. */
@@ -461,6 +462,29 @@ enum { J_FAULT_PAGE = 1, J_FAULT_GP, J_FAULT_UD, J_FAULT_MATH, J_FAULT_OTHER };
 #define J_ACCESS_EXEC    0x4u
 #define J_ACCESS_PRESENT 0x8u
 #define J_FAULT_NO_THREAD_CAP 0x1u /* set_fault flag: page faults bring no thread capability */
+/* Fault routing (0027): a task's pager gets its page faults first, and may
+ * answer J_FAULT_PASS with a POSIX code in r[1]; the exception handler (the
+ * thread's, else the task's, above) then gets the fault with J_FAULT_PASSED
+ * and the code in r[0] (J_FAULT_CODE), r[1]-r[3] as ever. A PASS from the
+ * exception handler ends the thread; a pass with no exception handler, the
+ * task. A code: glibc's si_code in bits 0-15, the signal in bits 16-23
+ * (the owner, 2026-11-21: SEGV_ACCERR and BUS_ADRERR are both 2). */
+#define J_FAULT_PASS   2u
+#define J_FAULT_PASSED 0x10000u
+#define J_FAULT_CODE(r0) ((r0) >> 32)
+#define J_PASS_CODE(sig, si_code) (((uint64_t)(sig) << 16) | (uint64_t)(si_code))
+#define J_PASS_SIGNAL(code)       (((code) >> 16) & 0xffu)
+#define J_PASS_SI_CODE(code)      ((code) & 0xffffu)
+#define J_SIGBUS  7u
+#define J_SIGSEGV 11u
+#define J_SEGV_MAPERR J_PASS_CODE(J_SIGSEGV, 1u)
+#define J_SEGV_ACCERR J_PASS_CODE(J_SIGSEGV, 2u)
+#define J_BUS_ADRERR  J_PASS_CODE(J_SIGBUS, 2u)
+#define J_BUS_OBJERR  J_PASS_CODE(J_SIGBUS, 3u)
+static inline uint64_t j_task_set_pager(uint64_t task, uint64_t pager, uint64_t flags)
+{
+    return j_sys4(J_SYS_TASK_SET_PAGER, task, pager, flags, 0);
+}
 static inline uint64_t j_thread_set_fault(uint64_t thread, uint64_t handler)
 {
     return j_sys4(J_SYS_THREAD_SET_FAULT, thread, handler, 0, 0);

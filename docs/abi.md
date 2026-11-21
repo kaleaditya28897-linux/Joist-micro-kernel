@@ -400,6 +400,7 @@ a thread; nothing else is checked (0010).
 | `thread_suspend` | thread slot | as above | aborts a blocking operation first, then stops the thread; twice is not an error | O(1) |
 | `thread_resume` | thread slot | as above, then `E_STATE` (not suspended) | the thread runs again | O(1) |
 | `thread_set_fault` / `task_set_fault` | thread (or task) slot, handler slot, flags | as above for the capability, then `E_RANGE` (handler past the table, or an unknown flag) | names the fault handler: a slot in the thread's (or task's) own space, or none. Nothing is checked until a fault. Flag `NO_THREAD_CAP` (1): page faults to this handler bring no thread capability (Phase 4: the badge names the task, and the reply alone resumes the thread), saving the handler a delete per fault | O(1) |
+| `task_set_pager` (0027) | task slot, pager slot, flags | as `task_set_fault` (a task capability with CONTROL; a thread's is `E_TYPE`) | names the task's **pager**: a slot in the task's own space, or none. Page faults go to it before the exception handler; nothing else does. Checked when a fault happens, as the handlers are. Flag `NO_THREAD_CAP` as above (`mm` sets it) | O(1) |
 
 **The register record in the encoding (Phase 3 step 6).** `thread_read_regs`
 and `thread_write_regs` take the thread slot and the address of the record
@@ -456,6 +457,26 @@ task is destroyed** (a faulting system with no handler must stop, not
 spin); the root task can't be (0013), so its faulting thread is. A faulting
 thread is blocked, so it can't fault again: fault recursion is excluded by
 construction.
+
+**Two roles a task (0027; Phase 6 steps 2-3).** The handler above is the
+**exception handler**. A task may also have a **pager** (`task_set_pager`):
+a page fault goes to it first, if its slot holds an endpoint capability
+with SEND whose endpoint is alive, with the message and the capability (or
+none, with `NO_THREAD_CAP`) as above; every other kind, and a page fault
+with no usable pager, goes to the exception handler, as before. The pager's
+reply decides as a handler's does, and one more way: `r[0] = 2` (`PASS`)
+with a POSIX code in `r[1]` (`SEGV_MAPERR` 1, `SEGV_ACCERR` 2, `BUS_ADRERR`
+2, `BUS_OBJERR` 3: glibc's values) passes the fault on. Nothing else of
+that reply reaches the thread (no words, no capabilities); the kernel makes
+the fault `Call` to the exception handler with the same message, `r[0]`
+gaining bit 16 (`PASSED`) and the code's low 32 bits in its bits 32-63
+(no register is free: `r[1]`-`r[3]` stay the address, the error code and
+the pc), and the thread capability as that handler's flags say. At most
+one pass: the exception handler's `PASS` ends the thread, as any reply but
+0 does. A passed fault with no usable exception handler destroys the task
+(the root's thread alone), as a fault with no handler does. Both calls
+lend the faulting thread's context. The thread record keeps the fault
+across the first call (its route and the four registers: 33 bytes).
 
 ## Scheduling contexts and donation (§5.3, §5.6; Phase 3 step 3)
 
@@ -610,7 +631,8 @@ notifications, 70-71 a thread's registers (`thread_read_regs`,
 `region_create` takes dst in `R8`, `region_add` returns the extent in
 `RDX`, `region_map` takes the virtual page in `R8` and the permissions in
 `R9`), 86-88 bulk data (`thread_window`, `reply_read`,
-`reply_write`: decision 0032; the bytes copied in `RDX`). `thread_spawn` takes the new thread's pc and sp, so it
+`reply_write`: decision 0032; the bytes copied in `RDX`), 89 `task_set_pager`
+(decision 0027). `thread_spawn` takes the new thread's pc and sp, so it
 starts where its creator says; `cap_read` also returns a frame's size in
 pages in `R10`; `cap_copy_batch` takes its flags in `R8` and returns `done`
 in `RDX` and `skipped` in `R8`. A slot argument wider than 32 bits is out of range, never

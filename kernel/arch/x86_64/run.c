@@ -1199,10 +1199,12 @@ static uint64_t fault_kind(uint64_t v)
     }
 }
 
-/* Is a fault of thread t going to find a handler (0009)? */
-static int has_handler(uint32_t t)
+/* Is a fault of thread t going to find a handler (0009), or, for a page
+ * fault, a pager (0027)? */
+static int has_handler(uint32_t t, uint64_t vector)
 {
-    return K.th[t].fault_slot != 0 || K.cs[K.th[t].cs].fault_slot != 0;
+    return K.th[t].fault_slot != 0 || K.cs[K.th[t].cs].fault_slot != 0 ||
+           (vector == 14u && K.cs[K.th[t].cs].pager_slot != 0);
 }
 
 /* A page fault's access (JOIST_ACCESS_*) from the x86 error code: bit 0 the
@@ -1218,7 +1220,7 @@ static uint64_t pf_access(uint64_t code)
 static void fault(uint32_t t, uint64_t vector, uint64_t addr, uint64_t code, uint64_t pc)
 {
     int root = K.root == K.th[t].cs + 1u;
-    if (root && !has_handler(t)) {
+    if (root && !has_handler(t, vector)) {
         /* The root task faulted with nobody to tell: the run is over (as in
          * Phase 2, whose self-tests check exactly this report). */
         kputs("joist: root task fault: ");
@@ -1748,7 +1750,7 @@ static __attribute__((noreturn)) void schedule(struct cpu *c)
         /* The way out goes to a user-half address only: an address past it
          * would fault in the kernel (Phase 2's sysret hazard, kept). */
         if (K.th[t].regs.pc >= USER_TOP) {
-            if (K.root == K.th[t].cs + 1u && !has_handler(t)) {
+            if (K.root == K.th[t].cs + 1u && !has_handler(t, 13u)) {
                 kputs("joist: root task refused: syscall returning to non-canonical ");
                 kputx(K.th[t].regs.pc);
                 kputs("\n");

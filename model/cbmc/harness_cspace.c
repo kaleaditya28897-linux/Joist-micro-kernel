@@ -119,6 +119,30 @@ static int pages_distinct(void)
 }
 #endif
 
+#ifdef JOIST_CBMC_ROUTES
+/* Decision 0027's fault routes (operations 30-34). A slot (plus one) of
+ * space cs that a fault would use: an endpoint capability with SEND, alive
+ * (fault.c's handler_ep). */
+static int usable(uint32_t cs, uint32_t slot1)
+{
+    const struct joist_cap *c = slot1 == 0 ? NULL : joist__slot_c(&k, cs, slot1 - 1u);
+    return c != NULL && c->obj != 0 && c->type == JOIST_OBJ_ENDPOINT &&
+           (c->rights & JOIST_R_SEND) != 0 && !k.obj[c->obj - 1u].dead;
+}
+
+/* Thread t has somewhere for a fault to go (its exception handler; for a
+ * page fault, its pager too), or is the root's, whose fault with nowhere to
+ * go ends only the thread. The proofs assume it: a task ended for want of a
+ * handler is task destruction (operation 6), whose formula doesn't fit
+ * (Makefile); the property tests cover it. */
+static int routed(uint32_t t, int page)
+{
+    const struct joist_thread_rec *r = &k.th[t];
+    return k.root == r->cs + 1u || usable(r->cs, r->fault_slot) ||
+           usable(r->cs, k.cs[r->cs].fault_slot) || (page && usable(r->cs, k.cs[r->cs].pager_slot));
+}
+#endif
+
 static uint32_t any(uint32_t n)
 {
     uint32_t v = nondet_unsigned();
@@ -181,6 +205,18 @@ int main(void)
     k.fsweep = 0;
     k.fround = 0;
 #endif
+#ifdef JOIST_CBMC_FIXED
+    /* 0027's fault proofs (31-33) have one space, the root's, and their
+     * threads in it, set as constants: a fault with nowhere to go then
+     * ends only its thread, and CBMC sees the branch that destroys a task
+     * (operation 6's cascade, which never fit) can't be taken, rather than
+     * building it and leaving the solver to rule it out. */
+    _Static_assert(JOIST_MAX_CSPACES == 1u, "the fault proofs have the root's space alone");
+    k.root = 1;
+    for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+        k.th[i].cs = 0;
+    }
+#endif
     __CPROVER_assume(joist_check_invariants(&k, NULL, 0) == 0);
     /* The place-in-line counter (64 bits, one step per wake-up or turn)
      * hasn't wrapped: that takes 2^64 steps, centuries at one a nanosecond.
@@ -221,6 +257,29 @@ int main(void)
         uint64_t off2 = nondet_u64();
         unsigned perms = nondet_unsigned();
         joist_err e;
+#ifdef JOIST_CBMC_ROUTES
+        /* Each thread's fault route before the operation (0027). */
+        uint8_t route0[JOIST_MAX_THREADS];
+        for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+            route0[i] = k.th[i].fault_route;
+        }
+        /* The faulting (or answering) thread fixed (JOIST_CBMC_FIXED,
+         * cbmc/run.sh): with two threads in an arbitrary state the two are
+         * interchangeable, so thread 0 faulting and thread 1 answering
+         * cover every case, and CBMC no longer carries the indices
+         * symbolically (with them nondeterministic, 31-33 exhausted 11 GB). */
+#ifdef JOIST_CBMC_FIXED
+        uint32_t ft = JOIST_CBMC_OP == 31 ? 0u : 1u;
+#else
+        uint32_t ft = any(JOIST_MAX_THREADS);
+#endif
+        uint32_t caller = 0;
+        int paged = 0;
+        uint64_t fkind = any(6);
+        struct joist_msg rm = {0};
+        rm.r[0] = any(3); /* RESUME, terminate (1), PASS, ... */
+        rm.r[1] = nondet_u64();
+#endif
 
 #ifdef JOIST_CBMC_SENDERS
         /* Split a receive's proof (cbmc/run.sh, OP/s and OP/n): slot a of
@@ -365,10 +424,82 @@ int main(void)
             __CPROVER_assert(e != JOIST_OK || got <= n, "no more than asked");
             break;
         }
+#ifdef JOIST_CBMC_ROUTES
+        /* Decision 0027: the pager's call, the routing of a fault, and the
+         * fault replies (resume, terminate, PASS) through a reply held and
+         * a saved one; an abort of a fault call. With two threads
+         * (cbmc/run.sh) and no IPC buffers: the pass carries no words. */
+        case 30:
+            e = joist_task_set_pager(&k, cs, a, any(1) == 0 ? JOIST_SLOT_NONE : b, nondet_unsigned());
+            break;
+        case 31:
+            __CPROVER_assume(ft < JOIST_MAX_THREADS && k.th[ft].state == JOIST_T_RUNNING &&
+                             routed(ft, fkind == JOIST_FAULT_PAGE));
+            paged = fkind == JOIST_FAULT_PAGE && usable(k.th[ft].cs, k.cs[k.th[ft].cs].pager_slot);
+#ifdef JOIST_CBMC_ROUTE
+            /* Split by route (cbmc/run.sh, 31/r1-3): to the pager, to the
+             * exception handler, or nowhere (the root's thread). Together
+             * they cover every case routed() admits. */
+            {
+                const struct joist_thread_rec *fr = &k.th[ft];
+                int eh = usable(fr->cs, fr->fault_slot) || usable(fr->cs, k.cs[fr->cs].fault_slot);
+                int route = paged ? 1 : eh ? 2 : 3;
+                __CPROVER_assume(route == JOIST_CBMC_ROUTE);
+            }
+#endif
+            e = joist_fault(&k, ft, fkind, va, off, perms);
+            break;
+        case 32:
+        case 33: {
+            /* The caller the reply reaches: the one ft holds (32), or the
+             * one bound in the reply object in slot a of ft's space (33). */
+            rm.ncaps = 0;
+            rm.len = 0;
+            __CPROVER_assume(ft < JOIST_MAX_THREADS && k.th[ft].state != JOIST_T_FREE);
+            const struct joist_cap *rc = joist__slot_c(&k, k.th[ft].cs, a);
+            caller = op == 32 ? k.th[ft].reply_to
+                     : rc != NULL && rc->obj != 0 && rc->type == JOIST_OBJ_REPLY
+                         ? k.obj[rc->obj - 1u].target
+                         : 0;
+            __CPROVER_assume(caller == 0 || routed(caller - 1u, 1));
+#ifdef JOIST_CBMC_FIXED
+            __CPROVER_assume(caller == 0 || caller == 1u); /* thread 0, as 31's */
+#endif
+            e = op == 32 ? joist_reply(&k, ft, &rm) : joist_reply_saved(&k, ft, a, &rm);
+            break;
+        }
+        case 34:
+            e = joist_thread_abort(&k, cs, a);
+            break;
+#endif
         default:
             e = joist_task_destroy(&k, cs, a);
             break;
         }
+#ifdef JOIST_CBMC_ROUTES
+        for (uint32_t i = 0; i < JOIST_MAX_THREADS; i++) {
+            __CPROVER_assert(!(route0[i] == JOIST_ROUTE_PASSED && k.th[i].fault_route == JOIST_ROUTE_PAGER),
+                             "0027: a passed fault never returns to the pager");
+        }
+        if (op == 31 && e == JOIST_BLOCKED) {
+            __CPROVER_assert(k.th[ft].fault_route ==
+                                 (fkind == JOIST_FAULT_PAGE && paged ? JOIST_ROUTE_PAGER : JOIST_ROUTE_HANDLER),
+                             "0027: page faults to a usable pager, all else to the exception handler");
+        }
+        if ((op == 32 || op == 33) && e == JOIST_OK && caller != 0 &&
+            route0[caller - 1u] == JOIST_ROUTE_PAGER && rm.r[0] == JOIST_FAULT_PASS) {
+            const struct joist_thread_rec *c = &k.th[caller - 1u];
+            __CPROVER_assert(c->state == JOIST_T_FREE ||
+                                 (c->fault_route == JOIST_ROUTE_PASSED &&
+                                  JOIST_FAULT_CODE(c->fault_msg[0]) == (rm.r[1] & 0xffffffffu)),
+                             "0027: a pass reaches the exception handler with the pager's code");
+        }
+        if ((op == 32 || op == 33) && e == JOIST_OK && caller != 0 && route0[caller - 1u] != 0 &&
+            route0[caller - 1u] != JOIST_ROUTE_PAGER && rm.r[0] != JOIST_FAULT_RESUME) {
+            __CPROVER_assert(k.th[caller - 1u].state == JOIST_T_FREE,
+                             "0027: any verdict but RESUME from the exception handler ends the thread");
+        }
+#endif
 
 #ifndef JOIST_CBMC_NO_INVARIANTS
         __CPROVER_assert(joist_check_invariants(&k, NULL, 0) == 0, "invariants hold");

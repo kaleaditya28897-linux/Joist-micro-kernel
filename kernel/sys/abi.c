@@ -222,6 +222,9 @@ int abi_syscall(struct abi_env *env, uint32_t t)
     case ABI_TASK_SET_FAULT:
         e = joist_task_set_fault(k, cs, slot_arg(a0), slot_arg(a1), u32_arg(a2));
         break;
+    case ABI_TASK_SET_PAGER:
+        e = joist_task_set_pager(k, cs, slot_arg(a0), slot_arg(a1), u32_arg(a2));
+        break;
     case ABI_FRAME_SPLIT:
         e = joist_frame_split(k, cs, slot_arg(a0), a1, slot_arg(a2));
         break;

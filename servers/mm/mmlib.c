@@ -786,24 +786,36 @@ static int demand_zero(struct mm *m, uint32_t t, const struct mm_region *r, uint
     return map_at(tk, va) >= 0;
 }
 
-int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
+unsigned mm_fault_refusal(const struct mm *m, uint32_t t, uint64_t va, unsigned access)
 {
     if (!task_ok(m, t)) {
+        return 0; /* not a task mm serves: not a refusal of its asking */
+    }
+    const struct mm_task *tk = &m->task[t];
+    int ri = region_of(tk, va);
+    if (ri < 0) {
+        return MM_REFUSE_MAPERR; /* outside every region */
+    }
+    const struct mm_region *r = &tk->reg[ri];
+    if (r->perms == MM_NONE) {
+        return MM_REFUSE_ACCERR; /* a guard: no access */
+    }
+    int write = (access & MM_ACCESS_WRITE) != 0;
+    if ((write && (r->perms & MM_W) == 0) || ((access & MM_ACCESS_EXEC) && (r->perms & MM_X) == 0)) {
+        return MM_REFUSE_ACCERR; /* not allowed by the region */
+    }
+    return 0;
+}
+
+int mm_fault(struct mm *m, uint32_t t, uint64_t va, unsigned access)
+{
+    if (!task_ok(m, t) || mm_fault_refusal(m, t, va, access) != 0) {
         return 0;
     }
     struct mm_task *tk = &m->task[t];
     int ri = region_of(tk, va);
-    if (ri < 0) {
-        return 0; /* outside every region */
-    }
     const struct mm_region *r = &tk->reg[ri];
-    if (r->perms == MM_NONE) {
-        return 0; /* a guard: no access */
-    }
     int write = (access & MM_ACCESS_WRITE) != 0;
-    if ((write && (r->perms & MM_W) == 0) || ((access & MM_ACCESS_EXEC) && (r->perms & MM_X) == 0)) {
-        return 0; /* not allowed by the region */
-    }
     int64_t mi = map_at(tk, va);
     if (mi < 0) {
         return demand_zero(m, t, r, va, write);

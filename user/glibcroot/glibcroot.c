@@ -1006,7 +1006,10 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
 #endif
 
     /* It ends itself (exit: its task destroyed, its threads with it), or
-     * its last thread dies (a fault mm refused). Not its first thread's
+     * a fault ends it: one mm passes on (0027) ends the task, since glibc
+     * names no exception handler yet (Phase 7's signal thread); one mm
+     * can't serve (no page) ends the thread, and its last thread's end is
+     * the program's. Not its first thread's
      * end: that one may pthread_exit while others go on. Watched by the
      * kernel's count of live threads, above base's while one of the
      * program's is; its first thread's registers read for a TIMEOUT
@@ -1048,8 +1051,9 @@ void _start(uint64_t pool_first, uint64_t pool_n, uint64_t mod_first, uint64_t n
     } else {
         j_puts("glibcroot: no exit status\n");
     }
-    /* Its threads gone without exit: the task is still there (mm holds a
-     * capability to it), so it is destroyed here, as exit would have. */
+    /* Its threads gone without exit: the task may still be there (mm holds
+     * a capability to it), so it is destroyed here, as exit would have (a
+     * task a passed fault ended is gone already: E_GONE, ignored). */
     (void)j_task_destroy(k.task);
     (void)j_cap_delete(k.thread);
     (void)j_cap_delete(k.sc);

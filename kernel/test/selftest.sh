@@ -308,7 +308,7 @@ run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 # Phase 4 step 6, decision 0023 (servers/mm, user/mmroot): the memory
 # manager started passive, tasks handed to it, anonymous memory mapped on
 # demand, protected and unmapped through it, faults it refuses ending the
-# thread, and every task forgotten and its pages back once it is destroyed;
+# task (Phase 6: passed on, below), and every task forgotten and its pages back once it is destroyed;
 # part D2: a fork through mm's CLONE (each side sees only its own writes,
 # the child destroyed and forgotten), SHARE only with the target's consent
 # and kept across a clone, refused clones undone, a child still pending
@@ -317,11 +317,21 @@ run chk-kvm-smp2-revokeroot 1 "revoke: all ok" "root task exited with code 0"
 # fork, freed, its pages counted by mm throughout. Phase 5 step 4 (0028):
 # a fork bomb and two memory hogs, each its own tree, stopped at their
 # trees' limits beside a fourth tree that faults and forks, never refused.
+# Phase 6 step 3 (0027): mm is each task's pager; the faults it refuses
+# (read-only write, outside, guard page) it passes on, and with no
+# exception handler the task ends; with one (a thread of the root's) the
+# handler gets each with its code, address, access and pc, rewrites the
+# thread's registers and resumes it ("passed"); and a handler that keeps a
+# passed fault for ever doesn't stop mm serving a fork's demand-zero and
+# copy-on-write faults and a basic client ("hung handler"). On 1, 2 and 4
+# CPUs, emulated and on the real CPU, and on the checking kernel.
 run mmroot 1 "mm: started, passive ok" "mm: basic ok" "mm: read-only write ok" "mm: outside ok" "mm: guard page ok" \
+    "mm: passed ok" "mm: hung handler ok" \
     "mm: fork ok" "mm: share ok" "mm: clones undone ok" "mm: orphans ok" "mm: quota ok" "mm: region ok" \
     "mm: trees ok" "mm: all ok" "root task exited with code 0"
-run kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
-run chk-kvm-smp2-mmroot 1 "mm: all ok" "root task exited with code 0"
+for t in smp2-mmroot smp4-mmroot kvm-smp1-mmroot kvm-smp2-mmroot kvm-smp4-mmroot chk-kvm-smp2-mmroot; do
+    run $t 1 "mm: passed ok" "mm: hung handler ok" "mm: all ok" "root task exited with code 0"
+done
 # Phase 4's exit (docs/phase4-plan.md, *Testing*): cowstress, fork trees
 # 4-6 deep through mm, two writers a task on the same pages, tasks killed
 # mid-fault and mid-fork, every page verified after every step, the

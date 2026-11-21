@@ -182,7 +182,18 @@ tla-mutate:
 # protect), with the page tables; a region's kill is operation 9's.
 # Operations 27-29 are decision 0032's window and copies (thread_window,
 # reply_read, reply_write), with the page tables and two threads.
-CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21 22 23 24 25 26 27 28 29
+# Operations 30 and 34 are decision 0027's task_set_pager and
+# thread_abort, with two threads and no IPC buffers. 31-33 (a fault, and
+# reply and reply_saved with any verdict, PASS among them) are written in
+# the harness but left out: none fitted joist-dev2's 11 GB (2026-11-20/21;
+# every run "Killed" while CBMC built the formula): with 3 threads, with
+# 2, with one space, with the threads fixed (JOIST_CBMC_FIXED), split by
+# route (31/r1-r3), with one thread, and with the root's space fixed so
+# no task can be destroyed. They are left to the unit and property tests
+# and the mutations, as 3, 6 and 19 are; a larger machine may run them.
+# On the laptop (23 GB, capped at 20) 31 ran out of memory in 209 s and 32
+# passed 16 GB in half an hour: a known limit (the owner, 2026-11-21).
+CBMC_OPS  ?= 0 1 2 4 5 7 8 9 10 11 12 13 14 15 16 17 18 20 21 22 23 24 25 26 27 28 29 30 34
 CBMC_JOBS ?= 1
 cbmc:
 	@mkdir -p $(BUILD)/cbmc
@@ -195,7 +206,7 @@ cbmc:
 	@# A split's line and log are named as cbmc/run.sh names them (9/t is
 	@# op9-tables); before 2026-11-02 a split could never count as verified.
 	@n=0; for arg in $(CBMC_OPS); do \
-	    op=$$(printf '%s' "$$arg" | sed 's#/s$$#-senders#; s#/n$$#-nosenders#; s#/t$$#-tables#; s#:\(.*\)$$#-type\1#'); \
+	    op=$$(printf '%s' "$$arg" | sed 's#/s$$#-senders#; s#/n$$#-nosenders#; s#/t$$#-tables#; s#/r\([123]\)$$#-route\1#; s#:\(.*\)$$#-type\1#'); \
 	    grep -q "^op$$op: .*VERIFICATION SUCCESSFUL" $(BUILD)/cbmc/summary.txt && n=$$((n + 1)) || \
 	        echo "cbmc: op$$op not verified ($(BUILD)/cbmc/op$$op.log)"; \
 	done; \

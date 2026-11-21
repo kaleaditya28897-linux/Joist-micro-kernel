@@ -42,6 +42,25 @@ static uint64_t val(uint64_t i, uint64_t w)
     return (i + 1u) << 32 | (w * 7u + 1u);
 }
 
+/* mmc_load(va): a load from va, at mmc_load_at; mmc_store(va, x): RAX 0,
+ * then a store of x to va, at mmc_store_at; each returns RAX. Each access
+ * is 3 bytes (MMC_PASS_INSN), so a handler can resume the thread past it
+ * (MMC_PASSED). */
+__asm__(".pushsection .text\n"
+        ".globl mmc_load\n"
+        "mmc_load:\n"
+        "mmc_load_at: movq (%rdi), %rax\n"
+        "ret\n"
+        ".globl mmc_store\n"
+        "mmc_store:\n"
+        "xorl %eax, %eax\n"
+        "mmc_store_at: movq %rsi, (%rdi)\n"
+        "ret\n"
+        ".popsection\n");
+uint64_t mmc_load(uint64_t va);
+uint64_t mmc_store(uint64_t va, uint64_t x);
+extern const char mmc_load_at[], mmc_store_at[];
+
 static uint64_t basic(void)
 {
     uint64_t va = MMC_VA / J_PAGE;
@@ -509,6 +528,38 @@ static uint64_t guard(struct work *w)
     w->aux = 1;
     w->arg = page(0)[0]; /* the guard: mm ends the thread */
     return 7;
+}
+
+/* MMC_PASSED (0027): accesses mm passes on, each to the task's exception
+ * handler (the root's), which resumes the thread past the access with
+ * RAX = MMC_PASS_RAX(n); between them, faults mm serves as ever. */
+static uint64_t passed(struct work *w)
+{
+    uint64_t va = MMC_VA / J_PAGE;
+    if (req(MM_REQ_MAP_ANON, va, 2, 0) != MM_OK || req(MM_REQ_MAP_ANON, va + 4u, 1, MM_NONE) != MM_OK ||
+        req(MM_REQ_MAP_ANON, va + 8u, 1, MM_W) != MM_OK) {
+        return 1;
+    }
+    MMC_W(w, MMC_P_LOAD_AT) = (uint64_t)(uintptr_t)mmc_load_at;
+    MMC_W(w, MMC_P_STORE_AT) = (uint64_t)(uintptr_t)mmc_store_at;
+    pause_for_root(w, 1); /* the root names its handler */
+    if (mmc_load(MMC_VA + 16u * J_PAGE) != MMC_PASS_RAX(1)) {
+        return 2; /* outside every region: SEGV_MAPERR */
+    }
+    if (mmc_load(MMC_VA) != 0) {
+        return 3; /* a read where it may: mm's, demand-zero */
+    }
+    if (mmc_store(MMC_VA, 7) != MMC_PASS_RAX(2) || page(0)[0] != 0) {
+        return 4; /* a write where it may only read: SEGV_ACCERR */
+    }
+    if (mmc_load(MMC_VA + 4u * J_PAGE) != MMC_PASS_RAX(3)) {
+        return 5; /* a guard: SEGV_ACCERR */
+    }
+    if (mmc_store(MMC_VA + 8u * J_PAGE, 9) != 0 || page(8)[0] != 9) {
+        return 6; /* a write where it may: mm's, demand-zero */
+    }
+    MMC_W(w, MMC_P_N) = 3;
+    return 0;
 }
 
 /* MMC_QUOTA: a running child spends its quota and then forks (MMC_C_QUOTA);
@@ -1105,7 +1156,7 @@ static uint64_t hog(struct work *w)
     }
     for (uint64_t i = 0; i < HOG_PAGES; i++) {
         w->aux = i;
-        page(i)[0] = i + 1u; /* mm ends the thread here at its tree's limit */
+        page(i)[0] = i + 1u; /* at its tree's limit mm passes SIGBUS here */
     }
     return 2;
 }
@@ -1199,6 +1250,9 @@ void _start(void)
         break;
     case MMC_STEADY:
         w->arg = steady(w);
+        break;
+    case MMC_PASSED:
+        w->arg = passed(w);
         break;
     case MMC_CHILD:
         child(w);

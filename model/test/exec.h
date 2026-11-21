@@ -71,6 +71,7 @@ enum {
     JX_TICK,
     JX_SC_FALLBACK, /* decision 0025 */
     JX_REGION,      /* decision 0030: create, add, map, unmap, protect */
+    JX_SET_PAGER,   /* decision 0027 */
     JX_OPS
 };
 
@@ -86,6 +87,10 @@ struct jx_stats {
     unsigned long chains;       /* steps that left a loan two or more deep */
     unsigned long faults_taken; /* faults delivered to a handler */
     unsigned long faults_fatal; /* faults with no handler: task or thread ended */
+    unsigned long faults_paged; /* faults delivered to a task's pager (0027) */
+    unsigned long passes;       /* pager replies of PASS that reached a handler (0027) */
+    unsigned long passes_fatal; /* ... that found none: task or thread ended */
+    unsigned long pass_refused; /* PASS from an exception handler: thread ended */
     unsigned long mapped;       /* steps that left a mapping standing */
     unsigned long frames_dying; /* steps that left a frame dying while mapped (0020) */
     unsigned long tables;       /* steps that left a space with page tables (0021) */

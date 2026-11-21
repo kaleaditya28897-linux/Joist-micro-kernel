@@ -84,19 +84,37 @@ sc-mcp-not-inherited @@ ../kernel/core/task.c @@ n->mcp = k->cs[cs].mcp; @@ n->m
 fault-no-pc @@ ../kernel/core/fault.c @@ m.r[3] = r->regs.pc; @@ (void)0;
 fault-no-access @@ ../kernel/core/fault.c @@ m.r[0] = kind | (kind == JOIST_FAULT_PAGE ? (access & 0xffu) << 8 : 0u); @@ m.r[0] = kind; (void)access;
 fault-nocap-ignored @@ ../kernel/core/ipc.c @@ if (k->th[f].faulting == 2u) { @@ if (0) {
-fault-nocap-every-kind @@ ../kernel/core/fault.c @@ int with_cap = kind != JOIST_FAULT_PAGE || (flags & JOIST_FAULT_NO_THREAD_CAP) == 0; @@ int with_cap = (flags & JOIST_FAULT_NO_THREAD_CAP) == 0;
+fault-nocap-every-kind @@ ../kernel/core/fault.c @@ int with_cap = kind != JOIST_FAULT_PAGE || (flags & JOIST_FAULT_NO_THREAD_CAP) == 0; @@ int with_cap = (flags & JOIST_FAULT_NO_THREAD_CAP) == 0; (void)kind;
 fault-flags-unchecked @@ ../kernel/core/fault.c @@            (flags & ~(unsigned)JOIST_FAULT_NO_THREAD_CAP) != 0; @@            (flags & 0u) != 0;
-fault-task-flags-ignored @@ ../kernel/core/fault.c @@ flags = k->cs[cs].fault_flags; @@ flags = 0;
+fault-task-flags-ignored @@ ../kernel/core/fault.c @@ *flags = k->cs[r->cs].fault_flags; @@ *flags = 0;
 fault-no-thread-cap @@ ../kernel/core/ipc.c @@ if (o == 0 || rr->nrecv == 0 || !joist__usable(k, rr->cs)) { @@ if (1) {
 fault-verdict-ignored @@ ../kernel/core/ipc.c @@ if (m->r[0] != JOIST_FAULT_RESUME) { @@ if (0) {
 fault-unresolved-runs @@ ../kernel/core/ipc.c @@         r->state = JOIST_T_SUSPENDED; @@         (void)0;
-fault-no-task-fallback @@ ../kernel/core/fault.c @@ handler_ep(k, cs, k->cs[cs].fault_slot, &obj, &badge)) { @@ 0) {
+fault-no-task-fallback @@ ../kernel/core/fault.c @@ if (handler_ep(k, r->cs, k->cs[r->cs].fault_slot, obj, badge)) { @@ if (0) {
 fault-dead-handler-used @@ ../kernel/core/fault.c @@ (c->rights & JOIST_R_SEND) == 0 || k->obj[c->obj - 1u].dead) { @@ (c->rights & JOIST_R_SEND) == 0) {
 fault-root-destroyed @@ ../kernel/core/fault.c @@ if (k->root == cs + 1u) { @@ if (0) {
 abort-ignores-reply-wait @@ ../kernel/core/fault.c @@ r->state == JOIST_T_BLOCKED_REPLY || r->state == JOIST_T_BLOCKED_WAIT; @@ r->state == JOIST_T_BLOCKED_WAIT;
 suspend-leaves-queued @@ ../kernel/core/fault.c @@     if (blocked(&k->th[t])) { @@     if (0) {
 resume-anything @@ ../kernel/core/fault.c @@ if (k->th[t].state != JOIST_T_SUSPENDED) { @@ if (0) {
 fault-flag-unset @@ ../kernel/core/ipc.c @@ k->th[t].faulting = with_cap ? 1u : 2u; @@ (void)t; (void)with_cap;
+# Fault routing, a pager and an exception handler (Phase 6 step 2; 0027).
+# 0027's four first, then the rest of the new paths.
+route-second-pass @@ ../kernel/core/ipc.c @@ if (k->th[c].fault_route == JOIST_ROUTE_PAGER && m->r[0] == JOIST_FAULT_PASS) { @@ if (k->th[c].fault_route != 0 && m->r[0] == JOIST_FAULT_PASS) {
+route-page-to-handler @@ ../kernel/core/fault.c @@ if (kind == JOIST_FAULT_PAGE && handler_ep(k, cs, k->cs[cs].pager_slot, &obj, &badge)) { @@ if (0 && handler_ep(k, cs, k->cs[cs].pager_slot, &obj, &badge)) {
+route-other-to-pager @@ ../kernel/core/fault.c @@ if (kind == JOIST_FAULT_PAGE && handler_ep(k, cs, k->cs[cs].pager_slot, &obj, &badge)) { @@ if (handler_ep(k, cs, k->cs[cs].pager_slot, &obj, &badge)) {
+route-code-dropped @@ ../kernel/core/ipc.c @@ joist__fault_pass(k, c, m->r[1]); @@ joist__fault_pass(k, c, 0);
+route-pager-flags-ignored @@ ../kernel/core/fault.c @@ return fault_send(k, t, obj, badge, k->cs[cs].pager_flags, JOIST_ROUTE_PAGER); @@ return fault_send(k, t, obj, badge, 0, JOIST_ROUTE_PAGER);
+route-pager-is-the-handler @@ ../kernel/core/fault.c @@ st->pager_slot = pager == JOIST_SLOT_NONE ? 0 : pager + 1u; @@ st->fault_slot = pager == JOIST_SLOT_NONE ? 0 : pager + 1u;
+route-pager-flags-unchecked @@ ../kernel/core/fault.c @@     if (bad_handler(pager, flags)) { @@     if (0) {
+route-pager-dead-used @@ ../kernel/core/fault.c @@ (c->rights & JOIST_R_SEND) == 0 || k->obj[c->obj - 1u].dead) { @@ (c->rights & JOIST_R_SEND) == 0 || (k->obj[c->obj - 1u].dead && slot1 != k->cs[cs].pager_slot)) {
+route-pass-without-handler-survives @@ ../kernel/core/fault.c @@     (void)no_handler(k, t); @@     (void)t;
+route-pass-not-marked @@ ../kernel/core/fault.c @@ | JOIST_FAULT_PASSED | @@ |
+route-pass-loses-access @@ ../kernel/core/fault.c @@ r->fault_msg[0] = (r->fault_msg[0] & 0xffffu) @@ r->fault_msg[0] = (r->fault_msg[0] & 0xffu)
+route-pass-stale-message @@ ../kernel/core/fault.c @@     r->fault_msg[0] = m.r[0]; /* kept for a pass (0027) */ @@     (void)0;
+route-pass-delivers-reply @@ ../kernel/core/ipc.c @@         k->th[c].badge = 0; @@         deliver(k, from, from_buf, c, m); k->th[c].badge = 0;
+route-pass-from-handler-resumes @@ ../kernel/core/ipc.c @@ if (m->r[0] != JOIST_FAULT_RESUME) { @@ if (m->r[0] != JOIST_FAULT_RESUME && m->r[0] != JOIST_FAULT_PASS) {
+route-not-cleared-on-wake @@ ../kernel/core/ipc.c @@         r->fault_route = 0; @@         (void)0;
+route-pass-no-wake @@ ../kernel/core/ipc.c @@         joist__wake(k, c, JOIST_OK); @@         (void)0;
 # Frames and mappings (Phase 3 step 3; 0013; I12).
 map-boot-overlap @@ ../kernel/core/map.c @@ if (o->type == JOIST_OBJ_FRAME && base < o->base + o->npages && o->base < base + npages) { @@ if (o->type == JOIST_OBJ_FRAME && 0) {
 # Preemptible destruction (Phase 3 step 3; 0016; TLA+'s rule).
@@ -272,7 +290,7 @@ mm-regions-overlap @@ ../servers/mm/mmlib.c @@ return MM_E_STATE; /* overlaps a 
 mm-split-without-room @@ ../servers/mm/mmlib.c @@ if (splits > free_n) { @@ if (splits > free_n && 0) {
 mm-protect-uncovered @@ ../servers/mm/mmlib.c @@ if (covered != n) { @@ if (covered != n && 0) {
 mm-protect-kernel-skipped @@ ../servers/mm/mmlib.c @@ if (m->k.protect(m->k.ctx, tk->slot, lo, j - i, pp) != 0) { @@ if (0) {
-mm-write-past-region @@ ../servers/mm/mmlib.c @@ if ((write && (r->perms & MM_W) == 0) || @@ if ((0) ||
+mm-write-past-region @@ ../servers/mm/mmlib.c @@ if ((write && (r->perms & MM_W) == 0) || @@ if ((0 && write) ||
 mm-clone-no-downgrade @@ ../servers/mm/mmlib.c @@ if (m->k.protect(m->k.ctx, pt->slot, lo, j - i, r->perms & ~MM_W) != 0) { @@ if (0) {
 mm-clone-child-writable @@ ../servers/mm/mmlib.c @@ unsigned perms = r->shared ? r->perms : r->perms & ~MM_W; @@ unsigned perms = r->perms;
 mm-clone-no-reference @@ ../servers/mm/mmlib.c @@         m->pg[e->page].refs++; @@         (void)0;
@@ -294,7 +312,7 @@ mm-run-clone-no-flush @@ ../servers/mm/mmlib.c @@     return run_flush(m, &run);
 mm-run-share-no-flush @@ ../servers/mm/mmlib.c @@ return run_flush(m, &run); /* o's last run */ @@ return MM_OK;
 mm-unmap-frees-in-order @@ ../servers/mm/mmlib.c @@     for (uint32_t i = last; i-- > first;) { @@     for (uint32_t i = first; i < last; i++) {
 # Decision 0024: MM_NONE (no access; guard pages).
-mm-none-faults-served @@ ../servers/mm/mmlib.c @@         return 0; /* a guard: no access */ @@         ; /* mutated */
+mm-none-faults-served @@ ../servers/mm/mmlib.c @@         return MM_REFUSE_ACCERR; /* a guard: no access */ @@         ; /* mutated */
 mm-none-with-w @@ ../servers/mm/mmlib.c @@ ((perms & MM_NONE) != 0 && perms != MM_NONE); @@ 0;
 mm-none-protect-frees @@ ../servers/mm/mmlib.c @@         return kernel_unmap(m, tk, va, n, NULL); @@         return unmap_pages(m, tk, va, n);
 mm-none-protect-keeps-mapped @@ ../servers/mm/mmlib.c @@         return kernel_unmap(m, tk, va, n, NULL); @@         ; /* mutated */
@@ -408,3 +426,7 @@ winmem grow any size   @@ ../glibc/sysdeps/joist/joist-winmem.c @@   if (pages =
 winmem grow tail lost  @@ ../glibc/sysdeps/joist/joist-winmem.c @@ t->r[t->n - 1u].pages += pages; @@ t->r[t->n - 1u].pages += 0;
 winmem not doubling    @@ ../glibc/sysdeps/joist/joist-winmem.c @@   return k == 0 ? JW_FIRST : JW_FIRST << (k - 1u); @@   return JW_FIRST << k;
 winmem check touching  @@ ../glibc/sysdeps/joist/joist-winmem.c @@ r->page <= end_of (&t->r[i - 1u])) @@ r->page < end_of (&t->r[i - 1u]))
+# mm's codes for what it passes on (Phase 6 step 3; 0027).
+mm-refuse-maperr-as-accerr @@ ../servers/mm/mmlib.c @@         return MM_REFUSE_MAPERR; /* outside every region */ @@         return MM_REFUSE_ACCERR;
+mm-refuse-guard-not-refused @@ ../servers/mm/mmlib.c @@         return MM_REFUSE_ACCERR; /* a guard: no access */ @@         return 0;
+mm-refuse-perms-not-refused @@ ../servers/mm/mmlib.c @@         return MM_REFUSE_ACCERR; /* not allowed by the region */ @@         return 0;

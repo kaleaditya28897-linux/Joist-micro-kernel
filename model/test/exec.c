@@ -66,7 +66,8 @@ const char *const jx_op_name[JX_OPS] = {[JX_SPACE_CREATE] = "space_create",
                                         [JX_COPY_BATCH] = "copy_batch",
                                         [JX_TICK] = "tick",
                                         [JX_SC_FALLBACK] = "sc_bind_fallback",
-                                        [JX_REGION] = "region"};
+                                        [JX_REGION] = "region",
+                                        [JX_SET_PAGER] = "task_set_pager"};
 
 /* Relative frequency of each operation, out of their sum. */
 static const uint8_t weight[JX_OPS] = {
@@ -84,7 +85,7 @@ static const uint8_t weight[JX_OPS] = {
     [JX_MAP_QUERY] = 3,
     [JX_CONTINUE] = 4,     [JX_GIVE] = 4,
     [JX_OBJ_KILL] = 2,     [JX_COPY_BATCH] = 4,    [JX_TICK] = 6,        [JX_SC_FALLBACK] = 3,
-    [JX_REGION] = 6};
+    [JX_REGION] = 6,       [JX_SET_PAGER] = 3};
 
 static uint64_t boot_budget;
 
@@ -93,6 +94,8 @@ int jx_op_cascades(unsigned op)
     return op == JX_SPACE_DESTROY || op == JX_DELETE || op == JX_TASK_DESTROY || op == JX_KILL ||
            op == JX_TH_DESTROY || op == JX_REAP ||
            op == JX_FAULT || /* a fault with no handler destroys its task (0009) */
+           op == JX_REPLY || op == JX_REPLY_RECV ||
+           op == JX_SAVED || /* a pass with no exception handler does too (0027) */
            op == JX_CONTINUE ||
            op == JX_OBJ_KILL; /* a killed frame's sweep (0020) */
 }
@@ -601,6 +604,12 @@ void jx_begin(struct joist_kernel *k, struct jx_source *src)
      * usually reaches a thread that receives there. (The root has no task
      * capability for joist_task_set_fault: set directly, as setup.) */
     k->cs[root].fault_slot = 1;
+    /* And, half the time, its pager (0027) too: the same endpoint, so a
+     * root's page fault goes there first and may be passed back to it. */
+    if (ch(src, 2) == 0) {
+        k->cs[root].pager_slot = 1;
+        k->cs[root].pager_flags = (uint8_t)(ch(src, 2) * JOIST_FAULT_NO_THREAD_CAP);
+    }
     /* Memory, as the kernel hands it to the root at boot (0013): two frames
      * to map, one in the simulated memory to lend for page tables (0021),
      * and the root's capability to itself, to map into its own space. */
@@ -623,7 +632,11 @@ struct last {
     uint64_t word;    /* SIGNAL: the notification's pending word before */
     uint32_t caller;  /* REPLY: the caller the reply capability named, plus one */
     int faulting;     /* REPLY: that caller was blocked in a fault call */
+    uint8_t route;    /* REPLY: ... and which (0027: JOIST_ROUTE_*) */
     uint64_t r0;      /* REPLY: the reply's first register (for a fault: the verdict) */
+    uint64_t r1;      /* REPLY: its second (for a pass: the code) */
+    int paged;        /* FAULT: the thread's task had a usable pager (0027) */
+    uint64_t kind;    /* FAULT: the kind raised */
 };
 
 /* Before a reply to `caller` (plus one): note whether it is a fault call,
@@ -634,10 +647,39 @@ static void reply_prep(const struct joist_kernel *k, struct jx_source *src, stru
 {
     ls->faulting = ls->caller != 0 && ls->caller <= JOIST_MAX_THREADS &&
                    k->th[ls->caller - 1u].faulting;
-    if (ls->faulting && ch(src, 2) == 0) {
-        m->r[0] = JOIST_FAULT_RESUME;
+    ls->route = ls->faulting ? k->th[ls->caller - 1u].fault_route : 0;
+    /* A fault's verdict: resume half the time, PASS (0027) a quarter, with
+     * a code of any width (only its low 32 bits go on), whoever answers;
+     * a pager passes half the time, and resumes a quarter. */
+    if (ls->faulting) {
+        uint32_t v = ch(src, 4);
+        if (ls->route == JOIST_ROUTE_PAGER && v != 0) {
+            v = v == 3u ? 3u : 2u;
+        }
+        if (v < 2u) {
+            m->r[0] = JOIST_FAULT_RESUME;
+        } else if (v == 2u) {
+            m->r[0] = JOIST_FAULT_PASS;
+            m->r[1] = ch(src, 2) == 0 ? 1u + ch(src, 3) : (uint64_t)ch(src, 0xffffu) << 24;
+        }
     }
     ls->r0 = m->r[0];
+    ls->r1 = m->r[1];
+}
+
+/* The pager a fault in thread t would reach (0027), as fault.c finds it: a
+ * page fault goes to the task's pager slot if it names an endpoint
+ * capability with SEND whose endpoint is alive. */
+static int has_pager(const struct joist_kernel *k, uint32_t t)
+{
+    if (t >= JOIST_MAX_THREADS || k->th[t].state != JOIST_T_RUNNING) {
+        return 0;
+    }
+    uint32_t cs = k->th[t].cs;
+    uint32_t slot1 = k->cs[cs].pager_slot;
+    const struct joist_cap *c = slot1 == 0 ? NULL : joist__slot_c(k, cs, slot1 - 1u);
+    return c != NULL && c->obj != 0 && c->type == JOIST_OBJ_ENDPOINT &&
+           (c->rights & JOIST_R_SEND) != 0 && !k->obj[c->obj - 1u].dead;
 }
 
 static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned op,
@@ -748,6 +790,11 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_REPLY_RECV: {
         uint32_t t = pick_thread(k, src, ch(src, 2) != 0);
         uint32_t ep = pick_slot(k, src, thread_space(k, t), JOIST_OBJ_ENDPOINT);
+        /* A fault's verdict too (0027's PASS), unchecked here: the
+         * invariants and the route check below watch it. */
+        struct last rr = {0};
+        rr.caller = t < JOIST_MAX_THREADS ? k->th[t].reply_to : 0;
+        reply_prep(k, src, &rr, &m);
         pick_caps(k, src, &m, thread_space(k, t));
         return joist_reply_recv(k, t, &m, ep, pick_timeout(src));
     }
@@ -1073,8 +1120,22 @@ static joist_err apply(struct joist_kernel *k, struct jx_source *src, unsigned o
     case JX_CONTINUE:
         /* Resume pending destruction: a few slots, or to the end. */
         return joist_continue(k, ch(src, 4) == 0 ? 0 : 1u + ch(src, 4));
-    case JX_FAULT:
-        return joist_fault(k, pick_thread(k, src, 0), 1u + ch(src, 5), step, ch(src, 16), ch(src, 16));
+    case JX_FAULT: {
+        /* A page fault half the time, so pagers (0027) see many. */
+        ls->t = pick_thread(k, src, 0);
+        ls->kind = ch(src, 2) == 0 ? JOIST_FAULT_PAGE : 1u + ch(src, 5);
+        ls->paged = has_pager(k, ls->t);
+        return joist_fault(k, ls->t, ls->kind, step, ch(src, 16), ch(src, 16));
+    }
+    case JX_SET_PAGER: {
+        /* As JX_SET_FAULT: a slot that usually holds an endpoint, flags
+         * usually valid; task level only (a thread capability now and then,
+         * to be refused). */
+        joist_slot ps = ch(src, 8) == 0 ? JOIST_SLOT_NONE : pick_slot(k, src, cs, JOIST_OBJ_ENDPOINT);
+        unsigned flags = ch(src, 16) == 0 ? ch(src, 4) : ch(src, 2) * JOIST_FAULT_NO_THREAD_CAP;
+        joist_slot ts = pick_slot(k, src, cs, ch(src, 8) == 0 ? JOIST_OBJ_THREAD : JOIST_OBJ_TASK);
+        return joist_task_set_pager(k, cs, ts, ps, flags);
+    }
     case JX_GROW:
     case JX_SHRINK: {
         /* A real leaf index (1 .. root - 1) 3 times in 4; else any, 0 and
@@ -1109,9 +1170,11 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
 
     /* Remember each thread's state, to see how each wake-up ended. */
     uint8_t before[JOIST_MAX_THREADS];
+    uint8_t route_before[JOIST_MAX_THREADS];
     static struct joist_msg msg_before[JOIST_MAX_THREADS];
     for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
         before[t] = k->th[t].state;
+        route_before[t] = k->th[t].fault_route;
         msg_before[t] = k->th[t].msg;
     }
     struct last ls = {0};
@@ -1168,7 +1231,48 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     if (op == JX_FAULT) {
         st->faults_taken += (unsigned long)(e == JOIST_BLOCKED);
         st->faults_fatal += (unsigned long)(e == JOIST_E_PEER);
+        st->faults_paged += (unsigned long)(e == JOIST_BLOCKED && ls.paged);
+        /* 0027: a page fault goes to a usable pager, and nothing else ever
+         * does; everything else to the exception handler. */
+        uint8_t want = ls.kind == JOIST_FAULT_PAGE && ls.paged ? JOIST_ROUTE_PAGER
+                                                               : JOIST_ROUTE_HANDLER;
+        if (e == JOIST_BLOCKED && k->th[ls.t].fault_route != want) {
+            (void)snprintf(why, whylen, "0027: a fault of kind %llu (pager %s) went on route %u, not %u",
+                           (unsigned long long)ls.kind, ls.paged ? "usable" : "none",
+                           k->th[ls.t].fault_route, want);
+            return 0;
+        }
     }
+    /* 0027: a passed fault never returns to the pager. (A thread faults
+     * again only after it runs, a step of its own.) */
+    for (uint32_t t = 0; t < JOIST_MAX_THREADS; t++) {
+        if (route_before[t] == JOIST_ROUTE_PASSED && k->th[t].fault_route == JOIST_ROUTE_PAGER) {
+            (void)snprintf(why, whylen, "0027: thread %u's passed fault went back to the pager", t);
+            return 0;
+        }
+    }
+    /* 0027: a PASS from the pager reaches the exception handler with its
+     * code, or ends the task (the root's thread) when there is none. */
+    int passed = ls.faulting && ls.route == JOIST_ROUTE_PAGER && ls.r0 == JOIST_FAULT_PASS;
+    if ((op == JX_SAVED || op == JX_REPLY) && e == JOIST_OK && passed) {
+        const struct joist_thread_rec *c = &k->th[ls.caller - 1u];
+        if (c->state == JOIST_T_FREE) {
+            st->passes_fatal++;
+        } else if (c->fault_route != JOIST_ROUTE_PASSED ||
+                   JOIST_FAULT_CODE(c->fault_msg[0]) != (ls.r1 & 0xffffffffu) ||
+                   JOIST_FAULT_KIND(c->fault_msg[0]) != JOIST_FAULT_PAGE) {
+            (void)snprintf(why, whylen,
+                           "0027: pager's pass of thread %u: route %u, code 0x%llx (sent 0x%llx)",
+                           ls.caller - 1u, c->fault_route,
+                           (unsigned long long)JOIST_FAULT_CODE(c->fault_msg[0]),
+                           (unsigned long long)ls.r1);
+            return 0;
+        } else {
+            st->passes++;
+        }
+    }
+    st->pass_refused += (unsigned long)((op == JX_SAVED || op == JX_REPLY) && e == JOIST_OK &&
+                                        ls.faulting && !passed && ls.r0 == JOIST_FAULT_PASS);
     for (uint32_t i = 0; i < JOIST_MAX_OBJECTS; i++) {
         if (k->obj[i].type == JOIST_OBJ_FRAME && k->obj[i].mapcount != 0) {
             st->mapped++;
@@ -1205,14 +1309,14 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
     /* I6, directly: a reply consumes the reply capability and reaches the
      * caller, with this step's message. */
     /* A fault's caller is resumed (r[0] == JOIST_FAULT_RESUME) or gone (0009). */
-    int terminated = ls.faulting && ls.r0 != JOIST_FAULT_RESUME;
+    int terminated = ls.faulting && ls.r0 != JOIST_FAULT_RESUME && !passed;
     if ((op == JX_SAVED || op == JX_REPLY) && e == JOIST_OK && terminated &&
         (ls.caller == 0 || k->th[ls.caller - 1u].state != JOIST_T_FREE)) {
         (void)snprintf(why, whylen, "0009: a fault's caller %u survived a terminate verdict",
                        ls.caller);
         return 0;
     }
-    if (op == JX_SAVED && e == JOIST_OK && !terminated &&
+    if (op == JX_SAVED && e == JOIST_OK && !terminated && !passed &&
         (ls.caller == 0 || k->th[ls.caller - 1u].state != JOIST_T_RUNNING ||
          k->th[ls.caller - 1u].result != JOIST_OK || k->th[ls.caller - 1u].faulting ||
          k->th[ls.caller - 1u].msg.r[0] != ls.r0)) {
@@ -1220,7 +1324,7 @@ int jx_step(struct joist_kernel *k, struct jx_source *src, struct jx_stats *st, 
                        ls.caller);
         return 0;
     }
-    if (op == JX_REPLY && e == JOIST_OK && !terminated &&
+    if (op == JX_REPLY && e == JOIST_OK && !terminated && !passed &&
         (k->th[ls.t].reply_to != 0 || ls.caller == 0 ||
          k->th[ls.caller - 1u].state != JOIST_T_RUNNING ||
          k->th[ls.caller - 1u].result != JOIST_OK || k->th[ls.caller - 1u].faulting ||
